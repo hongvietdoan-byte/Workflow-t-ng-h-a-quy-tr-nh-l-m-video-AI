@@ -5,6 +5,7 @@ submit and where results are stored. Risk-control rejections are logged and neve
 automatically (that would only burn credits); transient errors are retried through the state
 machine up to the project's max_retry_count.
 """
+from core import kho_profile
 import json
 import math
 import os
@@ -256,6 +257,7 @@ class _Runner:
         return log
 
     # ---- hooks -----------------------------------------------------------
+    @kho_profile.capture_inputs
     def _submit_args(self, job) -> Optional[Tuple]:
         raise NotImplementedError
 
@@ -666,15 +668,20 @@ class _Runner:
         gen (_pregen: the same package BEFORE the send, task_id None). Never raises (sent_package.safe_build)."""
         from . import sent_package
         kind = self.job_type.split("_")[0]
+        kho_inputs = kho_profile.package_inputs(self,job) if kho_profile.enabled() else []
+        kho_extra = {'kho_profiles': kho_inputs} if kho_inputs else None
         if kwargs.get("_from_sample"):
             extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
+            if kho_extra:
+                extra.update(kho_extra)
             return sent_package.safe_build(
                 self.provider.submit_final_from_sample, (kwargs["_from_sample"],), {"resolution": kwargs.get("resolution")},
                 kind=kind, provider=self.provider, external_id=task_id, model=extra.pop("draft_model", None),
                 call="submit_final_from_sample", extra=extra)
         return sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
-                                       external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+                                       external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]), extra=kho_extra)
 
+    @kho_profile.capture_inputs
     def _prepare_kwargs(self, job):
         return self._submit_kwargs(job)
 
@@ -1138,6 +1145,7 @@ class VideoRunner(_Runner):
         _PREGEN_SAID.add(key)
         super()._diag(job, "warn", code, message)
 
+    @kho_profile.capture_inputs
     def _prepare_kwargs(self, job):
         from . import video_pregen
         self._pregen_local = video_pregen.enabled()
@@ -1319,7 +1327,7 @@ class VideoRunner(_Runner):
         # picture's everyday outfit (shot 28 in the yellow jacket); never paid for without it
         from . import character_forms
         sent = {seedance_refs.base_name(n).strip().upper() for n, _ in ids if n.endswith(seedance_refs.FORM_TAG)}
-        for who, f in character_forms.for_rows(self.p.conn, job["project_id"], rows).items():
+        for who, f in kho_profile.forms_for_rows(self.p.conn, job["project_id"], rows).items():
             if who not in sent:
                 problems.append(f"{who} ở dạng {f.get('label')} nhưng gói video thiếu ảnh dạng (Kho #{f.get('asset_id')}: chưa có ảnh vai "
                                 f"dạng đã duyệt, hoặc hết chỗ ảnh) — model sẽ vẽ theo trang phục thường; thêm ảnh dạng / bớt ảnh rồi gửi")
@@ -2192,6 +2200,7 @@ class VideoRunner(_Runner):
         mp = self._motion(row["id"])
         return round(float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or row["data"].get("duration_s") or 0), 2)
 
+    @kho_profile.capture_inputs
     def _submit_args(self, job):
         conn = self.p.conn
         mp = conn.execute("SELECT motion_prompt, negative_prompt, duration_sec, ref_video_path, ref_video_type"
@@ -2249,7 +2258,7 @@ class VideoRunner(_Runner):
                 block = dialogue_take.group_block(segs, [n for n, _ in ids if seedance_refs.is_person(n)])
             # F5-A: real sizes of the library objects (the well), short form, once — dropped first when the prompt would pass the limit
             from . import character_forms           # G2 17/10 (#31): a person in a form the clip's shots name — not the outfit
-            forms = character_forms.for_rows(conn, job["project_id"], rows)   # rà 17/10: per shot ("in Shot 2 …"), not the whole clip
+            forms = kho_profile.forms_for_rows(conn, job["project_id"], rows)   # rà 17/10: per shot ("in Shot 2 …"), not the whole clip
             motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places, forms=forms,
                                                        scales=_object_scales(conn, job["project_id"], rows),
                                                        reserve=(len(block) + 1 if block else 0) + (len(side) + 1 if side else 0)
@@ -3167,7 +3176,7 @@ def lock_note(conn, project_id: int, cast, data: Optional[Dict] = None) -> str:
         if short:                                   # V4 4.4: the ≤ 500-character form of the approved profile (feature profile_digest)
             parts.append(f"{r['name']}: {short}")
             continue
-        rules = assets.standard_for(conn, project_id, r["name"])        # T1: the approved library profile wins
+        rules = kho_profile.for_character(conn, project_id, r["name"])        # T1: the approved library profile wins
         if rules is None:
             try:
                 rules = json.loads(r["lock_rules"]) if r["lock_rules"] else None
@@ -3193,12 +3202,12 @@ def lock_note(conn, project_id: int, cast, data: Optional[Dict] = None) -> str:
     # G2 17/10 (#31): a person in a FORM the shot names (Kho style "Dạng của nhân vật") — face/hair/build stay locked, the clothes and
     # their colours leave the lock (the yellow track jacket beat Kelly's ghost form); one source: core/character_forms
     from . import character_forms
-    forms = character_forms.for_shot(conn, project_id, data) if data else {}
+    forms = kho_profile.forms_for_shot(conn, project_id, data) if data else {}
     for i, part in enumerate(parts):
         name, _, body = part.partition(": ")
         f = forms.get(name.strip().upper())
         if f:
-            body = character_forms.without_clothes(body)
+            body = body if f.get('ma') else character_forms.without_clothes(body)
             parts[i] = (f"{name}: {body}; " if body else f"{name}: ") + character_forms.lock_en(name, f)
     said = {p.partition(": ")[0].strip().upper() for p in parts}
     parts += [f"{n}: " + character_forms.lock_en(str(n), forms[str(n).strip().upper()]) for n in (cast or [])
@@ -3240,7 +3249,7 @@ def view_notes(conn, project_id: int, data: Dict) -> str:
     if any(v is True for v in views.values()):       # over X's shoulder: the others face the camera
         views = {n: (False if v is None else v) for n, v in views.items()}
     for name in cast:
-        rules = assets.standard_for(conn, project_id, str(name)) or {}
+        rules = kho_profile.for_character(conn, project_id, str(name)) or {}
         notes = rules.get("view_notes") if isinstance(rules.get("view_notes"), dict) else {}
         if not notes:
             continue
@@ -3688,6 +3697,7 @@ class ImageRunner(_Runner):
         return {"input_hash": lineage.current_image_hash(self.p.conn, job["project_id"], job["scene_id"]),
                 "sent_refs": json.dumps(sent, ensure_ascii=False) if sent is not None else None}
 
+    @kho_profile.capture_inputs
     def _submit_args(self, job):
         conn = self.p.conn
         scene = conn.execute("SELECT idx, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()

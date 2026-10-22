@@ -330,6 +330,9 @@ def declare_from_profile(profile: Optional[Dict], mo_ta: str = "") -> Tuple[List
     Ưu tiên ô `khai_bao_chu` (nguon 'khai_bao_chu'); món trong must_keep (hoặc mô tả Kho khi chưa có must_keep) chưa có ô → vẫn suy
     (nguon 'suy') để kiểm, kèm VÀNG "nhắc điền một lần" (A20). Món khai sai dạng → ĐỎ và bỏ (món suy cùng tên thay chỗ)."""
     profile = profile or {}
+    from . import kho_profile
+    if kho_profile.enabled() and profile.get('schema_version') == 2:
+        return kho_profile.declaration(profile)
     decl, issues, covered = [], [], set()
     kbc = profile.get(KBC_KEY)
     if kbc is not None:

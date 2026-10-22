@@ -170,7 +170,8 @@
       "insert_inherit": false,
       "stage_props_byd": false,
       "ref_end_frames": false,
-      "lean_package": false
+      "lean_package": false,
+      "kho_forms_v2": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -350,7 +351,8 @@
       "insert_inherit": false,
       "stage_props_byd": false,
       "ref_end_frames": false,
-      "lean_package": false
+      "lean_package": false,
+      "kho_forms_v2": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"

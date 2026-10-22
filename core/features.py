@@ -12,6 +12,8 @@ import os
 from typing import Dict, List, Optional
 
 FEATURES: Dict[str, Dict] = {
+    'kho_forms_v2': {'label': 'Đọc Kho forms/outfit/hair/face v2', 'costs': False,
+                     'verified': False, 'why': 'M2.3: chỉ thử ngoại tuyến; không migration'},
     'subject_capacity_guard': {'label': 'Kho đầy / chưa rõ sức chứa → giữ job chờ, không đổi model',
                                'verified': False, 'why': 'Đ20 M1.5: chỉ thử offline; chưa có allocator đa tiến trình'},
     "motion_sfx": {"label": "SFX theo nhịp BYĐ (code 0 USD)", "verified": False,

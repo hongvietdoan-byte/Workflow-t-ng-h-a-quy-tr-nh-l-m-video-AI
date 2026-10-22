@@ -8,6 +8,7 @@
 giới tính + tuổi (hoặc 'adult' / 'young, not yet 20' — luật tuổi: không ghi số dưới 18) + danh hiệu/vai trò + một nét tính cách hoặc tiểu sử.
 Ngoại hình (must_keep…) giữ nguyên trừ khi lượt xem ảnh (library_vision_check) báo mâu thuẫn: khi đó sửa theo đúng mâu thuẫn đó.
 Hồ sơ đã duyệt không bị đụng tới."""
+from core import kho_profile
 import argparse
 import json
 import os
@@ -75,7 +76,7 @@ def main() -> None:
     only = {s.strip().lower() for s in a.only.split(",") if s.strip()}
     todo = []
     for c in assets.list_assets(conn, a.game, "character"):
-        prof = assets.get_profile(conn, c["id"])
+        prof = kho_profile.read(conn, c["id"])
         if prof and not prof.get("approved") and (not only or c["name"].lower() in only) and official_text(c):
             todo.append((c, prof))
     print(f"{len(todo)} hồ sơ nháp có thông tin chính thức · ước tính ≈ ${EST_USD * len(todo):.2f} Claude (chỉ chữ)")
@@ -111,7 +112,7 @@ def main() -> None:
             left.append(c["name"])
             continue
         good = complete(obj.get("identity", ""))
-        assets.set_profile(conn, c["id"], obj, approved=bool(a.approve and good), reason="soạn lại theo thông tin chính thức + đối chiếu ảnh (02/10)")
+        assets.set_profile(conn, c["id"], obj, approved=bool(a.approve and good), reason="soạn lại theo thông tin chính thức + đối chiếu ảnh (02/10)", actor={"kind":"ai", "who":"profile_finalize", "model":getattr(client,"model", "unknown"), "from_text":"profile_finalize"}, expected_revision=prof.get("revision",0))
         ok += good
         if not good:
             left.append(c["name"])

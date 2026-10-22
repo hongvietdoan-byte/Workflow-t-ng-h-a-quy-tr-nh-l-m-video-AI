@@ -1,4 +1,5 @@
 """Settings / monitoring panels: knowledge base, asset library, users, pricing, monitor, lessons, history."""
+from core import kho_profile
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 import contextlib
@@ -402,12 +403,43 @@ def library_health(p: Pipeline, game: str) -> None:
                      hide_index=True, use_container_width=True)
 
 
+def _save_profile_from_identity(p, asset_id, data, approved, profile):
+    """Gắn đúng người sửa vào hồ sơ v2; giữ writer cũ cho v1."""
+    kwargs={}
+    if profile.get('schema_version') == 2:
+        email=C.me().get('email')
+        if not isinstance(email,str) or not email.strip():
+            st.error('Hồ sơ v2 cần người dùng đã đăng nhập; đăng nhập lại trước khi lưu.')
+            return False
+        user=p.conn.execute('SELECT active FROM users WHERE email=?',(email,)).fetchone()
+        if user is None or not user['active']:
+            st.error('Danh tính không còn hoạt động; đăng nhập lại trước khi lưu hồ sơ v2.')
+            return False
+        kwargs={'actor':{'kind':'human','who':email},'expected_revision':profile.get('revision',0)}
+    try:
+        saved=assets.set_profile(p.conn,asset_id,data,approved=approved,**kwargs)
+    except (assets.AssetError,kho_profile.ProfileError) as exc:
+        st.error(str(exc))
+        return False
+    if approved and isinstance(saved,dict) and saved.get('schema_version')==2 and not saved.get('approved'):
+        # Không im lặng lưu "chưa duyệt" khi người dùng đã tích Duyệt (rà 23/10); UI duyệt từng đề xuất làm ở M2.3b.
+        pend=kho_profile.pending_review(saved)
+        msg=(f"Đã lưu nhưng CHƯA duyệt được: còn {len(pend)} mục chờ duyệt ({', '.join(pend[:6])}"
+             f"{'…' if len(pend)>6 else ''}) — mục do AI soạn cần người xác nhận trước.")
+        st.session_state[f'prof_msg_{asset_id}']=msg
+        st.warning(msg)
+    return True
+
+
 def profile_form(p: Pipeline, a: dict) -> None:
     """T1: the character's standard profile, approved once here and inherited by every project (the Director may not rewrite it)."""
-    prof = assets.get_profile(p.conn, a["id"])
+    prof = kho_profile.read(p.conn, a["id"])
     label = "📋 Hồ sơ chuẩn" + (" · ✔ đã duyệt" if prof.get("approved") else " · chưa có" if not prof else " · nháp")
     if not st.checkbox(label, key=f"prof_open_{a['id']}"):
         return
+    note = st.session_state.pop(f"prof_msg_{a['id']}", None)        # cảnh báo "còn N mục chờ duyệt" sống qua st.rerun
+    if isinstance(note, str):
+        st.warning(note)
     locks = p.conn.execute("SELECT pr.name AS project, c.lock_rules, c.description FROM characters c JOIN projects pr ON pr.id=c.project_id"
                            " WHERE c.lock_rules IS NOT NULL AND (c.ref_asset_id=? OR lower(c.name)=lower(?)) ORDER BY c.id DESC LIMIT 5",
                            (a["id"], a["name"])).fetchall()
@@ -415,8 +447,8 @@ def profile_form(p: Pipeline, a: dict) -> None:
         pick = st.selectbox("Lấy nháp từ Lock của dự án", range(len(locks)), format_func=lambda i: locks[i]["project"], key=f"prof_src_{a['id']}")
         if st.button("↧ Dùng làm nháp", key=f"prof_seed_{a['id']}"):
             seed = json.loads(locks[pick]["lock_rules"] or "{}")
-            assets.set_profile(p.conn, a["id"], dict(seed, identity=(locks[pick]["description"] or "")[:300]), approved=False)
-            st.rerun()
+            if _save_profile_from_identity(p,a['id'],dict(seed,identity=(locks[pick]['description'] or '')[:300]),False,prof):
+                st.rerun()
     identity = st.text_area("Nhận diện (mô tả ngắn, tiếng Anh cho model)", prof.get("identity", ""), key=f"prof_id_{a['id']}", height=60)
     keep = st.text_area("Luôn giữ (mặt, tóc, màu trang phục, phụ kiện)", prof.get("must_keep", ""), key=f"prof_keep_{a['id']}", height=60)
     may = st.text_input("Được đổi (tư thế, biểu cảm…)", prof.get("may_change", ""), key=f"prof_may_{a['id']}")
@@ -427,9 +459,9 @@ def profile_form(p: Pipeline, a: dict) -> None:
     build = c2.text_input("Vóc dáng", prof.get("build", ""), key=f"prof_build_{a['id']}")
     ok = st.checkbox("✔ Duyệt — mọi dự án dùng hồ sơ này (thắng Lock của từng dự án)", bool(prof.get("approved")), key=f"prof_ok_{a['id']}")
     if st.button("💾 Lưu hồ sơ chuẩn", key=f"prof_save_{a['id']}"):
-        assets.set_profile(p.conn, a["id"], {"identity": identity, "must_keep": keep, "may_change": may, "forbidden": forbid,
-                                             "height_m": height, "build": build}, approved=ok)
-        st.rerun()
+        if _save_profile_from_identity(p,a['id'],{'identity':identity,'must_keep':keep,'may_change':may,'forbidden':forbid,
+                                                'height_m':height,'build':build},ok,prof):
+            st.rerun()
 
 
 @st.fragment

@@ -53,10 +53,10 @@ def plan(conn, pid: int) -> Dict:
         byd = data.get("byd")
         if isinstance(byd, dict) and "shot" not in byd and isinstance(data.get("shot_no"), int) and data["shot_no"] > 0:
             trial = dict(data, byd=dict(byd, shot=data["shot_no"]))   # bản sao: chưa ghi gì
-            if not director_byd.problems(trial, conn)[0]:
+            if not director_byd.problems(trial, conn, project_id=pid)[0]:
                 number_only.append(dict(row, note=f"BYĐ thiếu `shot` — tự điền số {data['shot_no']} (0 USD, không gọi Claude)"))
                 continue
-        if data.get("byd") is not None and not director_byd.problems(data, conn)[0]:
+        if data.get("byd") is not None and not director_byd.problems(data, conn, project_id=pid)[0]:
             keep.append(row)
         else:
             fill.append(row)

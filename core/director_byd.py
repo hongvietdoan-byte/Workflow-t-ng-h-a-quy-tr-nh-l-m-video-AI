@@ -48,12 +48,12 @@ def _shots(obj: Dict, only_scene: Optional[int] = None) -> List[Tuple[int, int, 
     return out
 
 
-def problems(shot: Dict, conn=None) -> Tuple[List[Dict], List[Dict]]:
+def problems(shot: Dict, conn=None, *, project_id=None) -> Tuple[List[Dict], List[Dict]]:
     """(lỗi ĐỎ phải sửa, mục VÀNG không kiểm được) của BYĐ một shot. Không có BYĐ = một lỗi ĐỎ 'thiếu' (Đạo diễn được hỏi lại)."""
     byd = shot.get("byd")
     if byd is None:
         return [{"muc": "do", "truong": "byd", "loi": "Đạo diễn không trả BYĐ cho shot này"}], []
-    found = shot_intent.validate(byd, conn)
+    found = shot_intent.validate(byd, conn, project_id=project_id)
     return [i for i in found if i["muc"] == "do"], [i for i in found if i["muc"] != "do"]
 
 
@@ -121,7 +121,7 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
     from .llm_runner import tagged
     rows = _shots(obj, only_scene)
     numbered = sum(_own_number(s, k) for _, k, s in rows)
-    bad = [(sc, k, s, problems(s, conn)[0]) for sc, k, s in rows]
+    bad = [(sc, k, s, problems(s, conn, project_id=project_id)[0]) for sc, k, s in rows]
     bad = [b for b in bad if b[3]]
     rounds, tin, tout, call_errors = 0, 0, 0, []
     while bad and rounds < MAX_ROUNDS:
@@ -143,11 +143,11 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
             if fixed.get((sc, no)) is not None:
                 s["byd"] = fixed[(sc, no)]
                 numbered += _own_number(s, k)
-        bad = [(sc, k, s, problems(s, conn)[0]) for sc, k, s, _ in bad]
+        bad = [(sc, k, s, problems(s, conn, project_id=project_id)[0]) for sc, k, s, _ in bad]
         bad = [b for b in bad if b[3]]
     vang = []
     for sc, k, s in rows:
-        red, yellow = problems(s, conn)
+        red, yellow = problems(s, conn, project_id=project_id)
         if red:
             why = ("Đạo diễn không trả BYĐ" if s.get("byd") is None else f"BYĐ còn {len(red)} lỗi") + (
                 f" sau {rounds} vòng sửa" if rounds else "")
@@ -157,7 +157,7 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
             s["byd_kiem"] = {"muc": "vang" if yellow else "ok", "ly_do": "; ".join(e["loi"] for e in yellow), "loi": yellow,
                              "vong": rounds}
         if shot_intent.levels_enabled() and isinstance(s.get("byd"), dict):   # V3.1 M2.1 (cờ byd_v2_levels): mức BLOCK/REVIEW/WARN — chỉ ghi
-            found = shot_intent.assess(s["byd"], conn)
+            found = shot_intent.assess(s["byd"], conn, project_id=project_id)
             s["byd_kiem"]["byd_v"] = shot_intent.version(s["byd"])
             s["byd_kiem"]["muc_v2"] = {lv: sum(1 for i in found if i["level"] == lv) for lv in shot_intent.LEVELS}
     summary = {"shots": len(rows), "vang_do": len(vang), "vong": rounds, "input_tokens": tin, "output_tokens": tout,

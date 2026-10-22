@@ -263,7 +263,7 @@ def _short(v, n=700) -> str:
 
 def build_prompt(conn, ev, keys: List[str], scene_ids: List[int], code_found: List[Dict]) -> str:
     import os
-    from . import features
+    from . import features, kho_profile
     frames = features.on("change_review_frames")
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(root, "prompts", "30_change_review_frames.md" if frames else PROMPT_FILE), encoding="utf-8") as f:
@@ -319,8 +319,13 @@ def build_prompt(conn, ev, keys: List[str], scene_ids: List[int], code_found: Li
     for nm in sorted(names):
         r = conn.execute("SELECT id, profile, description FROM assets WHERE upper(name)=upper(?)", (nm,)).fetchone()
         if r:
-            p = _loads(r[1])
-            L.append(f"- Kho #{r[0]} {nm}: must_keep = {_short(p.get('must_keep') or r[2] or '(trống)', 400)}")
+            p = kho_profile.read(conn,r[0]) if kho_profile.enabled() else _loads(r[1])
+            if kho_profile.enabled() and p.get('schema_version') == 2:
+                p['must_keep'] = kho_profile.lock_text_en(p)
+                lock = p['must_keep'] or '(trống: hồ sơ v2 chưa có khóa đã duyệt)'
+            else:
+                lock = p.get('must_keep') or r[2] or '(trống)'
+            L.append(f"- Kho #{r[0]} {nm}: must_keep = {_short(lock, 400)}")
     if code_found:
         L += ["", "## Luật code đã thấy (khỏi lặp lại)"] + [f"- shot {f.get('shot')}: [{f['muc']}] {f['khau']}: {f['msg']}" for f in code_found]
     return "\n".join(L)

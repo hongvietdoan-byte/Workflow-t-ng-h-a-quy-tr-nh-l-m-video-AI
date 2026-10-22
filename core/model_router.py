@@ -539,8 +539,8 @@ def needs_first_frame(conn, project_id: int, data: Dict, chosen=None) -> Optiona
     y_do, _, _ = shot_intent.read(data, "khung.moc_nen.y_do")
     if y_do == "trong_khung":
         return "BYĐ khai mốc nền phải trong khung (khung.moc_nen.y_do = trong_khung)"
-    from . import character_forms
-    forms = character_forms.for_shot(conn, project_id, data, chosen)
+    from . import kho_profile
+    forms = kho_profile.forms_for_shot(conn, project_id, data, chosen)
     if forms:
         who = sorted(forms)
         return "nhân vật ở dạng đặc biệt: " + ", ".join(f"{w} ({forms[w].get('label') or forms[w].get('form')})" for w in who)

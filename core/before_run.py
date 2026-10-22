@@ -345,7 +345,7 @@ def _match(pool: List[Dict], name: str) -> Optional[Dict]:
 
 
 def _input_items(conn, pid: int, scenes: List[Dict]) -> List[Dict]:
-    from . import assets, location_pack, speaker_lint
+    from . import assets, location_pack, speaker_lint, kho_profile
     rows = [dict(r) for r in conn.execute("SELECT a.id, a.kind, a.name, a.aliases, a.profile FROM assets a JOIN project_assets pa "
                                           "ON pa.asset_id=a.id WHERE pa.project_id=?", (pid,))]
     by_id = {r["id"]: r for r in rows}
@@ -386,7 +386,9 @@ def _input_items(conn, pid: int, scenes: List[Dict]) -> List[Dict]:
                              "Bước 1 · thẻ ② Director / sửa shot: chọn lại địa điểm"))
     for aid, idxs in used.items():                                    # must_keep chỉ cho nhân vật / pet (như core/change_audit)
         a = by_id[aid]
-        if not str(_loads(a["profile"]).get("must_keep") or "").strip():
+        profile = kho_profile.read(conn,aid) if kho_profile.enabled() else _loads(a['profile'])
+        lock = kho_profile.lock_text_en(profile) if profile.get('schema_version') == 2 and kho_profile.enabled() else profile.get('must_keep')
+        if not str(lock or "").strip():
             out.append(_item("vang", f"{a['name']} (Kho #{aid}) chưa có `must_keep` trong hồ sơ chuẩn — model dễ vẽ lệch ({shots(idxs)})",
                              WHERE_KHO + " → Character Lock / phải giữ"))
     for lid, idxs in places.items():
@@ -394,7 +396,7 @@ def _input_items(conn, pid: int, scenes: List[Dict]) -> List[Dict]:
         if a is not None and a["kind"] == "location" and not location_pack.model3d(conn, lid):
             out.append(_item("vang", f"Bối cảnh {a['name']} (Kho #{lid}) chỉ có ảnh, chưa có sân khấu 3D — nền vẽ theo ảnh, góc máy "
                                      f"không đo được ({shots(idxs)})", "📚 Kho → bối cảnh → gắn model 3D (location_pack)"))
-    if any(r["kind"] in assets.SIZED_KINDS and not _loads(r["profile"]).get("height_m") for r in rows):
+    if any(r["kind"] in assets.SIZED_KINDS and not (kho_profile.read(conn,r['id']) if kho_profile.enabled() else _loads(r["profile"])).get("height_m") for r in rows):
         from . import place_refs
         seen: Dict[str, List[int]] = {}
         for s in scenes:

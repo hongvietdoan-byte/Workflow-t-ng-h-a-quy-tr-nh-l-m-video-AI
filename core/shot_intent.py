@@ -142,11 +142,12 @@ def level_of(issue: Dict) -> str:
     return issue.get("level") or ("BLOCK" if issue.get("muc") == "do" else "WARN")
 
 
-def assess(byd, conn=None) -> List[Dict]:
-    """validate() + mức M2.1: mỗi mục có thêm `level` (BLOCK / REVIEW / WARN). v2: `thanh_phan[].dang` chưa kiểm theo forms Kho (M2.3)
-    → REVIEW. Chỉ để GHI (byd_kiem / diag) — không nơi nào chặn gen theo mức này khi cờ tắt."""
-    out = [dict(i, level=level_of(i)) for i in validate(byd, conn)]
-    if version(byd) == BYD_V:
+def assess(byd, conn=None, *, project_id=None) -> List[Dict]:
+    """validate() + mức BLOCK / REVIEW / WARN. Kho forms BẬT: kiểm dạng theo dự án;
+    TẮT: giữ REVIEW chưa kiểm của M2.1. Mức này chỉ để ghi, không tự chặn gen."""
+    out = [dict(i, level=level_of(i)) for i in validate(byd, conn, project_id=project_id)]
+    from . import kho_profile
+    if version(byd) == BYD_V and not kho_profile.enabled():
         for i, c in enumerate(byd.get("thanh_phan") or []):
             if isinstance(c, dict) and c.get("dang") not in (None, "", [], {}):
                 out.append({"muc": "vang", "truong": f"thanh_phan[{i}].dang", "level": "REVIEW",
@@ -366,7 +367,44 @@ def _kho_ids(byd: Dict) -> List[tuple]:
     return out
 
 
-def validate(byd: Dict, conn=None) -> List[Dict]:
+def _check_kho_dang(byd, conn, project_id, out):
+    """Chỉ kiểm enum có ngữ cảnh dự án; không sửa BYĐ hay suy dạng từ tên."""
+    from . import kho_profile
+    if not kho_profile.enabled():
+        return
+    items = byd.get("thanh_phan")
+    if not isinstance(items, list):
+        return  # Lỗi cấu trúc đã được validate báo.
+    def leaves(value, path):
+        if isinstance(value, str) and value.strip():
+            yield path, value
+        elif isinstance(value, list):
+            for j, item in enumerate(value):
+                if isinstance(item, str) and item.strip():
+                    yield f"{path}[{j}]", item
+        elif isinstance(value, dict):
+            for beat, item in value.items():
+                if beat in NHIP_HD and _dang_ok(item):
+                    yield from leaves(item, f"{path}.{beat}")
+    for i, item in enumerate(items):
+        if not isinstance(item, dict) or not item.get("vat"):
+            continue
+        declared = item.get("dang")
+        if declared not in (None, "", [], {}) and kho_profile.scalar_form(declared) is None:
+            out.append({"muc":"vang", "ma":"dang_chua_chon_duoc", "level":"REVIEW",
+                        "truong":f"thanh_phan[{i}].dang",
+                        "loi":"Đã khai nhiều dạng hoặc dạng theo nhịp; chưa có quy tắc chọn ảnh dạng, cần người duyệt"})
+        for path, dang in leaves(item.get("dang"), f"thanh_phan[{i}].dang"):
+            if conn is None or type(project_id) is not int or project_id <= 0:
+                issues = [{"muc": "vang", "ma": "dang_khong_kiem_duoc", "level": "REVIEW",
+                           "loi": "chưa kiểm dạng Kho (thiếu kết nối CSDL hoặc mã dự án)"}]
+            else:
+                issues = kho_profile.validate_dang(conn, project_id, item["vat"], dang, asset_id=item.get("kho_id"))
+            # "không kiểm được" / "ngoài forms Kho" là chỗ người phải xem: giữ REVIEW như M2.1, không hạ WARN.
+            out.extend(dict(issue, truong=path, level=issue.get("level", "REVIEW")) for issue in issues)
+
+
+def validate(byd: Dict, conn=None, *, project_id=None) -> List[Dict]:
     """Lỗi schema của một BYĐ (rỗng = hợp lệ). Có `conn` → mã Kho (`kho_id`) phải có thật trong bảng assets.
     Không có `conn` mà có mã Kho → một mục VÀNG (không im lặng: chưa kiểm được)."""
     out: List[Dict] = []
@@ -402,6 +440,7 @@ def validate(byd: Dict, conn=None) -> List[Dict]:
     _check_ngoai_le(byd.get("ngoai_le"), out)
     if v2:
         _check_v2(byd, names, out)
+    _check_kho_dang(byd, conn, project_id, out)
     ids = _kho_ids(byd)
     if ids and conn is None:
         out.append(_issue("vang", "kho_id", "chưa kiểm mã Kho (không có kết nối CSDL)"))

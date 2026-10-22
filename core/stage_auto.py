@@ -18,6 +18,7 @@ mà #27–#31 không shot nào có máy sân khấu. Module này nối cùng cá
 - Mọi lời gọi Claude qua sổ chi (llm_runner.tagged) + ước tính nói trước (cost.llm_estimate). Đoạn có shot đã vẽ ảnh → không đổi
   máy (ảnh đã trả tiền sẽ lệch nền) trừ khi `force` (CLI `py tools/stage_auto.py --project N --force --yes`).
 """
+from core import kho_profile
 import hashlib
 import json
 import os
@@ -335,7 +336,7 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
             if isinstance(n, str) and n not in names:
                 names.append(n)
     for n in names:
-        prof = assets.standard_for(conn, pid, n)
+        prof = kho_profile.for_character(conn, pid, n)
         k = key_of(n)
         while k in keys:
             k += "x"

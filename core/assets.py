@@ -650,6 +650,9 @@ def asset_folder(asset_id) -> Optional[str]:
 
 
 def _same_profile(a: Dict, b: Dict) -> bool:
+    if a.get('schema_version') == 2 or b.get('schema_version') == 2:
+        # Bảo thủ: cả provenance/quyền khóa phải giống; chưa tự hợp nhất các dạng khác nhau.
+        return a == b
     return all(str(a.get(k) or "").strip() == str(b.get(k) or "").strip() for k in PROFILE_KEYS) and bool(a.get("approved")) == bool(b.get("approved"))
 
 
@@ -675,7 +678,7 @@ def merge(conn, from_id: int, into_id: int) -> int:
     copy_profile = False
     if sp and not dp:
         copy_profile = True
-    elif sp and dp and not _same_profile(sp, dp) and not (dp.get("approved") and not sp.get("approved")):
+    elif sp and dp and not _same_profile(sp, dp) and (sp.get('schema_version') == 2 or dp.get('schema_version') == 2 or not (dp.get("approved") and not sp.get("approved"))):
         raise AssetError(f"Hai mục đều có hồ sơ chuẩn khác nhau (“{src['name']}”: {'đã duyệt' if sp.get('approved') else 'nháp'}, "
                          f"“{dst['name']}”: {'đã duyệt' if dp.get('approved') else 'nháp'}) — mở 📋 Hồ sơ chuẩn, giữ một bản rồi gộp "
                          "lại (chưa đổi gì).")
@@ -749,6 +752,7 @@ def _resolved(images: List[Dict]):
 
 
 def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
+    from . import kho_profile
     if images_by_asset is not None:
         images = images_by_asset.get(r["id"], [])
     else:
@@ -761,7 +765,7 @@ def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
             "created_by": r["created_by"], "images": [i for i in images if here[i["id"]]], "pending": pending,
             "missing": [i["path"] for i in images if not here[i["id"]]],   # approved pictures whose file is gone (said, luật 1)
-            "size": _size_of(r)}                                           # F5-A: real size of an object (height_m / width_m)
+            "size": _size_of(r), **({"profile": r["profile"]} if kho_profile.enabled() else {})}                                           # F5-A: real size of an object (height_m / width_m)
 
 
 # ---- F5-A (09/10): kích thước thật của vật Kho ---------------------------------------------------------------------------
@@ -801,6 +805,8 @@ def set_size(conn, asset_id: int, height_m: Optional[float], width_m: Optional[f
             prof[key] = round(v, 2)
         else:
             prof.pop(key, None)
+    if prof.get("schema_version") == 2:                  # hồ sơ v2: mọi lần ghi tăng revision để CAS/gói đã dựng thấy đổi
+        prof["revision"] = int(prof.get("revision") or 0) + 1
     conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False) if prof else None, asset_id))
     conn.commit()
     return _size_of({"kind": row["kind"], "profile": json.dumps(prof)}) if prof else None
@@ -1182,6 +1188,10 @@ def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None, n
       pins down a face well, so a second angle or a close-up is included when available.
     - location: the widest, biggest establishing shot (an environment, not a portrait).
     - everything else (weapon, prop): its first picture."""
+    from . import kho_profile
+    selected = kho_profile.selected_images(asset, scene, name)
+    if selected:
+        return selected[:max(limit, 1)]
     images = asset["images"]
     if not images:
         return []
@@ -1219,6 +1229,10 @@ def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None, n
 def view_picture(asset: Dict, role: str) -> Optional[Dict]:
     """The approved picture of one side (role back / side / full_body) of the character's own outfit, the biggest — for QC to compare a
     frame with the same side of the standard (01/10: 3D renders + in-game screenshots of every side)."""
+    from . import kho_profile
+    selected = kho_profile.selected_images(asset)
+    if selected:
+        return next((i for i in selected if i.get('role') == role), None)   # không có ảnh đúng mặt → None, không đưa mặt khác cho QC so
     pics = [i for i in asset.get("images") or [] if i.get("role") == role and not is_skin(i)]
     return max(pics, key=lambda i: (lambda s: s[0] * s[1] if s else 0)(_shape(i["path"])), default=None)
 
@@ -1234,6 +1248,10 @@ def standard_set(asset: Dict, sheets: bool) -> List[tuple]:
     """The character's standard 3 pictures (user choice 2026-09-24): [(picture, ref role)] = the grey-background front picture
     ('character'), the multi-angle design sheet ('sheet' — only for a model that takes sheets without copying them), the related
     picture ('related', e.g. the skill). Empty when the asset has no approved front_standard picture (the automatic pick is used)."""
+    from . import kho_profile
+    selected = kho_profile.selected_images(asset)
+    if selected:
+        return [(i, 'character') for i in selected]
     by_role = {}
     for img in asset.get("images") or []:
         if img.get("status", "approved") in USABLE and img.get("role") in STANDARD_ROLES:
@@ -1399,11 +1417,17 @@ def get_profile(conn, asset_id: int) -> Dict:
         return {}
 
 
-def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optional[str] = None) -> Dict:
+def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optional[str] = None, *, actor=None, expected_revision=None) -> Dict:
     """Save the standard profile (identity words, Character Lock, real height, build). Only an approved profile is inherited.
     The change log (`history`) is kept; `reason` adds a dated entry (kế hoạch V4 4.4: every change of an approved profile says why).
     The short forms (`digest`, core/profile_digest.py) are made again from the new text the next time they are asked for."""
     old = get_profile(conn, asset_id)
+    from . import kho_profile
+    # Cờ chỉ chọn đường đọc; hồ sơ đã lên v2 luôn cần guard để tránh mất dữ liệu khi OFF.
+    if old.get('schema_version') == 2:
+        if actor is None or expected_revision is None:
+            raise AssetError('Hồ sơ v2 cần actor và expected_revision; tải lại trước khi lưu')
+        return kho_profile.save(conn, asset_id, data, actor, expected_revision, approved=approved, reason=reason)
     # K0b phần 2 (A20): ô `khai_bao_chu` (khóa nhận diện bằng chữ, core/identity_declare) sống trong cùng JSON hồ sơ — không phải cột
     # mới. Lưu hồ sơ không gửi ô này → GIỮ ô cũ (không mất dữ liệu); gửi ô sai dạng → báo lỗi, không ghi gì.
     kbc = old.get("khai_bao_chu")
@@ -1620,7 +1644,8 @@ def _forms_here(conn, project_id: int, scene: Dict) -> Dict[str, Dict]:
     """G2 17/10: the character forms this shot names (core/character_forms) — asked only for a named style with no clean atmosphere
     picture (project_assets is cached per database state)."""
     from . import character_forms
-    return character_forms.for_shot(conn, project_id, scene)
+    from . import kho_profile
+    return kho_profile.forms_for_shot(conn, project_id, scene)
 
 
 def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
@@ -1700,7 +1725,8 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     people, seen, caps = [], set(), []             # (label, [(path, role)...]) per person: face first, then outfit, then 2nd angle
     hand = _reference_rows(conn, project_id) if sheets else {}
     from . import character_forms                  # G2 17/10 (#31): a person in a FORM the shot names (Kho style "Dạng của nhân vật")
-    forms = character_forms.for_shot(conn, project_id, scene, chosen) if names else {}
+    from . import kho_profile
+    forms = kho_profile.forms_for_shot(conn, project_id, scene, chosen) if names else {}
     formed: Dict[str, Dict] = {}                   # label -> form: the person's pictures keep face/hair/build only (reference_note)
     for name in names:
         a = linked.get(name)

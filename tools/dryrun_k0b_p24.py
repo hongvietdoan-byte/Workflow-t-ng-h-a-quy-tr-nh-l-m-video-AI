@@ -218,7 +218,8 @@ def _kho_decl(conn, aid):
     row = conn.execute("SELECT profile, description FROM assets WHERE id=?", (aid,)).fetchone() if aid else None
     if row is None:
         return None
-    prof = json.loads(row[0]) if row[0] else {}
+    from core import kho_profile
+    prof = kho_profile.read(conn,aid) if kho_profile.enabled() else json.loads(row[0]) if row[0] else {}
     mk = prof.get("must_keep")
     mk = ", ".join(map(str, mk)) if isinstance(mk, list) else mk
     src = "must_keep" if mk else "mo_ta_kho"

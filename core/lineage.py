@@ -139,6 +139,10 @@ def forms_key(conn, project_id: int, data: Dict) -> Optional[str]:
 def image_key(conn, project_id: int, data: Dict) -> Optional[str]:
     """The `place` part of _image_hash: place_key, plus forms_key only when there is one (unchanged otherwise)."""
     place, forms = place_key(conn, project_id, data), forms_key(conn, project_id, data)
+    from . import kho_profile
+    kho = kho_profile.lineage_inputs(conn,project_id,data)
+    if kho:
+        return _hash({'place':place, 'forms':forms, 'kho_profiles':kho})
     return _hash({"place": place, "forms": forms}) if forms else place
 
 

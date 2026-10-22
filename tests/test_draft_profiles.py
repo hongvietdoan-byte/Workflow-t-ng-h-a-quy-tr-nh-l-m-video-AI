@@ -85,6 +85,30 @@ class DraftProfileTests(unittest.TestCase):
         self.assertEqual(prof["height_m"], 1.7)
         self.assertNotRegex(prof["identity"], r"1[0-7][- ]year")
 
+    def test_a_refused_save_does_not_stop_the_batch(self):
+        """CX21-M23 rà 23/10: một mục bị writer v2 từ chối (khóa/CAS/hồ sơ hỏng) → báo rõ mục đó, các mục sau vẫn soạn."""
+        from core import kho_profile
+
+        class Client:
+            def complete(self, prompt, images=()):
+                from core.llm_runner import LlmReply
+                return LlmReply(json.dumps({"identity": "young, not yet 20", "must_keep": "bob", "forbidden": "x"}), 10, 10)
+
+        entries = [assets.get(self.conn, self.kelly), assets.get(self.conn, self.kenta)]
+        real = assets.set_profile
+
+        def refuse_first(conn, aid, *a, **kw):
+            if aid == self.kelly:
+                raise kho_profile.ProfileError("revision đã đổi; tải lại")
+            return real(conn, aid, *a, **kw)
+
+        with mock.patch.object(assets, "set_profile", side_effect=refuse_first):
+            out = draft_profiles.draft(self.conn, entries, Client())
+        self.assertEqual([r["entry"] for r in out], ["KELLY", "KENTA"])
+        self.assertIn("revision đã đổi", out[0]["error"])
+        self.assertNotIn("error", out[1])
+        self.assertEqual(assets.get_profile(self.conn, self.kenta)["identity"], "young, not yet 20")
+
 
 if __name__ == "__main__":
     unittest.main()
