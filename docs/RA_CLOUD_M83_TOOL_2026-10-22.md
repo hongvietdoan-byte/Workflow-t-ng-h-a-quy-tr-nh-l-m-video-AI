@@ -138,3 +138,4 @@ Lệnh: `py tools/load_test_ui.py --levels 1,2,5,10 --shots 30` (dữ liệu gi�
 - Các test nhanh gồm: dữ liệu giả 3×20, sao CSDL `mode=ro` (đường dẫn có `#%?`), làm trơ, môi trường chỉ có provider giả và bỏ khóa theo mẫu, đầu dò (đo chờ khóa thật ~0,3 s, không làm gì khi thiếu biến, ẩn biến khỏi tiến trình con, nối sitecustomize gốc đúng một lần, giữ chữ ký hàm), `settle` (rerunRequested, fragment, tải lại trang, không rerun), cổng (bận / 8501 / psutil), tổng hợp (ngưỡng chậm, lỗi = chậm, CPU / SQLite, đã hiện sẵn), `find_chrome` so số bản.
 - `tests/test_ui_snapshot.py` xanh, vì tham số mới `rich_others` mặc định None giữ hành vi cũ.
 - Đã đăng ký `tools/load_test_ui.py` và test vào khu vực `diag` (`devsys/areas.json`).
+- Full suite (cloud 3.13, `-m "not slow" -n auto`): **7111 passed**. 25 đỏ đều là golden cần native Python 3.14 (nền).
