@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T11:01:03.820955+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-3D-GOC-B",
+  "to": "phien-chinh",
+  "title": "Khâu 3D sửa GỐC (B): R1 world_map điền positions trong core/layout_facts + thiết kế R5 — máy chính làm (người dùng 22/10), sau golden + C-FIX6",
+  "spec": "docs/CLOUD_TASKS.md#### LIÊN KẾT C-3D-GOC-A / C-3D-GOC-B / C-QC-BOCUC",
+  "priority": 3
+}

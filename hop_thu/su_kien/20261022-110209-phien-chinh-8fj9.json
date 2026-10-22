@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-22T11:02:09.379851+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M48-DESK-UI",
+  "to": "phien-chinh",
+  "title": "Bàn đạo diễn 3D Đợt 1 — giao diện (máy chính làm, người dùng 22/10), sau golden + C-FIX6",
+  "spec": "docs/CLOUD_TASKS.md#### C-M48-DESK-UI",
+  "depends": [
+    "C-FIX6"
+  ],
+  "priority": 2
+}
