@@ -405,7 +405,7 @@ def test_rel_relative_map_uses_relations():
 def test_rel_missing_entity_is_said_not_guessed():
     m, _, c = _p31(34)
     got = pi.check_text_sides(m, 34, {"blocking": f"{YEU} stands to the right of Joseph"}, c)
-    assert got == []                                                           # Joseph không là tên trên map → không có quan hệ để kiểm
+    assert [(f["level"], f["numbers"]["other"]) for f in got] == [("khong_ro", "Joseph")]   # Joseph không có trên map → nói ra
     got = pi.check_text_sides(m, 34, {"blocking": "stands to the right of Kelly"}, c)
     assert [f["level"] for f in got] == ["khong_ro"]                           # có Kelly, thiếu chủ thể → nói ra, không đoán
 
@@ -419,3 +419,37 @@ def test_side_claims_relative_and_frame_words():
     assert claims("A đứng bên phải khung", ["A"]) == {"A": {"right"}}
     assert claims("A đứng phía phải của khung", ["A"]) == {"A": {"right"}}
     assert claims("A đứng bên phải của người lạ", ["A"]) == {}                   # tương đối với người không có trên map → không gán A
+
+
+# ---- rà quy ước 7 (d9d22d6c): không im lặng với "of centre / camera", "của màn hình", valid_from chuỗi, máy thiếu ------------------
+@pytest.mark.parametrize("text", ["A stands slightly right of center", "A stands right of centre", "A stands right of camera",
+                                  "A stands at the right of the composition", "A đứng bên phải của màn hình",
+                                  "A đứng bên phải của khuôn hình", "A đứng bên phải B"])
+def test_rel_review_frame_nouns_stay_frame_side(text):
+    """X là tâm / máy / bố cục / màn hình → bên KHUNG (không bỏ qua im lặng). "bên phải B" mà B không có trên map → bên khung của A."""
+    assert world_map._side_claims(text, ["A"]) == {"A": {"right"}}
+    m = map3d([ent("A", [-3, 10], "nguoi")])
+    got = pi.check_text_sides(m, 1, {"blocking": text}, cam([0, 0], [0, 10]))
+    assert [(f["level"], f["numbers"]["entity"], f["numbers"]["kind"]) for f in got] == [("vang", "A", "tuyet_doi")]
+
+
+def test_rel_review_name_on_map_not_placed_is_still_relative():
+    """B có trên map nhưng sau lưng máy (không trong placed) → "A đứng bên phải B" vẫn là tương đối, không thành bên khung của A."""
+    m = map3d([ent("A", [-3, 10], "nguoi"), ent("B", [0, -5], "nguoi")])
+    got = pi.check_text_sides(m, 1, {"blocking": "A đứng bên phải B"}, cam([0, 0], [0, 10]))
+    assert [(f["level"], f["numbers"]["kind"]) for f in got] == [("khong_ro", "tuong_doi")]
+    assert "sau lưng máy" in got[0]["msg"]
+
+
+def test_rel_review_str_valid_from_does_not_crash():
+    m, _, c = _p31(18)
+    m["relations"] = [dict(r, valid_from="18", valid_to=None) for r in m["relations"]]
+    got = pi.check_text_sides(m, 18, {"blocking": "Kelly crouches to the right of Sứ giả bóng đêm"}, c)
+    assert [f["level"] for f in got] == ["khong_ro"]                           # chuỗi ≠ shot → không có quan hệ, nói ra (không TypeError)
+    assert world_map.relations_at(m, 18) == []
+
+
+def test_rel_review_missing_camera_is_said_once_with_the_right_reason():
+    m, _, _ = _p31(34)
+    got = pi.check_text_sides(m, 34, {"blocking": f"{YEU} stands to the right of Kelly; Kelly is to the left of {YEU}"}, None)
+    assert len(got) == 1 and got[0]["level"] == "khong_ro" and "máy shot chưa có" in got[0]["msg"]

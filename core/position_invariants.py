@@ -147,56 +147,36 @@ def check_text_sides(m: Dict, shot, texts: Dict[str, str], camera: Optional[Dict
 _POSS_END = re.compile(r"(['’]s)\s*$")
 
 
-def _rel_names(m: Dict, shot) -> List[str]:
-    names = [str(e.get("label") or e["entity_id"]) for e in world_map.entities_at(m, shot)]
-    for r in m.get("relations") or []:
-        names += [str(r.get("a") or ""), str(r.get("b") or "")]
-    return sorted({n for n in names if n}, key=len, reverse=True)
-
-
-def relative_claims(clause: str, names: Sequence[str]) -> List[Tuple[Optional[str], str, str]]:
-    """[(A | None, "left"/"right", B)]: vế chữ đặt A ở bên trái/phải CỦA B. Bộ phận cơ thể ("Kelly's right shoulder") / đại từ ("her left")
-    / bên khung → không phải quan hệ tương đối. A không tìm được → None (người gọi báo KHÔNG RÕ, không đoán)."""
-    spots, taken = [], []
-    for n in names:                                       # tên dài trước, không chồng lấn ("Kelly" trong "Kelly Ghost")
-        for mt in re.finditer(re.escape(n), clause, re.I):
-            if not any(mt.start() < e and s < mt.end() for s, e in taken):
-                taken.append((mt.start(), mt.end()))
-                spots.append((mt.start(), mt.end(), n))
-    spots.sort()
+def relative_claims(clause: str, names: Sequence[str]) -> List[Tuple[Optional[str], str, Optional[str], str]]:
+    """[(A | None, "left"/"right", B | None, chữ B)]: vế chữ đặt A ở bên trái/phải CỦA B. B None = chữ sau "of / của" không phải tên trên
+    map cũng không phải khung (người gọi báo KHÔNG RÕ). Bộ phận cơ thể ("Kelly's right shoulder") / đại từ ("her left") / bên khung
+    ("right of frame / centre / camera", "bên phải của màn hình") → không phải quan hệ tương đối. A không tìm được → None."""
+    spots = world_map.name_spots(clause, names)
     out = []
     for tok in world_map._SIDE_TOKEN.finditer(clause):
-        word = (tok.group(1) or tok.group(2) or "").lower()
-        if not word:
+        if not (tok.group(1) or tok.group(2)):
             continue
-        side = "left" if word in ("left", "trái") else "right"
+        side = "left" if (tok.group(1) or tok.group(2)).lower() in ("left", "trái") else "right"
         before, after = clause[:tok.start()], clause[tok.end():]
-        b = None
-        if tok.group(1):
-            if world_map._BODY_AFTER.match(after) or world_map._PART_AFTER.match(after):
-                continue
-            of = world_map._REL_OF_AFTER.match(after)
-            poss = _POSS_END.search(before)
-            if of:
-                b = next((x for x in spots if x[0] == tok.end() + of.end() + _skip_the(after[of.end():])), None)
-            elif poss:
-                b = next((x for x in spots if x[1] == poss.start()), None)
-        else:
-            lead = world_map._REL_VI_AFTER.match(after)
-            if lead:
-                b = next((x for x in spots if x[0] == tok.end() + lead.end()), None)
-        if b is None:
+        if tok.group(1) and (world_map._BODY_AFTER.match(after) or world_map._PART_AFTER.match(after)):
             continue
-        prev = [x for x in spots if x[1] <= b[0] and x[2] != b[2] and x[0] < tok.start()]
-        nxt = [x for x in spots if x[0] >= max(b[1], tok.end()) and x[2] != b[2]]
+        tgt = world_map.rel_target(tok, clause, spots)
+        b, raw = None, ""
+        if tgt and tgt[0] == "ten":
+            b = (tgt[1], tgt[2], tgt[3])
+        elif tgt:
+            raw = tgt[1]
+        elif tok.group(1):
+            poss = _POSS_END.search(before)
+            b = next((x for x in spots if x[1] == poss.start()), None) if poss else None
+        if b is None and not raw:
+            continue
+        lo = b[0] if b else tok.start()
+        prev = [x for x in spots if x[1] <= lo and (not b or x[2] != b[2])]
+        nxt = [x for x in spots if x[0] >= (b[1] if b else tok.end()) and (not b or x[2] != b[2])]
         a = prev[-1][2] if prev else (nxt[0][2] if nxt else None)
-        out.append((a, side, b[2]))
+        out.append((a, side, b[2] if b else None, b[2] if b else raw))
     return out
-
-
-def _skip_the(s: str) -> int:
-    mt = re.match(r"the\s+", s, re.I)
-    return mt.end() if mt else 0
 
 
 def _angle(m: Dict, e: Dict, camera: Optional[Dict]) -> Optional[float]:
@@ -208,12 +188,9 @@ def _angle(m: Dict, e: Dict, camera: Optional[Dict]) -> Optional[float]:
 
 
 def _rel_of_map(m: Dict, shot, a: str, b: str) -> Optional[str]:
-    """Map tương đối: "left"/"right" của a so với b theo quan hệ trai_cua có hiệu lực ở shot; không có → None."""
+    """Map tương đối: "left"/"right" của a so với b theo quan hệ trai_cua có hiệu lực ở shot (world_map.relations_at); không có → None."""
     pa, pb = _plain(a), _plain(b)
-    for r in m.get("relations") or []:
-        vf, vt = r.get("valid_from"), r.get("valid_to")
-        if vf is not None and not (vf <= shot <= (vt if vt is not None else vf)):
-            continue
+    for r in world_map.relations_at(m, shot):
         if r.get("rel") != "trai_cua":
             continue
         ra, rb = _plain(r.get("a")), _plain(r.get("b"))
@@ -227,13 +204,24 @@ def _rel_of_map(m: Dict, shot, a: str, b: str) -> Optional[str]:
 def _check_relative(m: Dict, shot, field: str, text: str, camera: Optional[Dict]) -> List[Dict]:
     if not m or m.get("invalidated") or m.get("kind") not in ("3d", "2d", "relative"):
         return []
-    names = _rel_names(m, shot)
+    names = world_map.rel_names(m, shot)
     out = []
+    no_cam = m["kind"] != "relative" and world_map._cam_rel(m, camera) is None
     for clause in (c.strip() for c in world_map._CLAUSE.split(text or "") if c and c.strip()):
-        for a, side, b in relative_claims(clause, names):
+        for a, side, b, raw in relative_claims(clause, names):
             vn = "phải" if side == "right" else "trái"
-            head = f"shot {shot} · {field}: chữ đặt {a or '?'} bên {vn} CỦA {b}"
+            head = f"shot {shot} · {field}: chữ đặt {a or '?'} bên {vn} CỦA {raw}"
             q = f" — «{clause[:80]}»"
+            if b is None:
+                out.append(_f("R1-SIDE", ERR_ROOT, head + f" nhưng «{raw}» không phải tên trên map (cũng không phải khung) — không kiểm được"
+                              + q, "Dùng đúng tên trên map, hoặc thêm thực thể vào map", level=KHONG_RO, field=field, entity=a or "",
+                              other=raw, kind="tuong_doi"))
+                continue
+            if no_cam:                                    # một lần cho cả trường: lỗi ở máy, không ở thực thể
+                out.append(_f("R1-SIDE", ERR_ROOT, f"shot {shot} · {field}: chữ có quan hệ trái/phải giữa hai thực thể nhưng máy shot chưa "
+                              "có (stage_camera thiếu / cờ stage_camera tắt) hoặc map thiếu gốc O — không kiểm được",
+                              "Dựng máy của shot (stage_camera) / bật cờ khi đã duyệt", level=KHONG_RO, field=field, kind="tuong_doi"))
+                return out
             if a is None:
                 out.append(_f("R1-SIDE", ERR_ROOT, head + " nhưng vế không nêu ai đứng đó — không kiểm được" + q,
                               "Nêu tên chủ thể trong cùng vế", level=KHONG_RO, field=field, entity=b, kind="tuong_doi"))
@@ -252,8 +240,10 @@ def _check_relative(m: Dict, shot, field: str, text: str, camera: Optional[Dict]
             ga = _angle(m, ea, camera) if ea else None
             gb = _angle(m, eb, camera) if eb else None
             if ga is None or gb is None:
-                out.append(_f("R1-SIDE", ERR_ROOT, head + " nhưng map / máy shot thiếu toạ độ trong khung của "
-                              + (a if ga is None else b) + " — không kiểm được" + q, "Thêm thực thể vào map hoặc máy của shot",
+                miss, e_miss = (a, ea) if ga is None else (b, eb)
+                p = _frame_of(m, e_miss, camera) if e_miss else None
+                why = "nằm sau lưng máy shot này" if p is not None else "thiếu toạ độ trên map"
+                out.append(_f("R1-SIDE", ERR_ROOT, head + f" nhưng {miss} {why} — không kiểm được" + q, "Thêm thực thể vào map hoặc máy của shot",
                               level=KHONG_RO, field=field, entity=a, other=b, kind="tuong_doi"))
                 continue
             delta = ga - gb                               # dương = A phải hơn B theo hướng máy

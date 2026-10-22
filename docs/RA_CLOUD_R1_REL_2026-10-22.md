@@ -28,3 +28,13 @@ kiểm tương đối, không báo.
 
 ## Tồn đọng
 - Cụm nhóm ("three enemies", "the enemies") chưa nối tới thực thể map → chữ bên khung của nhóm chưa được kiểm (đề xuất việc sau).
+
+## Sửa sau rà quy ước 7 (4 mục VỪA)
+1. "of X" chỉ là tương đối khi X là tên trên map (`world_map.rel_names`, một danh sách cho cả hai loại); X = center/centre/middle/camera/
+   composition/viewer/lens/frame… → bên khung (VÀNG nếu ngược); X lạ → KHÔNG RÕ «X không phải tên trên map» (hết im lặng).
+2. Tiếng Việt: "của màn hình / khuôn hình / ảnh / khung (hình)" = bên khung; "A đứng bên phải B" xét theo mọi tên trên map, không chỉ `placed`.
+3. `world_map.relations_at`: valid_from/valid_to không phải số → chỉ khớp khi bằng shot, không TypeError; position_sentence dùng chung.
+4. Máy thiếu / cờ stage_camera tắt → MỘT KHÔNG RÕ «máy shot chưa có», không đổ lỗi thiếu toạ độ thực thể; thực thể sau lưng máy nói đúng.
+Test: +11 ca (10 đỏ trên d9d22d6c → xanh); bộ liên quan 305 passed.
+Còn mở (THẤP): world_map.review (M3.3, chưa có chỗ gọi thật) chưa gọi kiểm tương đối; nhãn "bên KHUNG" kind=tuyet_doi vẫn dùng cho
+map tương đối (placed suy từ trai_cua); "looks/turns to the right of X" vẫn đọc như chỗ đứng.
