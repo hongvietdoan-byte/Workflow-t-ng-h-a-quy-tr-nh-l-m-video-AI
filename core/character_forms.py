@@ -80,16 +80,33 @@ def for_shot(conn, project_id: int, scene: Optional[Dict], chosen: Optional[List
     for a in forms:
         if not any(len(fold(n)) >= 3 and name_spans(n, words) for n in names_of(a)):
             continue
-        image = next((i for i in a.get("images") or [] if i.get("role") == ROLE and i.get("status") in (None, "approved")), None)
+        image = _form_image(a)
         for who in declared(a.get("description")):
             if who in cast and who in out and out[who]["asset_id"] != a["id"]:   # rà 17/10: never silent — the first style wins
                 import logging
                 logging.getLogger(__name__).warning("%s được khai dạng ở hai mục Kho style (%s, %s) trong cùng shot — dùng mục đầu",
                                                     who, out[who]["label"], a["name"])
             if who in cast and who not in out:
-                out[who] = {"form": english_name(a), "label": a["name"], "words": english_words(a), "asset_id": a["id"],
-                            "image": image}
+                out[who] = entry(a, image)
     return out
+
+
+def _form_image(a: Dict) -> Optional[Dict]:
+    return next((i for i in a.get("images") or [] if i.get("role") == ROLE and i.get("status") in (None, "approved")), None)
+
+
+def entry(a: Dict, image: Optional[Dict] = None) -> Dict:
+    """Dấu dạng của MỘT mục Kho style (cùng khuôn for_shot) — A2a (M2.2) dựng khi BYĐ chốt dạng mà chữ shot không nhắc."""
+    return {"form": english_name(a), "label": a["name"], "words": english_words(a), "asset_id": a["id"],
+            "image": image if image is not None else _form_image(a)}
+
+
+def names_match(a: Dict, dang: str) -> bool:
+    """A2a: `dang` của BYĐ (snake_case / chữ) TRÙNG NGUYÊN một tên / bí danh của mục Kho (bỏ dấu, '_' = cách) — không khớp nửa tên
+    ("ghost" ≠ "ghost form"), không khớp chuỗi con."""
+    from .assets import fold, names_of
+    want = fold(str(dang or "").replace("_", " "))
+    return bool(want) and any(fold(n.replace("_", " ")) == want for n in names_of(a))
 
 
 def for_rows(conn, project_id: int, rows: List[Dict]) -> Dict[str, Dict]:

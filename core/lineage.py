@@ -36,6 +36,10 @@ def image_spec_hash(scene_data: Dict, cast_rows, aspect: Optional[str]) -> str:
                     key=lambda d: d["name"])
     scene = {k: scene_data.get(k) for k in IMAGE_KEYS}
     scene.update({k: scene_data[k] for k in IMAGE_SHOT_KEYS if k in scene_data})
+    from . import byd_fields                     # V3.1 M2.2 (G22): cờ byd_fields bật → sửa BYĐ làm ảnh "⚠ cũ"; tắt / chưa BYĐ = hash cũ
+    part = byd_fields.image_part(scene_data)
+    if part is not None:
+        scene["byd"] = part
     return _hash({"scene": scene, "cast": people, "aspect": aspect or ""})
 
 
@@ -44,6 +48,10 @@ def motion_spec_hash(scene_data: Dict) -> str:
     if isinstance(spec.get("dialogue"), list):       # GĐ4: a line's `delivery` (voice direction) changes the voice, not the picture
         spec["dialogue"] = [{k: v for k, v in d.items() if k != "delivery"} if isinstance(d, dict) else d for d in spec["dialogue"]]
     spec.update({k: scene_data[k] for k in MOTION_SHOT_KEYS if k in scene_data})
+    from . import byd_fields                     # V3.1 M2.2: nhịp hanh_dong + may.chuyen_dong của BYĐ khi cờ byd_fields bật
+    part = byd_fields.motion_part(scene_data)
+    if part is not None:
+        spec["byd"] = part
     return _hash(spec)
 
 
@@ -215,7 +223,49 @@ def scan(conn, project_id: int) -> Dict[int, Dict]:
     return cached(conn, ("lineage.scan", project_id), lambda: _scan(conn, project_id))
 
 
+def restamp_byd(conn, project_id: int) -> int:
+    """V3.1 M2.2 rà kỹ 23/10: cờ byd_fields vừa BẬT — ảnh / motion làm khi cờ TẮT mang dấu không có BYĐ v2. Dấu nào khớp đúng đầu vào
+    hiện tại tính như cờ TẮT (tức là còn mới) được đóng lại theo công thức cờ BẬT, như mẫu `olds` của llm_io (đánh số lại shot): ảnh đang
+    mới vẫn mới, không gen lại tốn tiền; sửa BYĐ SAU đó mới "⚠ cũ". Chạy lặp an toàn (dấu đã mới không khớp dấu cũ nữa). Cờ tắt → 0."""
+    from . import byd_fields
+    if not byd_fields.mother_on():
+        return 0
+    aspect = _aspect(conn, project_id)
+    cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    mcols = {r[1] for r in conn.execute("PRAGMA table_info(motion_prompts)")}
+    n = 0
+    for s in conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (project_id,)).fetchall():
+        d = json.loads(s["data"] or "{}")
+        if not byd_fields.is_v2(d):
+            continue
+        with byd_fields.forced(False):
+            old_img = [_image_hash(d, cast_rows, aspect, proj), _image_hash(d, cast_rows, aspect, proj, image_key(conn, project_id, d))]
+            old_mo = motion_spec_hash(d)
+        new_img = [_image_hash(d, cast_rows, aspect, proj), _image_hash(d, cast_rows, aspect, proj, image_key(conn, project_id, d))]
+        olds = {o: nw for o, nw in zip(old_img, new_img) if o != nw}
+        for j in conn.execute("SELECT id, input_hash FROM jobs WHERE scene_id=? AND type='image_gen' AND input_hash IS NOT NULL",
+                              (s["id"],)).fetchall():
+            if j["input_hash"] in olds:
+                conn.execute("UPDATE jobs SET input_hash=? WHERE id=?", (olds[j["input_hash"]], j["id"]))
+                n += 1
+        new_mo = motion_spec_hash(d)
+        if "spec_hash" in mcols and new_mo != old_mo:
+            n += conn.execute("UPDATE motion_prompts SET spec_hash=? WHERE scene_id=? AND spec_hash=?", (new_mo, s["id"], old_mo)).rowcount
+    if n:
+        conn.commit()
+    return n
+
+
+def _restamp_quietly(conn, project_id: int) -> None:
+    try:
+        restamp_byd(conn, project_id)
+    except Exception:  # noqa: BLE001 - đóng dấu lại là phụ: lỗi (CSDL chỉ đọc, bảng cũ) thì so như trước
+        pass
+
+
 def _scan(conn, project_id: int) -> Dict[int, Dict]:
+    _restamp_quietly(conn, project_id)            # V3.1 M2.2: cờ byd_fields vừa bật → đóng dấu lại việc còn mới trước khi so
     aspect = _aspect(conn, project_id)
     cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
     scenes = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()

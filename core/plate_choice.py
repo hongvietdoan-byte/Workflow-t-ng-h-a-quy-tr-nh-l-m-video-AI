@@ -129,12 +129,38 @@ def _raw_view(data: Dict) -> Tuple[object, Optional[str]]:
     return v, None
 
 
-def landmark_off_frame(data: Dict) -> bool:
+def landmark_off_frame(data: Dict, conn=None, project_id: Optional[int] = None) -> bool:
     """08/10 (#24, việc 16): the shot's `plate_view` turns the camera away from the place's landmark (away / left / right) — a picture of
-    the place that SHOWS the landmark (the Kho's Tháp Đồng Hồ) must not go with it: it pulled the tower into a reverse shot."""
+    the place that SHOWS the landmark (the Kho's Tháp Đồng Hồ) must not go with it: it pulled the tower into a reverse shot.
+    V3.1 M2.2 A2d (cờ byd_fields + byd_fields_a2d): BYĐ v2 `khung.moc_nen.y_do` quyết (ngoai_khung = không có mốc); lệch chữ plate_view
+    → byd_field_mismatch; chưa v2 → chữ plate_view như cũ + byd_fallback (khi có `conn`)."""
     raw, _ = _raw_view(data or {})
     word = str(raw or "").strip().lower()
-    return any(word in _VIEW_WORDS[k] for k in ("away", "left", "right")) if word else False
+    old = any(word in _VIEW_WORDS[k] for k in ("away", "left", "right")) if word else False
+    from . import byd_fields
+    if not byd_fields.enabled("a2d"):
+        return old
+    y_do = mark_intent(data)
+    if y_do is None:
+        if word:
+            byd_fields.note(conn, "a2d", data, f"mốc nền trong / ngoài khung đoán theo chữ plate_view '{word}' (shot chưa có BYĐ v2 "
+                            "khung.moc_nen.y_do)", project_id=project_id)
+        return old
+    off = y_do == "ngoai_khung"
+    said = True if old else (False if word and word in _VIEW_WORDS["landmark"] else None)   # số độ / spot / cảnh quan: không so
+    if said is not None and said != off:
+        byd_fields.note(conn, "a2d", data, f"BYĐ khung.moc_nen.y_do = {y_do} nhưng plate_view = '{word}' — theo BYĐ, cần người xem "
+                        "hướng máy", kind=byd_fields.MISMATCH, project_id=project_id)
+    return off
+
+
+def mark_intent(data) -> Optional[str]:
+    """A2d: `khung.moc_nen.y_do` của BYĐ v2 (trong_khung / ngoai_khung) hoặc None (v1 / thiếu / giá trị lạ → đường cũ)."""
+    from . import byd_fields, shot_intent
+    if not byd_fields.is_v2(data):
+        return None
+    y_do, _, _ = shot_intent.read(data, "khung.moc_nen.y_do")
+    return y_do if y_do in shot_intent.Y_DO else None
 
 
 def _landmark_word(entry: Dict) -> str:
@@ -152,6 +178,21 @@ def _why_says_no_mark(why: str) -> Optional[str]:
 def _contradicts_why(why: str, bg: float, to_mark: float) -> bool:
     """The reason says the landmark is behind the camera / not in the frame, but the background computed points at it (|Δ| < 60°)."""
     return _why_says_no_mark(why) is not None and abs((bg - to_mark + 180) % 360 - 180) < 60
+
+
+def _byd_mark_clash(data: Dict, bg: float, to_mark: float, mark: str) -> Optional[str]:
+    """A2d (cờ tắt → None, không đọc gì): BYĐ v2 `khung.moc_nen.y_do` trái hướng nền tính ra (|Δ| < 60° = nhìn về mốc)."""
+    from . import byd_fields
+    if not byd_fields.enabled("a2d"):
+        return None
+    y_do = mark_intent(data)
+    if y_do is None:
+        return None
+    toward = abs((bg - to_mark + 180) % 360 - 180) < 60
+    if (y_do == "ngoai_khung") == toward:
+        return (f"BYĐ khai mốc {mark} {'NGOÀI' if y_do == 'ngoai_khung' else 'TRONG'} khung (khung.moc_nen.y_do) nhưng hướng nền "
+                f"{bg:g}° {'nhìn về' if toward else 'lệch'} mốc ({to_mark:g}°) — cần người xem hướng máy hoặc BYĐ")
+    return None
 
 
 def view_of(entry: Dict, spot: Dict, data: Dict) -> Dict:
@@ -251,6 +292,10 @@ def view_of(entry: Dict, spot: Dict, data: Dict) -> Dict:
                  "sửa `plate_view.background` rồi chạy lại; nền chưa render")
     elif why is None:
         problem = "hướng máy chưa ghi lý do (`plate_view.why`) — người duyệt không biết vì sao chọn hướng này"
+    if source == "script" and to_mark is not None:
+        clash = _byd_mark_clash(data, bg, to_mark, mark)     # V3.1 M2.2 A2d: chỉ nói ra (REVIEW), không đổi nền, không chặn render
+        if clash:
+            problem = f"{problem}; {clash}" if problem else clash
     # camera_for: the camera stands in front, the character faces it; behind / POV (17/10) the camera looks the way they look
     facing = (bg + (0 if _looks_along(data) else 180)) % 360
     return {"background_deg": round(bg, 1), "facing_deg": round(facing, 1), "view": view, "source": source, "why": why,

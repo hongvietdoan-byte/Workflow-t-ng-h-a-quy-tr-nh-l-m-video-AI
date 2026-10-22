@@ -3410,18 +3410,76 @@ def _place_part(conn, project_id: int, data: Dict, place, place_render: bool, ex
     from . import prompt_template as pt
     room = indoor_spot(conn, project_id, data)
     if room:                                       # 07/10 Khủng Long Đỏ: the place's outdoor words ("plaza, palms, sea") pulled a
-        name = f" ({assets.model_place_name(place)} map)" if place is not None else ""   # rà 17/10: no Vietnamese name   # bedroom shot outside onto a balcony — what is RIGHT (L2)
+        n = place_name_for_model(conn, project_id, data, place)   # rà 17/10: no Vietnamese name; A2f: English name of the BYĐ Kho item
+        from . import byd_fields
+        name = f" ({n} map)" if place is not None and (n or not byd_fields.enabled("a2f")) else ""   # bedroom shot outside onto a balcony — what is RIGHT (L2)
         from .seedance_refs import has_vietnamese   # 16/10 #31: the spot LABEL is a Vietnamese note for people (with camera notes:
         label = "" if has_vietnamese(room) else f" — {room}"   # "máy tại 'at' cao mắt 1,55 m…") — never sent to the image model
         head = (f"Setting: INSIDE a room{label}{name}. An interior with walls, ceiling and floor exactly as in the 3D render; only "
                 "the room itself is visible, and the outside appears only through its windows.")
     elif place is not None and place_render:       # F1-B (#24): "grass, palms, sea" of the general words beat the render → locked to it
-        head = assets.render_place_text(conn, place)
+        head = assets.render_place_text(conn, place, name=_setting_name(conn, project_id, data, place))
     elif place is not None:                        # B1: the place in words (+ real landmark heights), whatever pictures go
-        head = assets.location_text(conn, place)
+        head = assets.location_text(conn, place, name=_setting_name(conn, project_id, data, place))
     else:
         head = ""
     return pt.join([head] + [x for x in (extra or []) if x])
+
+
+def _setting_name(conn, project_id: int, data: Dict, place) -> Optional[str]:
+    """Rà kỹ 23/10 (A2f): "Setting:" ngoài trời dùng CÙNG tên với "… map" / câu nền. Cờ tắt → None (assets giữ model_place_name cũ)."""
+    from . import byd_fields
+    if not byd_fields.enabled("a2f"):
+        return None
+    return place_name_for_model(conn, project_id, data, place) or "the place"
+
+
+def plate_place_name(conn, project_id: int, data: Dict, place, label: Optional[str]) -> str:
+    """Tên nơi cho câu nền plate. Cũ: tên model, else nhãn render, else "the place". Rà kỹ 23/10 (A2f bật): nhãn render là tên Việt có dấu
+    (place_refs / location_pack) → không bao giờ gửi chữ Việt: "the place"."""
+    n = place_name_for_model(conn, project_id, data, place)
+    if n:
+        return n
+    from . import byd_fields
+    if byd_fields.enabled("a2f"):
+        from .seedance_refs import has_vietnamese
+        return label if label and not has_vietnamese(label) else "the place"
+    return label or "the place"
+
+
+def place_name_for_model(conn, project_id: int, data: Dict, place) -> str:
+    """Tên nơi chốn gửi model ảnh ("Setting: … map", câu nền). Đường cũ: assets.model_place_name (bí danh không dấu, else tên bỏ dấu).
+    V3.1 M2.2 A2f (cờ byd_fields + byd_fields_a2f): tên tiếng Anh (tên / bí danh không có chữ Việt) của mục Kho BYĐ v2 `noi_chon.kho_id`;
+    mục đó không có tên Anh → "" (không gửi chữ Việt bỏ dấu) + byd_field_mismatch; mã không phải nơi của dự án, hoặc khác nơi cảnh dò ra
+    (3D / ảnh nơi đi theo nơi đó) → đường cũ + byd_field_mismatch; chưa v2 / thiếu kho_id → đường cũ + byd_fallback."""
+    old = assets.model_place_name(place) if place else ""
+    from . import byd_fields, shot_intent
+    if not byd_fields.enabled("a2f"):
+        return old
+    kid = shot_intent.read(data, "noi_chon.kho_id")[0] if byd_fields.is_v2(data) else None
+    if type(kid) is not int:
+        byd_fields.note(conn, "a2f", data, f"tên nơi chốn gửi model lấy theo chữ ('{old or '—'}') — shot chưa có BYĐ v2 noi_chon.kho_id",
+                        project_id=project_id)
+        return old
+    item = assets.get(conn, kid)
+    if item is None or item["kind"] != "location" or kid not in {a["id"] for a in assets.project_assets(conn, project_id)}:
+        byd_fields.note(conn, "a2f", data, f"BYĐ noi_chon.kho_id = {kid} không phải nơi chốn của dự án — giữ tên '{old or '—'}', cần "
+                        "người xem", kind=byd_fields.MISMATCH, project_id=project_id)
+        return old
+    if place is not None and place["id"] != kid:
+        byd_fields.note(conn, "a2f", data, f"BYĐ noi_chon.kho_id = {kid} ({item['name']}) khác nơi cảnh dò ra ({place['name']}) — tên, 3D và "
+                        "ảnh nơi theo nơi cảnh, cần người xem", kind=byd_fields.MISMATCH, project_id=project_id)
+        return old
+    from .seedance_refs import has_vietnamese
+    name = str(item["name"] or "")
+    if not has_vietnamese(name):
+        return name
+    english = next((n.strip() for n in assets.names_of({"name": name, "aliases": item["aliases"] or ""})
+                    if n.strip() and not has_vietnamese(n)), "")
+    if not english:
+        byd_fields.note(conn, "a2f", data, f"mục Kho {kid} ({name}) chưa có tên tiếng Anh (bí danh không dấu) — không gửi tên nơi cho model, "
+                        "cần thêm bí danh", kind=byd_fields.MISMATCH, project_id=project_id)
+    return english
 
 
 def _lock_part(conn, project_id: int, data: Dict, proj, text: str, fix: Optional[str]) -> str:
@@ -3446,6 +3504,38 @@ def indoor_spot(conn, project_id: int, data: Dict) -> Optional[str]:
         return None
     sp = location_pack.spot_for(entry, data)
     return (sp.get("label") or sp.get("name") or "indoor room") if sp.get("indoor") else None
+
+
+def _has_3d_spot(conn, project_id: int, data: Dict) -> bool:
+    """The shot's place has a 3D model (place_render_refs on): its spot — indoor or not — is the code's truth for the light."""
+    from . import location_pack, place_refs
+    if not place_refs.enabled():
+        return False
+    place = assets.scene_location(conn, project_id, data)
+    return bool(place is not None and location_pack.model3d(conn, place["id"]))
+
+
+def indoor_light(conn, project_id: int, data: Dict) -> bool:
+    """Trong nhà cho câu ánh sáng (light_sentence). Đường cũ: chỉ chỗ đứng 3D trong nhà (indoor_spot). V3.1 M2.2 A2c (cờ byd_fields +
+    byd_fields_a2c): chỗ đứng 3D (code) thắng — lệch BYĐ v2 `noi_chon.trong_nha` thì byd_field_mismatch; không có chỗ đứng 3D → đọc
+    `noi_chon.trong_nha` (bool); chưa v2 / thiếu → ngoài trời như cũ + byd_fallback."""
+    spot = indoor_spot(conn, project_id, data)
+    from . import byd_fields, shot_intent
+    if not byd_fields.enabled("a2c"):
+        return bool(spot)
+    said = shot_intent.read(data, "noi_chon.trong_nha")[0] if byd_fields.is_v2(data) else None
+    said = said if isinstance(said, bool) else None
+    if spot or _has_3d_spot(conn, project_id, data):
+        if said is not None and said != bool(spot):
+            byd_fields.note(conn, "a2c", data, f"BYĐ noi_chon.trong_nha = {said} nhưng chỗ đứng 3D là "
+                            f"{'trong nhà (' + str(spot) + ')' if spot else 'ngoài trời'} — ánh sáng theo chỗ đứng 3D, cần người xem",
+                            kind=byd_fields.MISMATCH, project_id=project_id)
+        return bool(spot)
+    if said is not None:
+        return said
+    byd_fields.note(conn, "a2c", data, "trong nhà / ngoài trời cho câu ánh sáng: không có chỗ đứng 3D và shot chưa có BYĐ v2 "
+                    "noi_chon.trong_nha — coi là ngoài trời như cũ", project_id=project_id)
+    return False
 
 
 def sendable_references(refs, model: Optional[str], limit: Optional[int] = None) -> Tuple[list, list]:
@@ -3720,7 +3810,7 @@ class ImageRunner(_Runner):
         render = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) if place_refs.enabled() else None
         from . import scene_establish
         from . import location_pack
-        light = scene_establish.light_sentence(data, indoor=bool(indoor_spot(conn, job["project_id"], data)))   # rà 17/10: no moon indoors
+        light = scene_establish.light_sentence(data, indoor=indoor_light(conn, job["project_id"], data))   # rà 17/10: no moon indoors; A2c
         chosen = location_pack.script_sentence(conn, job["project_id"], data)   # S5.7: direction + extra lights of this shot
         geo = scale = ""
         if render is not None:                         # the render's real numbers (place_refs.geometry_sentence) — the place part
@@ -3756,7 +3846,7 @@ class ImageRunner(_Runner):
         if est and indoor_spot(conn, job["project_id"], data):   # an indoor shot: the 3D render of the room is the place, never the
             est = None                                           # outdoor wide picture of the scene (07/10 Khủng Long Đỏ)
         from .plate_choice import landmark_off_frame
-        if est and landmark_off_frame(data):                     # 08/10 (#24 shot 4): the wide picture shows the landmark the camera
+        if est and landmark_off_frame(data, conn, job["project_id"]):   # 08/10 (#24 shot 4): the wide picture shows the landmark the camera
             est = None                                           # is turned away from — it pulled the tower into a reverse shot
         if est:                                        # the scene's wide establishing picture: the shared reference for the place
             refs = ([r for r in refs if r.get("role") != "location"][:max(limit - 2, 1)]
@@ -3813,7 +3903,7 @@ class ImageRunner(_Runner):
         entry = location_pack_entry(conn, place)
         from . import place_refs
         w, h = place_refs.resolution_of(self.p.project(job["project_id"]))
-        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, (assets.model_place_name(place) if place else "") or render.get("label") or "the place",
+        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, plate_place_name(conn, job["project_id"], data, place, render.get("label")),
                                                          (entry or {}).get("landmark"), aspect=w / h if h else None)
         if notes:
             say(job, "warn", plate_anchor.CODE_BACKGROUND, "câu nền sinh từ plate thiếu dữ liệu: " + "; ".join(notes))
@@ -3874,7 +3964,7 @@ class ImageRunner(_Runner):
                 if est and indoor_spot(self.p.conn, job["project_id"], own):   # indoor: the room render, not the outdoor wide picture
                     est = None
                 from .plate_choice import landmark_off_frame
-                if landmark_off_frame(own):            # 08/10 (#24): camera turned away from the landmark — no picture showing it
+                if landmark_off_frame(own, self.p.conn, job["project_id"]):   # 08/10 (#24): camera turned away from the landmark — no picture showing it
                     est = None
                     shared = [r for r in shared if r.get("role") not in ("location", "landmark")]
                 if est:                                # the scene's wide establishing picture: the shared reference for the place
@@ -3910,7 +4000,7 @@ class ImageRunner(_Runner):
                     if prev is not None:
                         previous = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
                 mark = None
-                if scene_storyboard.turned_away(g, job["scene_id"]):   # lỗi D 08/10: the landmark's name for the away sentence
+                if scene_storyboard.turned_away(g, job["scene_id"], self.p.conn, job["project_id"]):   # lỗi D 08/10: the landmark's name for the away sentence
                     try:
                         mark = (location_pack_entry(self.p.conn, assets.scene_location(self.p.conn, job["project_id"], own))
                                 or {}).get("landmark")
@@ -3927,7 +4017,7 @@ class ImageRunner(_Runner):
                 if fields is not None and fields.get("anchor_skipped"):
                     view = own.get("plate_view")
                     view = view.get("background") if isinstance(view, dict) else view
-                    if scene_storyboard.turned_away(g, job["scene_id"]):
+                    if scene_storyboard.turned_away(g, job["scene_id"], self.p.conn, job["project_id"]):
                         why = f"shot quay khỏi mốc (plate_view {view})"
                         extra = ", thêm câu 'mốc không trong khung'"
                     elif scene_storyboard.other_spot(g, job["scene_id"]):   # rà 12/10: the reason said, not "quay khỏi mốc"

@@ -1543,7 +1543,7 @@ def location_landmark(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict
             or next((i for i in place["images"] if i.get("role") == "low_angle"), None))
 
 
-def location_text(conn, place: Dict, for_llm: bool = False) -> str:
+def location_text(conn, place: Dict, for_llm: bool = False, name: Optional[str] = None) -> str:
     """B1: the place in words for the image prompt — its description and, from the set analyses already read or rendered, the real
     heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera).
     for_llm=True (the QC agent's brief, read by Claude): the website part of the description goes wrapped by prompts.external_block
@@ -1562,9 +1562,9 @@ def location_text(conn, place: Dict, for_llm: bool = False) -> str:
         desc = " ".join(s for s in re.split(r"(?<=[.!?])\s+", re.sub(r"\[[^\]]*\]", " ", re.sub(r"\s+", " ", head)))
                         if s.strip() and not has_vietnamese(s)).strip()   # rà 17/10: filter the WHOLE text, then cut (was cut first:
         desc = re.sub(r"\s+", " ", desc)[:600]                             # Vietnamese ahead ate the English sentences' room)
-    name = place.get("name") or ""
+    given, name = name, place.get("name") or ""
     if not for_llm:                                    # rà 17/10: "Setting: Tháp đồng hồ" — an English alias, else the name unaccented
-        name = model_place_name(place)
+        name = model_place_name(place) if given is None else given   # V3.1 M2.2 A2f: tên đã giải (runner.place_name_for_model)
     bits = [f"Setting: {name}" + (f" — {desc}" if desc else "")]
     if marks:
         bits.append(_sizes_sentence(marks, keep_vi=for_llm))
@@ -1619,13 +1619,13 @@ def model_place_name(place: Dict) -> str:
                  if n.strip() and not has_vietnamese(n)), fold(name).strip())
 
 
-def render_place_text(conn, place: Dict, tag: str = RENDER_TAG) -> str:
+def render_place_text(conn, place: Dict, tag: str = RENDER_TAG, name: Optional[str] = None) -> str:
     """F1-B (09/10, #24): the place sentence of a shot that HAS its 3D render attached. The place's general description ("… stone
     plaza; red-roof houses, grass, palms, sea around") pulled the picture away from the render, so the background is locked to the
     render the way #22's approved prompts did — what is right, never a list of what is forbidden (bài học L2). The real landmark heights
     stay (people's size); the library picture's light does not (the render and the scene light decide it)."""
     marks, _light = _landmark_heights(conn, place)
-    bits = [f"Setting: {model_place_name(place)}",
+    bits = [f"Setting: {model_place_name(place) if name is None else name}",   # A2f: name = tên đã giải (cờ tắt → None = cũ)
             f"Background: exactly the 3D render picture of this place{tag} (same camera and spot) — it decides the architecture, the "
             "landmarks and where they sit in the frame; keep the scale of the objects as in that picture"]
     if marks:
@@ -1755,7 +1755,7 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         people.append((label, own[:1] + [(img["path"], "outfit") for img in outfit[:1]] + own[1:]))
     place = scene_location(conn, project_id, scene)
     from .plate_choice import landmark_off_frame
-    away = landmark_off_frame(scene)               # 08/10 (#24 shot 4): camera turned away from the landmark → no picture of it
+    away = landmark_off_frame(scene, conn, project_id)   # 08/10 (#24 shot 4): camera turned away from the landmark → no picture of it
     loc = location_plate(conn, place, scene) if place and not away else None
     mark = location_landmark(conn, place, scene) if place and loc is None and not away else None
     if mark is not None:
@@ -1852,12 +1852,20 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
     people_names = {fold(r["name"]) for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))} | {
         fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}
     out: List[Dict] = []
+    by_id = _byd_kho_ids(conn, scene, chosen, project_id)     # V3.1 M2.2 A2e (G4): None = đường cũ (dò tên / bí danh)
+    skipped: List[str] = []
     for a in chosen:
         if lock_on and prop_lock.pov_no_gun(scene) and prop_lock.category(a) == "gun":
             continue
         if a["id"] in locked:
             continue                                          # already placed right after the place (its slot was kept)
         if a["kind"] not in ("weapon", "prop", "pet", "location", "outfit") or not a["images"] or any(r["label"] == a["name"] for r in out):
+            continue
+        if by_id is not None and a["kind"] in BYD_ID_KINDS:
+            if a["id"] in by_id:
+                _append_extra(conn, project_id, scene, a, blob, lock_on, out)
+            elif _named_in(a, cast, shot_words, blob):
+                skipped.append(a["name"])                     # chữ nhắc tên / bí danh nhưng BYĐ v2 không khai mã này — không gửi
             continue
         if a["kind"] == "outfit" and fold(a["name"]) in people_names:
             continue          # named like a person (S14.28: "Kelly" bơi)
@@ -1870,17 +1878,59 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
         # the entry also has an accented name (then the accents decide: alias "cũi" never matches "cúi")
         bare = not any(fold(n) != n.lower() for n in names_of(a))
         if any(name_spans(k, shot_words) for k in keys) or (bare and any(" " + fold(k) + " " in blob for k in keys)):
-            if lock_on and a["kind"] in prop_lock.KINDS:    # a picture with a variant (skin) only when the shot names it
-                said = prop_lock.shot_text(scene) + " " + blob   # 14/10 #30: the scene script's form when the shot lost it
-                pics = prop_lock.usable_images(a, said, variant=prop_lock.variant_source(conn, project_id, scene, a, said)[0])
-                pic = pics[0] if pics else None
-            else:
-                pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
-            if pic is not None:
-                out.append({"path": pic["path"], "label": a["name"],     # 07/10: an outfit named by a shot with nobody wearing it
-                            "role": {"location": "location", "outfit": "outfit_object"}.get(a["kind"], "object"),
-                            "_paths": {im["path"] for im in a["images"]}})
+            _append_extra(conn, project_id, scene, a, blob, lock_on, out)
+    if skipped:
+        from . import byd_fields
+        byd_fields.note(conn, "a2e", scene, "chữ shot nhắc " + ", ".join(sorted(set(skipped))) + " nhưng BYĐ v2 không khai mã Kho đó — "
+                        "không gửi ảnh (G4: không chọn ảnh Kho theo bí danh); cần thì thêm vào vat[] của BYĐ", project_id=project_id)
     return out
+
+
+BYD_ID_KINDS = ("weapon", "prop", "pet")
+"""A2e: loại mục Kho mà BYĐ v2 khai bằng `kho_id` (vat[] / thanh_phan[]). Bối cảnh phụ (location) và trang phục (outfit) không có chỗ
+trong BYĐ → giữ đường dò tên cũ."""
+
+
+def _named_in(a: Dict, cast, shot_words, blob: str) -> bool:
+    """Cùng phép khớp tên của đường cũ (_named_extras) — chỉ để NÓI RA mục bị bỏ khi BYĐ v2 quyết theo kho_id."""
+    keys = [n for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
+    bare = not any(fold(n) != n.lower() for n in names_of(a))
+    return any(name_spans(k, shot_words) for k in keys) or (bare and any(" " + fold(k) + " " in blob for k in keys))
+
+
+def _append_extra(conn, project_id: int, scene: Dict, a: Dict, blob: str, lock_on: bool, out: List[Dict]) -> None:
+    from . import prop_lock
+    if lock_on and a["kind"] in prop_lock.KINDS:    # a picture with a variant (skin) only when the shot names it
+        said = prop_lock.shot_text(scene) + " " + blob   # 14/10 #30: the scene script's form when the shot lost it
+        pics = prop_lock.usable_images(a, said, variant=prop_lock.variant_source(conn, project_id, scene, a, said)[0])
+        pic = pics[0] if pics else None
+    else:
+        pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
+    if pic is not None:
+        out.append({"path": pic["path"], "label": a["name"],     # 07/10: an outfit named by a shot with nobody wearing it
+                    "role": {"location": "location", "outfit": "outfit_object"}.get(a["kind"], "object"),
+                    "_paths": {im["path"] for im in a["images"]}})
+
+
+def _byd_kho_ids(conn, scene: Dict, chosen: List[Dict], project_id: int):
+    """V3.1 M2.2 A2e (G4, cờ byd_fields + byd_fields_a2e): mã Kho vật / thú BYĐ v2 khai → tập id; None = đường cũ (dò tên). Cờ tắt → None
+    không đọc gì (byte giống main). Bật mà BYĐ v1 / thiếu kho_id → None + diag byd_fallback; mã khai không thuộc dự án / không có ảnh
+    duyệt → diag byd_field_mismatch (REVIEW) — không thay bằng ảnh khác."""
+    from . import byd_fields
+    if not byd_fields.enabled("a2e"):
+        return None
+    ids = byd_fields.kho_ids(scene)
+    if ids is None:
+        byd_fields.note(conn, "a2e", scene, "shot chưa có BYĐ v2 đủ kho_id ở vat[] — chọn ảnh Kho đạo cụ theo tên / bí danh (đường cũ)",
+                        project_id=project_id)
+        return None
+    vat_ids = byd_fields.kho_ids(scene, ("vat",)) or []
+    have = {a["id"]: a for a in chosen}
+    bad = [str(k) for k in vat_ids if k not in have or not have[k]["images"]]
+    if bad:
+        byd_fields.note(conn, "a2e", scene, "BYĐ v2 khai vật Kho " + ", ".join(bad) + " nhưng mã đó không gắn dự án / không có ảnh — "
+                        "không gửi ảnh vật đó, cần người xem", kind=byd_fields.MISMATCH, project_id=project_id)
+    return set(ids)
 
 
 def _outfit_strip() -> bool:

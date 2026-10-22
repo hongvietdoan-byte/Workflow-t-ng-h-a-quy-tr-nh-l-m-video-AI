@@ -108,7 +108,7 @@ def _shot_data(g: Dict, scene_id: int) -> Dict:
     return next((s["data"] for s in g["shots"] if s["id"] == scene_id), {})
 
 
-def turned_away(g: Dict, scene_id: int) -> bool:
+def turned_away(g: Dict, scene_id: int, conn=None, pid: Optional[int] = None) -> bool:
     """08/10 (#24, lỗi D): this shot's `plate_view` turns the camera away from the place's landmark (away / left / right) while the
     anchor frame does not — the anchor picture (frame 1, #24 shot 1 WS looking at the Tháp Đồng Hồ) shows the landmark, and sent as a
     reference it pulled the tower into shot 4 (reverse shot towards the red-roof house; job 576 sent job_573.png)."""
@@ -116,7 +116,8 @@ def turned_away(g: Dict, scene_id: int) -> bool:
     anchor = g.get("anchor")
     if not anchor or anchor["id"] == scene_id:
         return False
-    return landmark_off_frame(_shot_data(g, scene_id)) and not landmark_off_frame(anchor["data"])
+    return (landmark_off_frame(_shot_data(g, scene_id), conn, pid)          # conn: A2d bật thì cảnh báo BYĐ được ghi
+            and not landmark_off_frame(anchor["data"], conn, pid))
 
 
 def own_camera(g: Dict, scene_id: int) -> bool:
@@ -212,8 +213,7 @@ def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, cast_of
     cur = None if cast_of is None else next((i for i, s in enumerate(shots) if s["data"] is cast_of), None)
     if cast_of is not None and cur is None:
         cur = next((i for i, s in enumerate(shots) if s["data"] == cast_of), None)
-    uses = bool(cast_of is not None and _USES_HELD.search(" ".join(str(cast_of.get(f) or "") for f in
-                                                                     ("image_prompt", "action", "blocking", "text"))))
+    uses = _uses_held(conn, pid, cast_of)
     per = [assets.scene_references(conn, pid, dict(s["data"]), limit=assets.MAX_REFERENCES) for s in shots]
     # … from the NEAREST earlier shot holding a prop only (the gun of shot 12 goes to "she fires it" in shot 13, the pram of shot 10 not)
     carry = (max((k for k in range(cur) if any(r.get("role") in CARRIED_ROLES for r in per[k])), default=None)
@@ -241,6 +241,25 @@ CARRIED_ROLES = ("object", "outfit_object")      # a prop picked up earlier in t
 _USES_HELD = re.compile(r"\b(?:fires?|firing|shoots?|shooting|aims?|aiming|reloads?|reloading|swings?|swinging|throws?|throwing|"
                         r"(?:holds?|holding|grips?|gripping|raises?|raising|lifts?|lifting|points?|pointing|drops?|dropping)\s+(?:it|the gun|"
                         r"the weapon)|bắn|ngắm|nạp đạn|giơ súng|cầm súng)\b", re.I)
+
+
+def _uses_held(conn, pid: int, cast_of: Optional[Dict]) -> bool:
+    """Khung này dùng một vật đang cầm (mang ảnh vật của shot trước gần nhất). Đường cũ: regex _USES_HELD trên chữ shot. V3.1 M2.2 A2b
+    (cờ byd_fields + byd_fields_a2b) + BYĐ v2: có vật `vat[]` cầm / đeo / ném (prop_lock.HELD_WAYS) bởi một người; chưa v2 → regex + byd_fallback."""
+    if cast_of is None:
+        return False
+    from . import byd_fields
+    if byd_fields.enabled("a2b"):
+        if byd_fields.is_v2(cast_of):
+            from . import prop_lock, shot_intent
+            items, _, _ = shot_intent.read(cast_of, "vat", [])
+            return any(isinstance(it, dict) and it.get("cach") in prop_lock.HELD_WAYS and it.get("nguoi")
+                       for it in (items if isinstance(items, list) else []))
+        uses = bool(_USES_HELD.search(" ".join(str(cast_of.get(f) or "") for f in ("image_prompt", "action", "blocking", "text"))))
+        if uses:
+            byd_fields.note(conn, "a2b", cast_of, "khung dùng vật đang cầm đoán theo chữ (shot chưa có BYĐ v2 vat[])", project_id=pid)
+        return uses
+    return bool(_USES_HELD.search(" ".join(str(cast_of.get(f) or "") for f in ("image_prompt", "action", "blocking", "text"))))
 
 
 def cast_missing(conn, pid: int, data: Dict, refs: List[Dict]) -> List[str]:
@@ -282,9 +301,9 @@ def story_text(conn, pid: int, g: Dict) -> str:
     # the scene's light: a flashback sentence only when EVERY frame is one (a flashback shot gets its own sentence in its prompt)
     if datas and not all(scene_establish.is_flashback(d) for d in datas):
         datas = [d for d in datas if not scene_establish.is_flashback(d)]
-    from .runner import indoor_spot                    # rà 17/10 vòng 2: a room at night — no street lamps / moonlight
+    from .runner import indoor_light                   # rà 17/10 vòng 2: a room at night — no street lamps / moonlight; A2c
     light = scene_establish.light_sentence(datas[0] if datas else {},
-                                           indoor=bool(datas and indoor_spot(conn, pid, datas[0])))
+                                           indoor=bool(datas) and indoor_light(conn, pid, datas[0]))
     if light:
         frame += " " + light
     return no_minor_age(f"{head}{frame} {beats}")[:3000]
@@ -378,7 +397,7 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     if g is None:
         return None
     is_anchor = g["anchor"]["id"] == scene_id
-    away = turned_away(g, scene_id)
+    away = turned_away(g, scene_id, conn, pid)
     own = own_camera(g, scene_id)
     anchor_pic = None if is_anchor or away or own else anchor_picture(conn, data_dir, pid, g["anchor"]["id"])
     send = list(refs) + ([{"path": anchor_pic, "label": "frame 1 (scene anchor)", "role": "previous_scene"}] if anchor_pic else [])

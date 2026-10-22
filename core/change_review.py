@@ -38,6 +38,15 @@ MOTION_WATCH = ("motion_prompt",)
 WATCH["motion_prompt"] = ("motion", "khung_cuoi", "video")
 MOTION_FLAG = "change_review_motion"
 SHOT_KINDS = ("scene", "motion")     # thay đổi của MỘT shot (trường shot hoặc motion prompt) — gộp chung một lần rà
+# V3.1 M2.2 (rà kỹ 23/10): nhóm BYĐ v2 vào ảnh / nền như các trường chữ — CHỈ khi cờ mẹ byd_fields bật (tắt: WATCH y cũ)
+BYD_WATCH: Dict[str, Tuple[str, ...]] = {f"byd.{g}": WATCH["image_prompt"] for g in ("thanh_phan", "vat", "khung")}
+
+
+def watch() -> Dict[str, Tuple[str, ...]]:
+    from . import byd_fields
+    return {**WATCH, **BYD_WATCH} if byd_fields.mother_on() else WATCH
+
+
 ASSET_WATCH = ("identity", "must_keep", "may_change", "forbidden", "height_m", "build", "size", "wardrobe")
 
 
@@ -62,8 +71,16 @@ def _loads(s) -> Dict:
         return {}
 
 
+def _field(d: Dict, k: str):
+    if k.startswith("byd."):                       # BYD_WATCH: một nhóm trong byd
+        from . import shot_intent
+        b = shot_intent.byd_of(d)
+        return b.get(k[4:]) if b is not None else None
+    return d.get(k)
+
+
 def changed_keys(before: Dict, after: Dict, watch: Sequence[str]) -> List[str]:
-    return [k for k in watch if before.get(k) != after.get(k)]
+    return [k for k in watch if _field(before, k) != _field(after, k)]
 
 
 def affected_scenes(conn, ev) -> List[int]:
@@ -385,7 +402,7 @@ def claude_review(conn, ev, keys, scene_ids, code_found, client) -> float:
     if ev["kind"] in SHOT_KINDS and ev["scene_id"]:       # shot vừa đổi được rà lại: mục Claude cũ của CHÍNH nó không còn → đã sửa
         # R9 (rà S4): chỉ đóng mục thuộc khâu mà các khóa VỪA ĐỔI chạm tới (WATCH) — prompt chỉ hỏi về các khóa đó, nên Claude không
         # nhắc lại mục ảnh/nền/thoại cũ KHÔNG có nghĩa là đã sửa (sửa motion không được mở chặn gen của mục ảnh còn sai)
-        touched = {kh for k in keys for kh in WATCH.get(k, ())}
+        touched = {kh for k in keys for kh in watch().get(k, ())}
         for row in conn.execute("SELECT id, khau FROM change_findings WHERE source='claude' AND status='open' AND scene_id=?",
                                 (ev["scene_id"],)).fetchall():
             if row[1] in touched and (ev["scene_id"], row[1]) not in seen:
@@ -450,7 +467,7 @@ def _review_group(conn, data_dir: str, ev, ids: List[int], client, res: Dict) ->
     try:
         before, after = _loads(ev["before"]), _loads(ev["after"])
         if ev["kind"] in SHOT_KINDS:
-            keys = changed_keys(before, after, list(WATCH))
+            keys = changed_keys(before, after, list(watch()))
         elif ev["kind"] == "asset":
             keys = changed_keys(before, after, ASSET_WATCH)
         else:

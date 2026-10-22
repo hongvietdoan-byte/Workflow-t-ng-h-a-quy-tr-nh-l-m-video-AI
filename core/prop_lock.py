@@ -237,11 +237,49 @@ def _holders(conn, project_id: int, data: Dict, pool) -> Dict[int, List[str]]:
     """{gun asset id: [present characters it is locked to]} — only guns attached to the project (in `pool`)."""
     guns = {a["id"] for a, c in pool if c == "gun"}
     table = {assets.fold(n): (n, i) for n, i in weapon_table(conn, project_id).items()}
+    held = _byd_held(conn, project_id, data, guns, table)     # V3.1 M2.2 A2b: None = bảng súng mặc định (đường cũ)
     out: Dict[int, List[str]] = {}
     for name in _present(conn, project_id, data):
+        if held is not None and assets.fold(str(name)) in held:
+            for gid in held[assets.fold(str(name))]:            # BYĐ v2 vat[]: người này cầm súng khai — ghi đè súng mặc định
+                if str(name) not in out.get(gid, []):
+                    out.setdefault(gid, []).append(str(name))
+            continue
         hit = table.get(assets.fold(str(name)))
         if hit and hit[1] in guns and hit[0] not in out.get(hit[1], []):
             out.setdefault(hit[1], []).append(hit[0])
+    return out
+
+
+HELD_WAYS = ("cam", "deo", "nem")      # A2b: cách của vat[] nghĩa là trên người (cầm / đeo / ném); "dat" = đặt xuống, không ai cầm
+
+
+def _byd_held(conn, project_id: int, data: Dict, guns, table) -> Optional[Dict[str, List[int]]]:
+    """A2b (cờ byd_fields + byd_fields_a2b): {tên bỏ dấu: [mã súng]} theo BYĐ v2 `vat[]` (kho_id + nguoi + cach cầm/đeo/ném) — ghi đè
+    bảng súng mặc định (weapon_table) CHỈ cho người được khai; người khác giữ súng mặc định. None = cờ tắt / chưa v2 (đường cũ; bật mà
+    bảng mặc định quyết thì nói byd_fallback). Mã khai không phải súng của dự án → byd_field_mismatch, giữ súng mặc định (không đoán)."""
+    from . import byd_fields, shot_intent
+    if not byd_fields.enabled("a2b"):
+        return None
+    if not byd_fields.is_v2(data):
+        if table:
+            byd_fields.note(conn, "a2b", data, "súng của " + ", ".join(sorted(n for n, _ in table.values())) + " lấy theo bảng khóa "
+                            "nhân vật (shot chưa có BYĐ v2 vat[])", project_id=project_id)
+        return None
+    items, _, _ = shot_intent.read(data, "vat", [])
+    out: Dict[str, List[int]] = {}
+    for it in items if isinstance(items, list) else []:
+        if not isinstance(it, dict) or it.get("cach") not in HELD_WAYS or not it.get("nguoi") or type(it.get("kho_id")) is not int:
+            continue
+        if it["kho_id"] not in guns:
+            if it["kho_id"] not in {a["id"] for a in assets.project_assets(conn, project_id)}:   # vật khác của dự án (keo…): bỏ qua
+                byd_fields.note(conn, "a2b", data, f"BYĐ v2 khai {it.get('nguoi')} cầm Kho {it['kho_id']} ({it.get('vat')}) nhưng mã đó "
+                                "không gắn dự án — giữ súng mặc định, cần người xem", kind=byd_fields.MISMATCH,
+                                project_id=project_id)
+            continue
+        key = assets.fold(str(it["nguoi"]))
+        if it["kho_id"] not in out.setdefault(key, []):
+            out[key].append(it["kho_id"])
     return out
 
 

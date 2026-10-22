@@ -504,6 +504,44 @@ FEATURES: Dict[str, Dict] = {
         "why": "Thiết kế M2.1 (docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md mục 2.1): 'do'/'vang' cũ chưa phân biệt cần người xem (REVIEW). "
                "Chưa chạy trên dữ liệu thật",
     },
+    "byd_fields": {
+        "label": "BYĐ field readers (V3.1 M2.2, cờ MẸ): đọc trường BYĐ v2 thay đọc chữ / dò bí danh + khóa `byd` vào lineage (sửa BYĐ → ảnh / "
+                 "video \"⚠ cũ\") — mỗi reader A2a–A2f bật riêng bằng cờ con byd_fields_a2*; ĐỔI gói gửi model khi bật",
+        "verified": False, "costs": False,
+        "why": "Thiết kế docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md mục 4 (G4 ảnh Kho theo bí danh, G22 sửa BYĐ không làm ảnh cũ, G12, G26, "
+               "G37, G38). Chưa chạy trên dữ liệu thật; dự án cũ (#24 v1, #27 không BYĐ) đi đường cũ + cảnh báo byd_fallback",
+    },
+    "byd_fields_a2e": {
+        "label": "BYĐ A2e: ảnh Kho đạo cụ / vật theo `kho_id` của BYĐ v2 (vat[] / thanh_phan[]), không dò bí danh — cần cờ mẹ byd_fields",
+        "verified": False, "costs": False,
+        "why": "G4 (#31: bí danh khớp nhầm kéo ảnh Kho sai vào gói). Chưa chạy trên dữ liệu thật",
+    },
+    "byd_fields_a2a": {
+        "label": "BYĐ A2a: dạng nhân vật theo `thanh_phan[].dang` (qua adapter core/kho_profile) — BYĐ chốt dạng thì không đoán theo chữ; "
+                 "cần cờ mẹ byd_fields",
+        "verified": False, "costs": False,
+        "why": "G37 (#31), G2 dạng: dạng đoán theo chữ cảnh. Chưa chạy trên dữ liệu thật",
+    },
+    "byd_fields_a2b": {
+        "label": "BYĐ A2b: đạo cụ cầm trên tay theo `vat[].kho_id/nguoi/cach` thay regex chữ — cần cờ mẹ byd_fields",
+        "verified": False, "costs": False,
+        "why": "G1, G38, PROP_MISSING: đạo cụ cầm đọc bằng regex chữ. Chưa chạy trên dữ liệu thật",
+    },
+    "byd_fields_a2d": {
+        "label": "BYĐ A2d: mốc nền theo `khung.moc_nen.y_do` (trong / ngoài khung) thay regex mốc — cần cờ mẹ byd_fields",
+        "verified": False, "costs": False,
+        "why": "G26, G40: mốc nền đọc bằng regex chữ. Chưa chạy trên dữ liệu thật",
+    },
+    "byd_fields_a2c": {
+        "label": "BYĐ A2c: trong nhà / ngoài trời theo `noi_chon.trong_nha` (câu ánh sáng) khi không có chỗ đứng 3D — cần cờ mẹ byd_fields",
+        "verified": False, "costs": False,
+        "why": "Câu ánh sáng suy trong / ngoài nhà chỉ từ chỗ đứng 3D. Chưa chạy trên dữ liệu thật",
+    },
+    "byd_fields_a2f": {
+        "label": "BYĐ A2f: tên bối cảnh tiếng Anh theo mục Kho `noi_chon.kho_id` (câu \"Setting:\") — cần cờ mẹ byd_fields",
+        "verified": False, "costs": False,
+        "why": "G12: tên bối cảnh lọc chữ Việt bằng regex. Chưa chạy trên dữ liệu thật",
+    },
     "field_guard": {
         "label": "Write guard cấp trường SHADOW (V3.1 M2.5): mỗi lần AI / tự động / công cụ ghi đè trường người khóa (USER_LOCKED), đổi trường "
                  "quan trọng đã có giá trị (REVIEW_FIELDS) hoặc ghi bằng bản đọc cũ → một dòng ⚙ Chẩn đoán field_conflict / field_review / "
@@ -1021,7 +1059,9 @@ OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blo
                       "stage_handheld_props",
                       "whitebox_height_dummy",   # C-3D-GOC-A: đổi máy nền 3D gửi model (slightly_high, high giữ % khung) — chọn riêng
                       "ui_step_log",           # C-DEVSYS-MAPS: ghi CSDL mỗi bước bấm — chỉ bật khi chọn riêng (preset Thử nghiệm không bật)
-                      "stage_desk_ui")         # rà kỹ C-M48-DESK-UI: nút ghi máy sân khấu / nền 3D gửi model trên đường sản xuất — chọn riêng
+                      "stage_desk_ui",
+                      # M2.2: field readers BYĐ đổi gói gửi model trên đường sản xuất — chọn riêng, preset Thử nghiệm không tự bật
+                      "byd_fields", "byd_fields_a2a", "byd_fields_a2b", "byd_fields_a2c", "byd_fields_a2d", "byd_fields_a2e", "byd_fields_a2f")         # rà kỹ C-M48-DESK-UI: nút ghi máy sân khấu / nền 3D gửi model trên đường sản xuất — chọn riêng
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
@@ -1353,7 +1393,8 @@ REQUIRES = {"director_rewrite_respect_lock": ("director_rewrite",), "dialogue_ta
             "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",),
             "stage_desk_ui": ("stage_view_ui",),           # M4.8: bàn đạo diễn nằm trong màn XEM sân khấu
             "continuity_validator": ("crew_registry",),       # M6.9 định tuyến theo Role Registry M6.1
-            "ref_end_frames": ("end_frames", "seedance_ref_groups")}   # M7.3: khung cuối tuyến ref chỉ có nghĩa khi cả hai bật
+            "ref_end_frames": ("end_frames", "seedance_ref_groups"),   # M7.3: khung cuối tuyến ref chỉ có nghĩa khi cả hai bật
+            **{f"byd_fields_a2{x}": ("byd_fields",) for x in "abcdef"}}   # M2.2: cờ con reader BYĐ cần cờ mẹ
 
 
 def unmet(name: str) -> list:

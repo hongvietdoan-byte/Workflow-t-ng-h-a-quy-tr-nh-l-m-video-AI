@@ -835,6 +835,8 @@ def _video_need(conn, scene_id: int) -> Dict:
     if mp["image_job_id"] and mp["image_job_id"] != image:
         return {"needed": True, "reason": "motion làm từ ảnh cũ"}
     data = json.loads(scene["data"] or "{}")
+    lineage._restamp_quietly(conn, scene["project_id"])     # V3.1 M2.2: cờ byd_fields vừa bật — motion còn mới không bị báo làm lại
+    mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     if mp["spec_hash"] and mp["spec_hash"] != lineage.motion_spec_hash(data):
         return {"needed": True, "reason": "motion chưa cập nhật theo nội dung shot"}
     for job in conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved','pending_review') ORDER BY id DESC", (scene_id,)):
