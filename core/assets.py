@@ -1852,12 +1852,20 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
     people_names = {fold(r["name"]) for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))} | {
         fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}
     out: List[Dict] = []
+    by_id = _byd_kho_ids(conn, scene, chosen, project_id)     # V3.1 M2.2 A2e (G4): None = đường cũ (dò tên / bí danh)
+    skipped: List[str] = []
     for a in chosen:
         if lock_on and prop_lock.pov_no_gun(scene) and prop_lock.category(a) == "gun":
             continue
         if a["id"] in locked:
             continue                                          # already placed right after the place (its slot was kept)
         if a["kind"] not in ("weapon", "prop", "pet", "location", "outfit") or not a["images"] or any(r["label"] == a["name"] for r in out):
+            continue
+        if by_id is not None and a["kind"] in BYD_ID_KINDS:
+            if a["id"] in by_id:
+                _append_extra(conn, project_id, scene, a, blob, lock_on, out)
+            elif _named_in(a, cast, shot_words, blob):
+                skipped.append(a["name"])                     # chữ nhắc tên / bí danh nhưng BYĐ v2 không khai mã này — không gửi
             continue
         if a["kind"] == "outfit" and fold(a["name"]) in people_names:
             continue          # named like a person (S14.28: "Kelly" bơi)
@@ -1870,17 +1878,59 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
         # the entry also has an accented name (then the accents decide: alias "cũi" never matches "cúi")
         bare = not any(fold(n) != n.lower() for n in names_of(a))
         if any(name_spans(k, shot_words) for k in keys) or (bare and any(" " + fold(k) + " " in blob for k in keys)):
-            if lock_on and a["kind"] in prop_lock.KINDS:    # a picture with a variant (skin) only when the shot names it
-                said = prop_lock.shot_text(scene) + " " + blob   # 14/10 #30: the scene script's form when the shot lost it
-                pics = prop_lock.usable_images(a, said, variant=prop_lock.variant_source(conn, project_id, scene, a, said)[0])
-                pic = pics[0] if pics else None
-            else:
-                pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
-            if pic is not None:
-                out.append({"path": pic["path"], "label": a["name"],     # 07/10: an outfit named by a shot with nobody wearing it
-                            "role": {"location": "location", "outfit": "outfit_object"}.get(a["kind"], "object"),
-                            "_paths": {im["path"] for im in a["images"]}})
+            _append_extra(conn, project_id, scene, a, blob, lock_on, out)
+    if skipped:
+        from . import byd_fields
+        byd_fields.note(conn, "a2e", scene, "chữ shot nhắc " + ", ".join(sorted(set(skipped))) + " nhưng BYĐ v2 không khai mã Kho đó — "
+                        "không gửi ảnh (G4: không chọn ảnh Kho theo bí danh); cần thì thêm vào vat[] của BYĐ", project_id=project_id)
     return out
+
+
+BYD_ID_KINDS = ("weapon", "prop", "pet")
+"""A2e: loại mục Kho mà BYĐ v2 khai bằng `kho_id` (vat[] / thanh_phan[]). Bối cảnh phụ (location) và trang phục (outfit) không có chỗ
+trong BYĐ → giữ đường dò tên cũ."""
+
+
+def _named_in(a: Dict, cast, shot_words, blob: str) -> bool:
+    """Cùng phép khớp tên của đường cũ (_named_extras) — chỉ để NÓI RA mục bị bỏ khi BYĐ v2 quyết theo kho_id."""
+    keys = [n for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
+    bare = not any(fold(n) != n.lower() for n in names_of(a))
+    return any(name_spans(k, shot_words) for k in keys) or (bare and any(" " + fold(k) + " " in blob for k in keys))
+
+
+def _append_extra(conn, project_id: int, scene: Dict, a: Dict, blob: str, lock_on: bool, out: List[Dict]) -> None:
+    from . import prop_lock
+    if lock_on and a["kind"] in prop_lock.KINDS:    # a picture with a variant (skin) only when the shot names it
+        said = prop_lock.shot_text(scene) + " " + blob   # 14/10 #30: the scene script's form when the shot lost it
+        pics = prop_lock.usable_images(a, said, variant=prop_lock.variant_source(conn, project_id, scene, a, said)[0])
+        pic = pics[0] if pics else None
+    else:
+        pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
+    if pic is not None:
+        out.append({"path": pic["path"], "label": a["name"],     # 07/10: an outfit named by a shot with nobody wearing it
+                    "role": {"location": "location", "outfit": "outfit_object"}.get(a["kind"], "object"),
+                    "_paths": {im["path"] for im in a["images"]}})
+
+
+def _byd_kho_ids(conn, scene: Dict, chosen: List[Dict], project_id: int):
+    """V3.1 M2.2 A2e (G4, cờ byd_fields + byd_fields_a2e): mã Kho vật / thú BYĐ v2 khai → tập id; None = đường cũ (dò tên). Cờ tắt → None
+    không đọc gì (byte giống main). Bật mà BYĐ v1 / thiếu kho_id → None + diag byd_fallback; mã khai không thuộc dự án / không có ảnh
+    duyệt → diag byd_field_mismatch (REVIEW) — không thay bằng ảnh khác."""
+    from . import byd_fields
+    if not byd_fields.enabled("a2e"):
+        return None
+    ids = byd_fields.kho_ids(scene)
+    if ids is None:
+        byd_fields.note(conn, "a2e", scene, "shot chưa có BYĐ v2 đủ kho_id ở vat[] — chọn ảnh Kho đạo cụ theo tên / bí danh (đường cũ)",
+                        project_id=project_id)
+        return None
+    vat_ids = byd_fields.kho_ids(scene, ("vat",)) or []
+    have = {a["id"]: a for a in chosen}
+    bad = [str(k) for k in vat_ids if k not in have or not have[k]["images"]]
+    if bad:
+        byd_fields.note(conn, "a2e", scene, "BYĐ v2 khai vật Kho " + ", ".join(bad) + " nhưng mã đó không gắn dự án / không có ảnh — "
+                        "không gửi ảnh vật đó, cần người xem", kind=byd_fields.MISMATCH, project_id=project_id)
+    return set(ids)
 
 
 def _outfit_strip() -> bool:

@@ -96,3 +96,77 @@ def test_lineage_off_is_old_hash_and_on_tracks_byd():
         copied = json.loads(json.dumps(s))
         copied["byd"]["noi_chon"]["thoi_tiet"] = "rain"
         assert lineage.image_spec_hash(copied, [], "9:16") == lineage.image_spec_hash(s, [], "9:16")
+
+
+# ---- dữ liệu Kho giả dùng chung ------------------------------------------------------------------------------------------------
+@pytest.fixture
+def kho(tmp_path):
+    from core import assets
+    from core.db import connect
+    from core.pipeline import Pipeline
+    p = Pipeline(connect())
+    pid = p.create_project("m22")
+    c = p.conn
+    c.execute("UPDATE projects SET game='FF' WHERE id=?", (pid,))
+
+    def add(kind, name, aliases, file, link=True, desc=""):
+        aid = c.execute("INSERT INTO assets (game, kind, name, aliases, description) VALUES ('FF',?,?,?,?)",
+                        (kind, name, aliases, desc)).lastrowid
+        path = tmp_path / file
+        path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+        c.execute("INSERT INTO asset_images (asset_id, path, label, sort, status) VALUES (?,?,?,?,?)", (aid, str(path), file, 1, "approved"))
+        if link:
+            c.execute("INSERT INTO project_assets (project_id, asset_id) VALUES (?,?)", (pid, aid))
+        return aid
+
+    ids = {"glue": add("prop", "Bom keo", "Gloowall", "glue.png"),
+           "grenade": add("prop", "Lựu đạn", "bom", "grenade.png"),     # bí danh chung "bom" — G4: khớp nhầm vào "bom keo"
+           "outside": add("prop", "Thùng thính", "airdrop", "drop.png", link=False)}
+    c.commit()
+
+    def refs(scene, *flags):
+        base = {"FEATURE_PROJECT_PROP_LOCK": "0"}
+        with env(*flags), mock.patch.dict(os.environ, base), mock.patch.object(assets, "scene_location", return_value=None):
+            return [r["label"] for r in assets.scene_references(c, pid, dict(scene))]
+
+    def diags(code):
+        return [r["message"] for r in c.execute("SELECT message FROM diag_events WHERE code=? ORDER BY id", (code,))]
+
+    return {"conn": c, "pid": pid, "ids": ids, "refs": refs, "diags": diags}
+
+
+def _a2e_scene(kho, vat_ids=None, v1=False):
+    s = {"text": "Kelly ném bom keo", "image_prompt": "Kelly throws a glue grenade", "characters": []}
+    if v1:
+        s["byd"] = {"shot": 4, "vat": ["BOM_KEO"]}
+    elif vat_ids is not None:
+        s["byd"] = v2_scene(thanh_phan=[], vat=[{"vat": "BOM_KEO", "kho_id": k, "nguoi": "KELLY", "cach": "nem"} for k in vat_ids])["byd"]
+    return s
+
+
+# ---- A2e: ảnh Kho theo kho_id (G4) -----------------------------------------------------------------------------------------
+def test_a2e_off_is_old_alias_path_byte_equal(kho):
+    v2 = _a2e_scene(kho, [kho["ids"]["glue"]])
+    old = kho["refs"](_a2e_scene(kho))
+    assert set(old) == {"Bom keo", "Lựu đạn"}                                # đường cũ: bí danh "bom" kéo cả lựu đạn (G4)
+    assert kho["refs"](v2) == old and kho["refs"](v2, "a2e") == old and kho["refs"](v2, "mother") == old   # tắt / thiếu mẹ / thiếu con
+    assert kho["diags"](byd_fields.FALLBACK) == []
+
+
+def test_a2e_on_v2_picks_by_kho_id_and_says_skipped_alias(kho):
+    got = kho["refs"](_a2e_scene(kho, [kho["ids"]["glue"]]), "mother", "a2e")
+    assert got == ["Bom keo"]
+    assert any("Lựu đạn" in m for m in kho["diags"](byd_fields.FALLBACK))
+
+
+def test_a2e_on_v1_or_no_byd_falls_back_with_warning(kho):
+    old = kho["refs"](_a2e_scene(kho))
+    assert kho["refs"](_a2e_scene(kho, v1=True), "mother", "a2e") == old
+    assert kho["refs"](_a2e_scene(kho), "mother", "a2e") == old
+    assert len(kho["diags"](byd_fields.FALLBACK)) >= 1
+
+
+def test_a2e_declared_id_not_in_project_is_review_not_substituted(kho):
+    got = kho["refs"](_a2e_scene(kho, [kho["ids"]["outside"]]), "mother", "a2e")
+    assert "Thùng thính" not in got and "Lựu đạn" not in got and "Bom keo" not in got
+    assert any(str(kho["ids"]["outside"]) in m for m in kho["diags"](byd_fields.MISMATCH))
