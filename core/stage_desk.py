@@ -11,8 +11,11 @@ API CÔNG KHAI (dashboard/stage_desk_ui.py — C-M48-DESK-UI — chỉ gọi cá
     progress(data_dir, pid, scene, conn=None) -> dict|None tiến độ tác vụ nền gần nhất (state running / done / error / interrupted)
     is_executive_producer(conn, pid, user) -> bool          S-B: người được Duyệt / Trả lại sân khấu
     paid_gate(conn, pid, data_dir, scene_ids) -> [dict]     S-C: VÀNG / HOLD trước generation trả phí
-    lock_holder(data_dir, pid, scene, conn) -> dict|None    khóa S đang giữ đoạn (autopilot / CLI hỏi)
+    lock_holder(data_dir, pid, scene, conn, clean=True)     khóa S đang giữ đoạn (clean=False: chỉ đọc, khóa cũ trả {"stale": lý do})
     busy(conn, pid, data_dir) -> [(seg_id, holder)]         mọi đoạn đang bị khóa S của dự án
+    cam_mark(stage_camera) -> str|None                      dấu máy một shot (scene_status["marks"]) — UI giữ lúc MỞ màn duyệt
+  Giữ khóa S (autopilot `_stage_phase`, CLI tools/stage_auto.py — hai chiều với nút):
+    hold_segments(conn, pid, data_dir, segs, action, who)   context manager; đoạn đang bị giữ → DeskError (câu lock_line)
 
   Nút (mục 4 kế hoạch; `who` = write_guard.actor(...) của người / phiên bấm; mọi nút trả dict có "ok"; lỗi = "errors" [câu]):
     N1 check_inputs(conn, pid, data_dir, scene, who)        nền: K1 (Blender nếu chưa có) + đầu vào + cổng 0 USD
@@ -20,13 +23,17 @@ API CÔNG KHAI (dashboard/stage_desk_ui.py — C-M48-DESK-UI — chỉ gọi cá
     N3 write_prompt(conn, pid, data_dir, scene, who)        đồng bộ, khóa S: đề bài vai đang tới lượt → doan_<S>/crew/de_bai_<phase>.md
     N4 load_answer(conn, pid, data_dir, scene, obj, who)    nền: câu trả lời vai (source cố định "claude_code" — KHÔNG nhận người dùng)
     N5 build_sheet(conn, pid, data_dir, scene, who)         nền: tấm ghép → doan_<S>/beats/san_khau_canh<S>.png (không ghi CSDL)
-    N6 approve(conn, pid, data_dir, scene, who, user, confirm_drawn=False, expected_revs=None)   S-B: chỉ EP; ghi máy qua write guard
+    N6 approve(conn, pid, data_dir, scene, who, user, confirm_drawn=False, expected_revs=None, expected_marks=None)
+                                                            S-B: chỉ EP; `user` = common.access_user() BẮT BUỘC (None chỉ khi đăng
+                                                            nhập TẮT); expected_marks = scene_status()["marks"] lúc MỞ màn duyệt
+                                                            (máy đổi xen giữa → từ chối); máy ghi qua write guard
     N7 return_(conn, pid, data_dir, scene, tra_lai, who, user)                                   S-B: chỉ EP; không ghi CSDL
     N8 reset(conn, pid, data_dir, scene, who, confirm=False)  S-D: confirm=False → chỉ XEM TRƯỚC (preview) thay đổi + phụ thuộc
     N9 rerender(conn, pid, data_dir, scene, who, confirm_drawn=False)   nền: K3 + K4 từ câu trả lời đã lưu; ghi máy qua guard
     N10 score(conn, pid, data_dir, scene)                   đồng bộ, khóa S: chấm lại các lượt đã lưu (không ghi CSDL)
     N11 render_plates(conn, pid, data_dir, scene, who)      quên render nền hỏng của các shot cảnh + place_refs.ensure_async
-  S-C (cổng trước gen trả phí — Dashboard / phiên chính nối vào nút Gen; ở đây chỉ là luật + dữ liệu):
+  S-C (cổng trước gen trả phí — đã nối vào core/batch.image_gates = nút Gen ảnh + tools/pregen_check; gen VIDEO trả phí và autopilot
+  `_director_phase` CHƯA nối — việc tiếp, ghi ở báo cáo):
     require_plate(conn, pid, data_dir, scene_id, on, who, user)       EP đánh dấu shot BẮT BUỘC có plate 3D đã duyệt làm reference
     allow_exception(conn, pid, data_dir, scene_id, why, who, user)    EP xác nhận ngoại lệ (gen trả phí khi sân khấu chưa duyệt)
 
@@ -34,7 +41,9 @@ Luồng nền: một `threading.Thread` daemon mỗi DỰ ÁN (`_RUNNING[pid]`) 
 place_refs.ensure_async); bấm lại khi còn chạy → "đang chạy …", không luồng thứ hai. Khóa S: tệp doan_<S>/.desk.lock {pid tiến trình, owner,
 nút, giờ} — autopilot `_stage_phase` và CLI tools/stage_auto.py gặp khóa thì chờ / từ chối CÓ CÂU; khóa của tiến trình đã chết / quá
 LOCK_STALE_SEC → gỡ + báo. Blender xếp hàng sẵn trong stage_grid.run_blender_safe / plates3d.render (plates3d.blender_turn) — ở đây
-không khóa Blender lần nữa (khóa tệp không vào lại được). Không bao giờ gán biến môi trường cờ (FEATURE_…) — stage_auto.run(manual=True)."""
+không khóa Blender lần nữa (khóa tệp không vào lại được). Không bao giờ gán biến môi trường cờ (FEATURE_…): đường chạy tay có
+stage_auto.run(manual=True) cho nút API N13 (Đợt 3 — chưa có ở đây). Nút đồng bộ N3 / N6 / N7 / N10 có thể đo K1 (Blender ≈ 20 s) khi K1
+chưa có / model đổi — UI nên chạy N1 trước (trạng thái `k1`)."""
 import datetime
 import json
 import os
@@ -123,31 +132,60 @@ def _say(conn, pid: int, sev: str, msg: str, scene_id: Optional[int] = None) -> 
 
 
 # ---- khóa S -----------------------------------------------------------------------------------------------------------------
+_HELD: set = set()                              # mã thẻ khóa S đang được giữ TRONG tiến trình này (khóa cùng pid mà thẻ không còn = cũ)
+BROKEN_LOCK_SEC = 60                            # tệp khóa rỗng / hỏng (chết giữa tạo và ghi) quá chừng này → coi là cũ
+
+
 def _pid_alive(pid: int) -> bool:
     from .plates3d import pid_alive
     return pid_alive(pid)
 
 
-def lock_holder(data_dir: str, pid: int, scene, conn=None, seg: Optional[Dict] = None) -> Optional[Dict]:
-    """Khóa S đang giữ đoạn (dict {pid, owner, action, since, since_ts}) hoặc None. Khóa của tiến trình đã chết / quá hạn → gỡ + báo."""
-    seg = seg or segment(conn, pid, scene)
-    path = os.path.join(seg_dir(data_dir, pid, seg), LOCK_FILE)
-    h = _read(path)
+def _lock_path(data_dir: str, pid: int, seg: Dict) -> str:
+    return os.path.join(seg_dir(data_dir, pid, seg), LOCK_FILE)
+
+
+def _stale_why(path: str, h: Optional[Dict]) -> Optional[str]:
+    """Lý do khóa S là CŨ (gỡ được), None = còn hiệu lực."""
     if h is None:
-        return None
-    age = time.time() - float(h.get("since_ts") or 0)
-    dead = int(h.get("pid") or 0) > 0 and not _pid_alive(int(h["pid"]))
-    if dead or age > LOCK_STALE_SEC:
         try:
-            os.remove(path)
+            age = time.time() - os.path.getmtime(path)
         except OSError:
-            pass
-        why = f"tiến trình {h.get('pid')} không còn chạy" if dead else f"quá {LOCK_STALE_SEC // 60} phút"
-        if conn is not None:
-            _say(conn, pid, "warn", f"Bàn đạo diễn: gỡ khóa thao tác sân khấu {seg['id']} ({h.get('action')}, {h.get('owner')}) — {why}; "
-                                    "state chia vai giữ nguyên (crew_answer không lưu nửa vời)")
+            return None                               # đã biến mất
+        return f"tệp khóa hỏng / rỗng quá {BROKEN_LOCK_SEC} giây" if age > BROKEN_LOCK_SEC else None
+    age = time.time() - float(h.get("since_ts") or 0)
+    lp = int(h.get("pid") or 0)
+    if lp == os.getpid() and h.get("token") not in _HELD:
+        return "luồng giữ khóa trong Dashboard này đã dừng mà chưa nhả"
+    if lp > 0 and lp != os.getpid() and not _pid_alive(lp):
+        return f"tiến trình {lp} không còn chạy"
+    if age > LOCK_STALE_SEC:
+        return f"quá {LOCK_STALE_SEC // 60} phút"
+    return None
+
+
+def lock_holder(data_dir: str, pid: int, scene, conn=None, seg: Optional[Dict] = None, clean: bool = True) -> Optional[Dict]:
+    """Khóa S đang giữ đoạn (dict {pid, owner, action, since, since_ts, token}) hoặc None. Khóa CŨ (tiến trình chết, luồng của chính
+    Dashboard đã dừng, tệp hỏng, quá hạn): `clean` → gỡ + báo ⚙ Chẩn đoán; clean=False (vẽ trạng thái — rà 7: không ghi khi vẽ) → trả
+    {"stale": lý do, ...} để màn nói, không gỡ."""
+    seg = seg or segment(conn, pid, scene)
+    path = _lock_path(data_dir, pid, seg)
+    if not os.path.exists(path):
         return None
-    return h
+    h = _read(path)
+    why = _stale_why(path, h)
+    if why is None:
+        return h or {"owner": "?", "action": "?", "since": "?"}
+    if not clean:
+        return dict(h or {}, stale=why)
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+    if conn is not None:
+        _say(conn, pid, "warn", f"Bàn đạo diễn: gỡ khóa thao tác sân khấu {seg['id']} ({(h or {}).get('action')}, "
+                                f"{(h or {}).get('owner')}) — {why}; state chia vai giữ nguyên (crew_answer không lưu nửa vời)")
+    return None
 
 
 def busy(conn, pid: int, data_dir: str) -> List[tuple]:
@@ -161,18 +199,21 @@ def busy(conn, pid: int, data_dir: str) -> List[tuple]:
 
 
 def lock_line(seg_id: str, h: Dict) -> str:
-    return (f"đang thao tác sân khấu {seg_id} trên Dashboard ({h.get('action')}, {h.get('owner') or 'không rõ người'}, từ "
-            f"{h.get('since')}) — chờ xong rồi chạy lại")
+    return (f"đang thao tác sân khấu {seg_id} ({h.get('action')}, {h.get('owner') or 'không rõ người'}, từ {h.get('since')}) — chờ xong "
+            "rồi chạy lại")
 
 
 class _Hold:
-    """Giữ khóa S của đoạn trong `with` (tạo O_EXCL — hai tiến trình không cùng giữ). Đang bị giữ → DeskError có câu."""
+    """Khóa S của đoạn: tạo O_EXCL (hai tiến trình không cùng giữ), ghi mã thẻ; nhả chỉ khi tệp vẫn là của MÌNH (rà 6: không xóa khóa
+    người khác sau khi khóa mình bị gỡ quá hạn), thử lại vài lần (Windows: tệp đang bị đọc). Đang bị giữ → DeskError có câu.
+    Dùng `with` hoặc acquire() / release() (luồng nền: giữ ở luồng gọi, nhả ở luồng nền — không lọt khe giữa kiểm và giữ)."""
 
     def __init__(self, data_dir: str, pid: int, seg: Dict, action: str, who: Optional[Dict], conn=None):
-        self.path = os.path.join(seg_dir(data_dir, pid, seg), LOCK_FILE)
+        self.path = _lock_path(data_dir, pid, seg)
         self.args = (data_dir, pid, seg, action, who, conn)
+        self.token = None
 
-    def __enter__(self):
+    def acquire(self) -> "_Hold":
         data_dir, pid, seg, action, who, conn = self.args
         h = lock_holder(data_dir, pid, seg["scene"], conn, seg=seg)
         if h:
@@ -182,16 +223,63 @@ class _Hold:
             fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
             raise DeskError(lock_line(seg["id"], _read(self.path) or {})) from None
-        os.write(fd, json.dumps({"pid": os.getpid(), "owner": _who_text(who), "action": action, "since_ts": time.time(),
-                                 "since": time.strftime("%Y-%m-%d %H:%M:%S")}, ensure_ascii=False).encode("utf-8"))
-        os.close(fd)
+        import uuid
+        self.token = uuid.uuid4().hex
+        _HELD.add(self.token)
+        try:
+            os.write(fd, json.dumps({"pid": os.getpid(), "token": self.token, "owner": _who_text(who), "action": action,
+                                     "since_ts": time.time(), "since": time.strftime("%Y-%m-%d %H:%M:%S")},
+                                    ensure_ascii=False).encode("utf-8"))
+        finally:
+            os.close(fd)
+        return self
+
+    def release(self) -> None:
+        if self.token is None:
+            return
+        _HELD.discard(self.token)
+        for _ in range(5):
+            h = _read(self.path)
+            if h is not None and h.get("token") != self.token:
+                break                                   # khóa đã bị gỡ và người khác giữ: không đụng
+            try:
+                os.remove(self.path)
+                break
+            except FileNotFoundError:
+                break
+            except OSError:
+                time.sleep(0.2)
+        self.token = None
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, *exc):
+        self.release()
+        return False
+
+
+class hold_segments:
+    """Autopilot / CLI giữ khóa S của các đoạn TRƯỚC khi ghi (rà CAO 2: khóa phải chặn hai chiều — nút gặp autopilot / CLI đang chạy cũng
+    từ chối có câu). Đoạn nào đang bị giữ → DeskError (câu như lock_line); các khóa đã lấy được nhả lại."""
+
+    def __init__(self, conn, pid: int, data_dir: str, segs: Sequence[Dict], action: str, who: Optional[Dict]):
+        self.holds = [_Hold(data_dir, pid, g, action, who, conn) for g in segs]
+
+    def __enter__(self):
+        got = []
+        try:
+            for h in self.holds:
+                got.append(h.acquire())
+        except DeskError:
+            for h in got:
+                h.release()
+            raise
         return self
 
     def __exit__(self, *exc):
-        try:
-            os.remove(self.path)
-        except OSError:
-            pass
+        for h in self.holds:
+            h.release()
         return False
 
 
@@ -228,7 +316,8 @@ def _db_path(conn) -> Optional[str]:
 
 def _start(conn, pid: int, data_dir: str, seg: Dict, action: str, who: Optional[Dict],
            work: Callable[[sqlite3.Connection, Callable[[str], None]], Dict]) -> Dict:
-    """Chạy `work(conn_riêng, log)` trong luồng nền của dự án, giữ khóa S của đoạn, ghi tiến độ. Trả {"ok", "started"|"errors"}."""
+    """Chạy `work(conn_riêng, log)` trong luồng nền của dự án; khóa S của đoạn GIỮ NGAY ở luồng gọi (rà CAO 2: không có khe giữa kiểm và
+    giữ) và nhả ở luồng nền khi xong; ghi tiến độ. Trả {"ok", "started"|"errors"}."""
     db = _db_path(conn)
     if not db:
         return {"ok": False, "errors": ["CSDL trong bộ nhớ — không mở được từ luồng nền (chạy Dashboard với tệp CSDL)"]}
@@ -238,9 +327,11 @@ def _start(conn, pid: int, data_dir: str, seg: Dict, action: str, who: Optional[
             pr = _read(_progress_path(data_dir, pid, seg)) or {}
             return {"ok": False, "errors": [f"đang chạy {t.name.split('|', 1)[-1]} của dự án này"
                                             + (f" ({pr.get('step')})" if pr.get("step") else "") + " — chờ xong rồi bấm lại"]}
-        h = lock_holder(data_dir, pid, seg["scene"], conn, seg=seg)
-        if h:
-            return {"ok": False, "errors": [lock_line(seg["id"], h)]}
+        hold = _Hold(data_dir, pid, seg, action, who, conn)
+        try:
+            hold.acquire()
+        except DeskError as e:
+            return {"ok": False, "errors": [str(e)]}
         name = f"stage_desk_{pid}|{action} {seg['id']}"
         path = _progress_path(data_dir, pid, seg)
         pr = {"action": action, "label": ACTIONS.get(action, action), "seg": seg["id"], "who": _who_text(who), "started": _now(),
@@ -259,8 +350,7 @@ def _start(conn, pid: int, data_dir: str, seg: Dict, action: str, who: Optional[
             c = sqlite3.connect(db, timeout=60)
             c.row_factory = sqlite3.Row
             try:
-                with _Hold(data_dir, pid, seg, action, who, c):
-                    res = work(c, log) or {}
+                res = work(c, log) or {}
                 pr.update(state="done" if res.get("ok", True) else "error", result=res, updated=_now(),
                           error="; ".join(res.get("errors") or []) or None)
             except Exception as e:  # noqa: BLE001 - said in the progress file + diag, never swallowed
@@ -271,11 +361,16 @@ def _start(conn, pid: int, data_dir: str, seg: Dict, action: str, who: Optional[
                     _write(path, pr)
                 except OSError:
                     pass
+                hold.release()
                 c.close()
 
         t = threading.Thread(target=run, name=name, daemon=True)
         _RUNNING[pid] = t
-        t.start()
+        try:
+            t.start()
+        except Exception:
+            hold.release()
+            raise
     return {"ok": True, "started": True, "action": action, "seg": seg["id"]}
 
 
@@ -307,14 +402,29 @@ def is_executive_producer(conn, pid: int, user) -> bool:
 
 
 def _need_ep(conn, pid: int, who: Optional[Dict], user, what: str) -> None:
+    """S-B. `user` = common.access_user() của phiên (BẮT BUỘC truyền — None CHỈ khi đăng nhập TẮT = chủ máy); `who` phải là người và
+    trùng email của `user` (rà 3: không để nơi gọi khai actor người mà không có danh tính đăng nhập)."""
     if (who or {}).get("kind") != "human":
         raise DeskError(f"{what} chỉ do NGƯỜI (Executive Producer) bấm — Director / phiên Claude / công cụ đề xuất, không tự duyệt "
                         "(S-B, sổ v31-ep-stage-desk-actions-2026-10-21)")
+    from . import access
+    u = access.user_of(user)
+    if u is not None and str((who or {}).get("who") or "").strip().lower() != (u.get("email") or ""):
+        raise DeskError(f"{what}: người bấm ({(who or {}).get('who')}) khác người đăng nhập ({u.get('email')}) (S-B)")
     if not is_executive_producer(conn, pid, user):
         raise DeskError(f"{what} chỉ Executive Producer (Owner / chủ dự án) được bấm (S-B)")
 
 
 # ---- trạng thái -------------------------------------------------------------------------------------------------------------
+def cam_mark(cam) -> Optional[str]:
+    """Dấu ngắn của `stage_camera` một shot (None = không có máy) — UI giữ dấu lúc MỞ màn duyệt rồi đưa lại cho approve (rà 4: _rev chưa
+    tăng ở chế độ SHADOW nên không bắt được ghi xen giữa)."""
+    if not cam:
+        return None
+    import hashlib
+    return hashlib.sha1(json.dumps(cam, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
+
+
 def _revs(conn, seg: Dict) -> Dict[int, int]:
     from . import write_guard
     out = {}
@@ -351,18 +461,19 @@ def scene_status(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = Non
     state = _read(os.path.join(d, sa.CREW_DIR, "state.json"))
     result = _read(os.path.join(d, "result.json"))
     phase = (state or {}).get("phase")
-    fp = _fingerprint_now(conn, pid, data_dir, seg)
+    fp = _fingerprint_now(conn, pid, data_dir, seg) if state else None          # rà 7: chỉ tính vân tay khi có lượt chia vai để so
     changed = bool(state and fp and state.get("fp") != fp)
-    cams, mine = [], []
+    cams, mine, marks = [], [], {}
     for s in seg["shots"]:
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (s["id"],)).fetchone()
         data = json.loads((row["data"] if row else None) or "{}")
+        marks[s["idx"]] = cam_mark(data.get(sa.FIELD))
         if data.get(sa.FIELD):
             cams.append(s["idx"])
             if data.get(sa.SEG_FIELD) == seg["id"]:
                 mine.append(s["idx"])
     sheet = os.path.join(d, "beats", f"san_khau_canh{seg['scene']}.png")
-    h = lock_holder(data_dir, pid, seg["scene"], conn, seg=seg)
+    h = lock_holder(data_dir, pid, seg["scene"], conn, seg=seg, clean=False)   # rà 7: vẽ trạng thái không gỡ khóa / không ghi diag
     pr = progress(data_dir, pid, seg["scene"], conn, seg=seg)
     busy_now = bool(h) or (pr or {}).get("state") == "running"
     user_ok = stage_crew.user_approves()
@@ -384,7 +495,8 @@ def scene_status(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = Non
             btn.append("N11")
     return {"scene": seg["scene"], "seg_id": seg["id"], "stage": seg["stage"], "shots": [s["idx"] for s in seg["shots"]],
             "phase": phase, "label": PHASE_LABEL.get(phase, phase) if not changed else "đầu vào đổi — lượt dở không dùng được",
-            "k1": fp is not None, "inputs_changed": changed, "approved_by": (state or {}).get("approved_by"),
+            "k1": _sa().k1_cached(seg, _sa().base_dir(data_dir, pid, seg["stage"])) is not None, "inputs_changed": changed,
+            "inputs_known": bool(state is None or fp is not None), "marks": marks, "approved_by": (state or {}).get("approved_by"),
             "n_returns": (state or {}).get("n_returns"), "cams": cams, "cams_this_stage": mine,
             "bad": {str(k): v for k, v in ((result or {}).get("bad") or {}).items()}, "round": (result or {}).get("round"),
             "sheet": sheet if os.path.exists(sheet) else None, "drawn": drawn_shots(conn, seg), "revs": _revs(conn, seg),
@@ -512,11 +624,12 @@ def build_sheet(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> Di
     return _start(conn, pid, data_dir, seg, "N5", who, work)
 
 
-def approve(conn, pid: int, data_dir: str, scene, who: Optional[Dict], user=None, confirm_drawn: bool = False,
-            expected_revs: Optional[Dict] = None) -> Dict:
+def approve(conn, pid: int, data_dir: str, scene, who: Optional[Dict], user, confirm_drawn: bool = False,
+            expected_revs: Optional[Dict] = None, expected_marks: Optional[Dict] = None) -> Dict:
     """N6 (0 USD): Executive Producer duyệt sân khấu (S-B) → crew_user_verdict(approve=True) (source "nguoi_dung") → máy ghi qua write
     guard với actor người bấm + `expected_revs` (đọc lúc mở lượt duyệt — scene_status["revs"]). Có shot đã vẽ ảnh → cần
-    `confirm_drawn` (ảnh shot đó sẽ lệch nền — tương đương --force)."""
+    `confirm_drawn` (ảnh shot đó sẽ lệch nền — tương đương --force). `expected_marks` = scene_status["marks"] lấy lúc MỞ màn duyệt:
+    máy của shot nào đã bị ghi khác từ lúc đó (autopilot / CLI xen giữa) → từ chối, hỏi lại — không ghi lặng."""
     from .camera_plan import drawn_shots
     from . import stage_crew
     sa = _sa()
@@ -532,10 +645,21 @@ def approve(conn, pid: int, data_dir: str, scene, who: Optional[Dict], user=None
         return {"ok": False, "needs_confirm": drawn,
                 "errors": [f"shot {', '.join(map(str, drawn))} đã vẽ ảnh — ảnh sẽ lệch nền 3D mới; xác nhận để vẫn đổi máy"]}
 
+    if expected_marks is not None:
+        now = scene_status(conn, pid, data_dir, scene, seg=seg)["marks"]
+        moved = sorted(i for i in now if (expected_marks.get(i, expected_marks.get(str(i))) != now[i]))
+        if moved:
+            return {"ok": False, "stale": moved, "errors": [f"máy shot {', '.join(map(str, moved))} đã đổi từ lúc mở màn duyệt (tác vụ khác "
+                                                            "vừa ghi) — xem lại rồi duyệt"]}
+
     def fn():
         r = sa.crew_user_verdict(conn, pid, seg, data_dir, approve=True, who=who, expected_revs=expected_revs)
         out = {k: v for k, v in r.items() if k != "result"}
         if r.get("ok"):
+            try:
+                os.remove(os.path.join(seg_dir(data_dir, pid, seg), RESET_FILE))   # lượt mới đã duyệt: dấu "sẽ cũ" của lần làm lại hết ý
+            except OSError:
+                pass
             bad = (r.get("result") or {}).get("bad") or {}
             out["bad"] = {str(k): v for k, v in bad.items()}
             _say(conn, pid, "info", f"Bàn đạo diễn: {_who_text(who)} DUYỆT sân khấu {seg['id']} — máy shot "
@@ -545,7 +669,7 @@ def approve(conn, pid: int, data_dir: str, scene, who: Optional[Dict], user=None
     return _sync(data_dir, pid, seg, "N6", who, conn, fn)
 
 
-def return_(conn, pid: int, data_dir: str, scene, tra_lai: Sequence[Dict], who: Optional[Dict], user=None) -> Dict:
+def return_(conn, pid: int, data_dir: str, scene, tra_lai: Sequence[Dict], who: Optional[Dict], user) -> Dict:
     """N7 (0 USD): Executive Producer trả lại kèm câu ý đồ từng shot (S-G: người nhập ý đồ, Quay phim chọn số đo). Không ghi CSDL."""
     sa = _sa()
     seg = segment(conn, pid, scene)
@@ -572,8 +696,10 @@ def reset_preview(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = No
     d = seg_dir(data_dir, pid, seg)
     st = _read(os.path.join(d, sa.CREW_DIR, "state.json"))
     mine = scene_status(conn, pid, data_dir, scene, seg=seg)["cams_this_stage"]
-    from . import world_map
-    world = world_map.path(data_dir, pid, seg["scene"])
+    import re
+    # = world_map.path (KHÔNG import world_map: luật G2-4 — map không nằm trên đường gen, autopilot import module này)
+    world = os.path.join(data_dir, str(pid), "world", "scene_" + (re.sub(r"[^0-9A-Za-z]+", "_", str(seg["scene"])).strip("_") or "x")
+                         + ".json")
     return {"seg": seg["id"], "archive": os.path.join(d, sa.CREW_DIR) if os.path.isdir(os.path.join(d, sa.CREW_DIR)) else None,
             "phase": (st or {}).get("phase"), "n_answers": len((st or {}).get("history") or []),
             "cams_kept": mine, "plates_stale_after": mine, "images_stale_after": [i for i in drawn_shots(conn, seg) if i in mine],
@@ -647,29 +773,33 @@ def _gate_path(data_dir: str, pid: int) -> str:
     return os.path.join(data_dir, str(pid), "stage", GATE_FILE)
 
 
+_GATE_LOCK = threading.Lock()                   # đọc-sửa-ghi desk_gate.json trong một tiến trình không mất lần ghi
+
+
 def _gate(data_dir: str, pid: int) -> Dict:
     g = _read(_gate_path(data_dir, pid)) or {}
     return {"required": {str(k): v for k, v in (g.get("required") or {}).items()},
             "exceptions": {str(k): v for k, v in (g.get("exceptions") or {}).items()}}
 
 
-def require_plate(conn, pid: int, data_dir: str, scene_id: int, on: bool, who: Optional[Dict], user=None) -> Dict:
+def require_plate(conn, pid: int, data_dir: str, scene_id: int, on: bool, who: Optional[Dict], user) -> Dict:
     """S-C: Executive Producer đánh dấu (on) / bỏ đánh dấu shot BẮT BUỘC có plate 3D đã duyệt làm reference trước gen trả phí."""
     try:
         _need_ep(conn, pid, who, user, "Đặt plate 3D bắt buộc")
     except DeskError as e:
         return {"ok": False, "errors": [str(e)]}
-    g = _gate(data_dir, pid)
-    if on:
-        g["required"][str(scene_id)] = {"by": _who_text(who), "at": _now()}
-    else:
-        g["required"].pop(str(scene_id), None)
-        g["exceptions"].pop(str(scene_id), None)
-    _write(_gate_path(data_dir, pid), g)
+    with _GATE_LOCK:
+        g = _gate(data_dir, pid)
+        if on:
+            g["required"][str(scene_id)] = {"by": _who_text(who), "at": _now()}
+        else:
+            g["required"].pop(str(scene_id), None)
+            g["exceptions"].pop(str(scene_id), None)
+        _write(_gate_path(data_dir, pid), g)
     return {"ok": True}
 
 
-def allow_exception(conn, pid: int, data_dir: str, scene_id: int, why: str, who: Optional[Dict], user=None) -> Dict:
+def allow_exception(conn, pid: int, data_dir: str, scene_id: int, why: str, who: Optional[Dict], user) -> Dict:
     """S-C: Executive Producer xác nhận NGOẠI LỆ — shot bắt buộc plate được gen trả phí khi sân khấu chưa duyệt (ghi ai, lúc nào, vì sao)."""
     try:
         _need_ep(conn, pid, who, user, "Xác nhận ngoại lệ plate 3D")
@@ -677,20 +807,37 @@ def allow_exception(conn, pid: int, data_dir: str, scene_id: int, why: str, who:
         return {"ok": False, "errors": [str(e)]}
     if not str(why or "").strip():
         return {"ok": False, "errors": ["ngoại lệ cần lý do"]}
-    g = _gate(data_dir, pid)
-    g["exceptions"][str(scene_id)] = {"by": _who_text(who), "at": _now(), "why": str(why).strip()[:300]}
-    _write(_gate_path(data_dir, pid), g)
+    with _GATE_LOCK:
+        g = _gate(data_dir, pid)
+        g["exceptions"][str(scene_id)] = {"by": _who_text(who), "at": _now(), "why": str(why).strip()[:300]}
+        _write(_gate_path(data_dir, pid), g)
     _say(conn, pid, "warn", f"Bàn đạo diễn: {_who_text(who)} cho shot (scene_id {scene_id}) gen trả phí khi sân khấu chưa duyệt — {why}",
          scene_id)
     return {"ok": True}
 
 
+def _plate_ready(conn, pid: int, data_dir: str, scene_id: int) -> Optional[str]:
+    """None khi shot đã có nền 3D render XONG và không cũ so với máy hiện tại; ngược lại là lý do (rà 5: vừa duyệt máy mới thì nền cũ
+    đã lệch — chưa phải 'plate đã duyệt')."""
+    from . import location_pack, place_refs
+    if location_pack.plate_of(data_dir, pid, scene_id) is None:
+        return "nền 3D theo máy đã duyệt chưa render (↻ Render lại nền 3D cảnh này)"
+    try:
+        row = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+        old = location_pack.stale_plate(conn, pid, data_dir, scene_id, place_refs.resolution_of(row))
+    except Exception as e:  # noqa: BLE001 - không so được = chưa chắc: giữ (luật S-C), có câu
+        return f"không so được nền 3D với máy ({type(e).__name__}: {e})"
+    return (old.get("why") or "nền 3D cũ so với máy hiện tại") if old else None
+
+
 def paid_gate(conn, pid: int, data_dir: str, scene_ids: Sequence[int]) -> List[Dict]:
     """S-C: [{scene_id, idx, level 'warn'|'hold', why}] cho các shot sắp gen TRẢ PHÍ. Mặc định cảnh báo VÀNG khi sân khấu của shot chưa
-    chốt (đang chia vai / chờ EP duyệt / đầu vào đổi). Shot EP đã đánh dấu BẮT BUỘC plate 3D đã duyệt mà sân khấu chưa duyệt (chưa
-    có máy từ sân khấu đã chốt) và CHƯA có ngoại lệ → 'hold' (giữ trước khi tốn tiền). Không đọc Blender; lỗi đọc → VÀNG có câu."""
+    chốt (đang chia vai / chờ EP duyệt / đầu vào đổi / chưa biết). Shot Executive Producer đã đánh dấu BẮT BUỘC plate 3D đã duyệt làm
+    reference chỉ qua khi ĐỦ: sân khấu chốt và do NGƯỜI duyệt (approved_by nguoi_dung — S-B; đường không chia vai / Đạo diễn tự chốt
+    không có bước EP duyệt), shot có máy từ sân khấu đó, nền 3D theo máy đó đã render và không cũ; thiếu một điều và CHƯA có ngoại lệ
+    → 'hold' (giữ trước khi tốn tiền). Dự án không có thư mục sân khấu → [] (không đọc gì). Không chạy Blender; lỗi đọc → VÀNG có câu."""
     want = {int(x) for x in scene_ids}
-    if not want:
+    if not want or not os.path.isdir(os.path.join(data_dir, str(pid), "stage")):
         return []
     g = _gate(data_dir, pid)
     out = []
@@ -704,20 +851,31 @@ def paid_gate(conn, pid: int, data_dir: str, scene_ids: Sequence[int]) -> List[D
         if not hit:
             continue
         st = scene_status(conn, pid, data_dir, seg["scene"], seg=seg)
-        settled = st["phase"] in (None, "xong") and not st["inputs_changed"]
+        settled = st["phase"] in (None, "xong") and not st["inputs_changed"] and st["inputs_known"]
+        by_person = st["phase"] == "xong" and st["approved_by"] == "nguoi_dung" and not st["inputs_changed"] and st["inputs_known"]
         for s in hit:
-            approved = st["phase"] == "xong" and not st["inputs_changed"] and s["idx"] in st["cams_this_stage"]
-            if str(s["id"]) in g["required"] and not approved:
+            if str(s["id"]) in g["required"]:
+                if not by_person:
+                    why = (f"sân khấu {seg['id']} chưa được Executive Producer duyệt ({st['label']}"
+                           + ("; đường không chia vai / Đạo diễn tự chốt — không có bước EP duyệt" if st["phase"] in (None, "xong") else "")
+                           + ")")
+                elif s["idx"] not in st["cams_this_stage"]:
+                    why = f"shot không có máy từ sân khấu {seg['id']} đã duyệt (dùng máy thường)"
+                else:
+                    why = _plate_ready(conn, pid, data_dir, s["id"])
+                if why is None:
+                    continue
                 exc = g["exceptions"].get(str(s["id"]))
                 if exc:
                     out.append({"scene_id": s["id"], "idx": s["idx"], "level": "warn",
-                                "why": f"shot {s['idx']}: plate 3D bắt buộc chưa duyệt — ĐÃ xác nhận ngoại lệ ({exc.get('by')}: {exc.get('why')})"})
+                                "why": f"shot {s['idx']}: plate 3D bắt buộc chưa đạt ({why}) — ĐÃ xác nhận ngoại lệ ({exc.get('by')}: "
+                                       f"{exc.get('why')})"})
                 else:
                     out.append({"scene_id": s["id"], "idx": s["idx"], "level": "hold",
-                                "why": f"shot {s['idx']}: plate 3D bắt buộc làm reference nhưng sân khấu {seg['id']} chưa duyệt "
-                                       f"({st['label']}) — duyệt sân khấu, hoặc Executive Producer xác nhận ngoại lệ trước khi gen trả phí"})
+                                "why": f"shot {s['idx']}: plate 3D bắt buộc làm reference chưa đạt — {why}; duyệt / render xong, hoặc "
+                                       "Executive Producer xác nhận ngoại lệ trước khi gen trả phí"})
             elif not settled:
                 out.append({"scene_id": s["id"], "idx": s["idx"], "level": "warn",
-                            "why": f"shot {s['idx']}: sân khấu {seg['id']} chưa chốt ({st['label']}) — ảnh gen bây giờ có thể lệch máy sau "
-                                   "khi duyệt"})
+                            "why": f"shot {s['idx']}: sân khấu {seg['id']} chưa chốt ({st['label'] if st['inputs_known'] else 'chưa biết đầu vào'})"
+                                   " — ảnh gen bây giờ có thể lệch máy sau khi duyệt"})
     return out

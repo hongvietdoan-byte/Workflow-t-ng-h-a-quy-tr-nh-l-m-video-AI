@@ -118,6 +118,15 @@ def image_gates(p: Pipeline, project_id: int, data_dir: Optional[str] = None, sc
         flags = {}
         block.append(f"không đọc được kết quả kiểm Bible ({type(e).__name__}: {e})")
     block += [f"mô tả {n} mâu thuẫn với ảnh tài nguyên: {m[0]}" for n, m in flags.items()]
+    if data_dir:                                       # M4.8 S-C (sổ v31-ep-stage-desk-actions-2026-10-21): sân khấu 3D chưa chốt → VÀNG;
+        from . import stage_desk                       # shot EP bắt buộc plate đã duyệt mà chưa đạt (không ngoại lệ) → CHẶN
+        try:
+            sids = scene_ids if scene_ids is not None else [r[0] for r in p.conn.execute(
+                "SELECT id FROM scenes WHERE project_id=?", (project_id,)).fetchall()]
+            for it in stage_desk.paid_gate(p.conn, project_id, data_dir, sids):
+                (block if it["level"] == "hold" else warn).append("sân khấu 3D — " + it["why"])
+        except Exception as e:  # noqa: BLE001 - a gate that cannot be read is said, never silently passed (yellow: rules not computed)
+            warn.append(f"không kiểm được cổng sân khấu 3D (S-C): {type(e).__name__}: {e}")
     gaps = autopilot.bible_gaps(p, project_id)
     if gaps["no_lock"]:
         block.append("chưa có Character Lock (nét nhận diện phải giữ): " + ", ".join(gaps["no_lock"]))

@@ -666,17 +666,21 @@ def _stage_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     from . import stage_auto, stage_desk, write_guard
     if not stage_auto.enabled():
         return None
-    held = stage_desk.busy(p.conn, pid, ctx.data_dir)  # M4.8: người đang thao tác sân khấu trên Dashboard (khóa S) — không ghi đè state
-    if held:
-        raise _Wait("plates", "Sân khấu 3D: " + "; ".join(stage_desk.lock_line(sid, h) for sid, h in held[:3]))
+    who = write_guard.actor("auto", "autopilot.stage")
+    hold = stage_desk.hold_segments(p.conn, pid, ctx.data_dir, stage_auto.segments(p.conn, pid), "autopilot", who)
+    try:                                                # M4.8: GIỮ khóa S mọi đoạn trong lúc chạy (hai chiều: nút bàn đạo diễn gặp autopilot
+        hold.__enter__()                                # cũng từ chối có câu); người đang thao tác trên Dashboard → chờ, không ghi đè state
+    except stage_desk.DeskError as e:
+        raise _Wait("plates", f"Sân khấu 3D: {e}")
     try:
-        r = stage_auto.run(p.conn, pid, ctx.data_dir, client=ctx.llm, log=lambda m: _log(p, pid, m),
-                           who=write_guard.actor("auto", "autopilot.stage"))
+        r = stage_auto.run(p.conn, pid, ctx.data_dir, client=ctx.llm, log=lambda m: _log(p, pid, m), who=who)
     except llm_runner.LlmError as e:
         _stop_if_claude_blocked([(None, e)], p.conn)
         _d(p, pid, "director", "error", f"sân khấu 3D tự động lỗi Claude: {e}", stage_auto.CODE)
         raise _Wait("plates", f"Sân khấu 3D tự động chưa chạy được (Claude: {str(e)[:160]}) — xử lý rồi bấm Tiếp tục để thử lại, hoặc tắt "
                               "cờ stage_auto để nền 3D dùng máy thường")
+    finally:
+        hold.__exit__(None, None, None)
     if r and r["applied"]:
         _log(p, pid, f"Sân khấu 3D: máy đặt theo sân khấu cho shot {', '.join(map(str, r['applied']))}")
     if r and r["held"]:

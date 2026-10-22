@@ -144,9 +144,12 @@ class ApproveTests(DeskBase):
         r = D.approve(self.p.conn, self.pid, self.data, "1", write_guard.actor("ai", "director"), EP)
         self.assertFalse(r["ok"])
         self.assertIn("S-B", r["errors"][0])
-        r = D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, {"email": "ban@x", "role": "member"})
+        r = D.approve(self.p.conn, self.pid, self.data, "1", write_guard.actor("human", "ban@x"), {"email": "ban@x", "role": "member"})
         self.assertFalse(r["ok"])
         self.assertIn("Executive Producer", r["errors"][0])
+        r = D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, {"email": "ban@x", "role": "owner"})
+        self.assertFalse(r["ok"])
+        self.assertIn("khác người đăng nhập", r["errors"][0])                                 # actor khai người phải trùng đăng nhập
         self.assertNotIn("stage_camera", self.shot(self.pid, 1))
         self.assertEqual(self.crew_state()["phase"], "duyet")
 
@@ -277,11 +280,11 @@ class LockTests(DeskBase):
             gate.set()
             self.assertTrue(D.wait(self.pid, 30))
 
-    def _hold_lock(self, pid_proc=None):
+    def _hold_lock(self, pid_proc=None):          # mặc định: một tiến trình KHÁC đang sống (tiến trình cha) giữ khóa
         path = os.path.join(D.seg_dir(self.data, self.pid, self.seg), D.LOCK_FILE)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"pid": pid_proc or os.getpid(), "owner": "human:ep@x", "action": "N4", "since_ts": __import__("time").time(),
+            json.dump({"pid": pid_proc or os.getppid(), "owner": "human:ep@x", "action": "N4", "since_ts": __import__("time").time(),
                        "since": "bây giờ"}, f)
         return path
 
@@ -449,7 +452,39 @@ class PolicyTests(DeskBase):
         D.require_plate(self.p.conn, self.pid, self.data, self.sid(1), True, HUMAN, EP)
         self.assertEqual(D.paid_gate(self.p.conn, self.pid, self.data, [self.sid(1)])[0]["level"], "hold")
         self.assertTrue(D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, EP)["ok"])
-        self.assertEqual(D.paid_gate(self.p.conn, self.pid, self.data, [self.sid(1)]), [])
+        g = D.paid_gate(self.p.conn, self.pid, self.data, [self.sid(1)])
+        self.assertEqual(g[0]["level"], "hold")                                                # rà 5: duyệt xong mà nền 3D chưa render
+        self.assertIn("chưa render", g[0]["why"])
+        with mock.patch.object(D, "_plate_ready", return_value=None):
+            self.assertEqual(D.paid_gate(self.p.conn, self.pid, self.data, [self.sid(1)]), [])
+
+    def test_required_plate_holds_when_the_director_settled_alone(self):
+        from tests.test_stage_auto import FakeClaude
+        client = FakeClaude(blocking(), specs(), OK_REVIEW, {"duyet": True})
+        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CREW_USER_APPROVE": "0"}):
+            stage_auto.run(self.p.conn, self.pid, self.data, client=client)
+            self.assertEqual(self.st()["phase"], "xong")
+            D.require_plate(self.p.conn, self.pid, self.data, self.sid(1), True, HUMAN, EP)
+            with mock.patch.object(D, "_plate_ready", return_value=None):
+                g = D.paid_gate(self.p.conn, self.pid, self.data, [self.sid(1)])
+        self.assertEqual(g[0]["level"], "hold")                                                # S-B: Đạo diễn tự chốt ≠ EP duyệt
+        self.assertIn("Executive Producer", g[0]["why"])
+
+    def test_gen_button_gate_blocks_on_hold(self):
+        from core import batch
+        D.require_plate(self.p.conn, self.pid, self.data, self.sid(1), True, HUMAN, EP)
+        self.answer(blocking())
+        gates = batch.image_gates(self.p, self.pid, self.data, scene_ids=[self.sid(1), self.sid(2)])
+        self.assertTrue(any("plate 3D bắt buộc" in b for b in gates["block"]), gates)
+        self.assertTrue(any("chưa chốt" in w for w in gates["warn"]), gates)
+
+    def test_no_stage_folder_means_no_gate_work(self):
+        from core import batch
+        other = self.p.create_project("khong-san-khau")
+        sid = self.p.create_scene(other, 1, "s1")
+        with mock.patch.object(D, "scene_status", side_effect=AssertionError("không được đọc sân khấu")):
+            self.assertEqual(D.paid_gate(self.p.conn, other, self.data, [sid]), [])
+            batch.image_gates(self.p, other, self.data, scene_ids=[sid])
 
     def test_reset_asks_and_previews_then_marks_dependents(self):
         self.to_duyet()
@@ -483,3 +518,149 @@ def test_public_api_is_documented_at_the_top_of_the_module():
                  "render_plates", "require_plate", "allow_exception"):
         assert name + "(" in doc, name
         assert callable(getattr(D, name)), name
+
+
+class ReviewFixTests(DeskBase):
+    """Rà quy ước 7 (C-M48-DESK-CORE): lỗi CAO / VỪA đã sửa — mỗi lỗi một test."""
+
+    def field_diags(self, code):
+        return self.p.conn.execute("SELECT COUNT(*) FROM diag_events WHERE code=?", (code,)).fetchone()[0]
+
+    def test_stale_revision_on_a_later_shot_is_reported(self):
+        # CAO 1: dòng shadow của shot 2, 3… bị write guard giữ (đang trong giao dịch) và mất — nay flush sau commit
+        self.to_duyet()
+        with mock.patch.dict(os.environ, {"FEATURE_FIELD_GUARD": "1"}):
+            self.assertTrue(D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, EP, expected_revs={2: 99, 3: 98})["ok"])
+        self.assertEqual(self.field_diags("stale_write"), 2)
+
+    def test_background_rerender_reports_every_shot(self):
+        # CAO 1 qua kết nối nền (luồng mở kết nối riêng rồi đóng): shot 2, 3 vẫn có dòng shadow
+        self.to_duyet()
+        self.assertTrue(D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, EP)["ok"])
+        for i in (1, 2, 3):
+            d = self.shot(self.pid, i)
+            d["stage_camera"] = dict(d["stage_camera"], lens=99)
+            self.p.conn.execute("UPDATE scenes SET data=? WHERE project_id=? AND idx=?", (json.dumps(d), self.pid, i))
+        self.p.conn.commit()
+        with mock.patch.dict(os.environ, {"FEATURE_FIELD_GUARD": "1"}):
+            pr = self.bg(D.rerender(self.p.conn, self.pid, self.data, "1", HUMAN))
+        self.assertEqual(pr["state"], "done", pr)
+        self.assertEqual(self.field_diags("field_review"), 3)
+
+    def test_a_button_is_refused_while_the_autopilot_holds_the_stage(self):
+        # CAO 2: khóa hai chiều — autopilot / CLI đang giữ đoạn thì nút từ chối có câu
+        with D.hold_segments(self.p.conn, self.pid, self.data, [self.seg], "autopilot", write_guard.actor("auto", "autopilot.stage")):
+            r = D.write_prompt(self.p.conn, self.pid, self.data, "1", HUMAN)
+            self.assertFalse(r["ok"])
+            self.assertIn("autopilot", r["errors"][0])
+            r = D.check_inputs(self.p.conn, self.pid, self.data, "1", HUMAN)
+            self.assertFalse(r["ok"])
+        self.assertTrue(D.write_prompt(self.p.conn, self.pid, self.data, "1", HUMAN)["ok"])
+
+    def test_autopilot_holds_the_lock_while_it_runs(self):
+        seen = []
+
+        def fake_run(conn, pid, data_dir, **kw):
+            seen.append(D.lock_holder(self.data, self.pid, "1", self.p.conn))
+            return {"applied": [], "held": [], "skipped": [], "removed": []}
+        with mock.patch.object(stage_auto, "run", side_effect=fake_run):
+            autopilot._stage_phase(self.p, self.pid, mock.Mock(data_dir=self.data, llm=None))
+        self.assertEqual(seen[0]["action"], "autopilot")
+        self.assertIsNone(D.lock_holder(self.data, self.pid, "1", self.p.conn))                 # nhả sau khi chạy
+
+    def test_broken_and_orphaned_own_locks_are_not_stuck_forever(self):
+        path = os.path.join(D.seg_dir(self.data, self.pid, self.seg), D.LOCK_FILE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").close()                                                                 # chết giữa tạo và ghi
+        old = __import__("time").time() - 120
+        os.utime(path, (old, old))
+        self.assertIn("hỏng", D.lock_holder(self.data, self.pid, "1", self.p.conn, clean=False)["stale"])
+        self.assertTrue(os.path.exists(path))                                                   # vẽ trạng thái không gỡ
+        self.assertIsNone(D.lock_holder(self.data, self.pid, "1", self.p.conn))
+        self.assertFalse(os.path.exists(path))
+        with open(path, "w", encoding="utf-8") as f:                                            # khóa của chính Dashboard, luồng đã chết
+            json.dump({"pid": os.getpid(), "token": "khong-con", "action": "N4", "since_ts": __import__("time").time()}, f)
+        self.assertIsNone(D.lock_holder(self.data, self.pid, "1", self.p.conn))
+
+    def test_release_never_removes_someone_elses_lock(self):
+        h = D._Hold(self.data, self.pid, self.seg, "N3", HUMAN, self.p.conn).acquire()
+        with open(h.path, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getppid(), "token": "nguoi-khac", "action": "N4", "since_ts": __import__("time").time()}, f)
+        h.release()
+        self.assertTrue(os.path.exists(h.path))
+        os.remove(h.path)
+
+    def test_user_is_required_for_executive_producer_actions(self):
+        import inspect
+        for fn in (D.approve, D.return_, D.require_plate, D.allow_exception):
+            self.assertIs(inspect.signature(fn).parameters["user"].default, inspect.Parameter.empty, fn.__name__)
+
+    def test_executive_producer_levels(self):
+        from core import auth
+        conn = self.p.conn
+        self.assertTrue(D.is_executive_producer(conn, self.pid, None))                         # đăng nhập TẮT = chủ máy
+        self.assertTrue(D.is_executive_producer(conn, self.pid, {"email": "boss@x", "role": "owner"}))
+        conn.execute("UPDATE projects SET created_by='tao@x' WHERE id=?", (self.pid,))
+        self.assertTrue(D.is_executive_producer(conn, self.pid, {"email": "tao@x", "role": "member"}))   # chủ dự án
+        conn.execute("INSERT INTO project_watchers(project_id, email, level, added_at) VALUES (?,?,?,?)",
+                     (self.pid, "sua@x", "edit", "2026-10-22"))
+        self.assertFalse(D.is_executive_producer(conn, self.pid, {"email": "sua@x", "role": "member"}))
+        self.assertTrue(auth)
+
+    def test_camera_overwritten_since_the_review_opened_is_refused(self):
+        self.to_duyet()
+        marks = self.st()["marks"]
+        d = self.shot(self.pid, 2)
+        d["stage_camera"] = {"auto": True, "xen_giua": 1}
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE project_id=? AND idx=2", (json.dumps(d), self.pid))
+        self.p.conn.commit()
+        r = D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, EP, expected_marks=marks)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["stale"], [2])
+        self.assertEqual(self.crew_state()["phase"], "duyet")
+
+    def test_reset_mark_is_cleared_by_the_next_approval(self):
+        self.to_duyet()
+        D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, EP)
+        D.reset(self.p.conn, self.pid, self.data, "1", HUMAN, confirm=True)
+        self.assertIsNotNone(self.st()["reset"])
+        self.to_duyet()
+        self.assertTrue(D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, EP)["ok"])
+        self.assertIsNone(self.st()["reset"])
+
+    def test_status_is_read_only(self):
+        path = os.path.join(D.seg_dir(self.data, self.pid, self.seg), D.LOCK_FILE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"pid": 2 ** 22 + 7, "action": "N4", "since_ts": 1}, f)
+        n = self.p.conn.execute("SELECT COUNT(*) FROM diag_events").fetchone()[0]
+        st = D.status(self.p.conn, self.pid, self.data)[0]
+        self.assertTrue(st["lock"]["stale"])
+        self.assertTrue(os.path.exists(path))
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM diag_events").fetchone()[0], n)
+
+    def test_render_plates_and_estimate_do_not_touch_scenes(self):
+        sha = self.scenes_sha()
+        with mock.patch("core.place_refs.ensure_async", return_value=True) as ens:
+            r = D.render_plates(self.p.conn, self.pid, self.data, "1", HUMAN)
+        self.assertTrue(r["ok"] and ens.called)
+        est = D.estimate(self.p.conn, self.pid, self.data, "1")
+        self.assertTrue(est["ok"] and "usd" in est and "usd_max" in est)
+        self.assertEqual(self.scenes_sha(), sha)
+
+    def test_bad_shot_is_said_as_plain_camera(self):
+        self.to_duyet()
+        with mock.patch.object(stage_auto, "post_checks", return_value={2: "vật chắn giữa máy và Kelly"}):
+            r = D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, EP)
+        self.assertTrue(r["ok"], r)
+        self.assertIn("2", r["bad"])
+        self.assertNotIn("stage_camera", self.shot(self.pid, 2))
+
+
+def test_no_feature_env_assignment_in_dashboard_or_desk():
+    import re
+    pat = re.compile(r"os\.environ\[\s*[\"']FEATURE_\w*[\"']\s*\]\s*=|os\.environ\.setdefault\(\s*[\"']FEATURE_")
+    hits = [str(p) for d in ("dashboard",) for p in __import__("pathlib").Path(ROOT, d).rglob("*.py")
+            if pat.search(p.read_text(encoding="utf-8", errors="replace"))]
+    hits += ["core/stage_desk.py"] if pat.search(open(os.path.join(ROOT, "core", "stage_desk.py"), encoding="utf-8").read()) else []
+    assert hits == []

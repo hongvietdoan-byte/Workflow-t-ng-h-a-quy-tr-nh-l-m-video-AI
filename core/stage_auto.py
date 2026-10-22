@@ -711,6 +711,7 @@ def apply(conn, seg: Dict, cams: Dict[int, Dict], skipped=(), who: Optional[Dict
                 data[SEG_FIELD] = seg["id"]
                 conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), s["id"]))
                 conn.commit()
+                _flush(conn, who)
                 s["data"] = data
             continue
         if FIELD in (data.get("_user_locked") or []):
@@ -735,7 +736,16 @@ def apply(conn, seg: Dict, cams: Dict[int, Dict], skipped=(), who: Optional[Dict
         changed.append(s["idx"])
     if changed:
         conn.commit()
+    _flush(conn, who)
     return changed
+
+
+def _flush(conn, who: Optional[Dict]) -> None:
+    """Rà C-M48-DESK-CORE (CAO 1): dòng shadow của shot 2, 3… được write guard GIỮ vì lúc đó apply đang trong giao dịch → ghi sau commit
+    (không thì mất khi kết nối đóng — luồng nền / autopilot không bao giờ báo)."""
+    if who is not None:
+        from . import write_guard
+        write_guard.flush(conn)
 
 
 # ---- một đoạn ------------------------------------------------------------------------------------------------------------
