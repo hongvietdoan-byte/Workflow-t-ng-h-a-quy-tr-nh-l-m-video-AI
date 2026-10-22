@@ -319,7 +319,8 @@ def test_real_run_one_session(tmp_path):
     got = json.loads((tmp_path / "load_ui.json").read_text(encoding="utf-8"))
     sess = got["levels"][0]["sessions"][0]
     assert not sess["errors"], sess["errors"]
-    assert all(sess["steps"][s] is not None for s in L.STEPS)
+    assert all(sess["steps"][s] is not None or s in sess["skipped"] for s in L.STEPS)
+    assert not sess["no_rerun"], sess["no_rerun"]                       # mỗi bước đo tới lượt vẽ lại thật của nó
     assert got["levels"][0]["probe"].get("writes")                     # đầu dò chạy trong tiến trình Streamlit
 
 

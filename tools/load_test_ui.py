@@ -343,6 +343,10 @@ def summarize(levels: List[Dict]) -> Dict:
     return {"slow_s": SLOW_S, "rows": rows, "first_slow": first_slow, "bottleneck": bottleneck, "errors": errors}
 
 
+def _r(x):
+    return round(x, 3) if isinstance(x, float) else x
+
+
 def _f(x, unit="") -> str:
     return "—" if x is None else f"{x}{unit}"
 
@@ -375,8 +379,8 @@ def markdown(summary: Dict, meta: Dict) -> str:
     for r in summary["rows"]:
         sq = r["sqlite"]
         out.append(f"| {r['n']} | {_f(r['cpu_peak'])} | {_f(r.get('sys_cpu_peak'))} | {_f(r['rss_peak_mb'])} | {_f(r['threads_base'])} → {_f(r['threads_peak'])} | "
-                   f"{_f(r['threads_per_session'])} | {_f(sq.get('writes'))} | {_f(sq.get('waits'))} ({_f(sq.get('wait_s'))} s) | "
-                   f"{_f(sq.get('wait_max'))} | {_f(sq.get('locked_errors'))} |")
+                   f"{_f(r['threads_per_session'])} | {_f(sq.get('writes'))} | {_f(sq.get('waits'))} ({_f(_r(sq.get('wait_s')))} s) | "
+                   f"{_f(_r(sq.get('wait_max')))} | {_f(sq.get('locked_errors'))} |")
     fs, bn = summary["first_slow"], summary["bottleneck"]
     out += ["", "## Kết luận", "",
             f"- Ngưỡng chậm xuất hiện ở: {'N=' + str(fs['n']) + ' (' + ', '.join(STEP_LABEL[s] for s in fs['steps']) + ')' if fs else 'không mức nào'}",
@@ -552,12 +556,15 @@ async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Op
                 raise LookupError(why)
             await asyncio.sleep(0.25)
 
+    async def approve_mark():
+        return len(await labels("✔ Duyệt", True)), sorted(await labels("✔ Duyệt tất cả", False))
+
     async def approve():
-        n0 = len(await labels("✔ Duyệt", True))
+        m0 = await approve_mark()
         await click_first("✔ Duyệt", True, "không có ảnh nào chờ duyệt")
 
-        async def done():                        # ảnh đã duyệt: bớt một nút "✔ Duyệt" (phiên khác cùng dự án có thể bớt thêm)
-            return len(await labels("✔ Duyệt", True)) < n0
+        async def done():                        # ảnh đã duyệt: số nút "✔ Duyệt" hoặc nhãn "✔ Duyệt tất cả (k ảnh)" đổi (ảnh kế có thể hiện
+            return await approve_mark() != m0    # thêm nút nên chỉ đếm nút là không đủ; phiên khác cùng dự án cũng làm đổi — vẫn là đã vẽ lại)
         return done
 
     async def gen():
