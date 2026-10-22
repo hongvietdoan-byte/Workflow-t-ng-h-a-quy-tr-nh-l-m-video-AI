@@ -39,6 +39,14 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
   8503–8510 (devsys/app.py, dashboard.serve) không có kết nối Established và không phiên nào dùng → tắt cả python.exe lẫn py.exe cha; chỉ giữ
   8501 + 8502. Tiến trình pytest/xdist mồ côi → tắt. Worktree agent đã gộp / đã push nhánh thật → `git worktree remove` (bị app khoá
   "claude agent … (pid)" thì để app tự dọn).
+  **Khi có `tools/don_rac.py` (CX22-DON-RAC-TOOL, Codex):** mỗi lượt chỉ gọi `PYTHONUTF8=1 py tools/don_rac.py nhanh` (1 dòng) thay kiểm tay;
+  gỡ worktree `don_rac.py worktree --lam-that`; `hop_thu.py gop` tự gỡ worktree + nhánh local đã gộp. KHÔNG giao agent đi dọn nữa.
+- **Lưu trữ (người dùng duyệt 22/10, gói A+B):** `data/` chỉ chứa dữ liệu đang dùng; đồ cũ/lưu trữ để `D:\AI-Video-Output\_luu_tru\<ngày>\`
+  (CHUYỂN, không xóa, có nhật ký khôi phục). Sao lưu trước khi sửa file dữ liệu → `don_rac.py sao-luu <file>` (tự xoay vòng, giữ 3 bản
+  mới nhất mỗi loại), không copy tay `*.backup_*`. Báo dung lượng: `don_rac.py bao-cao`.
+- **Việc lặp lại → script, không agent; việc dài → Codex trước** (người dùng 22/10): dọn rác, kiểm cổng, đếm token, kiểm kê = script
+  (0 token agent). Việc dài / chạy máy chính / thuần code không gấp → ưu tiên giao làn codex (hạn mức riêng) qua hộp thư; agent phiên
+  chính chỉ cho việc cần ngay hoặc cần context phiên này.
 - **Chọn model phiên con (người dùng 22/10 — Opus chiếm 82 % token ra):** `model: "sonnet"` cho việc NHẸ: rà nhẹ (tài liệu, nhãn,
   giao diện không đổi luồng, sau cờ TẮT), dọn rác (server thừa, worktree, file tạm), việc hộp thư (viết đề bài, giao/gộp/ghi sự kiện,
   tóm bảng), kiểm kê / đo số chỉ đọc, chạy cả bộ test rồi báo kết quả. Giữ Opus (bỏ trống `model`) cho: viết/sửa code pipeline, RÀ KỸ
