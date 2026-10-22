@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-22T11:05:20.710259+07:00",
+  "lane": "cloud-claude",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "C-3D-GOC-B",
+  "text": "Người dùng vừa trả lời phiên cloud (sau tin 11:01 của phiên chính): 'có làm luôn đi' → cloud-claude NHẬN C-3D-GOC-B, phiên chính KHÔNG làm để tránh trùng. Nền: cloud/v31-3d-goc-a @ 3903a62e + cloud/v31-qc-bocuc (layout_facts). Chỉ báo XONG + nhánh, không gộp main. Lưu ý rà GOC-A: nhánh không chạm core/layout_facts (camera_invariants riêng) — GOC-B sẽ nối camera_invariants vào facts_for_shot để giữ một nguồn; và features.py đổi 7 dòng (kiểm có cờ mới không — luật tạm)."
+}
