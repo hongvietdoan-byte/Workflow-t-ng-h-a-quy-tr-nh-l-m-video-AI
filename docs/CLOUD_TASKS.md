@@ -1173,3 +1173,31 @@ B. C-M83-TOOL (cloud/v31-m83-tool @ bc3b4385 — CHƯA gộp main vì mục này
     ngoài bản sao như docstring hứa. THẤP: ghi đè DELIVERY_OUTPUT_ROOT / KNOWLEDGE_USER_DIR / RETIRED_TOPICS_FILE sang thư mục work.
 Rà quy ước 7 trước commit. Báo cáo docs/RA_CLOUD_FIX6_2026-10-22.md. XONG hộp thư mã C-FIX6 (ghi 2 nhánh @ SHA).
 ```
+
+#### C-CLONE-INTENT (cloud-E — ưu tiên 1; Cấp 1 sửa lỗi, 0 USD; phiên chính giao 22/10 chiều) — bản sao "chạy lại Đạo diễn" mang ý đồ + mốc dựng dự án cũ
+```
+Nhánh cloud/v31-clone-intent từ main. Lỗi (TODO.md mục 🐞 13/10, tập 2 = dự án mới sạch, ý 5):
+core/compare.py clone_project(..., with_rows=False) ("chạy lại Đạo diễn") chỉ bỏ director_raw (dòng ~42 SKIP_PROJECT | {"director_raw"}),
+KHÔNG bỏ director_intent_raw và giữ render_settings → bản sao mang ý đồ + mốc nhạc/popup của dự án cũ.
+Việc: khi with_rows=False bỏ cả director_intent_raw + render_settings (đặt về mặc định của dự án mới, xem cách tạo dự án mới để lấy đúng giá trị
+mặc định — không để NULL nếu code đọc giả định dict); with_rows=True giữ nguyên hành vi cũ. Rà mọi chỗ gọi clone_project (dashboard + tools) xem
+có chỗ nào CẦN giữ render_settings khi with_rows=False không; có thì nêu trong báo cáo, không tự đổi luồng đó.
+Test đỏ→xanh (CSDL tạm, không data/ thật): bản sao with_rows=False không có director_intent_raw / render_settings cũ; with_rows=True giữ đủ.
+Báo cáo docs/RA_CLOUD_CLONE_INTENT_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-R1-REL (cloud-E — ưu tiên 2; Cấp 1 công cụ kiểm chỉ đọc, 0 USD; phiên chính giao 22/10 chiều) — R1-SIDE hiểu "bên phải CỦA X" (tương đối), không chỉ bên khung
+```
+Nhánh cloud/v31-r1-rel từ main (có 85189242: R1-SIDE bỏ bộ phận cơ thể + gán "where X stand" đúng chủ thể; fixture tests/fixtures/r1side_p31_shot18_34.json).
+Bằng chứng thật #31 shot 34 (22/10): map 3D đặt Kelly −37° và ba kẻ địch −17°…−23° (cả hai nửa trái khung), chữ tả Kelly giữa khung, địch
+"frame-right" — địch chỉ ở bên phải SO VỚI Kelly. R1-SIDE hiện chỉ có khái niệm bên khung tuyệt đối nên không phân biệt được.
+Việc trong core/position_invariants.py:
+1. Tách hai loại mệnh đề: (a) bên khung tuyệt đối ("frame-left/right", "left/right of frame", "khung trái/phải") → so góc phương vị của chủ thể
+   với tâm khung như hiện nay; (b) tương đối ("to the right of Kelly", "on Kelly's left", "bên phải Kelly", "X đứng bên trái Y") → so góc hai
+   thực thể trong map với nhau (X phải hơn Y theo hướng máy), không so với tâm khung.
+2. Ngưỡng: lệch nhỏ (|Δ| < một ngưỡng có tên hằng, đề xuất 5°) = KHÔNG RÕ thay vì ĐỎ/VÀNG; ghi số đo vào phát hiện.
+3. Không nới đến mức bỏ sót ca thật: giữ test cũ (body parts, where-clause, "Kelly stands frame-right" khi map đặt Kelly trái phải báo) + thêm
+   test đỏ→xanh cho (b) cả hai chiều (đúng → không báo; ngược → báo) và câu shot 34 thật từ fixture (kết luận ghi rõ: chữ "frame-right" của địch
+   VẪN mâu thuẫn bên khung tuyệt đối trong map → giữ báo nếu đúng là vậy; chỉ hết báo khi câu thật là quan hệ tương đối).
+Không đưa positions vào gen/QC (test_map_positions_are_not_fed_into_gen_or_qc phải xanh). Báo cáo docs/RA_CLOUD_R1_REL_2026-10-2x.md. XONG hộp thư.
+```

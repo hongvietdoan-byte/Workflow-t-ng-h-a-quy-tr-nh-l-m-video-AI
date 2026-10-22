@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T17:51:42.475667+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-R1-REL",
+  "to": "cloud-E",
+  "title": "R1-SIDE hiểu bên phải CỦA X (tương đối) — shot 34 #31 (Cấp 1 công cụ chỉ đọc, 0 USD)",
+  "spec": "docs/CLOUD_TASKS.md#### C-R1-REL",
+  "priority": 2
+}
