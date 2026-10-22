@@ -3410,7 +3410,9 @@ def _place_part(conn, project_id: int, data: Dict, place, place_render: bool, ex
     from . import prompt_template as pt
     room = indoor_spot(conn, project_id, data)
     if room:                                       # 07/10 Khủng Long Đỏ: the place's outdoor words ("plaza, palms, sea") pulled a
-        name = f" ({assets.model_place_name(place)} map)" if place is not None else ""   # rà 17/10: no Vietnamese name   # bedroom shot outside onto a balcony — what is RIGHT (L2)
+        n = place_name_for_model(conn, project_id, data, place)   # rà 17/10: no Vietnamese name; A2f: English name of the BYĐ Kho item
+        from . import byd_fields
+        name = f" ({n} map)" if place is not None and (n or not byd_fields.enabled("a2f")) else ""   # bedroom shot outside onto a balcony — what is RIGHT (L2)
         from .seedance_refs import has_vietnamese   # 16/10 #31: the spot LABEL is a Vietnamese note for people (with camera notes:
         label = "" if has_vietnamese(room) else f" — {room}"   # "máy tại 'at' cao mắt 1,55 m…") — never sent to the image model
         head = (f"Setting: INSIDE a room{label}{name}. An interior with walls, ceiling and floor exactly as in the 3D render; only "
@@ -3422,6 +3424,41 @@ def _place_part(conn, project_id: int, data: Dict, place, place_render: bool, ex
     else:
         head = ""
     return pt.join([head] + [x for x in (extra or []) if x])
+
+
+def place_name_for_model(conn, project_id: int, data: Dict, place) -> str:
+    """Tên nơi chốn gửi model ảnh ("Setting: … map", câu nền). Đường cũ: assets.model_place_name (bí danh không dấu, else tên bỏ dấu).
+    V3.1 M2.2 A2f (cờ byd_fields + byd_fields_a2f): tên tiếng Anh (tên / bí danh không có chữ Việt) của mục Kho BYĐ v2 `noi_chon.kho_id`;
+    mục đó không có tên Anh → "" (không gửi chữ Việt bỏ dấu) + byd_field_mismatch; mã không phải nơi của dự án, hoặc khác nơi cảnh dò ra
+    (3D / ảnh nơi đi theo nơi đó) → đường cũ + byd_field_mismatch; chưa v2 / thiếu kho_id → đường cũ + byd_fallback."""
+    old = assets.model_place_name(place) if place else ""
+    from . import byd_fields, shot_intent
+    if not byd_fields.enabled("a2f"):
+        return old
+    kid = shot_intent.read(data, "noi_chon.kho_id")[0] if byd_fields.is_v2(data) else None
+    if type(kid) is not int:
+        byd_fields.note(conn, "a2f", data, f"tên nơi chốn gửi model lấy theo chữ ('{old or '—'}') — shot chưa có BYĐ v2 noi_chon.kho_id",
+                        project_id=project_id)
+        return old
+    item = assets.get(conn, kid)
+    if item is None or item["kind"] != "location" or kid not in {a["id"] for a in assets.project_assets(conn, project_id)}:
+        byd_fields.note(conn, "a2f", data, f"BYĐ noi_chon.kho_id = {kid} không phải nơi chốn của dự án — giữ tên '{old or '—'}', cần "
+                        "người xem", kind=byd_fields.MISMATCH, project_id=project_id)
+        return old
+    if place is not None and place["id"] != kid:
+        byd_fields.note(conn, "a2f", data, f"BYĐ noi_chon.kho_id = {kid} ({item['name']}) khác nơi cảnh dò ra ({place['name']}) — tên, 3D và "
+                        "ảnh nơi theo nơi cảnh, cần người xem", kind=byd_fields.MISMATCH, project_id=project_id)
+        return old
+    from .seedance_refs import has_vietnamese
+    name = str(item["name"] or "")
+    if not has_vietnamese(name):
+        return name
+    english = next((n.strip() for n in assets.names_of({"name": name, "aliases": item["aliases"] or ""})
+                    if n.strip() and not has_vietnamese(n)), "")
+    if not english:
+        byd_fields.note(conn, "a2f", data, f"mục Kho {kid} ({name}) chưa có tên tiếng Anh (bí danh không dấu) — không gửi tên nơi cho model, "
+                        "cần thêm bí danh", kind=byd_fields.MISMATCH, project_id=project_id)
+    return english
 
 
 def _lock_part(conn, project_id: int, data: Dict, proj, text: str, fix: Optional[str]) -> str:
@@ -3845,7 +3882,7 @@ class ImageRunner(_Runner):
         entry = location_pack_entry(conn, place)
         from . import place_refs
         w, h = place_refs.resolution_of(self.p.project(job["project_id"]))
-        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, (assets.model_place_name(place) if place else "") or render.get("label") or "the place",
+        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, place_name_for_model(conn, job["project_id"], data, place) or render.get("label") or "the place",
                                                          (entry or {}).get("landmark"), aspect=w / h if h else None)
         if notes:
             say(job, "warn", plate_anchor.CODE_BACKGROUND, "câu nền sinh từ plate thiếu dữ liệu: " + "; ".join(notes))

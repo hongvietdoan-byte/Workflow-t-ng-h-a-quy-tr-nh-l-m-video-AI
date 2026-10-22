@@ -397,3 +397,68 @@ def test_a2c_light_call_sites_use_one_helper():
     src = (ROOT / "core" / "runner.py").read_text(encoding="utf-8") + (ROOT / "core" / "scene_storyboard.py").read_text(encoding="utf-8")
     assert "light_sentence(data, indoor=bool(indoor_spot(" not in src and "indoor=bool(datas and indoor_spot(" not in src
     assert src.count("indoor_light(") >= 3
+
+
+
+# ---- A2f: tên tiếng Anh của nơi chốn theo noi_chon.kho_id (G12) -----------------------------------------------------------------
+def _places(kho):
+    c, pid = kho["conn"], kho["pid"]
+
+    def add(name, aliases, link=True):
+        aid = c.execute("INSERT INTO assets (game, kind, name, aliases) VALUES ('FF','location',?,?)", (name, aliases)).lastrowid
+        if link:
+            c.execute("INSERT INTO project_assets (project_id, asset_id) VALUES (?,?)", (pid, aid))
+        return aid
+    ids = {"tower": add("Tháp Đồng Hồ", "Clock Tower"), "villa": add("Biệt thự", ""), "far": add("Bermuda", "", link=False)}
+    c.commit()
+    from core import assets
+    return ids, {k: assets.get(c, v) for k, v in ids.items()}
+
+
+def _a2f_scene(kho_id="-", v1=False):
+    s = {"text": "Kelly đứng dưới tháp", "characters": ["KELLY"], "location": "Tháp Đồng Hồ"}
+    if v1:
+        s["byd"] = {"shot": 1, "noi_chon": "Tháp Đồng Hồ"}
+    elif kho_id != "-":
+        s["byd"] = v2_scene(noi_chon={"kho_id": kho_id, "trong_nha": False})["byd"]
+    return s
+
+
+def _name(kho, scene, place, *flags):
+    from core import runner
+    with env(*flags):
+        return runner.place_name_for_model(kho["conn"], kho["pid"], scene, place)
+
+
+def test_a2f_off_is_old_model_place_name(kho):
+    ids, pl = _places(kho)
+    for flags in ((), ("a2f",), ("mother",)):
+        assert _name(kho, _a2f_scene(ids["villa"]), pl["villa"], *flags) == "biet thu"        # bỏ dấu như cũ
+        assert _name(kho, _a2f_scene(ids["villa"]), pl["tower"], *flags) == "Clock Tower"
+        assert _name(kho, _a2f_scene(ids["tower"]), None, *flags) == ""
+    assert kho["diags"](byd_fields.FALLBACK) == [] and kho["diags"](byd_fields.MISMATCH) == []
+
+
+def test_a2f_on_v2_english_name_of_kho_item(kho):
+    ids, pl = _places(kho)
+    on = ("mother", "a2f")
+    assert _name(kho, _a2f_scene(ids["tower"]), pl["tower"], *on) == "Clock Tower"
+    assert _name(kho, _a2f_scene(ids["tower"]), None, *on) == "Clock Tower"                    # cảnh không dò ra nơi: BYĐ cho tên
+    assert _name(kho, _a2f_scene(ids["villa"]), pl["villa"], *on) == ""                        # không có tên Anh: không gửi chữ Việt bỏ dấu
+    assert _name(kho, _a2f_scene(ids["villa"]), pl["tower"], *on) == "Clock Tower"             # khác nơi của cảnh (3D/ảnh): code thắng
+    assert _name(kho, _a2f_scene(ids["far"]), pl["tower"], *on) == "Clock Tower"               # mã không thuộc dự án
+    assert len(kho["diags"](byd_fields.MISMATCH)) == 3
+
+
+def test_a2f_on_v1_or_missing_falls_back_with_warning(kho):
+    ids, pl = _places(kho)
+    on = ("mother", "a2f")
+    assert _name(kho, _a2f_scene(v1=True), pl["villa"], *on) == "biet thu"
+    assert _name(kho, _a2f_scene(None), pl["villa"], *on) == "biet thu"                       # v2 nhưng kho_id null
+    assert kho["diags"](byd_fields.FALLBACK) and all("noi_chon.kho_id" in m for m in kho["diags"](byd_fields.FALLBACK))   # diag gộp dòng trùng
+
+
+def test_a2f_setting_and_background_use_one_helper():
+    src = (ROOT / "core" / "runner.py").read_text(encoding="utf-8")
+    assert src.count("assets.model_place_name(place)") == 1                     # chỉ còn trong place_name_for_model (đường cũ)
+    assert src.count("place_name_for_model(") >= 3
