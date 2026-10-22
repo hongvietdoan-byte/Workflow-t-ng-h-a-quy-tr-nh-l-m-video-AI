@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T00:34:01.273978+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "task": "CX21-M23",
+  "text": "RÀ KỸ CX21-M23 @35d76879 xong: (B) sửa nhỏ rồi gộp. Đề bài vòng sửa: docs/CODEX_TASKS.md mục \"CX21-M23 vòng sửa sau RÀ KỸ phiên chính 23/10\" (5 lỗi VỪA, mỗi lỗi 1 test ĐỎ→XANH; phần dở R5/nhiều dạng/M0.10/UI proposals để M2.3b). Nhánh đã merge main sạch. Push sau MỖI commit, xong thì hop_thu xong --push."
+}
