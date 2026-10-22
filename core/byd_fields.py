@@ -6,6 +6,7 @@ hash lineage giống từng byte, golden #24 / #27). Cờ bật:
 - BYĐ v1 / thiếu trường / chưa có BYĐ → đường cũ (đọc chữ / dò bí danh / suy từ chỗ đứng) + một dòng ⚙ Chẩn đoán `byd_fallback`
   (luật 1 CHUAN_XAY_DUNG: không im lặng khi thiếu đầu vào) — KHÔNG chặn, không đổi gói so với đường cũ.
 Không gọi model, không ghi `scenes.data`, 0 USD."""
+from contextlib import contextmanager
 from typing import Dict, List, Optional
 
 from . import shot_intent
@@ -22,9 +23,25 @@ def flag(code: str) -> str:
     return f"{MOTHER}_{code}"
 
 
+_FORCE: Optional[bool] = None       # restamp_byd: tính dấu "như cờ mẹ TẮT" trong cùng tiến trình (chỉ lineage.restamp_byd dùng)
+
+
 def mother_on() -> bool:
+    if _FORCE is not None:
+        return _FORCE
     from . import features
     return features.on(MOTHER)
+
+
+@contextmanager
+def forced(on: bool):
+    """Tạm coi cờ mẹ (và mọi cờ con) là `on` — chỉ để lineage.restamp_byd tính dấu cũ / mới; luôn trả lại như trước."""
+    global _FORCE
+    old, _FORCE = _FORCE, on
+    try:
+        yield
+    finally:
+        _FORCE = old
 
 
 def enabled(code: str) -> bool:
@@ -82,7 +99,7 @@ NOI_CHON_DERIVED = ("thoi_gian", "thoi_tiet")   # bản chép của shot time / 
 def image_part(scene_data: Dict) -> Optional[Dict]:
     """Phần BYĐ vào image_spec_hash khi cờ mẹ bật; None (không thêm khóa — hash cũ) khi cờ tắt hoặc shot chưa có BYĐ."""
     byd = shot_intent.byd_of(scene_data)
-    if byd is None or not mother_on():
+    if byd is None or not is_v2(scene_data) or not mother_on():     # rà kỹ 23/10: BYĐ v1 (#24) không vào dấu — bật cờ không "⚠ cũ" hàng loạt
         return None
     part = {g: byd.get(g) for g in IMAGE_GROUPS if g in byd}
     if isinstance(part.get("noi_chon"), dict):
@@ -92,7 +109,7 @@ def image_part(scene_data: Dict) -> Optional[Dict]:
 
 def motion_part(scene_data: Dict) -> Optional[Dict]:
     byd = shot_intent.byd_of(scene_data)
-    if byd is None or not mother_on():
+    if byd is None or not is_v2(scene_data) or not mother_on():
         return None
     may = byd.get("may") if isinstance(byd.get("may"), dict) else {}
     return {"hanh_dong": byd.get("hanh_dong"), "chuyen_dong": may.get("chuyen_dong")}
