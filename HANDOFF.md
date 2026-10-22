@@ -1,3 +1,13 @@
+# HANDOFF — C-M48-DESK-UI (nhánh claude/v31-m48-desk-ui, 22/10)
+
+- XONG code + test; chưa gộp main, chưa ghi hộp thư/TODO (phiên chính làm). Báo cáo: docs/RA_CLOUD_M48_DESK_UI_2026-10-22.md.
+- File: dashboard/stage_desk_ui.py (mới), dashboard/stage_view_ui.py (gọi render_scene), core/features.py (cờ stage_desk_ui TẮT),
+  tests/golden/package_inputs.json, devsys/areas.json, tests/test_v31_m48_desk_ui.py (19 test).
+- Kiểm lại: `PYTHONUTF8=1 py -m pytest -q -p no:cacheprovider tests/test_v31_m48_desk_ui.py tests/test_v31_stage_view.py tests/test_v31_m48_desk_core.py`
+- Việc mở: bấm thử thật trên #31 (máy chính); cân nhắc đưa stage_desk_ui vào OPT_IN_ONLY.
+
+---
+
 # HANDOFF — golden replay Windows (22/10, tạm dừng theo lệnh người dùng, hạn mức tuần 91 %)
 
 Nhánh `claude/golden-replay-windows` (từ origin/main 85189242). Commit công cụ: c21dac7b. CHƯA gộp main, CHƯA có báo cáo docs/.

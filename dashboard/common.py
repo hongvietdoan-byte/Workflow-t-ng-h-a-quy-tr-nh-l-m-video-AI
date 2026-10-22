@@ -333,12 +333,27 @@ def capture_op_source() -> str:
     try:
         src = ui_log.source_from(st.query_params.get("op"), st.session_state.get("op_source"))
         st.session_state["op_source"] = src
+        if src == "claude":
+            st.session_state[OP_CLAUDE_SEEN] = True          # rà kỹ C-M48-DESK-UI: chốt một chiều (op_claude_seen)
         return src
     except Exception:  # noqa: BLE001 - nguồn chỉ để ghi nhật ký, không được làm hỏng trang
         return "nguoi"
 
 def op_source() -> str:
     return st.session_state.get("op_source") or "nguoi"
+
+OP_CLAUDE_SEEN = "op_claude_seen"
+
+def op_claude_seen() -> bool:
+    """Rà kỹ C-M48-DESK-UI mục 3: CHỐT MỘT CHIỀU — phiên trình duyệt đã từng là `?op=claude` thì giữ là phiên Claude tới hết phiên
+    (đổi `?op=nguoi` không hạ xuống). Dùng cho chỗ phân quyền theo nguồn (bàn đạo diễn: Duyệt / Trả lại chỉ NGƯỜI); nhật ký vẫn theo
+    op_source(). Giới hạn: phiên Claude mở Dashboard mà KHÔNG bao giờ có `?op=claude` thì không phân biệt được với người."""
+    try:
+        if op_source() == "claude":
+            st.session_state[OP_CLAUDE_SEEN] = True
+        return bool(st.session_state.get(OP_CLAUDE_SEEN))
+    except Exception:  # noqa: BLE001 - ngoài lượt chạy script: coi như đã thấy Claude (đóng, không mở quyền)
+        return True
 
 def log_ui(p, action: str, *, page: str = "", project_id=None, scene_id=None, job_id=None, result="ok", detail=None,
            t0: float = None, step: str = None, step_note: str = None, error_code: str = None) -> None:
