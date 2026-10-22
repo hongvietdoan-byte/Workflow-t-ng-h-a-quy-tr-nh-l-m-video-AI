@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T21:01:54.254548+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX22-REPORT",
+  "to": "codex",
+  "title": "Báo cáo dự án 7 mục + script tuần (chỉ đọc, 0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX22-REPORT",
+  "priority": 4
+}
