@@ -1476,6 +1476,19 @@ Lỗi công cụ còn lại → ghi gốc, không tự sửa. Gỡ worktree tạ
 
 ### CX21-M23 (tiếp) — hoàn tất theo HANDOFF_M23.md trên codex/v31-m23: sửa 1 P1 + 2 P2 đường ghi mà lượt rà hẹp đã thấy (test ĐỎ→XANH), rồi báo XONG.
 
+#### CX21-M23 vòng sửa sau RÀ KỸ phiên chính 23/10 (@35d76879, merge main sạch, 192 test liên quan xanh)
+Kết luận rà: (B) sửa nhỏ rồi GỘP; phần lớn còn dở ghi thành việc sau (M2.3b), không làm trong vòng này. Cờ `kho_forms_v2` TẮT giữ hành vi cũ — đã xác nhận.
+Mỗi mục một test ĐỎ→XANH trên `codex/v31-m23`, commit + PUSH sau mỗi commit:
+1. `core/kho_profile.py:358` `selected_images` gọi `validate(p)` không bắt lỗi → hồ sơ v2 hỏng (mã `Bad!`) làm `assets.best_references` / `view_picture` / `standard_set` nổ ProfileError, chặn dựng gói. Sửa: bắt lỗi → `None` (rơi về selector cũ) + ghi chẩn đoán. Test: `best_references` với profile hỏng, cờ BẬT.
+2. `core/assets.py:1233` `view_picture` không có ảnh đúng `role` lại trả `selected[0]` (trước: None) → QC so mặt sau với ảnh mặt trước. Sửa: chỉ ảnh đúng role, không có → None.
+3. `core/kho_profile.py:362-363` `selected_images` chọn dạng theo chữ trong cảnh (`explicit[:1]`), bỏ qua BYĐ `thanh_phan[].dang`/`kho_id`; lệch với `forms_for_shot`. Ca: "normal suit then turns ghost" vẫn tự lấy ghost. Sửa: dùng kết quả `forms_for_shot`; nhiều dạng → không tự chọn (REVIEW).
+4. `core/shot_intent.py:150` + `:399`: cờ BẬT mà thiếu conn/project_id → mục dạng chưa kiểm hạ REVIEW→WARN; `dang_khong_trong_kho` chỉ WARN. Sửa: "không kiểm được" và "ngoài enum" giữ `level: REVIEW`.
+5. `core/kho_profile.py:324`: AI đã ghi trường REVIEW_REQUIRED → `approved` luôn False, người dùng tích Duyệt mà lưu False im lặng. Sửa tối thiểu: báo rõ "còn N mục chờ duyệt" (UI duyệt `proposals` để M2.3b).
+Thấp (sửa nếu ≤ vài dòng, không thì ghi OPEN): `kho_profile.py:384` ảnh mất khỏi DB → `fetchone()['asset_id']` TypeError; `assets.py:1252` `standard_set` gắn mọi ảnh vai 'character', không giới hạn; `set_size`(`assets.py:808`)/`location_pack`/`stage_auto` ghi hồ sơ v2 không tăng revision; `set_profile` v2 bỏ `reason`/history; `draft_profiles` gặp khóa hệ thống dừng cả lô; `forms_for_shot` gọi `read()` 2 lần/asset.
+Ghi nhận: nhánh có sửa `core/shot_intent.py` (đề gốc ghi "chỉ đọc") — chấp nhận vì làm sau C-M21; nêu trong báo cáo.
+Còn dở → M2.3b (KHÔNG làm vòng này): biến thể vật R5 (`vat[].bien_the`/`stage_shape`), chính sách nhiều dạng / dạng theo nhịp, guard ghi chung M0.10, UI duyệt `proposals`.
+Xong: báo cáo `docs/RA_CX21_M23_CODEX_2026-10-23.md` (đã sửa gì, test, OPEN) → `hop_thu.py xong CX21-M23 --lane codex --branch codex/v31-m23 --commit <sha> --report … --push`. Phiên chính chạy cả bộ test khi gộp.
+
 ### CX21-GOLDEN4 — chạy nghiệm thu golden lần 4 (ưu tiên 0 khi cloud-E báo XONG C-GOLDEN4)
 Như CX21-GOLDEN3 nhưng trên nhánh `cloud/v31-golden4` (allowlist đọc data/ có fingerprint) và snapshot MỚI golden-snapshot-4; cờ theo sổ
 v31-ep-g1-golden-compat-production-baseline-2026-10-21 (baseline sản xuất thực tế + chỉ cờ mới V3.1 TẮT; ghi rõ "baseline tái dựng"). Báo cáo
