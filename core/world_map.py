@@ -446,7 +446,67 @@ _CLAUSE = re.compile(r"[.;,:\n]|\bwhile\b|\band\b|\bbut\b|\bvà\b|\bcòn\b|\btro
 # R1-SIDE báo nhầm #31 (22/10: shot 18 "behind Kelly's right shoulder", shot 34 "toward frame-right where three enemies stand"):
 # trái/phải chỉ là CHỖ TRONG KHUNG khi không phải bộ phận cơ thể / phía của chính người đó / một đầu của vật, và chỉ gán cho ĐÚNG chủ
 # thể của vế — mệnh đề "where X stand(s)" → X; còn lại → tên đứng gần nhất TRƯỚC chữ, không có thì tên đầu tiên SAU chữ.
-_SIDE_TOKEN = re.compile(r"\b(left|right)\b|(?:bên|phía|sang)\s+(trái|phải)", re.I)
+_SIDE_TOKEN = re.compile(r"\b(left|right)\b|(?:bên|phía|sang)\s+(trái|phải)|\bkhung\s+(trái|phải)", re.I)
+# C-R1-REL (22/10): "right of X" / "bên phải (của) X" với X là TÊN trên map (rel_names) là quan hệ TƯƠNG ĐỐI, không phải bên KHUNG →
+# không gán ở đây (core/position_invariants kiểm bằng góc hai thực thể). X là khung / tâm / máy / màn hình → bên khung như cũ;
+# X lạ (không phải tên trên map, không phải khung) → position_invariants báo KHÔNG RÕ, không đoán.
+_FRAME_NOUN = re.compile(r"(?:the\s+)?(?:frame|screen|image|shot|picture|cent(?:er|re)|middle|camera|composition|viewer|lens|"
+                         r"khung(?:\s+hình)?|màn\s+hình|khuôn\s+hình|ảnh|máy|giữa)\b", re.I)
+_REL_OF_AFTER = re.compile(r"^\s*of\s+(?:the\s+)?", re.I)
+_REL_VI_AFTER = re.compile(r"^\s*(?:của\s+)?", re.I)
+
+
+def name_spots(clause: str, names) -> List[Tuple[int, int, str]]:
+    """[(đầu, cuối, tên)] trong vế; tên dài trước, không chồng lấn ("Kelly" trong "Kelly Ghost")."""
+    spots: List[Tuple[int, int, str]] = []
+    for n in sorted({str(x) for x in names or [] if x}, key=len, reverse=True):
+        for mt in re.finditer(re.escape(n), clause, re.I):
+            if not any(mt.start() < e and s0 < mt.end() for s0, e, _ in spots):
+                spots.append((mt.start(), mt.end(), n))
+    return sorted(spots)
+
+
+def rel_target(tok, clause: str, spots) -> Optional[Tuple]:
+    """Chữ trái/phải `tok` có dạng "… of X" / "bên … (của) X"? None = không (hoặc X là khung → bên khung); ("ten", đầu, cuối, tên) = X là
+    tên trên map; ("la", chữ) = X không phải tên trên map cũng không phải khung."""
+    after = clause[tok.end():]
+    lead = _REL_OF_AFTER.match(after) if tok.group(1) else _REL_VI_AFTER.match(after) if tok.group(2) else None
+    if not lead:
+        return None
+    rest = after[lead.end():]
+    if _FRAME_NOUN.match(rest):
+        return None
+    pos = tok.end() + lead.end()
+    hit = next((x for x in spots if x[0] == pos), None)
+    if hit:
+        return ("ten",) + tuple(hit)
+    if tok.group(2) and "của" not in lead.group(0).lower():
+        return None                                       # "Kelly đứng bên phải" (+ chữ khác) → bên khung như cũ
+    word = re.match(r"[^\s,.;:()]+(?:\s+[^\s,.;:()]+){0,2}", rest)
+    return ("la", word.group(0) if word else "") if word else None
+
+
+def rel_names(m: Optional[Dict], shot) -> List[str]:
+    """Mọi tên trên map ở shot (nhãn thực thể + hai đầu quan hệ) — MỘT danh sách cho bên khung và tương đối."""
+    if not m or m.get("invalidated"):
+        return []
+    names = [str(e.get("label") or e["entity_id"]) for e in entities_at(m, shot)]
+    for r in relations_at(m, shot):
+        names += [str(r.get("a") or ""), str(r.get("b") or "")]
+    return [n for n in dict.fromkeys(names) if n]
+
+
+def relations_at(m: Optional[Dict], shot) -> List[Dict]:
+    """Quan hệ có hiệu lực ở shot; valid_from / valid_to không phải số (chuỗi…) → chỉ khớp khi bằng shot, không so lớn bé (không lỗi)."""
+    out = []
+    for r in (m or {}).get("relations") or []:
+        vf, vt = r.get("valid_from"), r.get("valid_to")
+        num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)  # noqa: E731
+        if vf in (None, shot) or (num(vf) and num(shot) and vf <= shot <= (vt if num(vt) else vf)):
+            out.append(r)
+    return out
+
+
 _BODY_AFTER = re.compile(r"^[\s-]*(?:hand(?:ed)?|arms?|shoulders?|legs?|foot|feet|knees?|hips?|elbows?|wrists?|fists?|palms?|thumbs?|"
                          r"fingers?|eyes?|ears?|cheeks?|temples?|brows?|eyebrows?|thighs?|ankles?|gloves?|sleeves?|pockets?|holsters?|"
                          r"(?:side|half)\s+of\s+(?:her|his|its|their|the|\w+['’]s)\s+(?:face|head|body|neck|chest|waist|torso))\b", re.I)
@@ -459,20 +519,23 @@ _WHERE_AFTER = re.compile(r"^[\s-]*(?:(?:corner|side|edge)\s+(?:of\s+the\s+\w+\s
                           r"lurks)\b|$)", re.I)
 
 
-def _side_claims(clause: str, names: List[str]) -> Dict[str, set]:
+def _side_claims(clause: str, names: List[str], all_names: Optional[List[str]] = None) -> Dict[str, set]:
     """{tên: {"left" / "right"}} mà vế chữ đặt CHO TÊN ĐÓ (theo chủ thể đúng của chữ trái/phải). Bộ phận cơ thể / phía của người / một đầu
     của vật → không phải chỗ trong khung, bỏ (không gán cho ai)."""
     spots = sorted((mt.start(), n) for n in names if n for mt in re.finditer(re.escape(str(n)), clause, re.I))
+    rel_spots = name_spots(clause, list(names) + list(all_names or []))
     out: Dict[str, set] = {}
     for tok in _SIDE_TOKEN.finditer(clause):
-        word = (tok.group(1) or tok.group(2) or "").lower()
+        word = (tok.group(1) or tok.group(2) or tok.group(3) or "").lower()
         side = "left" if word in ("left", "trái") else "right"
         before, after = clause[:tok.start()], clause[tok.end():]
-        if tok.group(1):                                  # tiếng Anh: bộ phận cơ thể / sở hữu / một đầu của vật
+        if tok.group(1):                                  # tiếng Anh: bộ phận cơ thể / sở hữu / một đầu của vật / "right of X"
             if _BODY_AFTER.match(after) or _POSS_BEFORE.search(before):
                 continue
             if _PART_AFTER.match(after) and not _FRAME_BEFORE.search(before):
                 continue
+        if rel_target(tok, clause, rel_spots):            # "right of X" / "bên phải (của) X", X không phải khung → không phải bên khung
+            continue
         where = _WHERE_AFTER.match(after)
         if where:                                         # "frame-right where X stand(s)" → chủ thể là X (có thể không là ai trên map)
             lo, hi = tok.end() + where.start(1), tok.end() + where.end(1)
@@ -567,8 +630,7 @@ def position_sentence(m: Optional[Dict], shot, camera: Optional[Dict] = None) ->
         prov.update({"from": ["entities", "stage_camera"], "out_of_frame": out,
                      "placed": {e["entity_id"]: side for e, side, _ in placed}})
         return "; ".join(bits) + ".", prov
-    rel = [r for r in m.get("relations") or [] if r.get("valid_from") in (None, shot) or
-           (isinstance(r.get("valid_from"), (int, float)) and r["valid_from"] <= shot <= (r.get("valid_to") or r["valid_from"]))]
+    rel = relations_at(m, shot)
     bits = [f"{r['a']} at frame left of {r['b']}" if r["rel"] == "trai_cua" else f"{r['a']} {r['rel'].replace('_', ' ')} {r['b']}" for r in rel]
     bits += [f"{e['entity_id']} holding {', '.join(e['state']['cam'])}" for e in ents if (e.get("state") or {}).get("cam")]
     if not bits:
@@ -601,7 +663,8 @@ def side_review(m: Optional[Dict], shot, current_text: str, camera: Optional[Dic
         labels[e["entity_id"]] = e.get("label") or e["entity_id"]
     clauses = [c.strip() for c in _CLAUSE.split(text) if c and c.strip()]
     placed = prov.get("placed") or {}
-    claims = [(c, _side_claims(c, [str(labels.get(eid, eid)) for eid in placed])) for c in clauses]
+    every = rel_names(m, shot)
+    claims = [(c, _side_claims(c, [str(labels.get(eid, eid)) for eid in placed], every)) for c in clauses]
     for eid, side in placed.items():
         name = str(labels.get(eid, eid))
         other = "right" if side == "left" else "left" if side == "right" else None
