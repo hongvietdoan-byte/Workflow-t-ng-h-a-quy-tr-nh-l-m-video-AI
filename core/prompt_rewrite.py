@@ -98,14 +98,22 @@ def _last_change_event(conn) -> Optional[int]:
         return None
 
 
-def _set_prompt(conn, scene_id: int, kind: str, text: str) -> None:
+def _set_prompt(conn, scene_id: int, kind: str, text: str, actor=None) -> None:
+    from . import write_guard                      # V3.1 M2.5 (cờ field_guard, shadow): AI viết lại prompt người khóa (L4) → diag
     if kind == "image":
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
         data = json.loads(row["data"] or "{}")
+        if actor:
+            write_guard.observe(conn, scene_id, {"image_prompt": text}, actor, read_data=dict(data))
         data["image_prompt"] = text
         conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene_id))
     else:
+        if actor:
+            old = conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+            write_guard.observe(conn, scene_id, {"motion_prompt": text}, actor, before={"motion_prompt": old[0] if old else None})
         conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?", (text, scene_id))
+        if actor and actor.get("kind") == "human":       # C-M25B: người chọn lại bản cũ = sửa tay → khóa (cờ field_guard)
+            write_guard.lock(conn, scene_id, "motion_prompt", actor)
 
 
 def versions(conn, scene_id: int, kind: str) -> List[Dict]:
@@ -156,9 +164,12 @@ def revert(p, scene_id: int, kind: str) -> str:
         raise ValueError("Không có bản prompt do Đạo diễn sửa để quay lại (hoặc prompt đã được sửa tay sau đó).")
     old = vers[-2]["prompt"]
     pid = p.conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()["project_id"]
-    _set_prompt(p.conn, scene_id, kind, old)
+    from . import write_guard
+    _set_prompt(p.conn, scene_id, kind, old, actor=write_guard.actor("human", p.actor or "dashboard"))
     _add_version(p.conn, pid, scene_id, kind, old, "revert", note=f"dùng lại prompt v{vers[-2]['version']}", who=p.actor)
     p.conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(p.conn)
     from . import prompt_formula                          # F1-A: the prompt back in use gets its own check (no growth: it is older)
     prompt_formula.on_prompt_saved(p.conn, scene_id, kind, None, old)
     return old
@@ -478,7 +489,8 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
     res.version = _add_version(p.conn, job["project_id"], job["scene_id"], kind, res.new_prompt, "director_rewrite",
                                note=(note or "")[:600], changed=res.changed, why=res.why[:600], job_id=job["id"], who=p.actor)
     last_ev = _last_change_event(p.conn)
-    _set_prompt(p.conn, job["scene_id"], kind, res.new_prompt)
+    from . import write_guard
+    _set_prompt(p.conn, job["scene_id"], kind, res.new_prompt, actor=write_guard.actor("ai", "director_rewrite"))
     if kind == "video" and last_ev is not None:
         from . import change_review
         if not (REVIEW_AUTO_REWRITE and change_review.motion_enabled()):
@@ -488,8 +500,12 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
                                                               "không rà (cờ change_review_motion tắt)", last_ev, job["scene_id"]))
         else:
             p.conn.commit()
+            from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+            _wg.flush(p.conn)
             _review_now(p, job)
     p.conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(p.conn)
     from . import prompt_formula                          # F1-A (F0 mục 4b): the Director's rewrite is checked + compared to the old one
     prompt_formula.on_prompt_saved(p.conn, job["scene_id"], kind, res.old_prompt, res.new_prompt)
     try:                                                  # rà 12/10: the new prompt is saved — a failing note never turns it into a fallback

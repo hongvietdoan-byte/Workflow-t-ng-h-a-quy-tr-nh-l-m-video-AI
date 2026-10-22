@@ -4,6 +4,7 @@ from dashboard import common as C
 from dashboard.widgets import dialogue_panel
 from contextlib import nullcontext
 from core import motion_prompt_lint
+from core import write_guard  # V3.1 M2.5 (C-M25B): người sửa tay motion prompt → khóa (cờ field_guard)
 
 
 def _card(key: str):
@@ -105,7 +106,7 @@ def step3(p: Pipeline, pid: int):
                 st.code(llm_runner.plain(prompts.build_motion_bundle(p, pid)), language="markdown")
                 raw = st.text_area("Dán JSON motion prompts từ Claude", key=f"motion_{pid}", height=140)
                 if st.button("▶ Lưu motion prompts", disabled=not raw.strip(), key=f"mot_paste_{pid}"):
-                    if act(lambda: llm_io.store_motion_prompts(p, pid, raw), "Đã lưu"):
+                    if act(lambda: llm_io.store_motion_prompts(p, pid, raw, actor=write_guard.actor("ai", "claude_paste")), "Đã lưu"):
                         st.rerun()
     voice_panel(p, pid)
     motion_ok = sum(1 for r in rows if r["state"] == "approved") if rows and "state" in rows[0].keys() else 0
@@ -164,14 +165,16 @@ def step3(p: Pipeline, pid: int):
                             st.rerun()
                     act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
                                                                                  "duration_sec": r["duration_sec"],
-                                                                                 "negative_prompt": r["negative_prompt"]}]}))
+                                                                                 "negative_prompt": r["negative_prompt"]}]},
+                                                        actor=write_guard.actor("human", p.actor or "dashboard")))
                     st.rerun()
                 if c3.button("✔ Duyệt", key=f"mpa_{r['sid']}", disabled=r["state"] == "approved" and not srow.get("motion_stale")
                              and new == r["motion_prompt"], type="primary"):
                     if new != r["motion_prompt"]:          # M6: approving keeps what was just typed (it used to be thrown away)
                         act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
                                                                                      "duration_sec": r["duration_sec"],
-                                                                                     "negative_prompt": r["negative_prompt"]}]}))
+                                                                                     "negative_prompt": r["negative_prompt"]}]},
+                                                        actor=write_guard.actor("human", p.actor or "dashboard")))
                     act(lambda: llm_io.approve_motion_prompt(p, r["sid"]))
                     st.rerun()
                 if not v2:
@@ -239,6 +242,34 @@ def voice_poll(pid: int) -> None:
     st.caption(f"🔄 Đang tạo giọng… tự cập nhật mỗi 5 giây · {time.strftime('%H:%M:%S')}")
 
 
+def _fit_review(p: Pipeline, pid: int, col) -> None:
+    """V3.1 M2.9 G14: bảng duyệt ⏱ — mỗi shot giọng dài hơn clip: giây cũ → mới, lý do, tiền thêm (ước tính). Mặc định chỉ chọn shot có
+    thoại TRONG khung; shot chỉ lời dẫn / giọng ngoài khung bỏ chọn. Chỉ ghi khi bấm Áp dụng (shot đã có video → làm lại clip, tốn tiền)."""
+    plan = voice.plan_fit(p.conn, pid, C.DATA, with_clips=True)
+    if not plan:
+        col.caption("⏱ Thời lượng clip đã vừa giọng thật")
+        return
+    col.caption(f"⏱ {len(plan)} shot có giọng dài hơn clip — duyệt ở bảng bên dưới")
+    with st.expander(f"⏱ Duyệt kéo thời lượng clip theo giọng thật ({len(plan)} shot)", expanded=False):
+        st.caption("Mặc định chỉ chọn shot có thoại TRONG khung (miệng cần đủ giây). Shot chỉ lời dẫn / giọng ngoài khung bỏ chọn: lời "
+                   "dẫn đọc tràn sang shot sau được. Shot ĐÃ có video: kéo dài = làm lại clip (tốn tiền).")
+        chosen = []
+        for c in plan:
+            usd = c.get("tien_them_usd")
+            label = (f"S{c['idx'] or 0:02d}: {float(c['from'] or 0):g} → {float(c['to']):g} s · {voice.FIT_REASONS[c['ly_do']]}"
+                     + (f" · thêm ≈ {usd:.2f} USD (ước tính)" if usd is not None else " · tiền thêm chưa có giá")
+                     + (" · vẫn ngắn hơn giọng (clip dài nhất của model)" if c["short"] else ""))
+            if st.checkbox(label, value=c["tick"], key=f"fit_{pid}_{c['scene_id']}"):
+                chosen.append(c)
+        redo = [c["scene_id"] for c in chosen if voice.has_clip(p.conn, c["scene_id"])]
+        if st.button(f"⏱ Áp dụng {len(chosen)} shot đã chọn" + (f" (làm lại {len(redo)} clip đã có)" if redo else "")
+                     + cost.video_button_tag(p.conn, redo, seconds={c["scene_id"]: c["to"] for c in chosen if c["scene_id"] in redo}),
+                     key=f"fit_apply_{pid}", disabled=not chosen):
+            ch = voice.apply_fit(p.conn, chosen)
+            st.toast(f"{len(ch)} clip được kéo dài theo giọng thật")
+            st.rerun()
+
+
 def voice_panel(p: Pipeline, pid: int) -> None:
     """Character voices for the dialogue (TTS is the main path for Vietnamese lines): make them, hear them, size the clips."""
     stat = voice.status(p.conn, pid, C.DATA)
@@ -289,7 +320,9 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                 SB.note(f"⚠ {len(late)} cảnh đã có video ngắn hơn giọng thật", _late, "sb-voice-late", kind="warn")
             else:
                 st.warning(_late)
-        if c3.button("⏱ Đặt thời lượng clip theo giọng thật" + (f" (làm lại {len(late)} clip đã có)" if late else "")
+        if voice.fit_review_on():           # V3.1 M2.9 G14 (cờ fit_durations_review): đề xuất + người duyệt, không kéo hết
+            _fit_review(p, pid, c3)
+        elif c3.button("⏱ Đặt thời lượng clip theo giọng thật" + (f" (làm lại {len(late)} clip đã có)" if late else "")
                      + cost.video_button_tag(p.conn, [x["scene_id"] for x in late], seconds={x["scene_id"]: x["need"] for x in late}),
                      key=f"tts_fit_{pid}",
                      help="Cảnh đã có video: thời lượng mới làm video cũ bị coi là cũ → chạy tự động làm lại (tốn tiền)."):

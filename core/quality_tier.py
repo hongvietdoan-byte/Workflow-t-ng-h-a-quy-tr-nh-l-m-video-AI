@@ -191,6 +191,10 @@ def hard_signs(conn, scene_id: int, data: Optional[Dict] = None) -> List[str]:
     if skill:
         signs.append("shot kỹ năng")
     voiced = data.get("lip_sync") is True
+    if voiced:
+        from . import lipsync               # M2.9 G17 (cờ narration_offscreen): lip_sync true mà chỉ lời dẫn → không có miệng để khớp
+        if lipsync.offscreen_on() and not lipsync.talking(data):
+            voiced = False
     if not voiced and data.get("shot_no"):
         try:
             from . import lipsync

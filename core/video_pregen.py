@@ -5,7 +5,8 @@ check(conn, scene_id, plan) -> [{ma, muc: "do" | "vang", ly_do}] — "do" = khô
 đoán), "vang" = gửi + ghi chẩn đoán. Thiếu dữ liệu để kiểm (ảnh duyệt không có, tệp không đọc được, video không đo được) → ĐỎ có lý do,
 không coi là đạt (CHUAN_XAY_DUNG luật 1). Riêng "chưa có BYĐ" → VÀNG (BYĐ chưa bắt buộc ở mọi dự án).
 
-Mã (ma): khung_dau (1) · khung_cuoi (2) · thoi_luong (3) · tham_chieu (4) · chuyen_dong (5) · van_tay (6) · byd (chưa có BYĐ).
+Mã (ma): khung_dau (1) · khung_cuoi (2) · thoi_luong (3) · tham_chieu (4) · chuyen_dong (5) · van_tay (6) · byd (chưa có BYĐ) ·
+byd_draft (BYĐ nháp của shot chèn, M2.4).
 
 `plan` = cái runner SẮP gửi (plan_of dựng từ args / kwargs thật của provider.submit + gói `core/sent_package.build` dựng y như lúc gửi):
 {job_id, project_id, data_dir, start_frame, prompt, duration, model, with_audio, subjects, image_references, reference_video,
@@ -24,7 +25,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 FLAG = "video_pregen"
-DO, VANG = "do", "vang"
+from .pregen_codes import DO, VANG  # noqa: E402 - M2.7: one set of codes for picture + video (same strings as before)
 # job trước có clip (đã trả tiền + có kết quả) mới tính là "lần gen trước" của N10; lần trước hỏng ở nhà cung cấp (không có clip) thì
 # gửi lại y gói là đúng (pipeline.retry PLAIN_RESEND), chỉ VÀNG
 _HAD_CLIP = ("succeeded", "pending_review", "approved", "rejected")
@@ -216,8 +217,8 @@ def _check_start(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
 
 # ---- (2) khung cuối đã duyệt + khớp ket_thuc BYĐ ----------------------------------------------------------------------------------
 def _byd(data: Dict) -> Optional[Dict]:
-    b = data.get("byd")
-    return b if isinstance(b, dict) else None
+    from . import shot_intent                      # V3.1 M2.1: đọc BYĐ qua adapter
+    return shot_intent.byd_of(data)
 
 
 def _changes(byd: Dict) -> Optional[bool]:
@@ -234,6 +235,8 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     byd = _byd(data)
     in_place = _in_place(conn, scene_id, plan, data)
     if not lf:
+        if plan.get("reference_only") is not None and end_frames.ref_end_frames_on():
+            _check_ref_unsupported(conn, scene_id, plan, data, out)       # M7.3: model tuyến ref không nhận khung cuối — REVIEW
         if in_place and end_frames.enabled() and not plan.get("group_ids") and end_frames.usable_path(conn, scene_id):
             out.append(_issue("khung_cuoi", VANG, f"{in_place} — không gửi khung cuối vẽ (cờ locomotion_end_frame)"))
         elif byd is not None and _changes(byd) and end_frames.enabled() and not plan.get("group_ids"):
@@ -264,6 +267,28 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     elif ch is False and not same(nxt, lf):
         out.append(_issue("khung_cuoi", DO, "BYĐ khai trạng thái cuối = trạng thái đầu (không đổi) mà clip gửi kèm khung cuối vẽ trạng "
                                             "thái khác — sửa BYĐ hoặc bỏ khung cuối"))
+
+
+def _check_ref_unsupported(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> None:
+    """M7.3 (rà VỪA-1): mọi shot của clip (plan.group_ids — clip nhóm do shot dẫn đầu gửi) cần khung cuối mà model tuyến ref không
+    nhận → một dòng VÀNG có số shot."""
+    from . import end_frames
+    ids = [int(i) for i in plan.get("group_ids") or []] or [scene_id]
+    late, why = [], None
+    for sid in ids:
+        if sid == scene_id:
+            d = data
+        else:
+            row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()
+            d = json.loads(row["data"] or "{}") if row is not None else {}
+        r = end_frames.ref_unsupported_reason(d, "per_shot")
+        if r:
+            late.append(sid)
+            why = r
+    if late:
+        names = ", ".join(f"S{r['idx']:02d}" for r in conn.execute(
+            "SELECT idx FROM scenes WHERE id IN (%s) ORDER BY idx" % ",".join("?" * len(late)), late))
+        out.append(_issue("khung_cuoi", VANG, f"{names}: {why}"))
 
 
 def _check_end_distance(conn, scene_id: int, plan: Dict, lf: str, out: List[Dict]) -> None:
@@ -500,6 +525,12 @@ def _check_motion(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
         if byd is None:
             missing.append(tag.rstrip(": ") or "shot")
             continue
+        if shot_intent.is_draft(byd):                  # M2.4 (insert_inherit): shot chèn — BYĐ chép nháp, chưa duyệt; chưa kiểm được nhịp / máy
+            src = conn.execute("SELECT idx FROM scenes WHERE id=?", (shot_intent.draft_source(byd),)).fetchone()
+            out.append(_issue("byd_draft", VANG, f"{tag}BYĐ nháp" + (f" từ shot {src['idx']}" if src else "")
+                              + " (shot chèn) — duyệt / điền hành động + máy ở Bước 3"))
+            if not byd.get("may") and not byd.get("hanh_dong"):
+                continue                               # chưa điền gì: chưa kiểm được nhịp / máy (nói ở câu trên); điền rồi → kiểm như thường
         may = byd.get("may") if isinstance(byd.get("may"), dict) else {}
         if may.get("chuyen_dong") in (None, ""):
             out.append(_issue("chuyen_dong", DO, f"{tag}BYĐ thiếu chuyển động máy (may.chuyen_dong: một trong "
@@ -538,7 +569,20 @@ def check(conn, scene_id: int, plan: Dict) -> List[Dict[str, str]]:
     _check_refs(conn, scene_id, plan, out)
     _check_motion(conn, scene_id, plan, out)
     _check_fingerprint(conn, scene_id, plan, out)
+    _check_router_split(conn, scene_id, plan, out)
     return out
+
+
+def _check_router_split(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
+    """M2.8 (cờ router_first_frame): shot router tách khỏi nhóm vì CẦN khung đầu mà vẫn gửi ref-only (không có khung đầu) → VÀNG, nói rõ."""
+    from . import model_router
+    if not plan.get("reference_only") or not model_router.router_first_frame_on():
+        return
+    from . import seedance_refs
+    why = seedance_refs.split_reason(conn, scene_id)
+    if why:
+        out.append(_issue("khung_dau", VANG, f"shot cần khung đầu ({why}) nhưng clip vẫn gửi ref-only — model không nhận khung đầu ở "
+                                             "chế độ này, khung 0 có thể khác ảnh đã duyệt; đổi sang Kling / gửi có khung đầu nếu cần giữ"))
 
 
 def plan_of(job, args, kwargs: Dict, package: Optional[str], data_dir: str, group_ids=None) -> Dict:

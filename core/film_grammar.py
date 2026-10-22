@@ -23,8 +23,8 @@ def _finite_object(obj):
 def _exception(shot, number, rule):
     words = {"jump": ("cắt nhảy", "jump cut", "30°"), "eyeline": ("hướng nhìn", "eyeline"),
              "lead": ("lead room", "khoảng trống phía trước"), "head": ("headroom", "khoảng trống trên đầu")}
-    from .shot_intent import NGOAI_LE_LY_DO
-    for e in (shot.get("byd") or {}).get("ngoai_le") or []:
+    from .shot_intent import NGOAI_LE_LY_DO, byd_or_raw
+    for e in (byd_or_raw(shot) or {}).get("ngoai_le") or []:     # sai kiểu không nuốt im lặng (rà M21-1)
         if not isinstance(e, dict) or e.get("ly_do") not in NGOAI_LE_LY_DO:
             continue
         if number not in (e.get("pham_vi") or []) or not all(e.get(k) for k in ("doi_tuong", "dieu_trai", "cach_hien")):
@@ -64,7 +64,7 @@ def warnings(shots, objects=None, aspect=9 / 16):
             if not isinstance(byd, dict) or not isinstance(byd.get("hanh_dong") or [], list) or not isinstance(byd.get("may") or {}, dict):
                 raise ValueError
             actors = {k: o for k, o in objs.items() if o.get("kind") == "nguoi"}
-            actions = (s.get("byd") or {}).get("hanh_dong") or []
+            actions = byd.get("hanh_dong") or []           # đã kiểm kiểu ở trên
             if not actions:
                 out.append(f"{tag}: không kiểm hướng nhìn/lead room/headroom — thiếu chủ thể BYĐ")
             declared = {h.get("ai") for h in actions if isinstance(h, dict) and isinstance(h.get("ai"), str)}
@@ -83,7 +83,7 @@ def warnings(shots, objects=None, aspect=9 / 16):
                 if top is None or point is None:
                     out.append(f"{tag}: {name} sau máy — không kiểm khoảng trống/mắt; đổi vị trí máy")
                     continue
-                size = str(s.get("size") or (s.get("byd") or {}).get("may", {}).get("co") or "").upper()
+                size = str(s.get("size") or byd.get("may", {}).get("co") or "").upper()
                 if not _exception(s, number, "head"):
                     if not size:
                         out.append(f"{tag}: không kiểm headroom — thiếu cỡ cảnh")

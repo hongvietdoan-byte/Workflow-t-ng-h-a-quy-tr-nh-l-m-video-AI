@@ -68,7 +68,8 @@ def _video_waits(conn, pid: int, final_hold: List[int]) -> List[str]:
     held = {}
     for r in conn.execute("SELECT j.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen'"
                           " AND j.state='queued' AND EXISTS (SELECT 1 FROM diag_events d WHERE d.job_id=j.id AND d.code IN"
-                          " ('video_pregen_hold','final_wait','QUEUE_CAPACITY','QUEUE_UNKNOWN_CAPACITY','QUEUE_CONFIG')) ORDER BY s.idx", (pid,)).fetchall():
+                          " ('video_pregen_hold','final_wait','QUEUE_CAPACITY','QUEUE_UNKNOWN_CAPACITY','QUEUE_CONFIG','stage_desk_hold'))"
+                          " ORDER BY s.idx", (pid,)).fetchall():   # C-FIX6: + cổng S-C plate 3D bắt buộc (EP)
         why = held_reason(conn, r["id"])
         if why:
             held.setdefault(why, []).append(r["idx"])

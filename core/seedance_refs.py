@@ -95,7 +95,9 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
     return cached(conn, ("seedance_refs.groups", project_id), lambda: _groups(conn, project_id))
 
 
-def _groups(conn, project_id: int) -> List[List[Dict]]:
+def _groups(conn, project_id: int, split: Optional[bool] = None) -> List[List[Dict]]:
+    """split: None = theo cờ router_first_frame (M2.8) + ref_end_frames (M7.3); False = luật chia cũ (split_reason / end_split_reason so
+    với nó)."""
     from .shots import _group_key, _rows
     out: List[List[Dict]] = []
     cur: List[Dict] = []
@@ -111,9 +113,20 @@ def _groups(conn, project_id: int) -> List[List[Dict]]:
     ff = looks.is_ff(conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone())
     dressed = {r["name"] for r in conn.execute("SELECT name, outfit_image_ids FROM characters WHERE project_id=?", (project_id,))
                if (r["outfit_image_ids"] or "").strip()}
+    from . import model_router          # M2.8 (cờ router_first_frame; tắt = như cũ): shot cần khung đầu gửi một mình
+    legacy = split is False             # gọi với split=False = luật chia cũ (split_reason / end_split_reason so với nó)
+    if split is None:
+        split = model_router.router_first_frame_on() and not model_router.ref_mode_keeps_first_frame()
+    chosen = None
+    if split:
+        from .assets import project_assets
+        chosen = project_assets(conn, project_id)          # một lần mỗi lượt chia nhóm (không đọc Kho mỗi hàng)
+    from . import end_frames            # M7.3 (cờ ref_end_frames; tắt = như cũ): shot cần khung cuối gửi một mình (split=False: luật cũ)
+    ends = legacy is False and end_frames.ref_route_on()
     for r in rows:
         d = r["data"]
-        if not d.get("shot_no") or not _groupable(d):
+        if not d.get("shot_no") or not _groupable(d) or (split and model_router.needs_first_frame(conn, project_id, d, chosen)) \
+                or (ends and end_frames.own_clip_reason(d, "per_shot", conn)):
             close()
             continue
         sec = floored(d, d.get("duration_s") or 0)
@@ -195,6 +208,41 @@ def _estimated_len(rows: List[Dict], ff: bool = True, dressed: Optional[set] = N
         if n in (dressed or ()):
             ids.append((n + OUTFIT_TAG, ""))
     return len(prompt([(m, float(r["data"].get("duration_s") or 2)) for m, r in zip(motions, rows)], ids, places=places)) + gore
+
+
+def split_reason(conn, scene_id: int) -> Optional[str]:
+    """M2.8: vì sao shot này (đủ điều kiện nhóm theo luật cũ) gửi MỘT MÌNH — cần khung đầu mà chế độ ref-only không giữ. None = không tách
+    (cờ router_first_frame tắt, dự án không dùng nhóm, shot không thuộc đường nhóm, hoặc không cần khung đầu). Ghi vào sent_package."""
+    from . import model_router
+    if not model_router.router_first_frame_on() or model_router.ref_mode_keeps_first_frame():
+        return None
+    row = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if row is None or not enabled(conn, row["project_id"]):
+        return None
+    data = json.loads(row["data"] or "{}")
+    if not data.get("shot_no") or not _groupable(data):
+        return None
+    if not any(len(g) > 1 and any(x["id"] == scene_id for x in g) for g in _groups(conn, row["project_id"], split=False)):
+        return None                       # rà DP10 VỪA-4: theo luật cũ shot này vốn đã đi lẻ — không phải do router tách
+    return model_router.needs_first_frame(conn, row["project_id"], data)
+
+
+def end_split_reason(conn, scene_id: int) -> Optional[str]:
+    """M7.3 (cờ ref_end_frames): vì sao shot này (thuộc nhóm theo luật cũ) gửi MỘT MÌNH — cần khung cuối, mà clip nhóm nhiều shot không
+    mang khung cuối riêng của một shot. None = không tách (cờ tắt, end_frames tắt, model tuyến ref không nhận khung cuối, dự án không
+    dùng nhóm, shot vốn đã đi lẻ theo luật cũ, hoặc không cần khung cuối). Ghi vào sent_package (router_khung_cuoi)."""
+    from . import end_frames
+    if not end_frames.ref_route_on():
+        return None
+    row = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if row is None or not enabled(conn, row["project_id"]):
+        return None
+    data = json.loads(row["data"] or "{}")
+    if not data.get("shot_no") or not _groupable(data):
+        return None
+    if not any(len(g) > 1 and any(x["id"] == scene_id for x in g) for g in _groups(conn, row["project_id"], split=False)):
+        return None
+    return end_frames.own_clip_reason(data, "per_shot", conn)
 
 
 def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
@@ -530,11 +578,15 @@ def _say_once(conn, project_id: int, code: str, msg: str) -> None:
 
 def _say_speakers_without_picture(conn, project_id: int, rows: List[Dict], pictured: set) -> None:
     """S14.4 C1b: a SPEAKER of these shots with no identity picture (Kho) is said (diag) — Seedance cannot tell whose mouth moves."""
-    from . import dialogue, diag
+    from . import dialogue, diag, lipsync, speaker_lint
     who = []
+    offscreen = lipsync.offscreen_on()            # M2.9 G53: chỉ người nói TRONG khung (lời dẫn / giọng ngoài khung không mở miệng)
     for r in rows:
-        for s, _ in dialogue.scene_lines(r.get("data") or {}):
+        data = r.get("data") or {}
+        for s, _ in dialogue.scene_lines(data):
             s = str(s).strip()
+            if offscreen and not speaker_lint.in_frame(data, s):
+                continue
             if s and not dialogue.is_non_speaker(s) and s not in pictured and s.upper() not in {p.upper() for p in pictured} \
                     and s not in who:
                 who.append(s)
@@ -816,12 +868,17 @@ def set_route(conn, scene_ids: List[int], value: Optional[str]) -> None:
     for sid in scene_ids:
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()
         data = json.loads(row["data"] or "{}")
+        from . import write_guard                  # V3.1 M2.5 (cờ field_guard, shadow): thang tự động đè video_route người chọn (L3) → diag
+        write_guard.observe(conn, sid, {"video_route": write_guard.DELETE if value is None else value},
+                            write_guard.actor("auto", "seedance_route"), read_data=dict(data))
         if value is None:
             data.pop("video_route", None)
         else:
             data["video_route"] = value
         conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), sid))
     conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
 
 
 def cut_points(path: str, n: int, ffmpeg: Optional[str] = None) -> Optional[List[float]]:
@@ -1460,7 +1517,9 @@ def code_motion(p, pid: int, redo_ids=(), out_held: Optional[List[Dict]] = None)
                                                                                           # cut to 1 s — the collapse was cut off
     if not todo:
         return 0
-    llm_io.store_motion_prompts(p, pid, {"scenes": [{k: t[k] for k in ("idx", "motion_prompt", "duration_sec")} for t in todo]})
+    from . import write_guard
+    llm_io.store_motion_prompts(p, pid, {"scenes": [{k: t[k] for k in ("idx", "motion_prompt", "duration_sec")} for t in todo]},
+                                actor=write_guard.actor("ai", "seedance_motion"))
     held = []
     from . import diag
     for t in todo:

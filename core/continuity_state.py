@@ -44,8 +44,8 @@ def _finding(attribute: str, registry: List[str], shots, entity: str, why: str, 
 
 
 def _byd(data: Dict) -> Dict:
-    b = data.get("byd")
-    return b if isinstance(b, dict) else {}
+    from . import shot_intent                      # V3.1 M2.1: đọc BYĐ qua adapter
+    return shot_intent.byd_of(data) or {}
 
 
 def _holder(data: Dict) -> Dict[str, str]:

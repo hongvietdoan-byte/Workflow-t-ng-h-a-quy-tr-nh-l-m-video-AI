@@ -83,6 +83,10 @@ FEATURES: Dict[str, Dict] = {
                                      "không đổi prompt gửi đi (cần world_map, 0 USD)",
         "verified": False,
         "why": "V3.1 DP11 (G41–G50, gốc P31-G46): thử offline trên #31 trước; thay câu tả tay = việc sau khi người duyệt map"},
+    "sent_package_relpath": {"label": "Sổ gói gửi gán nhãn ảnh theo ĐƯỜNG DẪN (+ id Kho), không theo tên tệp — hai ảnh Kho cùng tên "
+                                      "(2.png) không còn chung nhãn; tên trùng không khớp đường dẫn → không nhãn + cảnh báo (0 USD, chỉ sổ)",
+        "verified": False,
+        "why": "V3.1 M2.6 (G5, C-M26): prompt gửi model vốn đúng, chỉ SỔ sai (trang Gói sẽ gửi, video_pregen, golden); TẮT = gói byte cũ"},
     "world_map": {"label": "World map theo cảnh THỬ NGHIỆM OFFLINE (M3.1): dựng + lưu data/projects/<pid>/world/scene_<cảnh>.json (3D / 2D / "
                            "tương đối / UNKNOWN, version, provenance, invalidation) — không ai trong luồng gen đọc, không chặn gen (0 USD)",
         "verified": False,
@@ -418,6 +422,18 @@ FEATURES: Dict[str, Dict] = {
         "why": "Người dùng 21/10: sơ đồ 'Làm phim qua Dashboard' theo DỰ ÁN THẬT — chỗ nào cảnh báo / lỗi / phải làm ngoài Dashboard. "
                "Chưa chạy trên Dashboard thật",
     },
+    "insert_inherit": {
+        "label": "Chèn shot thừa kế bối cảnh (V3.1 M2.4, G6/G21): shot chèn chép location_asset / location / time / weather / lighting / mood "
+                 "của shot trước khi không nhập (không 🔒, ghi ⚙ insert_inherit) + BYĐ NHÁP (giữ nơi chốn + thành phần, bỏ hành động / máy / "
+                 "vật — cổng video VÀNG byd_draft) + byd.shot của các shot sau dời theo; 0 USD",
+        "verified": False,
+    },
+    "stage_props_byd": {
+        "label": "Đạo cụ cảnh trước theo BYĐ (V3.1 M2.4, G1): sân khấu tự động chỉ mang đạo cụ của cảnh trước (cùng sân khấu) khi CÙNG thế "
+                 "giới (location_asset + time) và BYĐ / chữ shot nhắc tên — bỏ thì ghi chú cho Đạo diễn sân khấu; 0 USD khi bật, NHƯNG đoạn nào bị "
+                 "bỏ đạo cụ thì đổi vân tay đầu vào → sân khấu đã dựng thành 'cũ', dựng lại là lượt Claude trả tiền",
+        "verified": False,
+    },
     "continuity_state": {
         "label": "continuity_state SHADOW (V3.1 M3.4): trạng thái mong đợi giữa 2 shot liền từ BYĐ (vật cầm giữ / mất / đổi tay, tư thế cuối → "
                  "đầu, nơi chốn, hướng trên khung) + quan sát của QC shadow (M4.2 / M4.3) + đồ thị phụ thuộc → <dự án>/world/continuity_state.json; "
@@ -442,6 +458,20 @@ FEATURES: Dict[str, Dict] = {
                "Chạy sau QC logic chuỗi. Tự gọi continuity_state.build (M3.4) + đọc tệp M4.2/M4.3 KỂ CẢ khi cờ của chúng TẮT (chỉ tính, không "
                "ghi tệp của chúng). Chưa chạy trên dữ liệu thật",
     },
+    "narration_offscreen": {
+        "label": "Lời dẫn / giọng ngoài khung KHÔNG coi là \"đang nói\" ở MỌI caller (V3.1 M2.9): cảnh báo thiếu ảnh định danh, đo môi QC, dấu "
+                 "hiệu shot khó (khớp môi), sổ khớp môi (method skip xóa trạng thái cũ) đều hỏi một hàm lipsync.talking — 0 USD",
+        "verified": False,
+        "why": "#31 G15 / G16 / G17 / G53: shot chỉ có LỜI DẪN bị báo thiếu ảnh định danh, đo môi như đang nói, bị ép nháp vì khớp môi, giữ "
+               "'done' khớp môi cũ. Chưa chạy trên dữ liệu thật",
+    },
+    "fit_durations_review": {
+        "label": "Kéo thời lượng clip theo giọng thật = ĐỀ XUẤT + DUYỆT (V3.1 M2.9, G14): mỗi shot ghi lý do (thoại trong khung / chỉ lời dẫn / "
+                 "giọng ngoài khung) + tiền thêm (ước tính); tự động chỉ áp shot thoại trong khung, shot chỉ lời dẫn chờ người tick ở nút ⏱",
+        "verified": False,
+        "why": "G14: voice.fit_durations kéo dài MỌI shot có giọng (kể cả chỉ lời dẫn) và ghi thẳng motion_prompts — tiền video thêm không "
+               "ai duyệt. Chưa chạy trên dữ liệu thật",
+    },
     "whitebox_height_dummy": {
         "label": "Người nộm whitebox đúng chiều cao hồ sơ Kho (height_m) + máy ở tầm mắt 0,93 × height_m, pitch eye (≤ 5°) / slightly_high "
                  "(cúi ~10°); thiếu chiều cao → báo, không im lặng (V3.1 M3.2, offline — không gửi gì thêm cho model)",
@@ -454,6 +484,21 @@ FEATURES: Dict[str, Dict] = {
                  "câu vị trí gợi ý, cảnh báo nền cũ / hỏng / map cũ — không render, không ghi, 0 USD",
         "verified": False,
         "why": "Người dùng 21/10: Dashboard chưa xem được sân khấu 3D, mọi thứ chạy CLI và ảnh nằm trong thư mục. Chưa kiểm trên #31 thật",
+    },
+    "byd_v2_levels": {
+        "label": "BYĐ v2 (V3.1 M2.1): ghi mức BLOCK / REVIEW / WARN của BYĐ từng shot vào byd_kiem (đếm theo mức + phiên bản byd_v) — CHỈ GHI, "
+                 "không chặn gen, không đổi gói gửi",
+        "verified": False,
+        "why": "Thiết kế M2.1 (docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md mục 2.1): 'do'/'vang' cũ chưa phân biệt cần người xem (REVIEW). "
+               "Chưa chạy trên dữ liệu thật",
+    },
+    "field_guard": {
+        "label": "Write guard cấp trường SHADOW (V3.1 M2.5): mỗi lần AI / tự động / công cụ ghi đè trường người khóa (USER_LOCKED), đổi trường "
+                 "quan trọng đã có giá trị (REVIEW_FIELDS) hoặc ghi bằng bản đọc cũ → một dòng ⚙ Chẩn đoán field_conflict / field_review / "
+                 "stale_write — KHÔNG chặn, không đổi dữ liệu (enforce = Cấp 3)",
+        "verified": False,
+        "why": "D04 (data/decisions.json v31-d04-field-level-write-guard): lỗ hổng L1–L6 của audit M0.10 (motion prompt / duration_s / "
+               "video_route / image_prompt người sửa bị AI đè, mất cập nhật luồng nền). Shadow trước để đo số ca thật. Chưa chạy trên dữ liệu thật",
     },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
@@ -726,6 +771,40 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "K3 (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md mục 3.4b, A17): mới thử bằng CSDL tạm + provider giả — chưa chạy trên "
                "dự án thật (đo báo nhầm trên #24 trước khi bật)",
+    },
+    "image_pregen": {
+        "label": "Kiểm ẢNH TRƯỚC gen SHADOW (V3.1 M2.7, 0 USD): trên đúng gói sắp gửi — nền 3D đúng máy, bố cục Kho, công thức prompt, ảnh "
+                 "tham chiếu đọc được + trong trần model, vân tay khác lần gen trước (N10), BYĐ, khối giữ chỗ có câu giải thích — cùng "
+                 "mã với kiểm video (core/pregen_codes.py); mỗi lỗi một dòng ⚙ Chẩn đoán REVIEW, KHÔNG giữ job, không đổi gói gửi",
+        "verified": False,
+        "why": "V3.1 M2.7 (docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md mục 3): ảnh chỉ có kiểm nền 3D + _blocked, định dạng khác video. "
+               "Shadow trước để đo báo nhầm; giữ job theo ĐỎ = việc sau (Cấp 3). Chưa chạy trên dự án thật",
+    },
+    "router_first_frame": {
+        "label": "Router theo khả năng model (V3.1 M2.8, MỚI NỬA ĐẦU): shot CẦN khung đầu đã duyệt (nối clip trước, BYĐ mốc nền trong khung, "
+                 "nhân vật ở dạng đặc biệt) không gộp vào nhóm Seedance ref-only (ref-only không giữ khung đầu — data/provider_rules.json "
+                 "refs_with_first_frame) → gửi một mình, lý do ghi vào gói gửi (sent_package.router). Shot tách VẪN ref-only (chưa đổi sang "
+                 "chế độ khung đầu) → kiểm video VÀNG khung_dau. Đổi SỐ clip → giá: xem pregen_check. CHƯA BẬT khi chưa có phần đổi đường",
+        "verified": False,
+        "why": "#31 G28 (job 1043 khung 0 khác ảnh đầu), G37 (shot 28 nhóm 28+29 mất dạng bóng mờ). Tách nhóm thêm clip (≥ 4 s tính tiền mỗi "
+               "clip). Chưa chạy trên dự án thật; chất lượng clip chỉ chứng minh bằng gen (Cấp 3)",
+    },
+    "ref_end_frames": {
+        "label": "Khung cuối trên tuyến Seedance tham chiếu (V3.1 M7.3, B4): shot per_shot có end_state đi tuyến ref-only VẪN cần khung cuối "
+                 "— vẽ như tuyến khung đầu + cuối, tách khỏi nhóm ref-only (gửi một mình; khung cuối đi như ảnh tham chiếu cuối có câu vai "
+                 "trò), lý do ghi vào gói gửi (sent_package.router_khung_cuoi). Model tuyến ref không nhận khung cuối "
+                 "(data/provider_rules.json last_frame) → không tách, báo VÀNG. Cần end_frames + seedance_ref_groups. Đổi SỐ clip → giá",
+        "verified": False,
+        "why": "Sổ v31-ep-k3-seedance-ref-groups-with-end-frames-2026-10-21 (EP 21/10 K3-b): end_frames.py:32 bỏ khung cuối ở tuyến ref. "
+               "Tách nhóm thêm clip (≥ 4 s tính tiền mỗi clip) + 1 ảnh khung cuối mỗi shot đổi trạng thái. Chưa chạy trên dự án thật",
+    },
+    "lean_package": {
+        "label": "Gói gửi TỐI GIẢN SHADOW (V3.1 M2.10, 0 USD): sau mỗi lần gửi ảnh / video, dựng BÊN CẠNH gói thật một gói tối giản (ref "
+                 "tối thiểu theo BYĐ + một dòng vai / ref + thân lệnh 2–4 câu) và ghi so sánh (độ dài, ref bỏ / giữ + lý do, trường BYĐ không "
+                 "còn nói) ra <data>/lean_package/ + một dòng ⚙ Chẩn đoán — KHÔNG gửi, không đổi gói thật",
+        "verified": False,
+        "why": "docs/KE_HOACH_GOI_GUI_TOI_GIAN_2026-10-21.md: chất lượng gói tối giản chỉ chứng minh bằng A/B gen thật (Cấp 3, chờ EP); "
+               "chạy tay trên gói đã gửi: tools/lean_package_shadow.py",
     },
     "murch_knowledge": {
         "label": "Bộ não prompt Đợt 2: Director + motion đọc thang ưu tiên cảm xúc (Murch), motion đọc kỷ luật I2V (giữ trước, hỏng thì "
@@ -1258,7 +1337,8 @@ REQUIRES = {"director_rewrite_respect_lock": ("director_rewrite",), "dialogue_ta
             # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
             "stage_auto": ("stage_camera", "place_render_refs"),
             "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",),
-            "continuity_validator": ("crew_registry",)}      # M6.9 định tuyến theo Role Registry M6.1
+            "continuity_validator": ("crew_registry",),       # M6.9 định tuyến theo Role Registry M6.1
+            "ref_end_frames": ("end_frames", "seedance_ref_groups")}   # M7.3: khung cuối tuyến ref chỉ có nghĩa khi cả hai bật
 
 
 def unmet(name: str) -> list:

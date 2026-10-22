@@ -163,17 +163,17 @@ kiểm giá trị; không đổi `STATUSES`.
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | M0 Đóng băng và thiết kế (0 USD) | 12 | 12 | 0 | 0 | 0 | 100 % |
-| M1 Nền tin cậy (0 USD, provider giả) | 9 | 8 | 1 | 0 | 0 | 92,1 % |
-| M2 Hợp đồng sản xuất có cấu trúc | 10 | 0 | 1 | 0 | 0 | 6,5 % |
+| M1 Nền tin cậy (0 USD, provider giả) | 9 | 9 | 0 | 0 | 0 | 100 % |
+| M2 Hợp đồng sản xuất có cấu trúc | 10 | 0 | 8 | 0 | 0 | 39,1 % |
 | M3 Thế giới và liên tục | 5 | 5 | 0 | 0 | 0 | 100 % |
 | M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % |
-| M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 5 | 0 | 0 | 0 | 68,8 % |
+| M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 5 | 1 | 0 | 0 | 75 % |
 | M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 4 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **74** | **41** | **6** | **0** | **0** | **56,5 %** |
+| **Tổng** | **74** | **42** | **13** | **0** | **0** | **63,1 %** |
 
-Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
+Đợt hiện tại: **M2** · việc kế: **M2.2** Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22)
 <!-- /tien-do -->
 
 Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · ✅ xong · ✖ bỏ. Mỗi việc xong ghi commit + bằng chứng.
@@ -201,19 +201,19 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · ✅ · gộp 20/10 (cloud-B code + cloud-C C-FIX + phiên chính sửa CAO thẻ clip v2), cờ send_estimate TẮT; cả bộ 6470 qua — bật cờ = xin người dùng
 - [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · ✅ · gộp 20/10 (cloud-B + C-FIX báo code cũ theo dấu vân tay file), cờ TẮT; cả bộ 6470 qua
 - [ ] M1.8 · tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án · nặng:2 · ✅ · Codex Đ20 việc 1 gộp 20/10 (tools/project_error_report.py, 9 test)
-- [ ] M1.9 · Golden gói B0–B2: replay ảnh + video, test compatibility / correctness, fixture có HEAD/cờ/CHANGES · nặng:3 · 🔄 · EP 21/10 duyệt cổng mới so A/B (sổ v31-ep-golden-ab-acceptance-2026-10-21) sau 4 lần không đạt so lịch sử → C-GOLDEN5 + CX21-GOLDEN5 · CX20-2b gộp 21/10 (14a65fd4, rà kỹ đạt, 3 THẤP → CX21-FIX); nghiệm thu lần 1+2 21/10 KHÔNG ĐẠT (0 CODE_MISMATCH; lần 2: 68/68 thiếu đầu vào — final theo draft_job_id, định nghĩa COMPAT vs 83 cờ BẬT, model theo job, pregen_fingerprint) → C-GOLDEN2 cloud-C; chưa gộp nhánh M2 tới khi đạt · CX20-2 khung chụp/so gộp 20/10; CX20-2b replay mức _build_package đang làm (Codex) → phiên chính chụp #24/#27 → mở M2
+- [ ] M1.9 · Golden gói B0–B2: replay ảnh + video, test compatibility / correctness, fixture có HEAD/cờ/CHANGES · nặng:3 · ✅ · nghiệm thu golden A/B CX21-GOLDEN7 máy chính ĐẠT 87832ef0 (117 SAME / 0 DIFF / 0 ONE_FAIL / 41 BOTH_FAIL; docs/RA_CX21_GOLDEN7_MAYCHINH_2026-10-22.md) · EP 21/10 duyệt cổng mới so A/B (sổ v31-ep-golden-ab-acceptance-2026-10-21) sau 4 lần không đạt so lịch sử → C-GOLDEN5 + CX21-GOLDEN5 · CX20-2b gộp 21/10 (14a65fd4, rà kỹ đạt, 3 THẤP → CX21-FIX); nghiệm thu lần 1+2 21/10 KHÔNG ĐẠT (0 CODE_MISMATCH; lần 2: 68/68 thiếu đầu vào — final theo draft_job_id, định nghĩa COMPAT vs 83 cờ BẬT, model theo job, pregen_fingerprint) → C-GOLDEN2 cloud-C; chưa gộp nhánh M2 tới khi đạt · CX20-2 khung chụp/so gộp 20/10; CX20-2b replay mức _build_package đang làm (Codex) → phiên chính chụp #24/#27 → mở M2
 
 ### M2 — Hợp đồng sản xuất có cấu trúc
-- [ ] M2.1 · BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN · nặng:3 · ⬜
+- [ ] M2.1 · BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN · nặng:3 · 🔄 · cloud/v31-m2-tichhop 9746a6ea — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
 - [ ] M2.2 · Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22) · nặng:3 · ⬜
 - [ ] M2.3 · Triển khai Kho forms/outfit/hair/face (G38) theo thiết kế M0.9 — code Cấp 2, backfill/migration Cấp 3 · nặng:2 · ⬜ · G2-3 duyệt có ĐK (sau M0.9, M0.10, M1.9); backfill = C3-5 chỉ khảo sát + nháp
-- [ ] M2.4 · insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; chỉ mang đạo cụ có trong BYĐ (G6, G21, G1) · nặng:2 · ⬜
-- [ ] M2.5 · Triển khai AUTO/USER_LOCKED/REVIEW_REQUIRED mọi đường ghi theo đặc tả M0.10 (A4), shadow trước — Cấp 2 · nặng:2 · ⬜ · G2-3 duyệt có ĐK (shadow); enforce = C3-6 để sau
-- [ ] M2.6 · sent_package nhãn theo rel_path/asset_id (G5) · nặng:1 · ⬜
-- [ ] M2.7 · Image preflight trong ImageRunner._pregen, chung mã lỗi với video_pregen · nặng:3 · ⬜
-- [ ] M2.8 · Router theo khả năng model: không gộp nhóm khi cần khung đầu (G28, G37, B9); ngân sách ký tự (G13, G54) · nặng:2 · ⬜
-- [ ] M2.9 · Lời dẫn ngoài khớp môi mọi caller (G15–G17, G53); fit_durations hiện danh sách duyệt (G14); thông điệp khung cuối (A11); BYĐ qua claude_cli (A12) · nặng:2 · ⬜
-- [ ] M2.10 · Gói gửi tối giản (người dùng 21/10): prompt ngắn ref-first (mỗi tài nguyên 1 dòng vai trò + 2–4 câu hành động/máy, không tả lại thứ ảnh đã có) + BỘ ẢNH tham chiếu tối ưu theo shot (đúng vai, bỏ ref thừa / trùng / mâu thuẫn — video có khung đầu không gửi lại ảnh nhân vật/bối cảnh trùng khung) + cách dùng kết hợp; đo 0 USD trên gói thật #31/#33 → builder lean SHADOW cờ TẮT → A/B pilot (Cấp 3) · nặng:3 · 🔄 · EP DUYỆT 3 bước 21/10 (sổ v31-ep-m210-lean-package-2026-10-21; bước 3 A/B trả phí chờ trình giá) · C-M210-DESIGN cloud-E · số đo 21/10: ảnh #31 TB 5.380 ký tự / 6,2 ref, #33 11.059 ký tự; video #31 3.029 ký tự, video tới 15 ref, 9 ref trùng sha; Weave Canvas: prompt video 1 câu + khung đầu/cuối
+- [ ] M2.4 · insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; chỉ mang đạo cụ có trong BYĐ (G6, G21, G1) · nặng:2 · 🔄 · cloud/v31-m24 1971d85f (đã nằm trong m2-tichhop) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
+- [ ] M2.5 · Triển khai AUTO/USER_LOCKED/REVIEW_REQUIRED mọi đường ghi theo đặc tả M0.10 (A4), shadow trước — Cấp 2 · nặng:2 · 🔄 · m2-tichhop 9746a6ea (M25+M25B) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật) · G2-3 duyệt có ĐK (shadow); enforce = C3-6 để sau
+- [ ] M2.6 · sent_package nhãn theo rel_path/asset_id (G5) · nặng:1 · 🔄 · m2-tichhop 9746a6ea (M26) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
+- [ ] M2.7 · Image preflight trong ImageRunner._pregen, chung mã lỗi với video_pregen · nặng:3 · 🔄 · m2-tichhop 9746a6ea (DP9/DP10 image_pregen) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
+- [ ] M2.8 · Router theo khả năng model: không gộp nhóm khi cần khung đầu (G28, G37, B9); ngân sách ký tự (G13, G54) · nặng:2 · 🔄 · m2-tichhop 9746a6ea (router_first_frame) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
+- [ ] M2.9 · Lời dẫn ngoài khớp môi mọi caller (G15–G17, G53); fit_durations hiện danh sách duyệt (G14); thông điệp khung cuối (A11); BYĐ qua claude_cli (A12) · nặng:2 · 🔄 · m2-tichhop 9746a6ea (M29) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
+- [ ] M2.10 · Gói gửi tối giản (người dùng 21/10): prompt ngắn ref-first (mỗi tài nguyên 1 dòng vai trò + 2–4 câu hành động/máy, không tả lại thứ ảnh đã có) + BỘ ẢNH tham chiếu tối ưu theo shot (đúng vai, bỏ ref thừa / trùng / mâu thuẫn — video có khung đầu không gửi lại ảnh nhân vật/bối cảnh trùng khung) + cách dùng kết hợp; đo 0 USD trên gói thật #31/#33 → builder lean SHADOW cờ TẮT → A/B pilot (Cấp 3) · nặng:3 · 🔄 · cloud/v31-m210 b7cc130b (lean_package shadow) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật) · EP DUYỆT 3 bước 21/10 (sổ v31-ep-m210-lean-package-2026-10-21; bước 3 A/B trả phí chờ trình giá) · C-M210-DESIGN cloud-E · số đo 21/10: ảnh #31 TB 5.380 ký tự / 6,2 ref, #33 11.059 ký tự; video #31 3.029 ký tự, video tới 15 ref, 9 ref trùng sha; Weave Canvas: prompt video 1 câu + khung đầu/cuối
 
 ### M3 — Thế giới và liên tục
 - [ ] M3.1 · scene_world_map thử nghiệm (3D hoặc 2D, UNKNOWN, version/provenance, người duyệt map) trên #31/#33 — sau khi M3 được duyệt, không bật production · nặng:3 · ✅ · DP8 cloud-D gộp 21/10 (core/world_map.py, cờ world_map TẮT, offline, JSON tệp); THẤP byd 3D → C-FIX-THAP-5
@@ -230,7 +230,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M4.5 · Sửa báo nhầm A5 (qua vai), A6 (thiếu ref_video_path) + regression · nặng:1 · ✅ · DP1 cloud-C gộp 20/10, cờ qc_false_alarm_fix TẮT (bật = xin người dùng sau C-FIX-THAP-1)
 - [ ] M4.6 · Benchmark độc lập theo mã lỗi (≥ 20 lỗi + 20 đạt mỗi nhóm luật) · nặng:2 · ✅ · gộp 21/10 (14a65fd4), cờ TẮT, rà nhẹ (báo cáo cloud/codex + test xanh)
 - [ ] M4.7 · Dashboard: BYĐ, thẻ gói sẽ gửi, sổ lỗi, overrides + siết 3 cổng (Q6) · nặng:3 · 🔄 · phần XEM (C-M47A cloud-C) gộp 21/10, cờ TẮT; overrides = C3-4 chờ
-- [ ] M4.8 · Bàn đạo diễn 3D trên Dashboard (thêm 21/10 — người dùng hỏi vì sao V3.1 thiếu): (a) màn XEM chỉ đọc cờ stage_view_ui (C-STAGE-VIEW cloud-E); (b) phương án + nút thao tác (chia vai, duyệt/trả lại, previs, render lại nền, chọn phương án máy) — kế hoạch riêng chờ duyệt Cấp 2 · nặng:3 · 🔄 · EP 21/10 chốt S-A…S-G (sổ v31-ep-stage-desk-actions-2026-10-21): phương án A theo đợt — Đợt 1 nút 0 USD làm được, nút API = Cấp 3 · K5 'Claude/người dùng xem tấm ghép trên Dashboard' đã duyệt 15/10 (stage-auto-plan Q3) nhưng chưa từng làm
+- [ ] M4.8 · Bàn đạo diễn 3D trên Dashboard (thêm 21/10 — người dùng hỏi vì sao V3.1 thiếu): (a) màn XEM chỉ đọc cờ stage_view_ui (C-STAGE-VIEW cloud-E); (b) phương án + nút thao tác (chia vai, duyệt/trả lại, previs, render lại nền, chọn phương án máy) — kế hoạch riêng chờ duyệt Cấp 2 · nặng:3 · 🔄 · claude/v31-fix6-desk d50b0ac2 (C-M48-DESK-CORE + C-FIX6 A) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật) · EP 21/10 chốt S-A…S-G (sổ v31-ep-stage-desk-actions-2026-10-21): phương án A theo đợt — Đợt 1 nút 0 USD làm được, nút API = Cấp 3 · K5 'Claude/người dùng xem tấm ghép trên Dashboard' đã duyệt 15/10 (stage-auto-plan Q3) nhưng chưa từng làm
 
 ### M5 — Sửa chọn lọc và pilot
 - [ ] M5.1 · Repair router theo mã lỗi, trần ảnh ≤ 3 / video ≤ 2, dừng khi đổi ý đồ · nặng:3 · ✅ · DP5 cloud-C gộp 20/10, cờ repair_router TẮT, chỉ đề xuất (tự gửi = C3-10 để sau)
@@ -260,7 +260,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 > Mỗi gói: test, bằng chứng thực thi, acceptance criteria, rollback, rủi ro mở. Đổi trạng thái cờ production / khóa cờ = Cấp 3 TỪNG CỜ (trình bằng chứng).
 - [ ] M7.1 · Gói A sửa cờ (F-A): change_review đóng cổng khi rà lỗi (G35), hero_takes khai costs, director_rewrite respect_lock (trường người sửa), chat_prompts kiểm D6 + hết tiền · nặng:3 · ✅ · gộp main c66d6c2d (C-M71, rà kỹ 0 CAO; lỗi VỪA/THẤP → C-M71-FIX cloud-E) — CHƯA kiểm máy chính · Cấp 2 DUYỆT 21/10; đổi trạng thái cờ = Cấp 3
 - [ ] M7.2 · Baseline cờ chỉ khi chưa có cấu hình riêng (K4 b) + effective config + config hash + cảnh báo drift; nút reset có preview / xác nhận / sao lưu / khôi phục (K6) · nặng:2 · ✅ · C-M72 + C-M72-FIX gộp 21/10 (rà kỹ: 0/144 cờ đổi máy có cài đặt; 2 lỗi đã sửa; cả bộ 6937 qua) · Cấp 2 DUYỆT 21/10; song song M7.4, nghiệm thu tích hợp trước khi khóa cờ môi trường khác (K5)
-- [ ] M7.3 · seedance_ref_groups + end_frames cùng hoạt động (K3 b, B4 end_frames.py:32) · nặng:2 · ⬜ · Cấp 2 DUYỆT 21/10
+- [ ] M7.3 · seedance_ref_groups + end_frames cùng hoạt động (K3 b, B4 end_frames.py:32) · nặng:2 · 🔄 · cloud/v31-m73 ae71d563 (ref_end_frames) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật) · Cấp 2 DUYỆT 21/10
 - [ ] M7.4 · Gói B sửa cờ (F-B): video_gate, two_tier_quality (±5 % + tiêu chí chất lượng), motion_consistency_lint, end_frames, scene_qc, lip_sync + dialogue_take, bg_autoqc… · nặng:3 · ✅ · C-M74 gộp 22/10 (rà kỹ: không thêm chặn/tiền với cờ đang BẬT; release_gate+final_black_freeze bật cùng = điểm chặn mới, Cấp 3) · Cấp 2 DUYỆT 21/10; khóa từng cờ sau correctness + benchmark + chi phí
 - [ ] M7.5 · Gói C (F-C): audit + thiết kế + BẢNG QUYẾT ĐỊNH từng cờ (audio_first tùy chọn thử nghiệm — F-Q2) trình EP trước khi đổi hành vi production · nặng:1 · ✅ · C-M75 bảng quyết định Gói C gộp 21/10 (KE_HOACH_SUA_20_CO mục 6) — TRÌNH EP duyệt từng dòng · chỉ tài liệu
 - [ ] M7.6 · Test không phụ thuộc mặc định 8 cờ đề nghị khóa (155 test nhóm A) · nặng:2 · ✅ · C-FLAGTEST8 cloud-C gộp 21/10: cả bộ 6914 qua; ép 8 cờ khóa BẬT 164 → 7 đỏ (đều là test "cờ mặc định TẮT" — đổi khi khóa thật)

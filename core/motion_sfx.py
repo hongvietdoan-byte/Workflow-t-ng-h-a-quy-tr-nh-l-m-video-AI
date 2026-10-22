@@ -114,8 +114,9 @@ def plan(scenes, sounds, *, opted_in=False):
         peak = measurement['frame_activity_peak_s'] if locked_camera else None
         if not locked_camera:
             warnings.append(f"Shot {row['idx']}: VÀNG — máy chưa được xác nhận cố định; chia đều BYĐ, không dùng đỉnh toàn khung làm động tác.")
-        byd = row.get('byd')
-        entries = byd.get('hanh_dong') if isinstance(byd, dict) else None
+        from . import shot_intent                  # V3.1 M2.1: đọc BYĐ qua adapter
+        byd = shot_intent.byd_of(row)
+        entries = byd.get('hanh_dong') if byd is not None else None
         if not isinstance(entries, list) or not entries:
             warnings.append(f"Shot {row['idx']}: VÀNG — thiếu BYĐ hành động; chỉ gợi ý nhịp giữa shot.")
             entries = []

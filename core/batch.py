@@ -1,6 +1,7 @@
 """One action per step instead of "create jobs" + "submit": queue what is missing or outdated, then send it.
 Shared by the dashboard buttons and the automatic run, so both redo exactly the parts a change affected (core.lineage)."""
 import json
+import os
 
 from . import access
 from typing import Dict, List, Optional
@@ -118,6 +119,18 @@ def image_gates(p: Pipeline, project_id: int, data_dir: Optional[str] = None, sc
         flags = {}
         block.append(f"không đọc được kết quả kiểm Bible ({type(e).__name__}: {e})")
     block += [f"mô tả {n} mâu thuẫn với ảnh tài nguyên: {m[0]}" for n, m in flags.items()]
+    from . import stage_desk                           # M4.8 S-C (sổ v31-ep-stage-desk-actions-2026-10-21) — C-FIX6: chỉ khi EP ĐÃ đánh dấu
+    if data_dir and os.path.isfile(stage_desk._gate_path(data_dir, project_id)):   # bắt buộc (không có → y hệt trước, không đọc gì).
+        try:                                           # sân khấu chưa chốt → VÀNG; shot bắt buộc chưa đạt (không ngoại lệ) → CHẶN —
+            sids = scene_ids if scene_ids is not None else [r[0] for r in p.conn.execute(   # runner cũng GIỮ job đó (cùng hàm)
+                "SELECT id FROM scenes WHERE project_id=?", (project_id,)).fetchall()]
+            for it in stage_desk.paid_gate(p.conn, project_id, data_dir, sids):
+                if it["level"] == "hold":
+                    block.append("sân khấu 3D — " + it["why"] + " (tick “vẫn gen” KHÔNG thay ngoại lệ EP: job sẽ bị giữ trước khi gửi)")
+                else:
+                    warn.append("sân khấu 3D — " + it["why"])
+        except Exception as e:  # noqa: BLE001 - a gate that cannot be read is said, never silently passed (yellow: rules not computed)
+            warn.append(f"không kiểm được cổng sân khấu 3D (S-C): {type(e).__name__}: {e}")
     gaps = autopilot.bible_gaps(p, project_id)
     if gaps["no_lock"]:
         block.append("chưa có Character Lock (nét nhận diện phải giữ): " + ", ".join(gaps["no_lock"]))

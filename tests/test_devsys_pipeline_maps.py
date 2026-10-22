@@ -403,7 +403,7 @@ def test_tool_says_warn_for_a_no_op_and_nothing_for_estimate_only(tmp_path):
     src = open(os.path.join(ROOT, "tools", "stage_auto.py"), encoding="utf-8").read()
     i = src.index("Chưa chạy (thêm --yes")
     assert "step.clear()" in src[i:i + 300]
-    assert src.count('step.update(result="warn"') == 4 and src.count('step.update(result="error"') == 2
+    assert src.count('step.update(result="warn"') == 5 and src.count('step.update(result="error"') == 2
 
 
 def test_skip_without_a_code_gets_the_gate_code():

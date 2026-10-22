@@ -20,7 +20,7 @@ PRICE_FUNCS = {"price_tag", "llm_tag", "audio_tag", "llm_button_tag", "llm_token
 
 # dotted call text (receiver.attr, or a bare name) → paid. fnmatch patterns.
 PAID = ("runner.submit_pending", "*.submit_pending", "costume.make_character_set", "voice.preview", "voice.generate",
-        "claude_tasks.*", "llm_runner.run_*", "voice_check.redo", "voice.fit_durations", "run_director_now", "music.submit_*", "audio_lib.submit_*", "meshy.submit_*",
+        "claude_tasks.*", "llm_runner.run_*", "voice_check.redo", "voice.fit_durations", "voice.apply_fit", "run_director_now", "music.submit_*", "audio_lib.submit_*", "meshy.submit_*",
         "research.run", "video_analysis.analyze", "style.analyse", "editor_review.run", "sfx_plan.propose", "subtitles.localize",
         "delivery.deliver", "regen.regenerate_video", "p.reject", "p.retry", "p.reopen_approved", "p.restart_job",
         "autopilot_manager(*).start", "*.request_final", "idea_to_script.*", "asset_checklist.run", "lesson_judge.judge_all")

@@ -31,14 +31,22 @@ def expect_known_output(actual, expected):
         raise KnownNarrationBug("Sai lệch hồi quy lời dẫn đã biết")
 
 
+@pytest.fixture(params=[False, True], ids=["offscreen_off", "offscreen_on"])
+def offscreen(request):
+    """M2.9: cờ narration_offscreen. TẮT = hành vi cũ (các ca lỗi giữ xfail strict — chứng minh byte cũ); BẬT = G15/G16/G17/G53 đã sửa."""
+    return request.param
+
+
 @pytest.fixture(params=CASES, ids=[c[0] for c in CASES])
-def case(request):
+def case(request, offscreen):
     name, speakers, cast = request.param
-    # Chỉ những ca đã ĐỎ đúng lỗi gốc; control nhân vật vẫn assert thường.
+    # Chỉ những ca đã ĐỎ đúng lỗi gốc; control nhân vật vẫn assert thường. Cờ BẬT: G15/G16/G17/G53 đã sửa → gỡ xfail.
     bugs = {"test_identity_warning": "G53", "test_qc_speaking": "G16",
             "test_hard_signs": "G17", "test_mark_skip_clears_old_index": "G15"}
+    fixed = {"G53", "G16", "G17", "G15"} if offscreen else set()
     test_name = request.node.originalname
-    if test_name in bugs and ("KELLY" not in speakers or (test_name == "test_identity_warning" and name == "mixed")):
+    if test_name in bugs and bugs[test_name] not in fixed and \
+            ("KELLY" not in speakers or (test_name == "test_identity_warning" and name == "mixed")):
         request.node.add_marker(pytest.mark.xfail(strict=True, raises=KnownNarrationBug, reason=bugs[test_name]))
     return SimpleNamespace(name=name, speakers=speakers, talking="KELLY" in speakers,
                            data={"dialogue": [{"speaker": s, "text": "Câu thử."} for s in speakers],
@@ -46,8 +54,10 @@ def case(request):
 
 
 @pytest.fixture
-def api(tmp_path):
+def api(tmp_path, offscreen):
     # Thay OBJECT trước import: không đọc/lưu/in môi trường hay credential của máy.
+    if offscreen:
+        (tmp_path / "flags.json").write_text('{"flags": {"narration_offscreen": true}}', encoding="utf-8")
     with ExitStack() as stack:
         stack.enter_context(patch.object(os, "environ", {"LLM_PROVIDER": "mock",
             "FEATURE_SETTINGS_FILE": str(tmp_path / "flags.json"),

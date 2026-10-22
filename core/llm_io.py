@@ -745,6 +745,8 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     return sorted(changed)
 
 
+# V3.1 M2.4 (cờ insert_inherit, G6): the setting a shot split in two keeps — copied from shot `after_idx` when `fields` has none
+INHERIT_KEYS = ("location_asset", "location", "time", "weather", "lighting", "mood")
 # 12/10 #27 (tách shot 6 trong phòng → ngoài trời): fields of a v3 shot update_scene has no box for — written straight into the new
 # row's data after a type check (anything else is refused, never dropped silently)
 _INSERT_DIRECT = {
@@ -856,8 +858,10 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
     if not data_dir:
         raise ValueError("insert_scene_after cần data_dir (thư mục dự án) để kiểm tệp đặt tên theo số shot và dời âm thanh neo theo shot")
     access.need_edit(pipeline, project_id, "chèn shot")
-    from . import diag, lineage, prompt_formula, scene_storyboard, shots as _shots
+    from . import diag, features, lineage, prompt_formula, scene_storyboard, shot_intent, shots as _shots
     conn = pipeline.conn
+    inherit = features.on("insert_inherit")
+    inherit_note = None
     after_idx = int(after_idx)
     fields = dict(fields or {})
     prev = conn.execute("SELECT id, title, data FROM scenes WHERE project_id=? AND idx=?", (project_id, after_idx)).fetchone()
@@ -934,6 +938,8 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
                     and isinstance(d.get("shot_no"), int) and d["shot_no"] > no):
                 new["shot_no"] = d["shot_no"] + 1
                 title = _retitle(title, new["shot_no"])
+                if inherit:                                # M2.4: BYĐ ghi số shot (shot_no) — theo cùng giao dịch
+                    shot_intent.shift_shot(new, d["shot_no"], no)
             for key in _TEXT_KEYS:
                 if isinstance(d.get(key), str):
                     new[key] = _shift_text(d[key], after_idx)
@@ -979,6 +985,17 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
         base = {k: prev_data[k] for k in ("story_scene", "sequence") if k in prev_data}
         if no:
             base["shot_no"] = no + 1
+        if inherit:                                    # M2.4 G6: bối cảnh của shot trước (không 🔒 — người không gõ), BYĐ nháp (G21)
+            got = [k for k in INHERIT_KEYS if k not in fields and prev_data.get(k) not in (None, "")]
+            base.update({k: prev_data[k] for k in got})
+            draft = shot_intent.draft_of(prev_data, no + 1 if no else after_idx + 1, prev["id"], fields.get("characters"),
+                                         place=fields.get("location_asset"), spot=fields.get("plate_spot"))
+            if draft is not None:
+                base["byd"] = draft
+            inherit_note = (f"shot chèn {after_idx + 1} thừa kế từ shot {after_idx}: "
+                            + (", ".join(f"{k}={prev_data[k]}" for k in got) if got else "không có trường bối cảnh nào để chép")
+                            + ("; BYĐ NHÁP (nơi chốn theo shot mới + thành phần, bỏ hành động / máy / vật) — duyệt ở Bước 3" if draft is not None
+                               else f"; shot {after_idx} không có BYĐ → shot mới chưa có BYĐ"))
         base.update(direct)
         if "text" not in base and direct.get("action"):
             base["text"] = direct["action"]
@@ -1042,6 +1059,8 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
             notes.append(f"shot MỚI {after_idx + 1} vẽ theo ảnh neo storyboard shot {anchor['idx']} của cảnh {story} "
                          "(cùng plate_spot) — kiểm nền có đúng chỗ không")
     diag.record(conn, "director", "warn" if len(notes) > 1 else "info", "; ".join(notes), "insert_scene", project_id)
+    if inherit_note:
+        diag.record(conn, "director", "info", inherit_note, "insert_inherit", project_id, new_id)
     return after_idx + 1
 
 
@@ -1115,11 +1134,13 @@ def unlock_character_bible(pipeline: Pipeline, project_id: int) -> int:
     return n
 
 
-def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
-    """Step 3: save motion prompts for scenes that have an approved image. Editing resets approval."""
+def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any, actor: Optional[Dict] = None) -> int:
+    """Step 3: save motion prompts for scenes that have an approved image. Editing resets approval.
+    actor (V3.1 M2.5, cờ field_guard shadow): nơi gọi AI truyền write_guard.actor("ai", …) → motion prompt người khóa bị đè (L1) ghi diag."""
     obj = validate_motion_prompts(data)
     conn = pipeline.conn
     saved = []                                           # F1-A: (scene, old prompt, new prompt) checked after the commit
+    hand_edits: List[int] = []
     for s in obj["scenes"]:
         row = conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?",
                            (project_id, s["idx"])).fetchone()
@@ -1133,6 +1154,12 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
         scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()["data"] or "{}")
         old = conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (row["id"],)).fetchone()
         saved.append((row["id"], old["motion_prompt"] if old else None, s["motion_prompt"]))
+        if actor:
+            from . import write_guard
+            write_guard.observe(conn, row["id"], {"motion_prompt": s["motion_prompt"]}, actor,
+                                before={"motion_prompt": old["motion_prompt"] if old else None})
+            if (old["motion_prompt"] if old else None) != s["motion_prompt"]:
+                hand_edits.append(row["id"])           # C-M25B: người sửa tay → khóa sau khi ghi (cờ field_guard)
         duration = s.get("duration_sec") or scene_data.get("duration_s") or 5
         if "duration_s" in set(scene_data.get("_user_locked") or []) and scene_data.get("duration_s"):
             duration = scene_data["duration_s"]          # length the person set (e.g. sized to the dialogue) wins
@@ -1152,6 +1179,12 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
         from .lineage import stamp_motion
         stamp_motion(conn, row["id"])
     conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
+    if hand_edits and (actor or {}).get("kind") == "human":
+        from . import write_guard
+        for sid in hand_edits:
+            write_guard.lock(conn, sid, "motion_prompt", actor)
     from . import prompt_formula
     for sid, old, new in saved:
         prompt_formula.on_prompt_saved(conn, sid, "motion", old, new)

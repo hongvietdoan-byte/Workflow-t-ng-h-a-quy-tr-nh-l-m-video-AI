@@ -1,6 +1,7 @@
 """Step 1: script, resources, run mode, Director, Character Bible, storyboard, World Bible."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from core import write_guard  # V3.1 M2.5 (C-M25B): người sửa tay motion prompt → khóa (cờ field_guard)
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 from dashboard.steps.step1_run import *  # noqa: F401,F403  (S9.5: Step 1 split in parts)
 from dashboard.steps.step1_run import _budget_summary  # noqa: F401
@@ -182,7 +183,8 @@ def motion_box(p: Pipeline, pid: int, scene, k: str) -> None:
     if st.button("💾 Lưu motion prompt", key=f"{k}_mps", disabled=new == row["motion_prompt"]):
         if act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": scene["idx"], "motion_prompt": new, "camera": row["camera"],
                                                                        "duration_sec": row["duration_sec"],
-                                                                       "negative_prompt": row["negative_prompt"]}]}),
+                                                                       "negative_prompt": row["negative_prompt"]}]},
+                                                    actor=write_guard.actor("human", p.actor or "dashboard")),
                "Đã lưu motion prompt — duyệt lại ở Storyboard › Motion"):
             C.log_ui(p, "sua_prompt", page="kich_ban", project_id=pid, scene_id=row["scene_id"], detail="motion prompt")   # 14/10 nhật ký
             st.rerun()

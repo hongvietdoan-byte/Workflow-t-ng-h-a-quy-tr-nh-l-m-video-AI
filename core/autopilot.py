@@ -457,6 +457,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _cap_warn(p, pid, "image_gen", "images")
     ctx.image_runner.submit_pending(pid)
     _review_wait(p, pid, "image_gen", ctx.data_dir if ctx else None)   # gửi xong phần không bị giữ; còn job bị giữ → chờ người
+    _desk_wait(p, pid, "image_gen", ctx.data_dir if ctx else None, ctx.image_runner if ctx else None)
     _budget_stop(p, pid, "image_gen")
     ctx.image_runner.poll_once(pid)
     _retry_or_hold(p, pid, "image_gen")
@@ -585,6 +586,33 @@ def _review_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str] = Non
             raise _Wait("change_review", why)
 
 
+def _desk_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str], runner=None) -> None:
+    """C-FIX6 (S-C): runner đã GIỮ job trả phí vì plate 3D bắt buộc chưa đạt (core.stage_desk.paid_hold — cùng hàm) → CHỜ người (EP
+    duyệt sân khấu / render nền / xác nhận ngoại lệ) thay vì 'Gen ảnh…' mãi. Phần không bị giữ đã gửi. Chưa đánh dấu → không đọc gì."""
+    from . import stage_desk
+    from .runner import WAIT_REASONS, wait_reason
+    if not data_dir or not os.path.isfile(stage_desk._gate_path(data_dir, pid)):
+        return
+    for job in p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type=? AND state='queued' AND scene_id IS NOT NULL ORDER BY id",
+                              (pid, kind)).fetchall():
+        why = wait_reason(job["id"])                 # rà C-FIX6: đúng lý do runner vừa giữ (gồm cả shot cùng nhóm gửi) — không tính lại
+        if not (why or "").startswith(stage_desk.HOLD_PREFIX):
+            why = None
+        if why:
+            # rà kỹ C-FIX6 A2: lý do cũ còn hiệu lực 300 s mà _submit_pending có thể break sớm (hết slot / THROTTLE / ngân sách) trước khi
+            # tới job này → EP vừa duyệt / thêm ngoại lệ vẫn bị "CHỜ người" tới 5 phút. Tính lại bằng ĐÚNG hàm runner (_desk_hold, gồm
+            # shot cùng nhóm gửi); không có runner (gọi lẻ) → giữ lý do runner đã ghi.
+            hold = getattr(runner, "_desk_hold", None)
+            if hold is not None:
+                why = hold(job)
+                if not why:
+                    WAIT_REASONS.pop(job["id"], None)
+        if why:
+            idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            raise _Wait("stage_desk", (f"S{idx[0]:02d}: " if idx else "") + why + " — xử lý ở Bàn đạo diễn 3D (Executive Producer) rồi "
+                        "bấm Tiếp tục")
+
+
 def _gate_wait(p: Pipeline, pid: int, data_dir: Optional[str]) -> None:
     """R11 (rà S4): cổng ảnh → video (core.video_gate, V7) giữ MỌI clip đang chờ và không clip nào đang chạy → CHỜ người với lý do
     (thay vì 'Gen video…' mãi). Đường thoát ở Bước 4: vẽ lại / duyệt ảnh, hoặc 'Bỏ qua kiểm nền' / 'Bỏ qua chờ nhóm' kèm lý do."""
@@ -663,16 +691,24 @@ def _stage_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Sân khấu 3D tự động (cờ stage_auto — TẮT: không làm gì): trước nền 3D + mọi ảnh, mỗi cảnh trên bối cảnh 3D được dàn cảnh
     (Đạo diễn, sổ chi) và giải máy → `stage_camera`. Kết quả lưu theo vân tay đầu vào: lượt sau không gọi Claude lại. Shot không đạt /
     đoạn thiếu đầu vào → giữ ở cổng nền 3D (Tiếp tục = các shot đó dùng máy thường, VÀNG)."""
-    from . import stage_auto
+    from . import stage_auto, stage_desk, write_guard
     if not stage_auto.enabled():
         return None
+    who = write_guard.actor("auto", "autopilot.stage")
+    hold = stage_desk.hold_segments(p.conn, pid, ctx.data_dir, stage_auto.segments(p.conn, pid), "autopilot", who)
+    try:                                                # M4.8: GIỮ khóa S mọi đoạn trong lúc chạy (hai chiều: nút bàn đạo diễn gặp autopilot
+        hold.__enter__()                                # cũng từ chối có câu); người đang thao tác trên Dashboard → chờ, không ghi đè state
+    except stage_desk.DeskError as e:
+        raise _Wait("plates", f"Sân khấu 3D: {e}")
     try:
-        r = stage_auto.run(p.conn, pid, ctx.data_dir, client=ctx.llm, log=lambda m: _log(p, pid, m))
+        r = stage_auto.run(p.conn, pid, ctx.data_dir, client=ctx.llm, log=lambda m: _log(p, pid, m), who=who)
     except llm_runner.LlmError as e:
         _stop_if_claude_blocked([(None, e)], p.conn)
         _d(p, pid, "director", "error", f"sân khấu 3D tự động lỗi Claude: {e}", stage_auto.CODE)
         raise _Wait("plates", f"Sân khấu 3D tự động chưa chạy được (Claude: {str(e)[:160]}) — xử lý rồi bấm Tiếp tục để thử lại, hoặc tắt "
                               "cờ stage_auto để nền 3D dùng máy thường")
+    finally:
+        hold.__exit__(None, None, None)
     if r and r["applied"]:
         _log(p, pid, f"Sân khấu 3D: máy đặt theo sân khấu cho shot {', '.join(map(str, r['applied']))}")
     if r and r["held"]:
@@ -840,6 +876,11 @@ def _end_frame_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if provider is None:
         return None
     end_frames.tick(p, pid, provider, ctx.data_dir)
+    from .stage_desk import HOLD_PREFIX            # C-FIX6: khung cuối bị cổng S-C giữ → CHỜ người có câu (không 'còn N ảnh' mãi)
+    held = p.conn.execute("SELECT note FROM end_frames WHERE project_id=? AND state='queued' AND note LIKE ? ORDER BY id LIMIT 1",
+                          (pid, "chờ: " + HOLD_PREFIX + "%")).fetchone()
+    if held:
+        raise _Wait("stage_desk", f"khung cuối {held['note'][5:]} — xử lý ở Bàn đạo diễn 3D (Executive Producer) rồi bấm Tiếp tục")
     left = end_frames.pending(p, pid)
     return f"Khung cuối: còn {left} ảnh" if left else None
 
@@ -1186,6 +1227,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _cap_warn(p, pid, "video_gen", "videos")
     ctx.video_runner.submit_pending(pid)
     _review_wait(p, pid, "video_gen", ctx.data_dir if ctx else None)
+    _desk_wait(p, pid, "video_gen", ctx.data_dir if ctx else None, ctx.video_runner if ctx else None)
     _gate_wait(p, pid, ctx.data_dir if ctx else None)
     _budget_stop(p, pid, "video_gen")
     ctx.video_runner.poll_once(pid)
