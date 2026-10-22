@@ -171,7 +171,14 @@
       "stage_props_byd": false,
       "ref_end_frames": false,
       "lean_package": false,
-      "kho_forms_v2": false
+      "kho_forms_v2": false,
+      "byd_fields": false,
+      "byd_fields_a2a": false,
+      "byd_fields_a2b": false,
+      "byd_fields_a2c": false,
+      "byd_fields_a2d": false,
+      "byd_fields_a2e": false,
+      "byd_fields_a2f": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -352,7 +359,14 @@
       "stage_props_byd": false,
       "ref_end_frames": false,
       "lean_package": false,
-      "kho_forms_v2": false
+      "kho_forms_v2": false,
+      "byd_fields": false,
+      "byd_fields_a2a": false,
+      "byd_fields_a2b": false,
+      "byd_fields_a2c": false,
+      "byd_fields_a2d": false,
+      "byd_fields_a2e": false,
+      "byd_fields_a2f": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"

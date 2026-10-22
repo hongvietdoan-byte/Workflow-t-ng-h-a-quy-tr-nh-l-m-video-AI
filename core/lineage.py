@@ -36,6 +36,10 @@ def image_spec_hash(scene_data: Dict, cast_rows, aspect: Optional[str]) -> str:
                     key=lambda d: d["name"])
     scene = {k: scene_data.get(k) for k in IMAGE_KEYS}
     scene.update({k: scene_data[k] for k in IMAGE_SHOT_KEYS if k in scene_data})
+    from . import byd_fields                     # V3.1 M2.2 (G22): cờ byd_fields bật → sửa BYĐ làm ảnh "⚠ cũ"; tắt / chưa BYĐ = hash cũ
+    part = byd_fields.image_part(scene_data)
+    if part is not None:
+        scene["byd"] = part
     return _hash({"scene": scene, "cast": people, "aspect": aspect or ""})
 
 
@@ -44,6 +48,10 @@ def motion_spec_hash(scene_data: Dict) -> str:
     if isinstance(spec.get("dialogue"), list):       # GĐ4: a line's `delivery` (voice direction) changes the voice, not the picture
         spec["dialogue"] = [{k: v for k, v in d.items() if k != "delivery"} if isinstance(d, dict) else d for d in spec["dialogue"]]
     spec.update({k: scene_data[k] for k in MOTION_SHOT_KEYS if k in scene_data})
+    from . import byd_fields                     # V3.1 M2.2: nhịp hanh_dong + may.chuyen_dong của BYĐ khi cờ byd_fields bật
+    part = byd_fields.motion_part(scene_data)
+    if part is not None:
+        spec["byd"] = part
     return _hash(spec)
 
 
