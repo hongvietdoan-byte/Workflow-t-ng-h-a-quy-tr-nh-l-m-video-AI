@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T09:54:40.517980+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-QC-BOCUC",
+  "to": "cloud-claude",
+  "title": "Tổ QC: lỗi bố cục / chỗ đứng (đọc core/layout_facts v1) + đo offline + vòng chấm học việc (0 USD, không cờ mới)",
+  "spec": "docs/CLOUD_TASKS.md#### C-QC-BOCUC",
+  "priority": 1
+}
