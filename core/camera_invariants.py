@@ -214,12 +214,16 @@ def check_frame_pct(text: str, share: Optional[float]) -> List[Dict]:
 # các regex dưới chạy trên chữ ĐÃ bỏ dấu + chữ thường (stage_grid.fold): "bên trái" → "ben trai", "đỉnh" → "dinh"
 _NEG = re.compile(r"\b(?:no|not|never|without|outside|out of (?:frame|view|shot)|off[- ]screen|hidden|khong|chua|ngoai khung)\b")
 _RIGHT_ADV = re.compile(r"\bright (?:above|below|over|next|in front|behind|there|here|now|away|at|on|by|beside)\b")
-_LEFT = re.compile(r"\b(?:left|ben trai|phia trai|trai)\b")
-_RIGHT = re.compile(r"\b(?:right|ben phai|phia phai|phai)\b")
-_TOP_WORDS = re.compile(r"\b(?:top|tip|spire|summit|peak|dinh|chop)\b")
-_RELATIVE = re.compile(r"\b(?:above|over|on top of|atop|ngay tren|phia tren|tren dinh)\b")
-_REVEAL = re.compile(r"\b(?:reveal(?:s|ing|ed)?|comes? into view|com(?:es|ing) into frame|appears?|emerg(?:es|ing)|not yet visible|"
-                     r"lo ra|hien ra|chua thay|moi lo|dan hien)\b")
+# bên trong KHUNG chỉ khi là cụm vị trí ("on the left", "left side / third / of the frame", "bên / phía trái") — không "her right hand",
+# "has left", không "phải" (= must) / "trai" (= con trai) đứng trần (rà quy ước 7)
+_SIDE = r"(?:(?:on|to|at|in) the (?:far |frame[- ])?{w}\b|\bframe[- ]{w}\b|\b{w}(?: side| third| edge| half| of the frame)\b|\b(?:ben|phia|goc) {v}\b)"
+_LEFT = re.compile(_SIDE.format(w="left", v="trai"))
+_RIGHT = re.compile(_SIDE.format(w="right", v="phai"))
+_TOP_WORDS = re.compile(r"(?<!\bon )\b(?:top|tip|spire|summit|peak|dinh|chop)\b")       # "on top of" là vị trí, không phải đỉnh
+_RELATIVE = re.compile(r"\b(?:above|atop|hangs? over|hovers? over|ngay tren|phia tren|tren dinh)\b")
+_REVEAL = re.compile(r"\b(?:reveal(?:s|ing|ed)?|comes? into (?:view|frame)|appears? (?:in|into|from|behind|beyond)|emerg(?:es|ing) from|"
+                     r"not yet visible|lo ra|hien ra|chua thay|moi lo|dan hien)\b")
+NEAR = 60                   # ký tự quanh lần nhắc mốc: từ đỉnh / lộ ra / bên phải gắn với CHÍNH mốc đó, không cả câu
 
 
 def landmarks_from_stage(stage: Dict, names: Optional[Dict[str, Dict]] = None) -> List[Dict]:
@@ -305,6 +309,7 @@ def text_vs_view(text: str, view: Dict[str, Dict], field: str = "prompt") -> Lis
                               "bỏ câu đó, hoặc thay: \"" + in_view_sentence(v) + "\"", key=key, field=field))
                 continue
             low = sg.fold(s)
+            low = low[max(0, m.start() - NEAR):m.end() + NEAR]          # chỉ phần câu quanh lần nhắc mốc
             side = _RIGHT_ADV.sub(" ", low)                          # "right above" là trạng từ, không phải "bên phải"
             said = "left_third" if _LEFT.search(side) and not _RIGHT.search(side) else (
                 "right_third" if _RIGHT.search(side) and not _LEFT.search(side) else None)
@@ -337,7 +342,8 @@ def motion_vs_view(motion: str, view: Dict[str, Dict], camera_move: Optional[str
             m = _mentions(s, v["words"])
             if not m:
                 continue
-            if _REVEAL.search(sg.fold(s)) and v["in"]:
+            low = sg.fold(s)
+            if _REVEAL.search(low[max(0, m.start() - NEAR):m.end() + NEAR]) and v["in"]:
                 out.append(_f("R3-MOTION-REVEAL", ("P31-G11",), f"motion: \"{s[:160]}\" cho {v['name']} lộ ra / chưa thấy nhưng khung đầu ĐÃ "
                               f"thấy nó ({v['third'].replace('_', ' ')})", "tả đúng khung đầu: \"" + in_view_sentence(v) + "\"",
                               key=key))
@@ -366,9 +372,11 @@ def vi_leaks(text: str, glossary: Optional[Dict[str, str]] = None) -> List[Dict]
             k += 1
             continue
         a = b = k                               # một cụm: chữ có dấu + chữ Hoa liền kề (tên "RỐI ĐỎ A", "Tháp Đồng Hồ")
-        while a > 0 and toks[a - 1].group(0)[:1].isupper() and toks[a - 1].end() + 1 >= toks[a].start() and toks[a].group(0)[:1].isupper():
-            a -= 1
-        while b + 1 < len(toks) and toks[b + 1].start() - toks[b].end() <= 1 and (
+        def joined(x: int) -> bool:                    # hai chữ liền nhau chỉ cách MỘT dấu cách (không qua dấu phẩy / chấm)
+            return text[toks[x].end():toks[x + 1].start()] == " "
+        while a > 0 and joined(a - 1) and toks[a - 1].group(0).isupper() and len(toks[a - 1].group(0)) > 1 and toks[a].group(0).isupper():
+            a -= 1                                     # lùi chỉ qua chữ IN HOA ("ROI ĐỎ"), không qua mạo từ "The"
+        while b + 1 < len(toks) and joined(b) and (
                 accented[b + 1] or (toks[b + 1].group(0)[:1].isupper() and toks[b].group(0)[:1].isupper())):
             b += 1
         bit = text[toks[a].start():toks[b].end()]
@@ -376,7 +384,7 @@ def vi_leaks(text: str, glossary: Optional[Dict[str, str]] = None) -> List[Dict]
         if bit in seen:
             continue
         seen.add(bit)
-        fix = next((v for g, v in gl.items() if g and g in sg.fold(bit)), None) or _plain(bit)
+        fix = gl.get(sg.fold(bit)) or _plain(bit)       # glossary khớp NGUYÊN cụm (bỏ dấu), không khớp chuỗi con
         out.append(_f("R3-VI-TEXT", ("P33-B7",), f"prompt tiếng Anh còn chữ có dấu \"{bit}\" — cổng video chặn khi gửi",
                       f"thay \"{bit}\" → \"{fix}\"", said=bit, replace=fix))
     return out
@@ -424,7 +432,9 @@ def byd_vs_fields(data: Dict) -> List[Dict]:
         out.append(_f("R4-SIZE", ("P31-G18",), f"BYĐ may.co '{may['co']}' ≠ size của shot '{size}'", "Đạo diễn chọn một: sửa BYĐ hoặc size"))
     angle = str(data.get("angle") or "").lower()
     if angle in DO_CAO_OF_ANGLE:
-        if may.get("do_cao") and may["do_cao"] != DO_CAO_OF_ANGLE[angle] and not (angle == "eye" and may["do_cao"] == "ngang"):
+        # do_cao mặc định "ngang" (shot_intent.empty / from_shot_spec) — chỉ so khi Đạo diễn đã khai phần máy (goc hoặc co), tránh báo
+        # mọi shot high/low có BYĐ chưa điền
+        if may.get("do_cao") and (may.get("goc") or may.get("co")) and may["do_cao"] != DO_CAO_OF_ANGLE[angle]:
             out.append(_f("R4-ANGLE", ("P31-G18",), f"BYĐ may.do_cao '{may['do_cao']}' ≠ angle '{angle}' của shot (cần '{DO_CAO_OF_ANGLE[angle]}')",
                           "Đạo diễn chọn một: sửa BYĐ hoặc angle"))
         if may.get("goc") and may["goc"] != GOC_OF_ANGLE[angle]:
@@ -444,9 +454,16 @@ def byd_vs_fields(data: Dict) -> List[Dict]:
             if not isinstance(c, dict) or c.get("vai") not in ("chinh", "phu"):
                 continue
             who = str(c.get("vat") or "")
-            if who and who.isupper() and sg.fold(who) not in cast and not any(sg.fold(who) in x or x in sg.fold(who) for x in cast):
+            k = sg.fold(who).replace("_", " ").strip()
+            if not k or k in cast or any(k in x or x in k for x in cast):
+                continue
+            if who.isupper():
                 out.append(_f("R4-CAST", ("P31-G18",), f"BYĐ thanh_phan có '{who}' (vai {c['vai']}) nhưng characters của shot không có",
                               "thêm vào characters hoặc bỏ khỏi BYĐ"))
+            else:                                    # khóa sân khấu ("kelly", "gieng") — có thể là vật / người: không đoán
+                out.append(_f("R4-CAST", ("P31-G18",), f"BYĐ thanh_phan có khóa sân khấu '{who}' (vai {c['vai']}) không đối được với "
+                              f"characters của shot ({', '.join(data.get('characters') or [])})",
+                              "nếu là người: thêm vào characters; nếu là vật: bỏ qua", level=KHONG_RO))
     return out
 
 

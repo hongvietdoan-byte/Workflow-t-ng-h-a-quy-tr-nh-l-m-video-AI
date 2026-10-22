@@ -448,7 +448,8 @@ FEATURES: Dict[str, Dict] = {
                  "slightly_high (cúi 10°) và máy high / slightly_high giữ đúng % khung theo hình chiếu — ĐỔI ảnh nền gửi model khi bật",
         "verified": False,
         "why": "G2 (người sai tỉ lệ so nền), G3 (#31 shot 28 khai eye mà pitch +17,3°), A10. Whitebox cũ cố định mắt 1,6 m, khối 1,8 m. "
-               "Chưa render thử trên máy chính",
+               "Chưa render thử trên máy chính. C-3D-GOC-A (22/10): cờ này cũng đổi plate_camera.camera_for (nền gửi model) — "
+               "nằm trên đường sản xuất, preset Thử nghiệm không tự bật (OPT_IN_ONLY)",
     },
     "stage_view_ui": {
         "label": "Xem sân khấu 3D (chỉ đọc) ở Bước 2: mỗi cảnh tấm clay / khối, nền 3D từng shot + hướng máy, sơ đồ world map 2D, người nộm, "
@@ -929,6 +930,7 @@ HARMFUL: tuple = ()
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
 OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
                       "stage_handheld_props",
+                      "whitebox_height_dummy",   # C-3D-GOC-A: đổi máy nền 3D gửi model (slightly_high, high giữ % khung) — chọn riêng
                       "ui_step_log")           # C-DEVSYS-MAPS: ghi CSDL mỗi bước bấm — chỉ bật khi chọn riêng (preset Thử nghiệm không bật)
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is

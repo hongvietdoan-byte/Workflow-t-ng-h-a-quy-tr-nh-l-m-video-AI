@@ -82,13 +82,18 @@ def _cam(v):
 @pytest.mark.parametrize("seed", SEEDS)
 def test_variants_camera_for_meets_r2_or_says_why(seed):
     """Bất biến R2 (cờ whitebox_height_dummy BẬT): mọi máy camera_for nghiêng trong dải của góc khai và người chiếm đúng % khung của cỡ
-    cảnh theo HÌNH CHIẾU. Ngoại lệ duy nhất có chủ đích: giàn GAME_TPS (cúi 12° cố định) khai high/overhead → bộ kiểm NÓI ra (không im)."""
+    cảnh theo HÌNH CHIẾU. Ngoại lệ có chủ đích: giàn GAME_TPS (cúi 12° cố định) khai high/overhead, EWS high (sàn đầu + 2,5 m), ECU high
+    (không giải được) → bộ kiểm NÓI ra (không im)."""
     with FLAG_ON:
         for v in _variants(seed):
             cam, aim, lens = _cam(v)
             found = ci.check_pitch(v["angle"], ci.pitch_of(cam, aim)) + ci.check_framing(v["size"], cam, aim, lens, v["spot"], v["H"])
             if v["size"] == "GAME_TPS" and v["angle"] in ("high", "overhead"):
                 assert [f["code"] for f in found] == ["R2-PITCH"] and "P31-G3" in found[0]["errors"] and found[0]["fix"], v
+            elif (v["size"], v["angle"]) in (("ECU", "high"), ("EWS", "high")):
+                # ECU high: không giải được (fixes nói) → máy cũ; EWS high: giữ sàn "đầu + 2,5 m" toàn cảnh từ trên (luật 12/10) — bộ kiểm
+                # nói người nhỏ hơn cỡ (≤ 1 phát hiện R2-FRAMING), không im
+                assert [f["code"] for f in found] in ([], ["R2-FRAMING"]), v
             else:
                 assert found == [], (v, found)
 
@@ -107,6 +112,26 @@ def test_variants_old_high_camera_is_caught(seed):
             assert f and f[0]["code"] == "R2-FRAMING" and "quá xa" in f[0]["msg"], v
             hit += 1
     assert hit > 0
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_variants_high_keeps_headroom_and_distance_floor(seed):
+    """Rà quy ước 7: máy high / slightly_high giải theo hình chiếu không được cắt đầu (CU / ECU) hay đẩy đầu vào thanh app — đỉnh đầu ở
+    HEADROOM cỡ cảnh ±0,01; khoảng cách theo trục ≥ MIN_DIST_M (ống dài hơn như F2). Không giải được → nói trong fixes."""
+    with FLAG_ON:
+        for v in _variants(seed):
+            if v["angle"] not in ("high", "slightly_high") or v["size"] in ("GAME_TPS", "EWS"):
+                continue
+            c = pc.camera_for({"size": v["size"], "angle": v["angle"], "side": "center", "lens": v["lens"]}, v["spot"], v["facing"], v["H"])
+            cam, aim, lens = c["camera"]["location"], c["camera"]["look_at"], c["camera"]["lens"]
+            if any("không giải được" in f for f in c["fixes"]):
+                continue
+            top = pc.project(cam, aim, lens, 9 / 16, (v["spot"][0], v["spot"][1], v["spot"][2] + v["H"]))
+            assert abs(top[1] - pc.HEADROOM[v["size"]]) <= 0.01, (v, top)
+            floor = pc.MIN_DIST_M.get(v["size"])
+            if floor:
+                assert math.dist(cam, aim) >= floor - 0.05, (v, math.dist(cam, aim))
+            assert "slant" in c["why"]
 
 
 def test_flag_off_slightly_high_is_the_old_eye_camera():
@@ -387,3 +412,36 @@ def test_tool_reports_and_never_writes(tmp_path):
     r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "camera_invariants.py"), "--project", "31", "--db",
                         str(tmp_path / "none.sqlite")], capture_output=True, text=True, env=dict(os.environ, PYTHONUTF8="1"), cwd=ROOT)
     assert r.returncode == 2 and "không đọc được" in r.stdout
+
+
+# ==== rà quy ước 7: chống báo sai ====================================================================================================
+_TOWER = {"t": {"in": True, "third": "left_third", "top_in": True, "has_top": True, "behind": False, "uv_top": (0.2, 0.1),
+                "name": "clock tower", "words": ["tower", "tháp"]}}
+
+
+@pytest.mark.parametrize("text", ["Kelly raises her right hand toward the tower.", "Kelly appears determined near the tower.",
+                                  "A crate sits on top of the box near the tower.", "Kelly has left the tower behind her, eyes right.",
+                                  "Kelly phải chạy về phía tháp."])
+def test_no_false_alarm_on_ordinary_words(text):
+    assert ci.text_vs_view(text, _TOWER) == [] and ci.motion_vs_view(text, _TOWER, "pan") == []
+
+
+def test_byd_default_height_is_not_a_conflict_and_stage_keys_are_said():
+    shot = {"size": "MS", "angle": "high", "camera_move": "static", "characters": ["KELLY"],
+            "byd": {"may": {"co": None, "do_cao": "ngang", "goc": None, "chuyen_dong": "dung_yen"},
+                    "thanh_phan": [{"vat": "kelly", "vai": "chinh"}, {"vat": "gieng", "vai": "phu"}]}}
+    got = ci.byd_vs_fields(shot)
+    assert not any(f["code"] == "R4-ANGLE" for f in got)                      # "ngang" mặc định khi Đạo diễn chưa khai máy
+    assert [(f["code"], f["level"]) for f in got] == [("R4-CAST", ci.KHONG_RO)] and "gieng" in got[0]["msg"]
+    shot["byd"]["may"]["goc"] = "ngang"
+    assert any(f["code"] == "R4-ANGLE" for f in ci.byd_vs_fields(shot))
+
+
+def test_vi_leaks_keeps_articles_and_commas_apart():
+    got = ci.vi_leaks("The Tháp Đồng Hồ, RỐI ĐỎ A waves.", {"Tháp Đồng Hồ": "the Clock Tower", "Hồ": "the Lake"})
+    assert [(f["numbers"]["said"], f["numbers"]["replace"]) for f in got] == [("Tháp Đồng Hồ", "the Clock Tower"), ("RỐI ĐỎ A", "ROI DO A")]
+
+
+def test_flag_is_opt_in_only():
+    from core import features
+    assert "whitebox_height_dummy" in features.OPT_IN_ONLY            # đổi nền gửi model: preset Thử nghiệm không tự bật

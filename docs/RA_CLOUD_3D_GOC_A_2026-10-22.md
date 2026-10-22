@@ -31,13 +31,15 @@ Một nguồn ngưỡng: dải nghiêng lấy `stage_grid.RULE_TH` (L7, L3) + `w
 Sửa GỐC trong máy nền (sau cờ có sẵn `whitebox_height_dummy`, TẮT = như cũ từng byte):
 - `plate_camera.camera_for` có mức `slightly_high` (cúi `whitebox.SLIGHTLY_HIGH_DEG` = 10°) — A10 "không có góc hơi cao".
 - Máy `high` / `slightly_high` cũ giữ khoảng cách NGANG rồi nâng máy → người nhỏ hơn cỡ cảnh 20–30 % (đo: MS cao 61 % khung thay vì 82 %).
-  Cờ BẬT: máy trượt dọc trục nghiêng tới khoảng cách mà hình chiếu của đoạn thân cỡ cảnh chiếm đúng `fill` (`_slant_for_fill`, chia đôi).
+  Cờ BẬT: cùng độ nghiêng, máy + điểm nhắm giải theo HÌNH CHIẾU (`_slant_for_fill`, chia đôi lồng nhau): đỉnh đầu ở `HEADROOM` cỡ cảnh,
+  đoạn thân cỡ cảnh chiếm đúng `fill`; xiên < `MIN_DIST_M` → ống dài hơn (như F2); `why["slant"]` ghi số cũ → mới. EWS high giữ sàn
+  "đầu + 2,5 m" (luật 12/10); ECU high không giải được → ghi `fixes`, giữ máy cũ (bộ kiểm báo). Cờ vào `OPT_IN_ONLY` (preset Thử nghiệm không tự bật).
 - `prompt_formula._LEGS`: "its whole / full body" (tả đồ vật / con vật) không còn là tư thế cả người — G9 (#31 shot 17 bị chặn đỏ).
 
 Đường dùng: `tools/camera_invariants.py --project N [--stage …/stage.json] [--ref-word cats] [--json]` (CSDL mở `mode=ro`; mã thoát 1 = có
 phát hiện VÀNG, 2 = không đọc được). `shot_report(...)` gộp mọi bất biến cho một shot (cho Sân khấu 3D gọi khi đã có chỗ đứng + chiều cao + tia sàn).
 
-## 3. Test (`tests/test_v31_3d_goc_a.py`, 52 test)
+## 3. Test (`tests/test_v31_3d_goc_a.py`, 65 test)
 - Biến thể sinh bằng code, seed 1–5 × 120–200 ca: 5 bối cảnh giả lập (mê cung #31 có ô cỏ 0,13 m + tháp 42 m + biệt thự; tháp #33 có 5 bậc
   thềm 0,3 m; phòng kín 4 × 5 m (ngoài tường không sàn); ngoài trời; sàn bậc 0,3 m/1,5 m) × chỗ đứng, hướng, cỡ cảnh (8), góc (5), ống
   (mặc định / 18 / 28 / 50 / 85 mm), chiều cao 1,1–2,0 m, bên trái/giữa/phải. Oracle tầm nhìn = `plate_camera.project` (phép chiếu thứ
@@ -75,3 +77,21 @@ PYTHONUTF8=1 py tools/camera_invariants.py --project 33 --ref-word cats --json o
 # cờ whitebox_height_dummy BẬT trong thư mục thử (không phải data thật): render lại nền 1 shot high + 1 shot slightly_high của #33
 #   (tools/render_plates.py như pregen) và so % khung nhân vật trên plate.png với FRAMING (MS ≈ 82 %).
 ```
+
+## 6. Rà quy ước 7 (agent, chỉ đọc) — đã sửa
+- CAO: cờ BẬT, máy high cắt đầu CU/ECU, đẩy đầu MS/MLS vào thanh app → giải cả điểm nhắm theo HEADROOM; test `test_variants_high_keeps_headroom_and_distance_floor`.
+- EWS high bị kéo dưới sàn "đầu + 2,5 m" → loại EWS khỏi giải xiên. Khoảng cách xiên < MIN_DIST_M → ống dài hơn + `fixes`. `why["distance"]` số cũ → thêm `why["slant"]`.
+- Preset Thử nghiệm tự bật cờ (giờ đổi nền gửi model) → `whitebox_height_dummy` vào `OPT_IN_ONLY`; `why` của cờ cập nhật.
+- Báo sai R3-SIDE ("her right hand", "phải" = must, "con trai") → chỉ cụm vị trí trong khung; R3-TOP/RELATIVE/REVEAL xét ±60 ký tự quanh mốc,
+  "on top of" không phải đỉnh, "appears determined" không phải lộ ra. R4-ANGLE bỏ qua `do_cao` mặc định "ngang" khi Đạo diễn chưa khai máy;
+  R4-CAST khóa sân khấu thường ("kelly", "gieng") không đối được → KHÔNG RÕ (trước: bỏ im). `vi_leaks` không gộp qua dấu phẩy / mạo từ,
+  glossary khớp nguyên cụm. Mục gốc V31-GOC* có `stage` (+ category `may` / `byd`) để Role Registry định tuyến đúng owner (test crew registry).
+- Không lỗi: cờ TẮT y nguyên (cache nền băm dict máy → máy đổi thì nền tự render lại); Blender không gọi `camera_for`; `_LEGS` chỉ dùng ở lint ảnh.
+
+## 7. Còn mở (cần phiên chính quyết)
+- `slightly_high` chưa thuộc `shots.ANGLES` / `camera_plan.ANGLES` / prompt DP → luồng thật chưa khai được (chỉ đường code / test). Thêm enum =
+  đổi validate + prompt DP (khâu step1) — chưa làm ở gói này.
+- `docs/BANG_CHUNG_CHOT_CO_2026-10-21.md` (dòng 120, 165, 345) còn ghi cờ "không nằm trên đường sản xuất" — nay có (nền 3D khi bật).
+- `check_floor` chỉ lấy mẫu đường thẳng máy → chân (gờ lệch ngang trong khung bị sót); `frame_h_m` vẫn số khoảng cách cũ (ảnh toàn hơi rộng).
+- Câu thay R2-PCT / R3 chưa tự nối vào prompt (chỉ phát hiện + câu thay) — muốn tự thay cần cờ (khóa catalog tới CX21-GOLDEN7).
+- Giàn GAME_TPS khai high/overhead: máy vẫn cúi 12° (bộ kiểm báo) — chọn: đổi máy hay cấm khai.

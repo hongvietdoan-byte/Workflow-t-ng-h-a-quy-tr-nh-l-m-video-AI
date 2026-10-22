@@ -209,25 +209,42 @@ def _slightly_high_on() -> bool:
     return dummy_enabled()
 
 
-def _slant_for_fill(tilt: float, dist: float, centre_z: float, height_m: float, body_share: float, fill: float, lens: float,
-                    aspect: float) -> Tuple[float, float]:
-    """(khoảng cách ngang, độ cao máy) trên trục nghiêng `tilt` (rad, nhìn xuống giữa khung ở centre_z) sao cho đoạn thân từ đỉnh đầu
-    xuống body_share × chiều cao chiếm `fill` chiều cao khung theo hình chiếu. Giữ nguyên nếu không giải được trong [0,2; 4] × dist."""
+def _slant_for_fill(tilt: float, dist: float, centre_z: float, height_m: float, body_share: float, fill: float, headroom: float,
+                    lens: float, aspect: float) -> Optional[Tuple[float, float, float]]:
+    """(khoảng cách ngang, độ cao máy, độ cao điểm nhắm) cho máy nghiêng `tilt` (rad, nhìn xuống) sao cho THEO HÌNH CHIẾU đỉnh đầu nằm ở
+    `headroom` của khung (HEADROOM cỡ cảnh) và đoạn thân từ đỉnh đầu xuống body_share × chiều cao chiếm `fill` (FRAMING). Hai ẩn (khoảng
+    cách xiên d, độ cao điểm nhắm a), hai điều kiện: chia đôi lồng nhau. None khi không giải được trong [0,2; 4] × dist."""
+    def place(d: float, a: float):
+        cam, aim = (0.0, d * math.cos(tilt), a + d * math.sin(tilt)), (0.0, 0.0, a)
+        return project(cam, aim, lens, aspect, (0.0, 0.0, height_m)), project(cam, aim, lens, aspect, (0.0, 0.0, height_m * (1 - body_share)))
+
+    def aim_for(d: float) -> Optional[float]:                 # điểm nhắm đặt đỉnh đầu ở `headroom` (đỉnh đầu đi xuống khi nhắm cao lên)
+        lo, hi = -2.0 * height_m, 3.0 * height_m
+        for _ in range(48):
+            mid = (lo + hi) / 2
+            top, _ = place(d, mid)
+            if top is None:
+                return None
+            lo, hi = (mid, hi) if top[1] < headroom else (lo, mid)
+        return (lo + hi) / 2
+
     def share(d: float) -> float:
-        cam, aim = (0.0, d * math.cos(tilt), centre_z + d * math.sin(tilt)), (0.0, 0.0, centre_z)
-        top = project(cam, aim, lens, aspect, (0.0, 0.0, height_m))
-        cut = project(cam, aim, lens, aspect, (0.0, 0.0, height_m * (1 - body_share)))
+        a = aim_for(d)
+        if a is None:
+            return 0.0
+        top, cut = place(d, a)
         return (cut[1] - top[1]) if top and cut else 0.0
     lo, hi = 0.2 * dist, 4.0 * dist
     while share(lo) <= 0 and lo < dist:                       # đỉnh đầu sau lưng máy khi quá sát trên cao: lùi tới chỗ thấy
         lo *= 1.25
     if not share(hi) <= fill <= share(lo):
-        return dist, centre_z + dist * math.tan(tilt)
+        return None
     for _ in range(48):
         mid = (lo + hi) / 2
         lo, hi = (mid, hi) if share(mid) > fill else (lo, mid)
     d = (lo + hi) / 2
-    return d * math.cos(tilt), centre_z + d * math.sin(tilt)
+    a = aim_for(d)
+    return d * math.cos(tilt), a + d * math.sin(tilt), a
 
 
 def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: float = 1.75, aspect: float = 9 / 16,
@@ -292,11 +309,30 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     if size == "EWS" and angle in ("high", "overhead"):
         cam_z = max(cam_z, head + 2.5)                        # establishing from above: only when the shot asks for it (12/10: an
         #                                                       'eye' EWS was forced 4.2 m up, 33° down — a top view nobody wrote)
-    if angle in ("high", "slightly_high") and not tps and not down_ok and cam_z > centre_z and _slightly_high_on():
+    if (angle in ("high", "slightly_high") and size != "EWS" and not tps and not down_ok and cam_z > centre_z
+            and _slightly_high_on()):
         # C-3D-GOC-A (R2, G2): máy cao giữ khoảng cách NGANG `dist` rồi nâng lên → khoảng cách xiên dài ra, người nhỏ hơn cỡ cảnh ~25 %
-        # (đo hình chiếu: MS cao 61 % khung thay vì 82 %). Cờ whitebox_height_dummy BẬT → máy trượt dọc trục nghiêng tới khoảng cách mà
-        # HÌNH CHIẾU của đoạn thân cỡ cảnh chiếm đúng `fill` của khung (giải chia đôi; phối cảnh từ trên không tuyến tính)
-        dist, cam_z = _slant_for_fill(math.atan2(cam_z - centre_z, dist), dist, centre_z, height_m, body_share, fill, lens, aspect)
+        # (đo hình chiếu: MS cao 61 % khung thay vì 82 %). Cờ whitebox_height_dummy BẬT → cùng độ nghiêng, máy + điểm nhắm giải theo HÌNH
+        # CHIẾU: đỉnh đầu ở HEADROOM (không cắt đầu / không lọt thanh app), đoạn thân cỡ cảnh chiếm đúng `fill`. EWS giữ sàn "head + 2,5 m".
+        tilt0 = math.atan2(cam_z - centre_z, dist)
+        got = _slant_for_fill(tilt0, dist, centre_z, height_m, body_share, fill, HEADROOM[size], lens, aspect)
+        if got is not None and floor and math.hypot(got[0], got[1] - got[2]) < floor - 1e-6:
+            slant0 = math.hypot(got[0], got[1] - got[2])        # F2 như máy ngang: quá sát cho cỡ → ống dài hơn, giữ khung
+            want = lens * floor / slant0
+            if want <= MAX_LENS_MM:
+                again = _slant_for_fill(tilt0, dist, centre_z, height_m, body_share, fill, HEADROOM[size], want, aspect)
+                if again is not None:
+                    fixes.append(f"máy {angle} cách nhân vật {slant0:.2f} m theo trục (quá sát cho cỡ {size}) → ống {lens:g}→{want:.0f} mm, "
+                                 f"lùi dọc trục (giữ khung)")
+                    lens, got = round(want, 1), again
+        if got is None:
+            fixes.append(f"không giải được máy {angle} giữ % khung cỡ {size} theo hình chiếu — giữ máy cũ (người nhỏ hơn cỡ cảnh)")
+        else:
+            old = (dist, cam_z)
+            dist, cam_z, aim_z = got
+            slant = math.hypot(dist, cam_z - aim_z)
+            why["slant"] = (f"máy {angle} giữ % khung theo hình chiếu (G2): cách ngang {old[0]:.2f} → {dist:.2f} m, cao {old[1]:.2f} → "
+                            f"{cam_z:.2f} m, khoảng cách xiên {slant:.2f} m; đỉnh đầu ở {HEADROOM[size] * 100:.0f}% khung")
     if tps:
         # 12/10 (#27 shot 3 / 13, người dùng: "cảnh góc cam từ trên xuống sai tỉ lệ và bố cục"): "head + 2.5 m" at ~2.5 m away looked
         # ~50° DOWN — the character was 17 % of the frame on the render and drawn ~40 % by the model, the tower shrank. The Free Fire
