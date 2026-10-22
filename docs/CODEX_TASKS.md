@@ -1592,3 +1592,14 @@ video/dự án (#24, #27, #31, #33…). 5. Chất lượng: video đã ra, tỉ 
 Thiếu nguồn → ghi "không có dữ liệu: <lý do>", không đoán (CHUAN_XAY_DUNG: không im lặng khi thiếu đầu vào). Test `tests/test_project_report.py` trên dữ
 liệu giả (tmp_path): đủ 7 mục, tách 4 loại chi phí, thiếu nguồn ghi rõ, không ghi file ngoài thư mục ra. Chạy thật một bản trên máy chính, commit
 bản đầu `docs/reports/BAO_CAO_DU_AN_2026-10-2x.md`. Nhánh `codex/v31-report`. XONG hộp thư.
+
+### CX22-G1-EP-ROLE — vai Executive Producer theo dự án (ưu tiên 3; EP DUYỆT 22/10 sổ ep-2210-g1b-ep-role-package-approved; Cấp 2, 0 USD)
+Hiện `core/stage_desk.py` `is_executive_producer` coi EP = Owner (users.role) hoặc chủ dự án (`core/access.py` mức `own`/`admin`); đăng nhập TẮT =
+chủ máy. Cần: Owner / chủ dự án CẤP vai EP cho người khác trong dự án (tái dùng bảng `project_watchers` + `core/access.py` add/remove — mức mới
+`ep` xếp giữa `edit` và `own`, hoặc trường riêng nếu bảng có CHECK), `is_executive_producer` nhận người được cấp; người `edit`/`view` vẫn KHÔNG phải EP;
+Director / Claude / công cụ không bao giờ là EP (`_need_ep` giữ nguyên kiểm actor NGƯỜI + trùng email đăng nhập). Không hardcode một tài khoản Owner.
+Giao diện: ô cấp/thu vai EP ở chỗ quản lý người theo dõi dự án (chỉ Owner/chủ dự án thấy). Ghi nhật ký ai cấp/thu (added_by, added_at).
+Nếu phải đổi schema/CHECK CSDL thật → DỪNG, báo HỎI hộp thư (migration = Cấp 3). Test đỏ→xanh: mở rộng `check_stage_desk_ep_only`
+(`tests/test_decisions.py`) + `tests/test_access*.py`: người được cấp EP duyệt được; bị thu thì không; edit không; ai/tool không; đăng nhập TẮT
+giữ hành vi cũ. Ghi `enforced_by` của sổ ep-2210-g1b vào check. Khai file mới ở `devsys/areas.json` (không tăng version). Nhánh `codex/v31-g1-ep-role`.
+Không đụng file của CX21-M23 / CX22-FLAG20. XONG hộp thư; phiên chính RÀ KỸ (quyền).

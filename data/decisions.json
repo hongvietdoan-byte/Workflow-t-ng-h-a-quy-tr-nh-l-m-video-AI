@@ -965,7 +965,7 @@
    "changes": "Cấp 1 ghi sổ + kế hoạch. Không phải lệnh triển khai code (Cấp 2 theo gói) và không cấp quyền Cấp 3 (API trả phí, bật cờ production, migration, xóa asset) — EP 22/10 điều kiện chung 3/4/8.",
    "replaces": null,
    "enforced_by": [],
-   "status": "active",
+   "status": "replaced",
    "phase": "PENDING_EP_CONFLICT"
   },
   {
@@ -1001,7 +1001,7 @@
    "changes": "Cấp 1 ghi sổ + kế hoạch. Không phải lệnh triển khai code (Cấp 2 theo gói) và không cấp quyền Cấp 3 (API trả phí, bật cờ production, migration, xóa asset) — EP 22/10 điều kiện chung 3/4/8.",
    "replaces": null,
    "enforced_by": [],
-   "status": "active",
+   "status": "replaced",
    "phase": "PENDING_VERIFICATION"
   },
   {
@@ -1063,6 +1063,42 @@
    "enforced_by": [],
    "status": "active",
    "phase": "PENDING_VERIFICATION"
+  },
+  {
+   "id": "ep-2210-qd2-hard-stop-automated-only-2026-10-22",
+   "date": "2026-10-22",
+   "by": "người dùng (Executive Producer, chat phiên chính 22/10 ~21:30 — trả lời 3 xung đột sổ ep-2210-*)",
+   "text": "Q-D (giải xung đột): HARD STOP ngân sách cả phim CHỈ áp cho LUỒNG TỰ ĐỘNG (autopilot, tự sửa, tự nâng 1080p, mọi job do máy tạo) khi (chi đã ghi nhận + chi đang giữ chỗ) chạm trần ngân sách phim EP đã duyệt; thao tác EP bấm tay chỉ CẢNH BÁO (80 % và khi vượt). Người dùng: 'theo đề xuất chỉ chặn luồng tự động từ lâu rồi'.",
+   "keeps": "v31-d01b-money-policy-product-job-cap-2026-10-20 (thao tác tay: ngân sách chỉ cảnh báo; trần job theo sản phẩm autopilot; ảnh ≤ 3 / video ≤ 2) + budget-gate-removed-2026-10-15 GIỮ NGUYÊN — mục này chỉ thêm chặn cho luồng tự động",
+   "changes": "Code (M8.0/M8.1, Cấp 2 theo gói): cổng chặn luồng tự động đọc chi ghi nhận + giữ chỗ; chưa làm, chưa bật cờ production.",
+   "replaces": "ep-2210-qd-film-budget-hard-stop-2026-10-22",
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2210-g1b-ep-role-package-approved-2026-10-22",
+   "date": "2026-10-22",
+   "by": "người dùng (Executive Producer, chat phiên chính 22/10 ~21:30 — trả lời 3 xung đột sổ ep-2210-*)",
+   "text": "G1 (giải xung đột): DUYỆT gói Cấp 2 phân quyền Executive Producer THEO DỰ ÁN — Owner / chủ dự án cấp vai EP cho người khác trong dự án (mức truy cập riêng), duyệt sân khấu chỉ vai EP của dự án đó; không hardcode một tài khoản Owner. Đăng nhập TẮT vẫn coi chủ máy là EP.",
+   "keeps": "v31-ep-stage-desk-actions-2026-10-21 S-B (chỉ NGƯỜI có vai EP; Director/Claude/công cụ không tự duyệt); check_stage_desk_ep_only giữ, mở rộng ca EP được cấp",
+   "changes": "Giao Codex CX22-G1-EP-ROLE (docs/CODEX_TASKS.md). Đổi CHECK/schema CSDL thật = migration Cấp 3 → dừng báo.",
+   "replaces": "ep-2210-g1-ep-role-per-project-2026-10-22",
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2210-upscale-definition-2026-10-22",
+   "date": "2026-10-22",
+   "by": "người dùng (Executive Producer, chat phiên chính 22/10 ~21:30 — trả lời 3 xung đột sổ ep-2210-*)",
+   "text": "Định nghĩa 'upscale' (Q-C/E4): hiện tại = gen NHÁP 480p rồi gen CHẤT LƯỢNG CAO 1080p qua nhà cung cấp (trả phí) — đây là thao tác tính bộ đếm/ngân sách upscale riêng của E4 và là phạm vi tự nâng của Q-C. Phóng ffmpeg 720p→1080p (0 USD, shot đơn giản) là hậu kỳ, không tính bộ đếm. AI upscale (mô hình phóng) = hướng TƯƠNG LAI, chưa đưa vào pipeline.",
+   "keeps": "video-route-2026-10-13; no-480p-upscale-2026-10-12 (480p chỉ là nháp, không phóng ffmpeg làm bản giao); memory decision_no_ai_upscale_in_pipeline (07/10); ep-2210-e4-counters; ep-2210-qc-auto-upscale-1080",
+   "changes": "Bộ đếm upscale (E4) = lượt nâng 1080p qua provider; Q-C vẫn PENDING_VERIFICATION tới khi có báo giá/quyền.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
   }
  ]
 }
