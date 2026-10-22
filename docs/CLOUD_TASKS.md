@@ -1130,3 +1130,25 @@ C-3D-GOC-B (cloud-D): R1 (+ thiết kế R5). Nhánh cloud/v31-3d-goc-b. Hai gó
   chồng thì báo hộp thư trước. Quy ước 7 (related_areas → Agent rà). Báo cáo docs/RA_CLOUD_3D_GOC_A|B_2026-10-2x.md: bảng lỗi → gốc → bất biến → test
   biến thể → trạng thái. XONG hộp thư.
 ```
+
+#### LIÊN KẾT C-3D-GOC-A / C-3D-GOC-B / C-QC-BOCUC (người dùng 22/10: "giữ mối liên kết chặt chẽ") — MỘT nguồn sự thật bố cục
+```
+Ba gói KHÔNG được mỗi gói tự tính bố cục riêng. Hợp đồng chung: core/layout_facts.py
+    facts_for_shot(conn, pid, scene_id, data_dir) -> dict   (chỉ đọc, 0 USD, không gọi model)
+      spot, mates [scene_id], anchor_scene_id                 ← scene_storyboard.group_of / spot_mates (v1)
+      camera {source: stage_camera|camera_plan|plate|none, pos, yaw, pitch, lens_mm, height_m}   (v1 đọc trường có sẵn)
+      people [{name, side: left|center|right|unknown, height_pct, dist_m}]   (v1 từ layout/stage_camera; R2 điền số đo)
+      landmarks [{name, in_frame, side, occluded}]           (R3 C-3D-GOC-A điền từ tầm nhìn máy 3D; v1 = [] + missing)
+      positions {entity: (x, y)}                              (R1 C-3D-GOC-B điền từ world_map; v1 = {} + missing)
+      horizon {plate_row, image_row}                          ← plate_layout_qc (v1)
+      missing [lý do tiếng Việt]  — thiếu dữ liệu thì GHI LÝ DO, không đoán (CHUAN_XAY_DUNG)
+      version, provenance {trường: nguồn}
+  Ai làm gì:
+  - cloud-claude (C-QC-BOCUC) viết v1 (khung + trường lấy từ code sẵn có) + test hợp đồng tests/test_layout_facts.py, push main TRƯỚC; báo hộp thư.
+  - C-3D-GOC-A: R2/R3 ĐIỀN people/camera/landmarks TRONG facts_for_shot (không hàm song song); câu tả nền R3 sinh TỪ landmarks.
+  - C-3D-GOC-B: R1 ĐIỀN positions từ world_map TRONG facts_for_shot.
+  - Người đọc: qc_spec (mệnh đề layout C-QC-BOCUC), layout_audit / tools/scene_layout_audit.py, lint chữ R3 — chỉ đọc facts_for_shot.
+  - Đổi khóa / kiểu = bump version + sửa test hợp đồng + tin hộp thư cho 2 gói kia; không đổi ngầm.
+  - Lỗi trong devsys/errors.json: root_cause_id trỏ gốc R1–R5, owner theo data/crew_roles.json; mỗi bất biến ghi tên vào trường tests của lỗi.
+  - C-3D-GOC-B xếp cloud-C SAU C-3D-GOC-A (cùng làn giữ chuỗi 3D liền; cloud-D im > 15 giờ).
+```
