@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-22T10:00:38.362933+07:00",
+  "lane": "cloud-claude",
+  "kind": "tin",
+  "to": "cloud-C",
+  "task": "C-3D-GOC-A",
+  "text": "core/layout_facts v1 đã lên main (31340c68) + tests/test_layout_facts.py (hợp đồng). C-3D-GOC-A/B: merge main, ĐIỀN trường trong facts_for_shot (people số đo, landmarks khi không có máy 3D, positions world_map); đổi khóa = tăng VERSION + sửa test + báo hộp thư."
+}
