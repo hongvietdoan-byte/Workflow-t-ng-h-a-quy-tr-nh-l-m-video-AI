@@ -1152,3 +1152,24 @@ Ba gói KHÔNG được mỗi gói tự tính bố cục riêng. Hợp đồng c
   - Lỗi trong devsys/errors.json: root_cause_id trỏ gốc R1–R5, owner theo data/crew_roles.json; mỗi bất biến ghi tên vào trường tests của lỗi.
   - C-3D-GOC-B xếp cloud-C SAU C-3D-GOC-A (cùng làn giữ chuỗi 3D liền; cloud-D im > 15 giờ).
 ```
+
+#### C-FIX6 (cloud-C — ưu tiên 1, TRƯỚC khi làm tiếp C-3D-GOC-A; cloud-claude giao 22/10 sau RÀ KỸ) — lỗi rà C-M48-DESK-CORE + C-M83-TOOL
+```
+A. C-M48-DESK-CORE (cloud/v31-m48-desk-core @ 13eee058, gộp cùng M2 — phải sạch trước):
+ 1. CAO core/batch.py:121-129 — cổng S-C (plate 3D bắt buộc chưa duyệt → HOLD) chỉ nối image_gates (nút Gen ảnh + pregen_check). Autopilot
+    _director_phase và gen VIDEO trả phí không qua → EP đánh dấu bắt buộc, sân khấu chưa duyệt, autopilot vẫn chi tiền. Nối MỘT hàm cổng dùng chung
+    cho mọi đường gửi trả phí ảnh + video (autopilot, nút, batch, gửi lại) — sửa gốc, không vá từng nút; test mỗi đường.
+ 2. VỪA tests/test_decisions.py check_stage_desk_* chỉ dò chữ (inspect.getsource) → đổi sang kiểm HÀNH VI (gọi hàm, đảo logic thì đỏ).
+ 3. VỪA batch.py:121 S-C chạy không theo cờ, chỉ cần <data>/<pid>/stage/ tồn tại → cờ TẮT phải giữ y hệt hành vi cũ (crew/state.json dở không thêm
+    VÀNG; step2 không chạy scene_status mỗi lần vẽ). Không thêm cờ mới (khóa catalog) — dùng điều kiện dữ liệu rõ (EP đã đánh dấu bắt buộc) + test.
+ 4. VỪA stage_desk.py:648-653 — kiểm expected_marks/drawn ngoài khóa S → chuyển vào trong fn của _sync (kiểm-và-ghi trong cùng khóa).
+ 5. VỪA S-D stage_desk.py:705/660 — plates_stale_after đánh dấu mọi shot có máy (cả shot giữ nguyên máy) → chỉ shot đổi máy; lượt duyệt sau
+    xóa desk_reset.json → ghi lại danh sách ảnh / world map đã cũ trước khi xóa.
+ 6. THẤP: _write(progress) OSError sau hold.acquire → nhả khóa (try/finally); hold_segments bắt mọi lỗi os.write để nhả đoạn đã khóa; gỡ khóa cũ
+    nguyên tử (os.replace / O_EXCL) không khe đọc-xóa; user=None khi đăng nhập BẬT không được coi admin (S-B); N11 render_plates lấy khóa S.
+B. C-M83-TOOL (cloud/v31-m83-tool @ bc3b4385 — CHƯA gộp main vì mục này):
+ 7. VỪA tools/load_test_ui.py:831-833 — relocate báo _leaks > 0 chỉ log rồi vẫn chạy 10 phiên bấm Duyệt/Gen → raise (tùy chọn --allow-leaks có chủ
+    ý). Bộ đếm rò (186-190) đếm theo đúng regex có ranh giới đường + _REL_DATA (re.I, cả ./data/… và Data/…); kiểm os.path.exists đường tuyệt đối
+    ngoài bản sao như docstring hứa. THẤP: ghi đè DELIVERY_OUTPUT_ROOT / KNOWLEDGE_USER_DIR / RETIRED_TOPICS_FILE sang thư mục work.
+Rà quy ước 7 trước commit. Báo cáo docs/RA_CLOUD_FIX6_2026-10-22.md. XONG hộp thư mã C-FIX6 (ghi 2 nhánh @ SHA).
+```

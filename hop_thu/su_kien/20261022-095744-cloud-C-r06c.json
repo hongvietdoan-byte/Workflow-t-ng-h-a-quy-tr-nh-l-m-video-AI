@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T09:57:44.465707+07:00",
+  "lane": "cloud-C",
+  "kind": "giao",
+  "task": "C-FIX6",
+  "to": "cloud-C",
+  "title": "Lỗi rà DESK-CORE (CAO: cổng S-C thiếu autopilot + video trả phí) + M83-TOOL (VỪA: còn rò đường thật vẫn chạy) — làm TRƯỚC C-3D-GOC-A",
+  "spec": "docs/CLOUD_TASKS.md#### C-FIX6",
+  "priority": 1
+}
