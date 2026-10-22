@@ -1530,3 +1530,27 @@ RIÊNG trên cổng khác (không đụng 8501/8502) trỏ vào BẢN SAO data (
 Streamlit, chờ khóa SQLite, luồng nền nhân bản theo phiên, khóa Blender, hàng đợi Claude CLI. Kết quả: bảng giới hạn (bao nhiêu người thì chậm/khóa,
 khâu nào nghẽn) + đề xuất cho M8.4. Script đo đặt `tools/load_test_dashboard.py` (khai `devsys/areas.json`, không tăng version) + test nhỏ cho phần
 không cần trình duyệt. Tắt hết tiến trình phụ sau khi đo. Nhánh `codex/v31-m83-load`. Báo cáo `docs/RA_CX22_M83_LOAD_CODEX_2026-10-2x.md`. XONG hộp thư.
+
+### CX22-DON-RAC — dọn lưu trữ máy chính nhóm 3 → 1 → 2 (ưu tiên 2; người dùng ĐÃ DUYỆT 22/10 trong chat phiên chính; 0 USD, chỉ shell)
+Bối cảnh: agent dọn rác phiên chính 22/10 đã gỡ 176 worktree + 372 nhánh local đã vào main (nhật ký
+`C:/Users/hongviet.doan/AppData/Local/Temp/claude/don_rac_2026-10-22.log`). Còn 3 nhóm, làm ĐÚNG thứ tự, mọi thao tác ghi nhật ký
+`D:\AI-Video-Output\_luu_tru\NHAT_KY_DON_RAC_2026-10-2x.log` (đường dẫn cũ → mới, sha, lý do) để khôi phục được:
+1. **Nhóm 3 — CHUYỂN, KHÔNG XÓA** sang `D:\AI-Video-Output\_luu_tru\backup_cu\`: trong `D:\AI-Video-Pipeline\data\`, mỗi loại
+   `manifest.backup_*.sqlite`, `feature_settings.backup_*`, `backup_dashboard.env.before_*` giữ 3 bản MỚI NHẤT, phần còn lại chuyển; `*.lock` cũ
+   chỉ chuyển khi không tiến trình nào giữ. `_plates3d/` ở GỐC repo (188 MB): `grep` code — không ai trỏ tới thì chuyển sang `_luu_tru\plates3d_goc\`.
+   Xóa thư mục rỗng `22` ở gốc. KHÔNG đụng: `.codex-runtime/`, `data/_plates3d`, `data/projects`, `data/models3d`, `data/manifest.sqlite`,
+   `dashboard.env`, thư mục tiếng Việt untracked (`KHO TÀI NGUYÊN/`, `model 3D/`, `sơ đồ/`). Dashboard 8501 đang chạy — không dừng.
+2. **Nhóm 1 — worktree Codex `D:/AI-Video-Pipeline/.codex-wt/*`**: `git worktree remove` cái nào HEAD đã trong origin/main + chỉ còn `HANDOFF.md`
+   chưa theo dõi (không thay đổi khác) + không sửa trong 3 ngày; nhánh local đã vào main thì `git branch -d`. GIỮ: `ban-dao-dien-hieu-nang`,
+   `d12-viec5-dong-thanh`, `d12-viec6-phat-am`, `d9-viec2-trang-phieu`, `v31-m23`, `d4-viec2-test-byd`, `d16-viec1`, `d17-viec1` và mọi worktree
+   Codex đang làm (CX21-*, CX22-*). Báo số gỡ / giữ.
+3. **Nhóm 2 — CHỈ RÀ, CHƯA XÓA**: 17 worktree/nhánh agent cũ có commit chưa vào main, chưa có trên remote (`agent-a1f9c158e92874dd8`,
+   `agent-a21e8e6c6f350168b` fix/qc-draft-context, `agent-a22f9d77aeac76d1c` fix/end-popup-style, `agent-a28f8005b758fb117`,
+   `agent-a3d6ca9826e340219`, `agent-a6ecbad54a44d5a42`, `agent-a81a6618e5d0855d4`, `agent-a892053a168efb677`, `agent-aa563756b861fc046`
+   fix/group-cut, `agent-ab11f1962cf159198`, `agent-ac058a6946d44e5c1` fix/use-older-take, `agent-acbfbd4e7bab59f04`,
+   `agent-adaa9190b79af629f`, `agent-ae3ea475370d740d3` fix/scene-anchor-away-shots, `agent-ae94d3ee9f9c854f5`, `agent-afa4a52159e17769d`,
+   `gop-cuoi-goc-b`; trong `D:/AI-Video-Pipeline/.claude/worktrees/`). Mỗi cái: so NỘI DUNG thay đổi (`git diff main...<nhánh>`, tìm hàm/đoạn
+   tương đương trên main — không so sha) → xếp **ĐÃ CÓ trên main** / **CÒN GIÁ TRỊ** (tóm tắt 1 dòng: sửa gì, file nào) / **BỎ** (lý do). KHÔNG
+   xóa nhóm này — phiên chính quyết sau. BỎ QUA `agent-a58a3cb071487e5ef` (cloud/v31-golden8-fin) và `agent-a621cb12b97522c41`.
+Báo cáo `docs/RA_CX22_DON_RAC_CODEX_2026-10-2x.md` (≤ 60 dòng: dung lượng trước/sau `D:` + `.codex-wt` + `.claude/worktrees`, bảng nhóm 2).
+Commit báo cáo trên nhánh `codex/v31-don-rac`, push nhánh, XONG hộp thư.
