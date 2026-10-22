@@ -172,7 +172,8 @@ def collect(p, pid: int, data_dir: str) -> List[Dict]:
             sc["world"]["cameras"] = [s["camera"] for s in sc["shots"] if isinstance(s.get("camera"), dict)]
             if world_map.sentences_enabled():
                 for s in sc["shots"]:
-                    s["sentence"], _ = world_map.position_sentence(sc["world"]["map"], s["shot_no"] or s["idx"], s["camera"])
+                    # valid_from / valid_to của map = scenes.idx (stage_auto shot_specs 'shot'), không phải shot_no trong cảnh (gộp GOC-B 22/10)
+                    s["sentence"], _ = world_map.position_sentence(sc["world"]["map"], s["idx"], s["camera"])
             sc["world"].pop("map", None)
         sc["dummies"] = None
         if dummy_on:

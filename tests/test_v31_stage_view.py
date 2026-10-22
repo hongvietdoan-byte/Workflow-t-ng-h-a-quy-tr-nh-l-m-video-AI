@@ -167,3 +167,23 @@ def test_dummy_heights_and_sentence_only_when_flags_on(proj):
     with mock.patch.dict(os.environ, {"FEATURE_WHITEBOX_HEIGHT_DUMMY": "", "FEATURE_WORLD_MAP_SENTENCES": ""}):
         s1 = U.collect(p, pid, data_dir)[0]
     assert s1["dummies"] is None and "sentence" not in s1["shots"][0]
+
+
+def test_sentence_uses_scenes_idx_not_shot_no(proj):
+    """Gộp GOC-B (22/10): valid_from / valid_to của world map theo số shot = scenes.idx (stage_auto shot_specs 'shot'), KHÔNG phải shot_no
+    trong cảnh. Shot idx 3 của cảnh 2 có shot_no 1 → câu vị trí phải hỏi map ở shot 3."""
+    from dashboard import stage_view_ui as U
+    p, pid, data_dir, _, _ = proj
+    world = pathlib.Path(data_dir) / str(pid) / "world"
+    (world / "scene_2.json").write_text(json.dumps({"scene": 2, "kind": "3d", "sources": {}, "entities": [
+        {"entity_id": "kelly", "label": "KELLY", "kind": "nguoi", "transform": {"xyz": [1.0, 2.0, 0.0]}, "valid_from": 3, "valid_to": 3}]}),
+        encoding="utf-8")
+    asked = []
+
+    def fake(m, shot, camera=None):
+        asked.append(shot)
+        return None, {}
+    with mock.patch.dict(os.environ, {"FEATURE_WORLD_MAP_SENTENCES": "1", "FEATURE_WORLD_MAP": "1"}), \
+         mock.patch("core.world_map.position_sentence", side_effect=fake):
+        U.collect(p, pid, data_dir)
+    assert asked == [1, 2, 3]

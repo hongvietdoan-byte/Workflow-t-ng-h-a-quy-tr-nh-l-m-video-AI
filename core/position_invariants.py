@@ -30,6 +30,7 @@ VANG, KHONG_RO = "vang", "khong_ro"
 ERR_ROOT = ["V31-GOC1", "P31-G46"]
 TEXT_FIELDS = ("image_prompt", "blocking", "action", "motion_en")
 AHEAD_COS = math.cos(math.radians(60))     # X nằm "phía trước hướng đi" khi lệch ≤ 60° so với hướng đi
+NO_SCENE_KEY = "?"                          # project_report: nhóm shot thiếu story_scene
 
 
 def _f(code: str, errors: Sequence[str], msg: str, fix: str = "", level: str = VANG, **numbers) -> Dict:
@@ -166,7 +167,7 @@ _DIRS = [  # (mẫu không dấu, (ngang, sâu))
      (1.0, 0.0)),
 ]
 # "về phía X" chỉ là hướng ĐI khi có động từ di chuyển ngay trước (nhìn / ngắm / chĩa về phía X không phải đi — rà 22/10)
-_MOVE = r"(?:walk(?:s|ing)?|run(?:s|ning)?|mov(?:es|ing)|head(?:s|ing)?|go(?:es|ing)?|stride(?:s)?|striding|rush(?:es|ing)?|sprint(?:s|ing)?|" \
+_MOVE = r"\b(?:walk(?:s|ing)?|run(?:s|ning)?|mov(?:es|ing)|head(?:s|ing)?|go(?:es|ing)?|stride(?:s)?|striding|rush(?:es|ing)?|sprint(?:s|ing)?|" \
         r"di|chay|tien|buoc|lao)"
 _TOWARD = re.compile(_MOVE + r"\s+(?:straight\s+|back\s+|slowly\s+|quickly\s+)?(?:toward(?:s)?|ve phia|ve|lai gan|towards?)\s+(?:the\s+)?([a-z0-9 _-]{3,40})"
                      r"|\b(?:approach(?:es|ing)?|tien ve|di ve)\s+(?:the\s+)?([a-z0-9 _-]{3,40})")
@@ -316,12 +317,18 @@ def scene_report(m: Optional[Dict], story_scene, shots: List[Dict]) -> List[Dict
 def project_report(conn, pid: int, data_dir: str) -> Dict:
     """{"scenes": {cảnh: [phát hiện]}, "n": số phát hiện VÀNG}. Đọc CSDL + map tệp; không ghi gì. Số shot = scenes.idx (số của map)."""
     by_scene: Dict[str, List[Dict]] = {}
+    no_scene: List[int] = []
     for r in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():
         d = json.loads(r["data"] or "{}")
-        if d.get("story_scene") is None:
+        if d.get("story_scene") in (None, ""):
+            no_scene.append(r["idx"])                    # không thuộc map nào: báo dưới, không bỏ qua im lặng (luật 1)
             continue
         by_scene.setdefault(str(d["story_scene"]), []).append({"shot": r["idx"], "data": d})
     out = {}
+    if no_scene:
+        out[NO_SCENE_KEY] = [_f("R1-MAP", ERR_ROOT, f"{len(no_scene)} shot thiếu story_scene (shot {', '.join(map(str, no_scene[:12]))}"
+                                f"{'…' if len(no_scene) > 12 else ''}) — không biết thuộc bản đồ cảnh nào, không kiểm vị trí",
+                                "Khai story_scene cho shot (Đạo diễn / kịch bản)", level=KHONG_RO, shots=no_scene)]
     for sc, shots in by_scene.items():
         shots.sort(key=lambda s: s["shot"])
         try:

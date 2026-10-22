@@ -251,3 +251,32 @@ def test_broken_map_is_said_not_crashing(tmp_path):
     p = Pipeline(connect(db))
     f = layout_facts.facts_for_shot(p.conn, pid, ids[0], data)
     assert f["positions"] == {} and any("bản đồ" in w for w in f["missing"])
+
+
+# ---- rà gộp GOC-B vào main (22/10) ------------------------------------------------------------------------------------------
+def test_shots_without_story_scene_are_said_not_skipped(tmp_path):
+    """Luật 1 CHUAN_XAY_DUNG: shot thiếu story_scene không thuộc map nào — báo KHÔNG RÕ kèm số shot, không bỏ qua im lặng."""
+    _, pid, _, db, data = _project(tmp_path, [{}, {"story_scene": None}, {"story_scene": None}], map3d([]))
+    rep = pi.project_report(Pipeline(connect(db)).conn, pid, data)
+    got = rep["scenes"][pi.NO_SCENE_KEY]
+    assert [(f["code"], f["level"]) for f in got] == [("R1-MAP", "khong_ro")] and got[0]["numbers"]["shots"] == [2, 3]
+    assert rep["n"] == 0
+
+
+def test_move_verb_must_start_a_word():
+    """'di' (đi) chỉ là động từ khi đứng đầu từ — 'kandi toward …' không phải đi về phía."""
+    assert pi._targets("kandi toward the corpse", pi._TOWARD) == []
+    assert pi._targets("kelly di ve phia corpse", pi._TOWARD) == ["corpse"]
+
+
+def test_map_positions_are_not_fed_into_gen_or_qc():
+    """test_v31_dp8 cho core/layout_facts đọc map vì chỉ để BÁO: không module nào ngoài layout_facts / position_invariants dùng
+    facts['positions'] (không vào gói gửi / mệnh đề QC) — muốn dùng phải sau cờ + sửa test này."""
+    import pathlib
+    import re
+    root = pathlib.Path(__file__).resolve().parent.parent
+    use = re.compile(r"""\[\s*["']positions["']\s*\]|\.get\(\s*["']positions["']""")
+    allowed = {"core/layout_facts.py", "core/position_invariants.py"}
+    users = [str(p.relative_to(root)).replace("\\", "/") for d in ("core", "dashboard") for p in (root / d).rglob("*.py")
+             if use.search(p.read_text(encoding="utf-8", errors="replace"))]
+    assert [u for u in users if u not in allowed] == []
