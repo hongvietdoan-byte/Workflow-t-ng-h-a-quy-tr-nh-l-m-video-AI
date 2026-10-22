@@ -20,6 +20,19 @@ Codex hết hạn mức tuần (92 %) → bàn giao Claude máy chính chạy M�
 5. `main_ab --ab` 158 ca #24/#27/#31/#33 + loaded paths. ĐẠT = negative control xanh + 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥ 1 SAME. 0 USD.
 6. ĐẠT → `hop_thu.py xong CX21-GOLDEN7 …` → điều phối gộp một lần `cloud/v31-m2-tichhop` + m24 + golden5 (+ m73, m210, golden4). CHƯA ĐẠT → báo cáo, giao sửa cloud-C.
 
+
+### Vì sao M1.9 (golden) trượt nhiều lần trước đó (người dùng hỏi 22/10)
+Không lần nào do code pipeline sai — đều do cách đo / công cụ đo:
+| Lần | Kết quả | Nguyên nhân | Đã xử lý |
+|---|---|---|---|
+| 1–4 (21/10) | 64/68 ca dựng được, 63 khác gói đã gửi 11–13/10 | So với gói lịch sử, nhưng Kho / plate / cảnh đã đổi sau ngày gửi → ngưỡng không thể đạt; kèm lỗi tool (worker chưa đọc đủ `data/` có vân) | EP đổi sang A/B cùng snapshot (`v31-ep-golden-ab-acceptance-2026-10-21`); CX21-GOLDEN / GOLDEN4 sửa tool |
+| GOLDEN5 | SAME 127 / DIFF 0 / ONE_FAIL 0 nhưng **đối chứng âm ĐỎ** | Worker không nạp code cây B → thực chất A so A, số đẹp vô nghĩa | C-GOLDEN6 |
+| GOLDEN6 | Đối chứng âm xanh, **158/158 BOTH_FAIL** trước khi chạy worker | `build_from_database` kiểm cờ theo catalog cây công cụ (153), không theo A∪B (155, có `gen_auth_shadow`) | C-GOLDEN7 (621661a8) |
+| GOLDEN7 | Bị chặn | Main có thêm cờ mới (`director_rewrite_respect_lock`, `stage_view_ui`, `crew_registry`, `continuity_validator`) sau vòng gộp; Codex hết 92 % hạn mức tuần | Chốt: experimental TẮT, catalog 159 / 32 cờ; chuyển chạy về máy chính (6 bước trên) |
+
+Bài học: (1) chạy đối chứng âm TRƯỚC, đỏ thì không tin "0 DIFF"; (2) giữ danh mục cờ đứng yên lúc chạy — **tạm ngừng gộp code thêm cờ mới
+vào main tới khi GOLDEN7 xong** (đổi catalog thì cập nhật bước 4 rồi mới chạy).
+
 ## A. Đợt gộp 22/10 sáng (nhánh tích hợp `tich-hop-2210` → main)
 
 | Mã | Nhánh @ commit | Cloud đã kiểm | Máy chính kiểm | Máy chính |
