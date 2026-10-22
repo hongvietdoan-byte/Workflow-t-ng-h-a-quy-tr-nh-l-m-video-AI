@@ -73,7 +73,7 @@ def wait_reason(job_id: int) -> Optional[str]:
 
 
 HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold",
-              'QUEUE_CAPACITY', 'QUEUE_UNKNOWN_CAPACITY', 'QUEUE_CONFIG')
+              'QUEUE_CAPACITY', 'QUEUE_UNKNOWN_CAPACITY', 'QUEUE_CONFIG', "stage_desk_hold")
 """C7 (13/10): diag codes the video runner writes when it KEEPS a queued job (Tổ rà soát, kiểm trước gen ĐỎ, bản cao chờ)."""
 
 
@@ -275,6 +275,19 @@ class _Runner:
         """V7: lý do GIỮ job trước khi gửi (cổng đầu vào), None = được gửi."""
         return None
 
+    def _desk_hold(self, job) -> Optional[str]:
+        """C-FIX6 mục 1 (S-C, sổ v31-ep-stage-desk-actions-2026-10-21): shot của job (và các shot gửi cùng nhóm) mà Executive Producer đánh
+        dấu BẮT BUỘC plate 3D đã duyệt, chưa đạt và chưa có ngoại lệ → lý do giữ (core.stage_desk.paid_hold — MỘT hàm cho ảnh + video, nút /
+        autopilot / batch / gửi lại). Chưa đánh dấu → None (một os.path.isfile, y hệt trước)."""
+        if not job["scene_id"]:
+            return None
+        from . import stage_desk
+        if not self.data_dir or not os.path.isfile(stage_desk._gate_path(self.data_dir, job["project_id"])):
+            return None                          # rà kỹ C-FIX6 A5: chưa đánh dấu → không tính nhóm gửi (_sends_group đọc CSDL)
+        group = getattr(self, "_sends_group", lambda j: None)(job) or []
+        sids = [job["scene_id"]] + [g["id"] for g in group if g["id"] != job["scene_id"]]
+        return stage_desk.paid_hold(self.p.conn, job["project_id"], self.data_dir, sids)
+
     def _blocked(self, job) -> Optional[str]:
         """A reason not to send this job now (it would be made from outdated inputs); None = go."""
         return None
@@ -469,7 +482,12 @@ class _Runner:
                 WAIT_REASONS[job["id"]] = (held, time.time())
                 self._diag_once(job, "warn", "change_review_hold", f"chưa gửi: {held}")
                 continue
-            gate = self._gate_hold(job)                  # V7: ảnh khung đầu chưa qua kiểm nền 3D / nhóm liền mạch chưa duyệt đủ ảnh
+            desk = self._desk_hold(job)                  # C-FIX6 (S-C): plate 3D bắt buộc chưa đạt → GIỮ — một chỗ cho mọi đường gửi trả phí
+            if desk:
+                WAIT_REASONS[job["id"]] = (desk, time.time())
+                self._diag_once(job, "warn", "stage_desk_hold", f"chưa gửi: {desk}")
+                continue
+            gate = self._gate_hold(job)                 # V7: ảnh khung đầu chưa qua kiểm nền 3D / nhóm liền mạch chưa duyệt đủ ảnh
             if gate:
                 WAIT_REASONS[job["id"]] = (gate, time.time())
                 self._diag_once(job, "warn", "video_gate_hold", f"chưa gửi: {gate}")

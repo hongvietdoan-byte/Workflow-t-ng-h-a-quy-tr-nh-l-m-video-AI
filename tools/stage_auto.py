@@ -23,7 +23,18 @@ def main(argv=None):
     return ui_step.run_cli("stage_auto", _main, argv)
 
 
+_HOLDS = []                                              # M4.8 khóa S các đoạn lệnh này đang ghi — nhả khi _main xong (mọi nhánh return)
+
+
 def _main(argv, step):
+    try:
+        return _run(argv, step)
+    finally:
+        while _HOLDS:
+            _HOLDS.pop().__exit__(None, None, None)
+
+
+def _run(argv, step):
     ap = argparse.ArgumentParser(prog="stage_auto.py")
     ap.add_argument("--project", type=int, required=True)
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))
@@ -84,6 +95,16 @@ def _main(argv, step):
               + (f" · ĐÃ có ảnh shot {drawn}" + ("" if a.force else " → bỏ qua (thêm --force)") if drawn else ""))
     for h in stage_auto.family_hints(segs):
         print("⚠", h)
+    if not (a.score or a.dry):                          # M4.8: GIỮ khóa S các đoạn (hai chiều: nút bàn đạo diễn gặp lệnh này cũng từ chối)
+        from core import stage_desk, write_guard
+        hold = stage_desk.hold_segments(conn, a.project, a.data_dir, segs, "cli stage_auto", write_guard.actor("tool", "cli.stage_auto"))
+        try:
+            hold.__enter__()
+        except stage_desk.DeskError as e:
+            print("⛔", e)
+            step.update(result="warn", why="đoạn đang được thao tác trên Dashboard (khóa S)")
+            return
+        _HOLDS.append(hold)
     from core import features
     if a.cam_tay:
         os.environ[stage_auto.HANDHELD_REDO_ENV] = "1"

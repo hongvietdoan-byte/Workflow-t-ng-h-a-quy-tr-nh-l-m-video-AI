@@ -210,8 +210,7 @@ def ensure_k1_seg(seg: Dict, base: str, log: Callable[[str], None] = lambda m: N
     return ensure_k1(seg["entry"], seg["main_spot"], base, log, cells=grid_cells(seg))
 
 
-def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = lambda m: None, cells: int = 20) -> str:
-    """K1 của chỗ đứng (0 USD, Blender ≈ 20 s), cache theo sha model + tọa độ chỗ đứng. Lỗi = ValueError / BlenderError."""
+def _k1_key(entry: Dict, spot: str, base: str, cells: int = 20) -> Tuple[str, Dict]:
     out = os.path.join(base, f"k1_{key_of(spot)}" + (f"_{int(cells)}" if cells != 20 else ""))
     want = {"sha256": entry.get("sha256"), "path": entry.get("path"), "at": (entry.get("spots") or {}).get(spot, {}).get("at")}
     if cells != 20:
@@ -220,6 +219,23 @@ def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = la
     if stretch_spec(entry):                               # G8 19/10: rào nâng theo game = hình học khác → K1 đo lại
         want["stretch"] = stretch_spec(entry)
     want["k1_version"] = K1_VERSION                       # đổi cách đo (16/10: sàn dưới trần) → đo lại
+    return out, want
+
+
+def k1_cached(seg: Dict, base: str) -> Optional[str]:
+    """Thư mục K1 của đoạn khi ĐÃ đo đúng model + chỗ đứng (cache còn hiệu lực), None khi chưa — KHÔNG chạy Blender (M4.8 bàn đạo diễn:
+    trạng thái vẽ mỗi lần Streamlit chạy lại không được đo K1)."""
+    out, want = _k1_key(seg["entry"], seg["main_spot"], base, grid_cells(seg))
+    try:
+        with open(os.path.join(out, "k1_key.json"), encoding="utf-8") as f:
+            return out if os.path.exists(os.path.join(out, "stage.json")) and json.load(f) == want else None
+    except (OSError, ValueError):
+        return None
+
+
+def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = lambda m: None, cells: int = 20) -> str:
+    """K1 của chỗ đứng (0 USD, Blender ≈ 20 s), cache theo sha model + tọa độ chỗ đứng. Lỗi = ValueError / BlenderError."""
+    out, want = _k1_key(entry, spot, base, cells)
     mark = os.path.join(out, "k1_key.json")
     bad = os.path.join(out, "k1_error.json")
     if os.path.exists(os.path.join(out, "stage.json")) and os.path.exists(mark):
@@ -667,19 +683,35 @@ def draw_beats(rd: str, log: Callable[[str], None] = lambda m: None) -> Optional
         return None
 
 
-def apply(conn, seg: Dict, cams: Dict[int, Dict], skipped=()) -> List[int]:
+def _guard(conn, s: Dict, data: Dict, changes: Dict, who: Optional[Dict], expected_revs: Optional[Dict]) -> None:
+    """M4.8 (C-M48-DESK-CORE, kế hoạch bàn đạo diễn mục 7): lần ghi máy đi qua write guard (M2.5, SHADOW — chỉ ghi ⚙ Chẩn đoán "lẽ ra
+    đã…", không chặn, không đổi giá trị) TRƯỚC lệnh UPDATE như cũ. `who` None (nơi gọi cũ) hoặc cờ field_guard TẮT → không đọc thêm,
+    không ghi gì thêm (y hệt hôm nay). `expected_revs` {idx: _rev đọc lúc mở lượt duyệt} → lệch = stale_write."""
+    if who is None:
+        return
+    from . import write_guard
+    revs = expected_revs or {}
+    rev = revs.get(s["idx"], revs.get(str(s["idx"])))
+    write_guard.write_scene(conn, s["id"], changes, who, expected_rev=rev if rev is not None else write_guard.rev(data))
+
+
+def apply(conn, seg: Dict, cams: Dict[int, Dict], skipped=(), who: Optional[Dict] = None,
+          expected_revs: Optional[Dict] = None) -> List[int]:
     """Ghi `stage_camera` vào shot (máy hệ thống, không khóa tay). Shot người dùng khóa `stage_camera` → giữ. Máy tự động cũ của shot
     nay không đạt → gỡ (máy cũ của nó lệch đầu vào mới — nền 3D về máy thường, có VÀNG). Shot `skipped` (không người / đạo cụ để
-    dàn) chỉ ghi `stage_segment` = đã xét cùng sân khấu (location_pack.stage_report không giữ cảnh oan), máy nền thường."""
+    dàn) chỉ ghi `stage_segment` = đã xét cùng sân khấu (location_pack.stage_report không giữ cảnh oan), máy nền thường.
+    `who` (write_guard.actor, M4.8): ai ghi — mỗi shot đổi qua write guard SHADOW trước UPDATE (None = như cũ, không qua guard)."""
     changed = []
     for s in seg["shots"]:
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (s["id"],)).fetchone()
         data = json.loads(row["data"] or "{}")
         if s["idx"] in skipped and s["idx"] not in cams and not data.get(FIELD):
             if data.get(SEG_FIELD) != seg["id"]:
+                _guard(conn, s, data, {SEG_FIELD: seg["id"]}, who, expected_revs)
                 data[SEG_FIELD] = seg["id"]
                 conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), s["id"]))
                 conn.commit()
+                _flush(conn, who)
                 s["data"] = data
             continue
         if FIELD in (data.get("_user_locked") or []):
@@ -690,6 +722,10 @@ def apply(conn, seg: Dict, cams: Dict[int, Dict], skipped=()) -> List[int]:
             continue
         if new == old:
             continue
+        if who is not None:
+            from .write_guard import DELETE
+            _guard(conn, s, data, {FIELD: DELETE, SEG_FIELD: DELETE} if new is None else {FIELD: new, SEG_FIELD: seg["id"]}, who,
+                   expected_revs)
         if new is None:
             data.pop(FIELD, None)
             data.pop(SEG_FIELD, None)
@@ -700,7 +736,16 @@ def apply(conn, seg: Dict, cams: Dict[int, Dict], skipped=()) -> List[int]:
         changed.append(s["idx"])
     if changed:
         conn.commit()
+    _flush(conn, who)
     return changed
+
+
+def _flush(conn, who: Optional[Dict]) -> None:
+    """Rà C-M48-DESK-CORE (CAO 1): dòng shadow của shot 2, 3… được write guard GIỮ vì lúc đó apply đang trong giao dịch → ghi sau commit
+    (không thì mất khi kết nối đóng — luồng nền / autopilot không bao giờ báo)."""
+    if who is not None:
+        from . import write_guard
+        write_guard.flush(conn)
 
 
 # ---- một đoạn ------------------------------------------------------------------------------------------------------------
@@ -969,7 +1014,7 @@ def last_answer(data_dir: str, pid: int, seg: Dict) -> Optional[Tuple[str, Dict]
         return rd, json.load(f)
 
 
-def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None] = lambda m: None) -> Dict:
+def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None] = lambda m: None, who: Optional[Dict] = None) -> Dict:
     """Đo + render lại (K3 + K4 Blender, 0 USD) từ câu trả lời Đạo diễn ĐÃ trả tiền của lượt cuối — không gọi Claude. Dùng khi ảnh
     clay / số đo hỏng (16/10: Blender ghi sai chỗ). Ghi máy vào shot như run (apply). Trả {"applied", "held", "missing"}."""
     out: Dict = {"applied": [], "held": [], "missing": []}
@@ -1028,7 +1073,7 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
     except (OSError, ValueError):
         pass
     _save(os.path.join(seg_dir, "result.json"), res)
-    out["applied"] = apply(conn, seg, cams, inputs.get("bo_qua") or [])
+    out["applied"] = apply(conn, seg, cams, inputs.get("bo_qua") or [], who=who)
     _say_guides(conn, pid, seg, res, out, log)
     for idx, why in sorted(bad.items()):
         out["held"].append(("stageauto:rerender:" + str(idx), f"shot {idx} ({seg['id']}): {why}"))
@@ -1309,7 +1354,7 @@ def crew_prompt(conn, pid: int, seg: Dict, data_dir: str, reset: bool = False) -
 
 
 def crew_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: str = "claude_code",
-                log: Callable[[str], None] = lambda m: None) -> Dict:
+                log: Callable[[str], None] = lambda m: None, who: Optional[Dict] = None, expected_revs: Optional[Dict] = None) -> Dict:
     """NGOẠI TUYẾN 0 USD: câu trả lời của vai đang tới lượt → bộ kiểm của vai → bước sau (đo K3 + K4 khi cần). Xong → ghi stage_camera.
     Lỗi → {"ok": False, "errors"} (người viết sửa rồi đưa lại, state không đổi)."""
     import copy as _c
@@ -1354,7 +1399,8 @@ def crew_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: str
     if state.get("can_hoi"):
         res["can_hoi"] = state["can_hoi"]
     if state["phase"] == "xong":
-        res.update(_crew_finalize(conn, pid, seg, ctx, state, _worker(state), log, apply_now=True))
+        res.update(_crew_finalize(conn, pid, seg, ctx, state, _worker(state), log, apply_now=True, who=who,
+                                  expected_revs=expected_revs))
         held: Dict = {"held": []}
         _say_guides(conn, pid, seg, res["result"], held, log)
         res["held"] = held["held"]
@@ -1369,7 +1415,7 @@ def _worker(state: Dict) -> str:
 
 
 def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: str, log: Callable[[str], None],
-                   apply_now: bool) -> Dict:
+                   apply_now: bool, who: Optional[Dict] = None, expected_revs: Optional[Dict] = None) -> Dict:
     """Máy chốt TỪNG SHOT (tối ưu 16/10): lần đo Quay phim đã duyệt, không có thì lần đo ít lỗi nhất của shot; shot đạt Blender + luật
     kịch bản, không còn 'unresolved' → stage_camera. Gom vào crew/final/ (answer + inputs + v2 ghép + tệp sân khấu) để --beats /
     rerender dùng như một lượt; result.json như đường một vai."""
@@ -1432,7 +1478,7 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
     _save(os.path.join(ctx["out"], "result.json"), res)
     out = {"result": res}
     if apply_now:
-        changed = apply(conn, seg, cams, inputs.get("bo_qua") or [])
+        changed = apply(conn, seg, cams, inputs.get("bo_qua") or [], who=who, expected_revs=expected_revs)
         out.update(applied=[i for i in changed if i in cams], removed=[i for i in changed if i not in cams], bad=bad)
         _say(conn, pid, "info", f"Sân khấu {seg['id']}: máy đặt bởi tổ sân khấu (Đạo diễn + Quay phim, {source}) — shot "
                                 + ", ".join(map(str, sorted(cams))), log)
@@ -1440,11 +1486,12 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
 
 
 def crew_user_verdict(conn, pid: int, seg: Dict, data_dir: str, approve: bool, tra_lai: Sequence[Dict] = (),
-                      log: Callable[[str], None] = lambda m: None) -> Dict:
+                      log: Callable[[str], None] = lambda m: None, who: Optional[Dict] = None,
+                      expected_revs: Optional[Dict] = None) -> Dict:
     """Bước duyệt chốt do NGƯỜI DÙNG (cờ stage_crew_user_approve; #31 — người dùng 16/10): Claude chỉ gọi khi người dùng đã nói duyệt /
-    trả lại trong chat."""
+    trả lại trong chat. `who` / `expected_revs`: bàn đạo diễn (M4.8) — máy ghi qua write guard với actor người bấm."""
     obj = {"duyet": True} if approve else {"duyet": False, "tra_lai": list(tra_lai)}
-    return crew_answer(conn, pid, seg, data_dir, obj, source="nguoi_dung", log=log)
+    return crew_answer(conn, pid, seg, data_dir, obj, source="nguoi_dung", log=log, who=who, expected_revs=expected_revs)
 
 
 def run_segment_crew(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Optional[Dict] = None,
@@ -1643,12 +1690,16 @@ def stored_state(data_dir: str, pid: int, seg: Dict) -> Optional[Dict]:
 
 
 def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: bool = False,
-        log: Callable[[str], None] = lambda m: None, scenes: Optional[set] = None) -> Optional[Dict]:
+        log: Callable[[str], None] = lambda m: None, scenes: Optional[set] = None, manual: bool = False,
+        who: Optional[Dict] = None) -> Optional[Dict]:
     """Mọi đoạn của dự án, nối tiếp theo sân khấu (vị trí cuối đoạn trước → đầu đoạn sau). None khi cờ TẮT (không làm gì).
     Trả {"applied": [idx], "held": [(vân tay, câu)], "skipped": [đoạn]}: `held` = shot không đạt / đoạn thiếu đầu vào — autopilot
     giữ ở cổng nền 3D cho người xem (Tiếp tục = các shot đó dùng máy thường, VÀNG). `force` = cả đoạn có shot đã vẽ ảnh (máy mới làm
-    ảnh cũ lệch nền — người chọn); `again` = bỏ kết quả đã lưu, gọi Đạo diễn lại (tốn tiền)."""
-    if not enabled():
+    ảnh cũ lệch nền — người chọn); `again` = bỏ kết quả đã lưu, gọi Đạo diễn lại (tốn tiền).
+    `manual` (M4.8, kế hoạch bàn đạo diễn mục 2 điểm 1): NGƯỜI chọn chạy (nút / lệnh tay) — chạy cả khi cờ stage_auto TẮT mà KHÔNG đặt
+    os.environ (đặt biến trong tiến trình Streamlit là bật cờ cho mọi phiên + autopilot). Cờ cần (REQUIRES) vẫn phải bật. `who` →
+    apply qua write guard."""
+    if not (enabled() or (manual and all(features.on(n) for n in features.REQUIRES.get(FLAG, ())))):
         return None
     from .camera_plan import drawn_shots
     segs = segments(conn, pid)
@@ -1679,14 +1730,14 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
         r = seg_run(conn, pid, seg, data_dir, client, state.get(seg["stage"]), log, force=again)
         if r.get("waiting"):
             waiting[seg["stage"]] = seg["id"]
-            apply(conn, seg, {})                          # máy tự động cũ theo dàn cảnh chưa duyệt không dùng tiếp
+            apply(conn, seg, {}, who=who)                 # máy tự động cũ theo dàn cảnh chưa duyệt không dùng tiếp
             line = f"sân khấu {seg['id']}: {r['waiting']}"
             _say(conn, pid, "warn", line, log)
             out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
             continue
         if r["missing"]:
             if r.get("stale"):                            # rà 15/10: máy tự động theo dàn cảnh CŨ không được dùng tiếp
-                gone = apply(conn, seg, {})
+                gone = apply(conn, seg, {}, who=who)
                 if gone:
                     _say(conn, pid, "warn", f"Sân khấu {seg['id']}: gỡ máy sân khấu cũ của shot {', '.join(map(str, gone))} "
                                             "(đầu vào đã đổi) — nền 3D dùng máy thường tới khi dàn cảnh lại", log)
@@ -1698,7 +1749,7 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
             r["guide_missing"] = guides_missing(r["cams"])
         if r.get("state"):
             state[seg["stage"]] = r["state"]
-        changed = apply(conn, seg, r["cams"], r.get("bo_qua") or [])
+        changed = apply(conn, seg, r["cams"], r.get("bo_qua") or [], who=who)
         out["applied"] += [i for i in changed if i in r["cams"]]
         out["removed"] += [i for i in changed if i not in r["cams"]]    # 16/10: máy tự động cũ bị GỠ ≠ đã gán máy
         _say_guides(conn, pid, seg, r, out, log)

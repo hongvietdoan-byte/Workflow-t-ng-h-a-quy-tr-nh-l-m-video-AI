@@ -120,6 +120,10 @@ def send(p, pid, sid, kind, provider, data_dir, max_usd=4.0):
     access.need_edit(p, pid, "gửi phép thử độ nét")
     if not features.on("seedance_sample_mode"):
         raise ValueError("Bật tính năng thử độ nét Seedance 2.5 trước khi gửi.")
+    from . import stage_desk                  # C-FIX6 (S-C): đường trả phí ngoài runner — cùng cổng plate 3D bắt buộc (EP)
+    desk = stage_desk.paid_hold(p.conn, pid, data_dir, [sid])
+    if desk:
+        raise ValueError("Không gửi phép thử: " + desk)
     usd = estimate(kind)
     if not math.isfinite(float(max_usd)) or max_usd <= 0 or max_usd > 4.0:
         raise ValueError("Trần phép so phải > 0 và ≤ 4 USD.")

@@ -488,6 +488,14 @@ def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) 
                 _set(p, row["id"], state="rejected", note=skip)
                 _diag(p, row, "info", "end_frame_skill_object", f"khung cuối không vẽ: {skip}")
                 continue
+            from . import stage_desk               # C-FIX6 (S-C): đường trả phí ngoài runner — cùng cổng plate 3D bắt buộc (EP);
+            # rà kỹ C-FIX6 A4: ĐẦU nhánh queued — bị giữ thì không dựng prompt/refs, không ghi diag tham chiếu lặp mỗi tick
+            desk = stage_desk.paid_hold(p.conn, project_id, data_dir, [row["scene_id"]])
+            if desk:
+                if row["note"] != f"chờ: {desk}":
+                    _set(p, row["id"], note=f"chờ: {desk}")
+                    _diag(p, row, "warn", "stage_desk_hold", f"khung cuối chưa gửi: {desk}")
+                continue
             start = os.path.join(data_dir, str(project_id), "images", f"job_{row['start_job_id']}.png")
             if not os.path.exists(start):
                 _set(p, row["id"], state="failed", note="thiếu file ảnh khung đầu")
