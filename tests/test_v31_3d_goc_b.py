@@ -341,3 +341,81 @@ def test_side_claims_subject_rules():
     assert claims("the right side of KELLY's face is lit", ["KELLY"]) == {}
     assert claims("KELLY at the right side of the frame", ["KELLY"]) == {"KELLY": {"right"}}   # phía của KHUNG vẫn là chỗ đứng
     assert claims("KELLY looks toward frame-right where enemies stand", ["KELLY"]) == {}
+
+
+# ---- C-R1-REL (22/10): trái/phải TƯƠNG ĐỐI ("bên phải CỦA X") so hai thực thể với nhau, không so với tâm khung ------------------------
+YEU = "Yêu nữ tà linh dạng 2"
+
+
+@pytest.mark.parametrize("text", [f"{YEU} stands to the right of Kelly", f"{YEU} waits on Kelly's right",
+                                  f"{YEU} đứng bên phải Kelly", f"{YEU} đứng bên phải của Kelly",
+                                  f"Kelly stands to the left of {YEU}", f"Kelly đứng bên trái {YEU}"])
+def test_rel_p31_shot34_right_of_kelly_matches_map(text):
+    """#31 shot 34 thật: Kelly −37°, Yêu nữ −21° (cả hai nửa trái khung) — Yêu nữ phải hơn Kelly ~17° → đúng, không báo (trước sửa:
+    'right of Kelly' bị đọc là Kelly/Yêu nữ ở bên phải KHUNG → báo nhầm)."""
+    m, _, c = _p31(34)
+    assert pi.check_text_sides(m, 34, {"blocking": text}, c) == []
+
+
+@pytest.mark.parametrize("text,who", [(f"{YEU} stands to the left of Kelly", YEU), (f"{YEU} waits on Kelly's left", YEU),
+                                      (f"{YEU} đứng bên trái Kelly", YEU), (f"Kelly stands to the right of {YEU}", "Kelly")])
+def test_rel_p31_shot34_wrong_relative_side_is_flagged(text, who):
+    m, _, c = _p31(34)
+    got = [f for f in pi.check_text_sides(m, 34, {"blocking": text}, c) if f["code"] == "R1-SIDE"]
+    assert [(f["level"], f["numbers"]["entity"]) for f in got] == [("vang", who)]
+    n = got[0]["numbers"]
+    assert n["kind"] == "tuong_doi" and abs(n["delta_deg"]) > pi.REL_MIN_DEG       # ghi số đo
+
+
+def test_rel_p31_shot34_real_sentence_is_absolute_frame_not_relative():
+    """Câu thật shot 34 nói 'frame-right' (bên KHUNG tuyệt đối), không nói 'bên phải Kelly': map đặt cả ba địch ở nửa TRÁI khung (−17…−23°)
+    → chữ tuyệt đối vẫn mâu thuẫn map khi chủ thể là tên trên map; quan hệ tương đối (địch phải hơn Kelly) không cứu chữ 'frame-right'."""
+    m, s, c = _p31(34)
+    got = pi.check_text_sides(m, 34, {"blocking": f"{YEU} stands at the far frame-right corner"}, c)
+    assert [(f["level"], f["numbers"]["entity"]) for f in got] == [("vang", YEU)]
+    assert "frame-right" in s["blocking"] and "right of" not in s["image_prompt"] + s["blocking"]
+
+
+def test_rel_small_gap_is_unclear_with_numbers():
+    """|Δ góc| < REL_MIN_DEG → KHÔNG RÕ + số đo, không VÀNG."""
+    c = cam([0, 0], [0, 10])
+    m = map3d([ent("A", [0.30, 10], "nguoi"), ent("B", [0.0, 10], "nguoi")])        # A phải hơn B ~1.7°
+    got = pi.check_text_sides(m, 1, {"blocking": "A stands to the left of B"}, c)
+    assert [(f["level"], f["numbers"]["entity"]) for f in got] == [("khong_ro", "A")]
+    assert 0 < got[0]["numbers"]["delta_deg"] < pi.REL_MIN_DEG
+    assert pi.check_text_sides(m, 1, {"blocking": "A stands to the right of B"}, c)[0]["level"] == "khong_ro"
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_rel_holds_wherever_the_scene_is_placed(seed):
+    th, t = transform(seed)
+    c = cam([0, 0], [0, 10], th, t)
+    m = map3d([ent("A", [-4, 10], "nguoi", th, t), ent("B", [-1, 10], "nguoi", th, t)])   # cả hai nửa trái khung, B phải hơn A
+    assert pi.check_text_sides(m, 1, {"blocking": "B stands to the right of A"}, c) == []
+    assert [f["numbers"]["entity"] for f in pi.check_text_sides(m, 1, {"blocking": "B stands to the left of A"}, c)] == ["B"]
+
+
+def test_rel_relative_map_uses_relations():
+    m, _, c = _p31(18)                                                         # quan hệ: Kelly trai_cua Sứ giả bóng đêm
+    assert pi.check_text_sides(m, 18, {"blocking": "Kelly crouches to the left of Sứ giả bóng đêm"}, c) == []
+    got = pi.check_text_sides(m, 18, {"blocking": "Kelly crouches to the right of Sứ giả bóng đêm"}, c)
+    assert [(f["level"], f["numbers"]["entity"]) for f in got] == [("vang", "Kelly")]
+
+
+def test_rel_missing_entity_is_said_not_guessed():
+    m, _, c = _p31(34)
+    got = pi.check_text_sides(m, 34, {"blocking": f"{YEU} stands to the right of Joseph"}, c)
+    assert got == []                                                           # Joseph không là tên trên map → không có quan hệ để kiểm
+    got = pi.check_text_sides(m, 34, {"blocking": "stands to the right of Kelly"}, c)
+    assert [f["level"] for f in got] == ["khong_ro"]                           # có Kelly, thiếu chủ thể → nói ra, không đoán
+
+
+def test_side_claims_relative_and_frame_words():
+    claims = world_map._side_claims
+    assert claims("A stands to the right of B", ["A", "B"]) == {}               # tương đối → không phải bên KHUNG của A hay B
+    assert claims("A đứng bên phải B", ["A", "B"]) == {}
+    assert claims("A stands right of frame", ["A"]) == {"A": {"right"}}          # "of frame" vẫn là bên khung
+    assert claims("A ở khung trái", ["A"]) == {"A": {"left"}}
+    assert claims("A đứng bên phải khung", ["A"]) == {"A": {"right"}}
+    assert claims("A đứng phía phải của khung", ["A"]) == {"A": {"right"}}
+    assert claims("A đứng bên phải của người lạ", ["A"]) == {}                   # tương đối với người không có trên map → không gán A

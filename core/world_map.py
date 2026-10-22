@@ -446,7 +446,12 @@ _CLAUSE = re.compile(r"[.;,:\n]|\bwhile\b|\band\b|\bbut\b|\bvà\b|\bcòn\b|\btro
 # R1-SIDE báo nhầm #31 (22/10: shot 18 "behind Kelly's right shoulder", shot 34 "toward frame-right where three enemies stand"):
 # trái/phải chỉ là CHỖ TRONG KHUNG khi không phải bộ phận cơ thể / phía của chính người đó / một đầu của vật, và chỉ gán cho ĐÚNG chủ
 # thể của vế — mệnh đề "where X stand(s)" → X; còn lại → tên đứng gần nhất TRƯỚC chữ, không có thì tên đầu tiên SAU chữ.
-_SIDE_TOKEN = re.compile(r"\b(left|right)\b|(?:bên|phía|sang)\s+(trái|phải)", re.I)
+_SIDE_TOKEN = re.compile(r"\b(left|right)\b|(?:bên|phía|sang)\s+(trái|phải)|\bkhung\s+(trái|phải)", re.I)
+# C-R1-REL (22/10): "right of X" / "bên phải (của) X" là quan hệ TƯƠNG ĐỐI giữa hai thực thể, không phải bên KHUNG → không gán ở đây;
+# core/position_invariants.relative_claims kiểm nó bằng góc hai thực thể. "of the frame" / "khung" vẫn là bên khung.
+_FRAME_NOUN = r"(?:the\s+)?(?:frame|screen|image|shot|picture|khung)\b"
+_REL_OF_AFTER = re.compile(r"^\s*of\s+(?!" + _FRAME_NOUN + r")", re.I)
+_REL_VI_AFTER = re.compile(r"^\s*(?:của\s+)?(?!" + _FRAME_NOUN + r")", re.I)
 _BODY_AFTER = re.compile(r"^[\s-]*(?:hand(?:ed)?|arms?|shoulders?|legs?|foot|feet|knees?|hips?|elbows?|wrists?|fists?|palms?|thumbs?|"
                          r"fingers?|eyes?|ears?|cheeks?|temples?|brows?|eyebrows?|thighs?|ankles?|gloves?|sleeves?|pockets?|holsters?|"
                          r"(?:side|half)\s+of\s+(?:her|his|its|their|the|\w+['’]s)\s+(?:face|head|body|neck|chest|waist|torso))\b", re.I)
@@ -465,13 +470,19 @@ def _side_claims(clause: str, names: List[str]) -> Dict[str, set]:
     spots = sorted((mt.start(), n) for n in names if n for mt in re.finditer(re.escape(str(n)), clause, re.I))
     out: Dict[str, set] = {}
     for tok in _SIDE_TOKEN.finditer(clause):
-        word = (tok.group(1) or tok.group(2) or "").lower()
+        word = (tok.group(1) or tok.group(2) or tok.group(3) or "").lower()
         side = "left" if word in ("left", "trái") else "right"
         before, after = clause[:tok.start()], clause[tok.end():]
-        if tok.group(1):                                  # tiếng Anh: bộ phận cơ thể / sở hữu / một đầu của vật
+        if tok.group(1):                                  # tiếng Anh: bộ phận cơ thể / sở hữu / một đầu của vật / "right of X"
             if _BODY_AFTER.match(after) or _POSS_BEFORE.search(before):
                 continue
             if _PART_AFTER.match(after) and not _FRAME_BEFORE.search(before):
+                continue
+            if _REL_OF_AFTER.match(after):
+                continue
+        elif tok.group(2):                                # "bên phải (của) <tên>" → tương đối; "bên phải khung" → bên khung
+            lead = _REL_VI_AFTER.match(after)
+            if lead and (any(p == tok.end() + lead.end() for p, _ in spots) or re.match(r"\s*của\s+(?!khung\b)", after, re.I)):
                 continue
         where = _WHERE_AFTER.match(after)
         if where:                                         # "frame-right where X stand(s)" → chủ thể là X (có thể không là ai trên map)
