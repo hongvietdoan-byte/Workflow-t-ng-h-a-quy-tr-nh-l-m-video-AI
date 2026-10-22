@@ -1578,3 +1578,17 @@ mặc định khi xóa/chuyển (phải `--lam-that` mới làm), ghi nhật ký
    mới / chưa gộp / bị khóa được giữ; `xoay` giữ đúng 3 bản, chuyển chứ không xóa, `khoi-phuc` trả lại; `nhanh` in đúng 1 dòng; `gop` gỡ worktree
    nhánh đã gộp và vẫn thành công khi gỡ lỗi. Test đỏ trước, xanh sau. Chạy thật `don_rac.py bao-cao` + `worktree` (dry-run) trên máy chính, dán số vào báo cáo.
 Nhánh `codex/v31-don-rac-tool`. Báo cáo `docs/RA_CX22_DON_RAC_TOOL_CODEX_2026-10-2x.md`. XONG hộp thư (phiên chính rà kỹ vì đụng xóa/chuyển file).
+
+### CX22-REPORT — báo cáo dự án khung 7 mục + script báo cáo tuần (ưu tiên 4; EP DUYỆT 22/10 sổ ep-2210-r1-project-report; Cấp 1 CHỈ ĐỌC, 0 USD)
+Script `tools/project_report.py` (khai `devsys/areas.json`, không tăng version) sinh `docs/reports/BAO_CAO_DU_AN_<YYYY-MM-DD>.md` (+ `--pdf` nếu sẵn
+`tools/build_docs.sh`-kiểu pandoc/Chrome). CHỈ ĐỌC: git, `data/manifest.sqlite` (mở `mode=ro` URI), sổ chi, `devsys/plans.json`, `data/decisions.json`,
+hộp thư, nhật ký phiên `~/.claude/projects/*AI-Video-Pipeline*/**/*.jsonl` (dedupe theo message.id, chỉ dự án này). Không ghi CSDL / data/, không gọi mạng.
+7 mục, mỗi số ghi NGUỒN + NGÀY ĐO, có cột "so kỳ trước" (đọc báo cáo tuần trước nếu có):
+1. Tóm tắt 1 phút (trạng thái xanh/vàng/đỏ, 3 điểm chính, việc cần EP quyết). 2. Tiến độ V3.1 theo mốc M0–M8 (`tools/plan_progress.py`).
+3. Khối lượng: commit, file/dòng code theo thư mục, số test, số phiên/ngày làm. 4. Chi phí, TÁCH 4 loại (EP 22/10): **token** (theo model, theo
+tháng, phiên chính / agent), **USD dự toán**, **chi thực tế** (sổ chi), **chi đang giữ chỗ** (job chưa đối soát); tách chi phí xây công cụ vs chi mỗi
+video/dự án (#24, #27, #31, #33…). 5. Chất lượng: video đã ra, tỉ lệ shot đạt ngay / gen lại, lỗi hay gặp (sổ lỗi), test xanh/đỏ. 6. Rủi ro mở.
+7. Việc cần EP quyết (mục `phase` ≠ APPROVED trong `data/decisions.json` + HỎI trong hộp thư) + kế hoạch 2 tuần.
+Thiếu nguồn → ghi "không có dữ liệu: <lý do>", không đoán (CHUAN_XAY_DUNG: không im lặng khi thiếu đầu vào). Test `tests/test_project_report.py` trên dữ
+liệu giả (tmp_path): đủ 7 mục, tách 4 loại chi phí, thiếu nguồn ghi rõ, không ghi file ngoài thư mục ra. Chạy thật một bản trên máy chính, commit
+bản đầu `docs/reports/BAO_CAO_DU_AN_2026-10-2x.md`. Nhánh `codex/v31-report`. XONG hộp thư.
