@@ -21,6 +21,8 @@ from typing import Dict, List, Optional, Tuple
 
 import streamlit as st
 
+from dashboard import stage_desk_ui
+
 FLAG = "stage_view_ui"
 THUMB_PX = 480
 MAX_BYTES = 25 * 1024 * 1024
@@ -274,3 +276,4 @@ def render(p, pid: int, data_dir: str) -> None:
                                       + (f" · máy {cam.get('location')}" if cam.get("location") else ""))
                         if s.get("sentence"):
                             st.caption(f"Câu vị trí gợi ý (chỉ xem): {s['sentence']}")
+            stage_desk_ui.render_scene(p, pid, data_dir, sc["scene"])   # C-M48-DESK-UI: cờ stage_desk_ui TẮT → trả ngay, không vẽ gì

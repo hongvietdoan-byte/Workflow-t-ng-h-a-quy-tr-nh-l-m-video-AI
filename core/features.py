@@ -487,6 +487,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng 21/10: Dashboard chưa xem được sân khấu 3D, mọi thứ chạy CLI và ảnh nằm trong thư mục. Chưa kiểm trên #31 thật",
     },
+    "stage_desk_ui": {
+        "label": "Bàn đạo diễn 3D: duyệt / trả lại / render lại sân khấu trên Bước 2 (0 USD) — hàng nút trong expander từng cảnh của màn XEM "
+                 "(kiểm đầu vào, đề bài / nạp câu trả lời vai ngoại tuyến, tấm ghép, làm lại, render lại, nền 3D); Duyệt / Trả lại chỉ "
+                 "Executive Producer (người)",
+        "verified": False,
+        "why": "M4.8 Đợt 1 (C-M48-DESK-UI 22/10, kế hoạch docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md mục 3, 4, 9): sân khấu chỉ "
+               "chạy được qua CLI. Gọi core/stage_desk (lõi C-M48-DESK-CORE); không gọi Claude API. Chưa bấm thử trên #31 thật",
+    },
     "byd_v2_levels": {
         "label": "BYĐ v2 (V3.1 M2.1): ghi mức BLOCK / REVIEW / WARN của BYĐ từng shot vào byd_kiem (đếm theo mức + phiên bản byd_v) — CHỈ GHI, "
                  "không chặn gen, không đổi gói gửi",
@@ -1340,6 +1348,7 @@ REQUIRES = {"director_rewrite_respect_lock": ("director_rewrite",), "dialogue_ta
             # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
             "stage_auto": ("stage_camera", "place_render_refs"),
             "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",),
+            "stage_desk_ui": ("stage_view_ui",),           # M4.8: bàn đạo diễn nằm trong màn XEM sân khấu
             "continuity_validator": ("crew_registry",),       # M6.9 định tuyến theo Role Registry M6.1
             "ref_end_frames": ("end_frames", "seedance_ref_groups")}   # M7.3: khung cuối tuyến ref chỉ có nghĩa khi cả hai bật
 
