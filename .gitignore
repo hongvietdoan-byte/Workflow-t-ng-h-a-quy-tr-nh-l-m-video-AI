@@ -7,6 +7,7 @@ data/manifest.sqlite-shm
 data/manifest.sqlite-wal
 data/*.director.sqlite*
 data/*.diag_lost.log
+data/ref_padded/
 Get this Skill to Claude/
 data/trial/
 data/demo/
@@ -39,3 +40,6 @@ data/feature_settings.json
 data/feature_settings.json.tmp
 data/ui_snapshot/
 .codex-wt/
+# M7.2: bản sao lưu cài đặt cờ riêng của máy + tệp tạm ghi nguyên tử
+data/backup/
+data/*.tmp

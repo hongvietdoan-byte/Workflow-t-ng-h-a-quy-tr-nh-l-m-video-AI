@@ -205,3 +205,30 @@ class BeforeRunFixFlags(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+M71_PAID = ("hero_takes", "end_frames", "scene_qc_claude", "voice_check_redo", "audio_first", "story_check")
+
+
+class M71PaidFlagsDeclared(unittest.TestCase):
+    """C-M71 A2 (+ B5 docs/BANG_CHUNG_CHOT_CO_2026-10-21.md 2.4.3): cờ có đường gọi trả phí (clip ⭐ thứ hai, ảnh khung cuối, Claude mỗi
+    cảnh / người xem lần đầu / chọn giọng, TTS gửi lại) phải khai `costs: True` + dòng PAID_FLAGS → costly_fix_flag True (nút bật hàng
+    loạt '0 USD' không bật nhầm; 🧭 Trước khi chạy nói giá). Trước C-M71: cả 6 = 0 USD."""
+
+    def test_flags_declare_costs_and_are_costly(self):
+        for name in M71_PAID:
+            self.assertIs(features.FEATURES[name].get("costs"), True, name)
+            self.assertIn(name, BR.PAID_FLAGS, name)
+            self.assertTrue(BR.costly_fix_flag(name), name)
+
+    def test_paid_call_sites_are_behind_these_flags(self):
+        """Bằng chứng đường gọi trả phí đọc đúng cờ (grep code — nếu đổi tên cờ ở chỗ gọi, test đỏ để khai lại)."""
+        sites = {"hero_takes": ("core/hero_takes.py", "FLAG = \"hero_takes\""),
+                 "voice_check_redo": ("core/autopilot.py", "features.on(\"voice_check_redo\")"),
+                 "story_check": ("core/autopilot.py", "features.on(\"story_check\")"),
+                 "audio_first": ("core/autopilot.py", "features.on(\"audio_first\")"),
+                 "scene_qc_claude": ("core/qc_scene.py", "scene_qc_claude"),
+                 "end_frames": ("core/end_frames.py", "end_frames")}
+        for name, (path, needle) in sites.items():
+            with open(os.path.join(ROOT, path), encoding="utf-8") as f:
+                self.assertIn(needle, f.read(), name)

@@ -11,9 +11,13 @@ Gọi ĐÚNG các hàm nút "▶ Gen ảnh" (Bước 2) và job gen ảnh chạy
   - cost.estimate_videos_by_scene(…)       giá VIDEO = nút "▶ Gen video" (Bước 4) + quality_tier.final_estimate (bản cao còn phải gen) —
                                            V3.1 M1.6 (A9): chỉ để báo, KHÔNG vào mã thoát; cờ send_estimate bật → nháp 480p + video tham chiếu,
                                            Claude qua claude_cli = 0 USD
+  - image_pregen.preview(…)                V3.1 M2.7 (cờ image_pregen, mức shadow): cùng bộ mã với kiểm video — chỉ lớp đọc được từ dữ
+                                           liệu shot (bố cục Kho, công thức, BYĐ); REVIEW, KHÔNG vào mã thoát. Lớp cần gói thật
+                                           (nền 3D trong gói, ảnh tham chiếu, vân tay, khối giữ chỗ) chạy ở runner lúc gửi
   - --payload: tools/replay_payload.replay  gói gửi model từng shot (prompt + ảnh tham chiếu)
 Chạy trong thư mục thử như replay_payload (bản sao CSDL + cài đặt cờ + thư mục dự án; junction assets/_plates3d chỉ đọc; mọi ghi dưới
-<main>/data bị chặn). Giá và cổng tính với cờ THẬT của máy (kể cả D6 chat_prompts); phần --payload tắt D6 (không gọi Claude).
+<main>/data bị chặn). Giá và cổng tính với cờ THẬT của máy (kể cả D6 chat_prompts); phần --payload tắt D6 (không gọi Claude) — D6 bật
+ở máy thật thì mỗi shot in thêm dòng "D6:" = bản D6 đã lưu của job hoặc "chưa xem được" (C-M71 A5, P31-G29).
 Mã thoát: 0 = gen được; 1 = còn chặn (cổng / mục đỏ / nền) — báo người dùng, không xin duyệt gen khi còn chặn.
 Phiên Claude dùng lệnh này để báo giá và tình trạng trước khi xin duyệt gen ảnh (CLAUDE.md, skill vong-lam-viec-theo-plan).
 """
@@ -34,7 +38,7 @@ import replay_payload as rp  # noqa: E402
 
 def check(conn, pid: int, data_dir: str) -> dict:
     """{gates, plates_stale, holds: [{idx, why}], plates: [{idx, state, why}], estimate, estimate_text} — the Gen button's own calls."""
-    from core import batch, change_review, cost, image_models, place_refs, shots
+    from core import batch, change_review, cost, image_models, image_pregen, place_refs, shots
     from core.pipeline import Pipeline
     pipe = Pipeline(conn)
     proj = pipe.project(pid)
@@ -67,6 +71,7 @@ def check(conn, pid: int, data_dir: str) -> dict:
     return {"gates": {"block": gates["block"], "warn": gates["warn"]}, "holds": holds, "plates": plates, "estimate": est,
             "estimate_text": cost.format_estimate(est) if est["items"] else "không có ảnh nào phải gen",
             "video": video_prices(pipe, pid),
+            "image_pregen": image_pregen.preview(conn, pid, data_dir) if image_pregen.enabled() else None,
             "blocked": bool(gates["block"] or holds or any(p["state"] in ("cũ", "hỏng", "chờ hướng") for p in plates))}
 
 
@@ -119,6 +124,12 @@ def _print(res: dict) -> None:
     print(f"=== NỀN 3D (place_refs / location_pack.stale_plates) — {len(res['plates'])} shot chưa sẵn ===")
     for p in res["plates"]:
         print(f"  shot {p['idx']} [{p['state']}]: {p['why']}")
+    pre = res.get("image_pregen")
+    if pre is not None:
+        print(f"=== KIỂM ẢNH TRƯỚC GEN (image_pregen, shadow — REVIEW, không vào kết luận) — {len(pre)} shot có lỗi ===")
+        for shot in pre:
+            for i in shot["issues"]:
+                print(f"  shot {shot['idx']} [{i['ma']} · {'ĐỎ' if i['muc'] == 'do' else 'VÀNG'}]: {i['ly_do']}")
     print("=== KẾT LUẬN ===")
     print("  " + ("CÒN CHẶN — sửa / render xong rồi mới xin duyệt gen" if res["blocked"] else
                   f"GEN ĐƯỢC — xin duyệt với giá ≈ {est.get('total') or 0:.2f} {est['currency']}"))
@@ -167,9 +178,7 @@ def main(argv=None) -> int:
         src = os.path.join(main_dir, "data", "feature_settings.json")
         if os.path.exists(src):
             shutil.copyfile(src, real_settings)
-        else:
-            with open(real_settings, "w", encoding="utf-8") as f:
-                json.dump({}, f)
+        # máy không có tệp 🧪: KHÔNG tạo tệp rỗng — để baseline cờ (M7.2) áp như nút Gen trên chính máy đó
         os.environ["PIPELINE_DB"] = box["db"]
         os.environ["FEATURE_SETTINGS_FILE"] = real_settings
         os.environ.update(envf)
@@ -180,8 +189,12 @@ def main(argv=None) -> int:
             res = check(conn, a.project, box["data_dir"])
             payload = None
             if a.payload:
+                from core import features
+                d6_on = features.on("chat_prompts")                      # cờ THẬT của máy (C-M71 A5, P31-G29)
                 os.environ["FEATURE_SETTINGS_FILE"] = box["settings"]     # D6 tắt: gói code ghép, không gọi Claude
                 payload = rp.replay(conn, a.project, box["data_dir"], a.shot)
+                if d6_on:                                                 # gói thật = bản D6: in bản đã lưu hoặc nói "chưa xem được"
+                    rp.annotate_d6(conn, payload)
         conn.close()
         _print(res)
         if payload is not None:

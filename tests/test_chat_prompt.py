@@ -283,3 +283,101 @@ class D6TrialFixes(unittest.TestCase):
         self.assertEqual(fixed, ["clock tower"])
         kept, none = chat_prompt.no_added_features("no clock tower in frame", "no clock tower in frame, fog")
         self.assertEqual((kept, none), ("no clock tower in frame, fog", []))
+
+
+class M71QuotaAndPayload(unittest.TestCase):
+    """C-M71 A5 (P31-G29): (1) pregen_check --payload nói rõ gói D6 thật (bản D6 đã lưu của job, hoặc 'chưa xem được') thay vì in
+    im lặng bản code ghép; (2) Claude hết tiền / hết lượt → bản code ghép + MỘT diag có mã, không đếm vào trần lượt của job, không gọi
+    lại mỗi nhịp."""
+    setUp, _job, _rewrite = ChatPromptTests.setUp, ChatPromptTests._job, ChatPromptTests._rewrite
+
+    def _quota(self):
+        from core.llm_runner import LlmError
+
+        class Broke(FakeClaude):
+            def complete(self, prompt, images=()):
+                self.calls.append(prompt)
+                raise LlmError("credit balance is too low", code="out_of_credit")
+        return Broke([])
+
+    def test_out_of_credit_is_one_coded_diag_and_not_counted(self):
+        broke = self._quota()
+        self.assertEqual(self._rewrite(broke), ASSEMBLED)
+        self.assertEqual([c for _, c, _ in self.said], [chat_prompt.QUOTA_CODE])
+        calls = self.p.conn.execute("SELECT value FROM app_settings WHERE key=?", (chat_prompt.CALLS_KEY.format(self.jid),)).fetchone()
+        self.assertEqual(json.loads(calls[0])["n"] if calls else 0, 0)        # trước: 1 (2 nhịp hết tiền = hết trần job vĩnh viễn)
+        again = self._quota()
+        self.assertEqual(self._rewrite(again), ASSEMBLED)                     # nhịp sau: không gọi lại trong lúc tạm ngừng
+        self.assertEqual(again.calls, [])
+        self.assertEqual({c for _, c, _ in self.said}, {chat_prompt.QUOTA_CODE})
+        self.assertEqual(len({m for _, c, m in self.said if c == chat_prompt.QUOTA_CODE}), 1)   # cùng lời → _diag_once gộp 1 dòng/job
+
+    def test_after_pause_claude_is_asked_again(self):
+        self._rewrite(self._quota())
+        good = FakeClaude([{"prompt": "Image 1 and Image 2: ok"}])
+        with mock.patch.object(chat_prompt.time, "time", return_value=chat_prompt.time.time() + chat_prompt.QUOTA_PAUSE_S + 1):
+            self.assertEqual(self._rewrite(good), "Image 1 and Image 2: ok")
+
+    def test_saved_view_for_pregen_payload(self):
+        self.assertEqual(chat_prompt.saved_view(self.p.conn, self.jid, "image")["state"], "unseen")
+        self.assertIn("chưa xem được", chat_prompt.saved_view(self.p.conn, self.jid, "image")["note"])
+        self._rewrite(FakeClaude([{"prompt": "Image 1 and Image 2: d6 text"}]))
+        view = chat_prompt.saved_view(self.p.conn, self.jid, "image")
+        self.assertEqual((view["state"], view["prompt"]), ("saved", "Image 1 and Image 2: d6 text"))
+
+    def test_replay_payload_prints_d6_state(self):
+        import contextlib
+        import io
+        from tools import replay_payload as rp
+        res = [{"idx": 1, "scene_id": self.sid, "job_id": self.jid, "refs": [], "real_sent": None, "vs_package": None,
+                "prompt": ASSEMBLED, "diags": []}]
+        rp.annotate_d6(self.p.conn, res)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rp._print(res, 0)
+        self.assertIn("D6", out.getvalue())
+        self.assertIn("chưa xem được", out.getvalue())
+
+
+class M71DeepReviewD6(unittest.TestCase):
+    """Rà kỹ C-M71 (VỪA 4, THẤP 5): saved_view nói đúng khi D6 tạm ngừng / đầu vào đã đổi; lượt sửa hết tiền như lượt đầu."""
+    setUp, _job, _rewrite = ChatPromptTests.setUp, ChatPromptTests._job, ChatPromptTests._rewrite
+    _quota = M71QuotaAndPayload._quota
+
+    def test_paused_says_package_is_assembled(self):
+        self._rewrite(FakeClaude([{"prompt": "Image 1 and Image 2: d6 text"}]))
+        self._rewrite(self._quota(), assembled=ASSEMBLED + " x")             # job khác đầu vào → hết tiền → tạm ngừng
+        view = chat_prompt.saved_view(self.p.conn, self.jid, "image", assembled=ASSEMBLED)
+        self.assertEqual(view["state"], "paused")
+        self.assertIn("tạm ngừng tới", view["note"])
+        self.assertIn("code ghép", view["note"])
+
+    def test_saved_view_says_whether_inputs_match(self):
+        self._rewrite(FakeClaude([{"prompt": "Image 1 and Image 2: d6 text"}]))
+        same = chat_prompt.saved_view(self.p.conn, self.jid, "image", assembled=ASSEMBLED)
+        self.assertEqual(same["state"], "saved")
+        self.assertIn("khớp", same["note"])
+        other = chat_prompt.saved_view(self.p.conn, self.jid, "image", assembled=ASSEMBLED + " changed")
+        self.assertEqual(other["state"], "stale")
+        self.assertIn("đã đổi", other["note"])
+
+    def test_fix_turn_out_of_credit_is_like_first_turn(self):
+        from core.llm_runner import LlmError
+        answers = [{"prompt": "Kelly behind the wall, as in Image 1."}]        # bản đầu mất Image 2 → lượt sửa
+
+        class Half(FakeClaude):
+            def complete(self, prompt, images=()):
+                if self.answers:
+                    return super().complete(prompt, images)
+                raise LlmError("credit", code="out_of_credit")
+        self.assertEqual(self._rewrite(Half(answers)), ASSEMBLED)
+        self.assertIn(chat_prompt.QUOTA_CODE, [c for _, c, _ in self.said])
+        hit = chat_prompt._cached(self.p.conn, chat_prompt.fingerprint("image", "gpt-image", ASSEMBLED,
+                                                                      [("Image 1: plate", self.pics[0]), ("Image 2: KELLY", self.pics[1])],
+                                                                      chat_prompt.intent_of(json.loads(self.p.conn.execute(
+                                                                          "SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()[0])),
+                                                                      chat_prompt.user_notes(self.p.conn, self.sid, "image_gen"), 4000))
+        self.assertIsNone(hit)                                                 # không ghi 'refused' cho đầu vào này
+        calls = json.loads(self.p.conn.execute("SELECT value FROM app_settings WHERE key=?",
+                                               (chat_prompt.CALLS_KEY.format(self.jid),)).fetchone()[0])
+        self.assertEqual(calls.get("fix", 0), 0)                               # không mất lượt sửa

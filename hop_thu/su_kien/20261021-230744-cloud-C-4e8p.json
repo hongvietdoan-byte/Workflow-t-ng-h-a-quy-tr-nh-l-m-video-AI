@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T23:07:44.004050+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M81",
+  "branch": "cloud/v31-m81",
+  "commit": "0da9f0e9",
+  "report": "docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md",
+  "text": "Kế hoạch chế độ Đơn giản (Cấp 1, không code) — phiên chính trình EP. Kiểm kê code: 853 điều khiển (529 trên 5 màn sản xuất), ≈89 nút tốn tiền, 6 chỗ tốn tiền không giá/không hỏi đang hiện, luồng ý tưởng→video ≈33 thao tác/19 quyết định. Đề xuất: 2 chế độ (Đơn giản/Chuyên gia dựa toggle 🧠 có sẵn), luồng 4 bước ≤8 cú bấm/≤6 quyết định, bảng GIỮ/GỘP/ẨN/TỰ ĐỘNG theo nhóm, từ điển thuật ngữ, ngân sách cả phim đồng ý 1 lần, lỗi chữ thường từ errors.json, chỉ số đo qua ui_actions/ui_step, lộ trình M8.2–M8.7 (M8.4 an toàn tiền trước), 6 câu hỏi EP Q-A…Q-F. Phụ lục docs/KIEM_KE_NUT_DASHBOARD_2026-10-21.md. HẠN MỨC: không đọc được."
+}

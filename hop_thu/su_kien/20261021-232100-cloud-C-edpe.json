@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T23:21:00.716535+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-GOLDEN6",
+  "branch": "cloud/v31-golden5",
+  "commit": "91708722",
+  "report": "docs/RA_CLOUD_GOLDEN5_2026-10-21.md",
+  "text": "Gốc: TEST sai, không phải worker — negative control đổi meta_entry (nhãn ảnh tham chiếu) mà gói fixture không có ảnh tham chiếu → dòng không chạy. Tái hiện trên cloud bằng Python 3.14 native thật (uv): đổi dòng \"call\" cây B → 2/2 DIFF path call (worker nạp đúng cây). Sửa: test đổi dòng mọi gói đi qua + yêu cầu ≥1 SAME; loaded_a/loaded_b (đường dẫn module thật) mỗi dòng + kiểm nằm trong cây; sys.pycache_prefix (rủi ro .pyc cũ cùng mtime+size là THẬT — test đỏ khi bỏ); chữ ký prompts/knowledge theo cây code; tách lý do BOTH_FAIL (_from_sample/_wait/_hold). Native 3.14: negative control XANH, 165 xanh / 3 đỏ nền chỉ-Windows. Codex chạy lại --ab với HEAD mới. HẠN MỨC: không đọc được."
+}

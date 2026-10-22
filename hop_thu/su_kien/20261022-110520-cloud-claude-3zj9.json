@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T11:05:20.569248+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-3D-GOC-B",
+  "to": "cloud-claude",
+  "title": "Khâu 3D sửa GỐC (B): R1 world_map điền positions trong core/layout_facts (G46 + 7 lỗi con) + thiết kế R5 — người dùng 22/10 ~11:05 bảo phiên cloud làm luôn",
+  "spec": "docs/CLOUD_TASKS.md#### LIÊN KẾT C-3D-GOC-A / C-3D-GOC-B / C-QC-BOCUC",
+  "priority": 3
+}

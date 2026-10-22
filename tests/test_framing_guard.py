@@ -8,6 +8,7 @@ Fixture thật thu nhỏ ở tests/fixtures/framing_p27/ (dự án #27):
   s16_job907_jump.mp4 — 0,3–0,9 s job 907: Kelly "nhảy cóc ra xa" (cỡ mặt ×2,6 trong 0,08 s) vì khung cuối vẽ Kelly ở xa.
   s16_start_job836.jpg + s16_end16_far.jpg (khung cuối 16: Kelly lùi sau tường, mặt ×0,61) / s16_end21_kept.jpg (khung cuối 21 người
       dùng giữ — "cùng khoảng cách máy")."""
+from tests._flags import pin_off
 import json
 import os
 import shutil
@@ -307,6 +308,7 @@ class RunnerEndFrameTests(unittest.TestCase):
     """(a) wiring: runner._end_frame does not send an end frame at another camera distance (VÀNG with the numbers)."""
 
     def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         from core import batch, end_frames, llm_runner, model_router
         from core.providers import MockImageProvider, MockVideoProvider
         from core.runner import VideoRunner

@@ -132,7 +132,8 @@ class RefusedOnce(MockVideoProvider):
         return super().submit(*a, **k)
 
 
-def test_pause_stops_the_model_switched_retry(tmp_path):
+def test_pause_stops_the_model_switched_retry(tmp_path, monkeypatch):
+    monkeypatch.setenv("FEATURE_VIDEO_PREGEN", "0")             # C-FLAGTEST8: đường gửi không cổng trước gen, không dựa mặc định
     p = Pipeline(connect(str(tmp_path / "v.sqlite")))
     pid = p.create_project("#31 video", max_retry=3)
     vid = p.create_job(_video_scene(p, pid), "video_gen")

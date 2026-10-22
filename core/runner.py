@@ -74,7 +74,7 @@ def wait_reason(job_id: int) -> Optional[str]:
 
 
 HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold",
-              'QUEUE_CAPACITY', 'QUEUE_UNKNOWN_CAPACITY', 'QUEUE_CONFIG')
+              'QUEUE_CAPACITY', 'QUEUE_UNKNOWN_CAPACITY', 'QUEUE_CONFIG', "stage_desk_hold")
 """C7 (13/10): diag codes the video runner writes when it KEEPS a queued job (Tổ rà soát, kiểm trước gen ĐỎ, bản cao chờ)."""
 
 
@@ -277,6 +277,19 @@ class _Runner:
         """V7: lý do GIỮ job trước khi gửi (cổng đầu vào), None = được gửi."""
         return None
 
+    def _desk_hold(self, job) -> Optional[str]:
+        """C-FIX6 mục 1 (S-C, sổ v31-ep-stage-desk-actions-2026-10-21): shot của job (và các shot gửi cùng nhóm) mà Executive Producer đánh
+        dấu BẮT BUỘC plate 3D đã duyệt, chưa đạt và chưa có ngoại lệ → lý do giữ (core.stage_desk.paid_hold — MỘT hàm cho ảnh + video, nút /
+        autopilot / batch / gửi lại). Chưa đánh dấu → None (một os.path.isfile, y hệt trước)."""
+        if not job["scene_id"]:
+            return None
+        from . import stage_desk
+        if not self.data_dir or not os.path.isfile(stage_desk._gate_path(self.data_dir, job["project_id"])):
+            return None                          # rà kỹ C-FIX6 A5: chưa đánh dấu → không tính nhóm gửi (_sends_group đọc CSDL)
+        group = getattr(self, "_sends_group", lambda j: None)(job) or []
+        sids = [job["scene_id"]] + [g["id"] for g in group if g["id"] != job["scene_id"]]
+        return stage_desk.paid_hold(self.p.conn, job["project_id"], self.data_dir, sids)
+
     def _blocked(self, job) -> Optional[str]:
         """A reason not to send this job now (it would be made from outdated inputs); None = go."""
         return None
@@ -384,7 +397,18 @@ class _Runner:
                 send_claim.release(self.p.conn, jid, claims["owner"])
             lock.release()
         self._script_cap_stop(project_id)
+        if sent:
+            self._remember_flags(project_id)
         return sent
+
+    def _remember_flags(self, project_id: int) -> None:
+        """M7.2: mốc cấu hình cờ của dự án (<data>/<pid>/flag_config.json, có `at` = lần gửi) mỗi lần nó THẬT gửi job — dự án sau so
+        drift với dự án gửi CUỐI (🧭 trước khi chạy). Một tệp nhỏ; lỗi không bao giờ chặn việc gửi."""
+        try:
+            from . import features
+            features.remember_config(self.data_dir, project_id)
+        except Exception:  # noqa: BLE001 - một mốc so drift, không bao giờ là lý do ngừng gửi
+            pass
 
     def _script_cap_stop(self, project_id: int) -> None:
         """S14.2 rà soát A2 (a): a command-line run hit its --max-usd (core.script_cap) — its queued jobs will never be sent, so they
@@ -460,7 +484,12 @@ class _Runner:
                 WAIT_REASONS[job["id"]] = (held, time.time())
                 self._diag_once(job, "warn", "change_review_hold", f"chưa gửi: {held}")
                 continue
-            gate = self._gate_hold(job)                  # V7: ảnh khung đầu chưa qua kiểm nền 3D / nhóm liền mạch chưa duyệt đủ ảnh
+            desk = self._desk_hold(job)                  # C-FIX6 (S-C): plate 3D bắt buộc chưa đạt → GIỮ — một chỗ cho mọi đường gửi trả phí
+            if desk:
+                WAIT_REASONS[job["id"]] = (desk, time.time())
+                self._diag_once(job, "warn", "stage_desk_hold", f"chưa gửi: {desk}")
+                continue
+            gate = self._gate_hold(job)                 # V7: ảnh khung đầu chưa qua kiểm nền 3D / nhóm liền mạch chưa duyệt đủ ảnh
             if gate:
                 WAIT_REASONS[job["id"]] = (gate, time.time())
                 self._diag_once(job, "warn", "video_gate_hold", f"chưa gửi: {gate}")
@@ -533,6 +562,12 @@ class _Runner:
                 sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
                 if self._paused_now(job):                # M1.3 (G36, cờ pause_before_submit): ⏸ pressed while this job was prepared
                     break                                # (plain, retry or model-switched try alike) — stays queued, said, nothing sent
+                from . import gen_auth                   # V3.1 M6.3 SHADOW (cờ gen_auth_shadow): ghi cho phép / sẽ chặn + lý do
+                if gen_auth.enabled():                   # vào sổ jsonl — KHÔNG chặn, không ghi CSDL, không đổi gói
+                    gen_auth.shadow(self.p.conn, job, model=self._sent_model(args, sent_kwargs) or job["model"],
+                                    upgrade=bool(kwargs.get("_from_sample")), data_dir=self.data_dir,
+                                    group=[g["id"] for g in (getattr(self, "_sends_group", lambda j: None)(job) or [])
+                                           if g["id"] != job["scene_id"]])
                 from . import poll_claim
                 try:
                     if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
@@ -587,6 +622,14 @@ class _Runner:
             slots -= 1
             submitted += 1
         return submitted
+
+    def _sent_model(self, args, sent_kwargs) -> Optional[str]:
+        """M6.3: model THẬT của lượt gửi (video: đối số thứ 5 của provider.submit — jobs.model chỉ ghi SAU khi gửi; ảnh: kwargs)."""
+        if sent_kwargs.get("model"):
+            return sent_kwargs["model"]
+        if self.job_type == "video_gen" and args is not None and len(args) > 4:
+            return args[4]
+        return None
 
     def _paused_now(self, job) -> bool:
         """M1.3 (G36, cờ pause_before_submit): the project is paused NOW (read again right before provider.submit) — the job keeps its
@@ -673,6 +716,31 @@ class _Runner:
                 self._diag(job, "warn", "sent_package", w)
             except Exception:  # noqa: BLE001 - a ledger note, never a gate: the send and its ledger entry stand
                 pass
+        try:
+            from . import lean_package
+            on = lean_package.enabled()                    # M2.10 SHADOW: flag off = nothing else is called
+        except Exception as e:  # noqa: BLE001 - a broken flag read never touches the send that already happened
+            on = False
+            try:
+                self._diag(job, "warn", "lean_package", f"không đọc được cờ lean_package ({type(e).__name__}: {e}) — bỏ shadow")
+            except Exception:  # noqa: BLE001 - a note only
+                pass
+        if on:
+            self._lean_shadow(job)
+
+    def _lean_shadow(self, job) -> None:
+        """M2.10 (cờ lean_package): the lean package built BESIDE the one just sent (read back from jobs.sent_package, after the ledger
+        commit) → <data_dir>/lean_package/<project>/job_<id>.json + one ⚙ line. Never sent, never changes the real package, never raises."""
+        from . import lean_package
+        try:
+            rep, path = lean_package.shadow_job(self.p.conn, self.data_dir, job)
+            message = lean_package.note(rep, path)
+        except Exception as e:  # noqa: BLE001 - shadow: said, the send stands
+            message = f"gói tối giản (shadow, KHÔNG gửi): lỗi ({type(e).__name__}: {e})"
+        try:
+            self._diag(job, "info", lean_package.DIAG_CODE, message)
+        except Exception:  # noqa: BLE001 - a note only
+            pass
 
     def _running(self, job_id: int, note: Optional[str] = None) -> None:
         """QUEUED → RUNNING without Pipeline.start()'s pause check (T2): used once the task exists at the provider, or on the way to
@@ -1128,6 +1196,26 @@ class VideoRunner(_Runner):
 
     def _build_package(self, job, args, kwargs, sent_kwargs, task_id):
         pkg, warns = super()._build_package(job, args, kwargs, sent_kwargs, task_id)
+        from . import model_router
+        if pkg and model_router.router_first_frame_on() and job["scene_id"]:   # M2.8: why this shot left its ref-only group (flag off: as before)
+            from . import seedance_refs
+            reason = seedance_refs.split_reason(self.p.conn, job["scene_id"])
+            if reason:
+                body = json.loads(pkg)
+                body["router"] = {"gui_mot_minh": True, "ly_do": f"tách khỏi nhóm ref-only vì cần khung đầu — {reason}; clip này VẪN ref-only "
+                                                                  "(chưa có khung đầu, M2.8 phần đổi đường chưa làm)"}
+                pkg = json.dumps(body, ensure_ascii=False)
+        from . import end_frames
+        if pkg and end_frames.ref_route_on() and job["scene_id"]:       # M7.3: tách khỏi nhóm ref-only để mang khung cuối (cờ tắt: như cũ,
+            #                                                             không đọc job — golden replay dựng job thiếu scene_id)
+            from . import seedance_refs
+            reason = seedance_refs.end_split_reason(self.p.conn, job["scene_id"])
+            if reason:
+                body = json.loads(pkg)
+                body["router_khung_cuoi"] = {"gui_mot_minh": True, "ly_do": f"tách khỏi nhóm ref-only để gửi được khung cuối — {reason}; "
+                                                                           "khung cuối đi như ảnh tham chiếu cuối có câu vai trò "
+                                                                           "(không có khung cuối trong gói = chưa vẽ / bị bỏ, xem ⚙ Chẩn đoán)"}
+                pkg = json.dumps(body, ensure_ascii=False)
         fingerprint = self.__dict__.get("_pregen_fingerprints", {}).get(job["id"])
         if pkg and task_id is not None and fingerprint:
             body = json.loads(pkg)
@@ -1309,6 +1397,9 @@ class VideoRunner(_Runner):
         """The group's dialogue track (Audio1): every take line at its second of the clip, silence around, the clip's length. Each
         take shot is marked sent (lipsync index: its planned start in the clip — the cut may move it, see _take_done)."""
         from . import audio_lib, dialogue_take, ffmpeg_studio, lipsync, seedance_refs
+        if not self.__dict__.get("_preview"):            # M2.9 G15 (cờ narration_offscreen): shot nay "skip" không giữ khớp môi cũ
+            for r in rows:
+                lipsync.forget_skipped(self.data_dir, job["project_id"], r["id"], r["data"])
         segs = self._take_segments(job, rows)
         if not segs:
             return None
@@ -1406,6 +1497,18 @@ class VideoRunner(_Runner):
                     out["reference_audio"] = [track]
                 else:
                     self._no_lip_sync_note(job, "seedance", group)
+            from . import end_frames
+            if end_frames.ref_end_frames_on():   # M7.3: model tuyến ref không nhận khung cuối — VÀNG (REVIEW), không âm thầm bỏ; rà VỪA-1:
+                members = [(r["id"], r["data"]) for r in group] if group else [(job["scene_id"], self._scene_data(job))]  # mọi shot
+                late = []                                                                                         # của clip nhóm
+                for sid, d in members:
+                    why = end_frames.ref_unsupported_reason(d, mode)
+                    if why:
+                        late.append(sid)
+                if late:
+                    names = ", ".join(f"S{r['idx']:02d}" for r in self.p.conn.execute(
+                        "SELECT idx FROM scenes WHERE id IN (%s) ORDER BY idx" % ",".join("?" * len(late)), late))
+                    self._diag_once(job, "warn", "end_frame_ref_unsupported", f"{names}: {why}")
             if not group:                    # 11/10 (#24 job 662/664): the drawn end state (K1) goes with a reference-only shot too —
                 end = self._end_frame(job, choice.get("model") or "seedance", chain=False)   # the adapter sends it as the LAST
                 if end:                                                                  # reference picture with its role sentence
@@ -1551,8 +1654,11 @@ class VideoRunner(_Runner):
         from . import end_frames               # R3 (rà S3): ONE rule with queue / tick / card (end_frames.skip_reason)
         if not end_frames.skip_reason(self.p.conn, job["scene_id"], self._scene_data(job)):
             return False
-        self._diag_once(job, "warn", "end_frame_skill_object", f"shot có vật kỹ năng xuất hiện (ném keo) — clip gửi KHÔNG kèm khung cuối "
-                        f"vẽ{f' ({os.path.basename(end)})' if end else ''}; dựng bằng GHÉP code cắt cứng sang khung có tường (`py {skill_objects.COMPOSE_TOOL}`)")
+        # M2.9 A11: nói đúng vật (tên Kho), không viết cứng "ném keo" / "tường"
+        vat = ", ".join(skill_objects.rising_names(self.p.conn, job["project_id"], self._scene_data(job)))
+        self._diag_once(job, "warn", "end_frame_skill_object", end_frames.SKIP_TEXT["skill_object"].format(vat=f" {vat}" if vat else "")
+                        + f" — clip gửi KHÔNG kèm khung cuối vẽ{f' ({os.path.basename(end)})' if end else ''}; dựng bằng GHÉP code cắt "
+                        f"cứng sang khung cuối có {vat or 'vật kỹ năng'} (`py {skill_objects.COMPOSE_TOOL}`)")
         return True
 
     def _same_ground(self, job, end: str) -> bool:
@@ -1818,6 +1924,8 @@ class VideoRunner(_Runner):
             return None
         data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
         if not lipsync.voiced(lipsync.method_for(data)):
+            if not self.__dict__.get("_preview"):        # M2.9 G15 (cờ narration_offscreen): bỏ trạng thái khớp môi cũ của shot nay "skip"
+                lipsync.forget_skipped(self.data_dir, job["project_id"], job["scene_id"], data)
             return None
         mp = self._motion(job["scene_id"])
         length = float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or data.get("duration_s") or 4)
@@ -1862,6 +1970,15 @@ class VideoRunner(_Runner):
     def _motion(self, scene_id: int):
         return self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
 
+    def _end_frame_still_wanted(self, job, row) -> bool:
+        """Rà M7.3 VỪA-2: một khung cuối đang vẽ chỉ giữ clip khi NGƯỜI đã bấm vẽ (asked — như cũ) hoặc shot vẫn cần nó (end_frames.wanted).
+        Rollback cờ ref_end_frames: dòng do chạy tự động xếp cho shot tuyến ref không còn giữ shot (về nhóm như cũ)."""
+        from . import end_frames, shots
+        data = self._scene_data(job)
+        if end_frames.route(data) != "seedance_ref" or end_frames.asked(self.p.conn, row["id"]):
+            return True                  # tuyến khung đầu + cuối / người bấm vẽ: giữ như cũ
+        return end_frames.wanted(self.p.conn, job["scene_id"], data, shots.mode(self.p.project(job["project_id"])))
+
     def _has_clip(self, scene_id: int) -> bool:
         # 08/10 (#24): 'pending_review' was left out — with "Tôi duyệt hết" every clip waits there, so the redo of shot 3 (a part of
         # the S01–S03 group clip) waited forever, silently, for shot 1 to "have a clip". A clip waiting for the person IS a clip.
@@ -1895,6 +2012,19 @@ class VideoRunner(_Runner):
         row = self.p.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='video_gen' ORDER BY id DESC LIMIT 1",
                                   (scene_id,)).fetchone()
         return row is not None and row["state"] in ("queued", "retryable")
+
+    def _in_flight_group(self, scene_id: int) -> bool:
+        """M2.8: a group clip being made (queued / running, sent_group) of ANOTHER shot carries this shot's part — whatever the groups are
+        now (the router may have split the group after it was sent)."""
+        rows = self.p.conn.execute("SELECT sent_group FROM jobs WHERE type='video_gen' AND state IN ('queued','running') AND sent_group"
+                                   " IS NOT NULL AND scene_id<>?", (scene_id,)).fetchall()
+        for r in rows:
+            try:
+                if any(int(g.get("id")) == scene_id for g in json.loads(r["sent_group"]) or []):
+                    return True
+            except (TypeError, ValueError, AttributeError):
+                continue
+        return False
 
     def _covered(self, scene_id: int, group) -> bool:
         """A group clip already sent (or being made) carries this shot's part."""
@@ -1983,7 +2113,8 @@ class VideoRunner(_Runner):
         if end_frames.enabled():
             row = end_frames.current(self.p.conn, job["scene_id"])
             if row is not None and row["state"] in ("queued", "running") and not end_frames.skip_reason(self.p.conn, job["scene_id"]) \
-                    and not end_frames.sent_without(self.p.conn, job["scene_id"]):    # C3: the person chose to send it without
+                    and not end_frames.sent_without(self.p.conn, job["scene_id"]) \
+                    and self._end_frame_still_wanted(job, row):    # C3: the person chose to send it without; M7.3 rà VỪA-2
                 # C5: held WITH the reason (card / inbox), never silently. R8 (rà S3): also in diag (end_frame_wait ∈ HOLD_CODES) so
                 # held_reason reads it after WAIT_FRESH_SEC / in another process; R1/R7: the real reason (autopilot's row waiting, cap)
                 why = end_frames.missing_reason(self.p.conn, job["scene_id"]) or "đang vẽ khung cuối"
@@ -1992,6 +2123,10 @@ class VideoRunner(_Runner):
                 return self._hold(job, line)
         group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
+            from . import model_router         # rà DP10 VỪA-3: cờ router bật giữa chừng — phần của shot đã đi cùng một clip nhóm đang bay
+            if (model_router.router_first_frame_on() or end_frames.ref_route_on()) and self._refs(job) \
+                    and self._in_flight_group(job["scene_id"]):        # M7.3: cờ ref_end_frames bật giữa chừng — cùng luật
+                return True
             return False
         if self._refs(job) and self._covered(job["scene_id"], group):
             return True                   # its part comes with a group clip already sent
@@ -2936,9 +3071,9 @@ def _skill_object_guard(runner, job, text: str, what: str, group=None) -> str:
                                                                        .fetchone() or {"data": "{}"})["data"] or "{}")}]
         if any(skill_objects.rises(r["data"]) for r in rows):
             say(job, "warn", "skill_object_compose",
-                f"shot có {', '.join(names)} xuất hiện (ném keo) — tường xuất hiện luôn, prompt tả tường đã đứng sẵn đủ cao (không tả "
+                f"shot có {', '.join(names)} xuất hiện — vật xuất hiện luôn, prompt tả {', '.join(names)} đã đứng sẵn đủ cao (không tả "
                 f"mọc); model video hay vẽ sai vật kỹ năng (#27 shot 16: 6 lần gen hỏng) → gợi ý dựng bằng GHÉP code: clip người cắt "
-                f"cứng sang khung cuối có tường + rung (`py {skill_objects.COMPOSE_TOOL}`)")
+                f"cứng sang khung cuối có {', '.join(names)} + rung (`py {skill_objects.COMPOSE_TOOL}`)")   # M2.9 A11: không viết cứng "ném keo" / "tường"
     return new
 
 
@@ -3390,12 +3525,11 @@ class ImageRunner(_Runner):
         row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
         if row is None:
             return None
-        layout = assets.missing_layout(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"))
+        from . import image_pregen               # M2.7: the same two reasons as the check before gen (one source, same words)
+        layout = image_pregen.layout_reason(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"))
         if layout:
             return layout
-        from . import prompt_formula             # F1 (09/10): a picture prompt that breaks the formula is not paid for
-        red = prompt_formula.red_issues(self.p.conn, job["scene_id"], "image")
-        return ("prompt ảnh sai công thức — sửa ở Bước 1/2: " + " · ".join(red)) if red else None
+        return image_pregen.formula_reason(self.p.conn, job["scene_id"])   # F1 (09/10): a prompt that breaks the formula is not paid for
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
         model = (kwargs or {}).get("model")
@@ -3489,9 +3623,13 @@ class ImageRunner(_Runner):
 
     def _pregen(self, job, args, kwargs) -> bool:
         """#24 job 649 (11/10): the last check of the picture's package before it is paid for — every 3D background in it must be
-        THIS shot's current camera (place_refs.package_problem). Otherwise ĐỎ: held with the reason (never sent, never silent)."""
+        THIS shot's current camera (place_refs.package_problem). Otherwise ĐỎ: held with the reason (never sent, never silent).
+        M2.7 (cờ image_pregen, mức shadow): before that, core/image_pregen.check on the same package — REVIEW lines only, never held."""
         from . import place_refs
         from . import location_pack
+        from . import image_pregen
+        if job["scene_id"] and image_pregen.enabled():
+            self._pregen_shadow(job, args, kwargs)
         sent = getattr(self, "_sent", {}).get(job["id"])
         if not sent or not job["scene_id"]:
             return False
@@ -3499,12 +3637,41 @@ class ImageRunner(_Runner):
         if not why:
             PREGEN_HELD.pop(job["id"], None)
             return False
-        line = f"CẦN BẠN SỬA: {why} — ảnh GIỮ CHỜ, không gửi (0 USD); render lại nền 3D / sửa góc máy rồi sẽ tự gửi"
+        line = image_pregen.plate_line(why)
         WAIT_REASONS[job["id"]] = PREGEN_HELD[job["id"]] = (line, time.time())
         self._diag_once(job, "error", "plate_package_mixed", line)
         self._sent.pop(job["id"], None)
         getattr(self, "_storyboard", {}).pop(job["id"], None)
+        self.__dict__.get("_pregen_dropped", {}).pop(job["id"], None)
         return True
+
+    def _pregen_shadow(self, job, args, kwargs) -> None:
+        """M2.7 shadow: image_pregen.check on the package about to leave (the same builder as the ledger, task id None) — one ⚙ Chẩn
+        đoán line per issue (REVIEW), once per (job, text) for the life of the process. Never holds, never changes the send; a check
+        that cannot run is said, not swallowed."""
+        from . import image_pregen
+        try:
+            sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}
+            pkg, _ = self._build_package(job, args, kwargs, sent_kwargs, None)
+            plan = image_pregen.plan_of(job, args, kwargs, pkg, self.data_dir, getattr(self, "_sent", {}).get(job["id"]),
+                                        self.__dict__.get("_pregen_dropped", {}).get(job["id"]))
+            issues = image_pregen.check(self.p.conn, job["scene_id"], plan)
+        except Exception as e:  # noqa: BLE001 - shadow: said, the send goes on as before
+            issues = [{"ma": "loi_kiem", "muc": "do", "ly_do": f"lớp kiểm trước gen ảnh lỗi ({type(e).__name__}: {e}) — chưa kiểm được"}]
+        for issue in issues:
+            if issue["ma"] not in image_pregen.SHADOW_SKIP:
+                self._shadow_note(job, image_pregen.shadow_line(issue))
+
+    def _shadow_note(self, job, message: str) -> None:
+        """One diag line per (job, text) for the process (module-level like video's _pregen_note: the dashboard makes new runners)."""
+        from . import image_pregen
+        key = (job["id"], image_pregen.DIAG_CODE, message)
+        if key in _PREGEN_SAID:
+            return
+        if len(_PREGEN_SAID) > 5000:
+            _PREGEN_SAID.clear()
+        _PREGEN_SAID.add(key)
+        self._diag(job, "warn", image_pregen.DIAG_CODE, message)
 
     def _anchor_wait_note(self, job) -> None:
         """Lỗi 11 (#24): the job waits for its scene's anchor picture. When the anchor has NO picture job on its way (not queued / running),
@@ -3526,6 +3693,7 @@ class ImageRunner(_Runner):
     def _stamp(self, job, args) -> Dict:
         from . import lineage
         sent = getattr(self, "_sent", {}).pop(job["id"], None)
+        self.__dict__.get("_pregen_dropped", {}).pop(job["id"], None)
         return {"input_hash": lineage.current_image_hash(self.p.conn, job["project_id"], job["scene_id"]),
                 "sent_refs": json.dumps(sent, ensure_ascii=False) if sent is not None else None}
 
@@ -3674,6 +3842,9 @@ class ImageRunner(_Runner):
         if anchored:                                   # lỗi 1 #27: render của shot là ẢNH 1 (không bị trần số ảnh cắt, đánh số 1)
             refs = plate_anchor.plate_first(refs)
         refs, dropped = sendable_references(refs, model)
+        from . import image_pregen
+        if image_pregen.enabled():                   # M2.7: read by the shadow check (flag off: nothing kept)
+            self.__dict__.setdefault("_pregen_dropped", {})[job["id"]] = list(dropped)
         if dropped:
             self._diag(job, "warn", "missing_reference", "ảnh tham chiếu không gửi được (bỏ khỏi yêu cầu và khỏi câu đánh số ảnh): "
                        + ", ".join(dropped))
@@ -3685,8 +3856,8 @@ class ImageRunner(_Runner):
             refs = prop_lock.prioritize_gun_refs(self.p.conn, job["project_id"], lock_data, refs,
                                                 lambda ref: bool(sendable_references([ref], model)[0]))
         self._sent = getattr(self, "_sent", {})
-        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"]),
-                                  **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})} for r in refs]   # KLD-6
+        from . import sent_package as _sp                # C-M26: + path / asset_id khi cờ sent_package_relpath (G5 tên trùng)
+        self._sent[job["id"]] = [_sp.meta_entry(r, **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})) for r in refs]   # KLD-6
         from . import scene_storyboard
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False):
             warning = scene_storyboard.anchor_warning(self.p.conn, self.data_dir, job["project_id"], job["scene_id"])
@@ -3774,13 +3945,15 @@ class ImageRunner(_Runner):
                                f"{why}: KHÔNG gửi ảnh neo khung 1 (shot {g['anchor']['idx']}, có {mark or 'mốc'}) — chỉ ảnh nhân "
                                f"vật/trang phục + render 3D của shot, phiên storyboard riêng{extra}")
                 if fields is not None:
+                    if image_pregen.enabled():         # M2.7: the storyboard list is what leaves
+                        self.__dict__.setdefault("_pregen_dropped", {})[job["id"]] = list(dropped)
                     refs = fields["refs"]
                     prompt = prompt.rstrip() + fields.get("cast_note", "")
                     self._storyboard = getattr(self, "_storyboard", {})
                     self._storyboard[job["id"]] = fields["storyboard"]
                     self._sent = getattr(self, "_sent", {})
-                    self._sent[job["id"]] = [{"label": r["label"], "role": r.get("role", ""), "file": os.path.basename(r["path"]),
-                                              **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})}
+                    from . import sent_package as _sp
+                    self._sent[job["id"]] = [_sp.meta_entry(r, **({"plate_key": r["plate_key"]} if r.get("plate_key") else {}))
                                              for r in refs] + [{"label": "storyboard", "role": "storyboard",
                                                                 "file": fields["storyboard"]["storyboard_id"]}]
         if hasattr(self, "_diag"):                     # luật 1 (#24 shot 9, 11/10): a pictured person of the frame left out is said

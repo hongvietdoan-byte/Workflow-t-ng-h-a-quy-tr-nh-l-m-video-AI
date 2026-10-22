@@ -41,6 +41,28 @@ def diff_html(old: str, new: str) -> str:
     return '<div style="font-size:.85rem;line-height:1.45;white-space:pre-wrap">' + "".join(out) + "</div>"
 
 
+def _proposal(p, scene_id: int, kind: str, act=None) -> bool:
+    """C-M71 A3 (cờ director_rewrite_respect_lock): prompt bạn đã sửa/khóa → Đạo diễn chỉ ĐỀ XUẤT; ô so sánh + nút Áp dụng (0 USD,
+    không tạo job). Khóa widget: pvprop_<kind>_<scene_id>."""
+    try:
+        got = prompt_rewrite.proposal(p.conn, scene_id, kind)
+    except Exception:  # noqa: BLE001 - an old database without app_settings: nothing proposed
+        got = None
+    if not got:
+        return False
+    with st.expander("💡 Đạo diễn đề xuất prompt mới (chưa áp dụng — bạn đã sửa/khóa prompt này)", expanded=False):
+        st.markdown(diff_html(got.get("old_prompt") or "", got["prompt"]), unsafe_allow_html=True)
+        if got.get("changed"):
+            st.markdown("\n".join(f"- {c}" for c in got["changed"]))
+        if st.button("✔ Áp dụng đề xuất", key=f"pvprop_{kind}_{scene_id}",
+                     help="Không gọi Claude, không tạo job — lần gen sau dùng prompt này."):
+            run = act or (lambda fn, msg="": (fn(), True)[1])
+            mark = prompt_rewrite.proposal_mark(got)          # rà kỹ C-M71: áp dụng đúng bản đang hiện
+            if run(lambda: prompt_rewrite.apply_proposal(p, scene_id, kind, expect=mark), "Đã áp dụng đề xuất của Đạo diễn"):
+                st.rerun()
+    return True
+
+
 def panel(p, scene_id: int, kind: str, act=None) -> bool:
     """Draw the panel for one shot (kind 'image' | 'video'). Returns True when something was shown."""
     # Fallback có thể chưa lưu được phiên bản nào: vẫn nói rõ ngay trên thẻ shot.
@@ -50,9 +72,10 @@ def panel(p, scene_id: int, kind: str, act=None) -> bool:
     fallback = last_event is not None and last_event["code"] == prompt_rewrite.FALLBACK_CODE
     if fallback:
         st.warning(last_event["message"])
+    shown = _proposal(p, scene_id, kind, act) or fallback
     vers = prompt_rewrite.live_versions(p.conn, scene_id, kind)
     if not any(v["source"] == "director_rewrite" for v in vers):
-        return fallback
+        return shown
     last = vers[-1]
     if last["source"] != "director_rewrite":                       # reverted: say which prompt is in use, nothing to compare
         st.caption(f"↩ Đang dùng prompt cũ (v{last['version']}) — Đạo diễn từng sửa prompt shot này")

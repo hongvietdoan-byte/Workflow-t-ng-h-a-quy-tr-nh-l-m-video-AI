@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:58:00.909698+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX21-GOLDEN5",
+  "to": "codex",
+  "title": "Chạy nghiệm thu golden A/B ở máy chính (khi C-GOLDEN5 XONG)",
+  "spec": "docs/CODEX_TASKS.md### CX21-GOLDEN5",
+  "priority": 0
+}

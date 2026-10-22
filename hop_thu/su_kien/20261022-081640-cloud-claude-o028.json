@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T08:16:40.247732+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-M48-DESK-CORE",
+  "to": "cloud-E",
+  "title": "Bàn đạo diễn 3D Đợt 1 — tầng lõi core/stage_desk.py + stage_auto.apply(who) qua write guard (0 USD; nền cloud/v31-m2-tichhop)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M48-DESK-CORE",
+  "priority": 1
+}

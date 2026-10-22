@@ -1,0 +1,6 @@
+{
+  "ts": "2026-10-22T02:48:53.001154+07:00",
+  "lane": "codex",
+  "kind": "het_viec",
+  "text": "GOLDEN7: đã thấy C-GOLDEN7 XONG621661a8 lúc02:46 nhưng dependency yêu cầu GỘP nên ke vẫn từ chối. Chờ điều phối rà/gộp hoặc chỉ dẫn rõ chạy nhánh đãpush; không tự vượt dependency. M23 vẫn chờ M2main. Tuần đãdùng90%còn10%, giữquota cho nghiệm thu."
+}

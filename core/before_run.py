@@ -17,6 +17,7 @@ WHERE_KHO = "📚 Kho → mở vật → hồ sơ chuẩn"
 PAID_FLAGS: Dict[str, Dict] = {
     "change_review": {"stage": "change_review", "unit": "thay đổi shot, không trần (mỗi thay đổi một lời gọi Claude)"},
     "director_rewrite": {"stage": "director_rewrite", "images": 1, "unit": "lần gen lại có ghi chú / lỗi QC (Claude viết lại prompt)"},
+    "end_frames": {"text": "BẬT thật = vẽ thêm 1 ảnh khung cuối mỗi shot đổi trạng thái (giá ảnh như ảnh khung đầu); học việc = 0 USD"},
     "two_tier_quality": {"text": "video nháp 480p rồi bản cao — giá từng clip xem ở ước tính Bước 4; bản cuối chưa chạy thật lần nào"},
     "stage_camera": {"text": "tự nó không thêm lời gọi tốn tiền (render Blender 0 USD) nhưng đổi nền 3D gửi model ảnh — ảnh vẽ trên nền "
                              "này vẫn tính tiền như thường; máy sân khấu do stage_auto lập thì tốn Claude (xem dòng stage_auto)"},
@@ -26,6 +27,15 @@ PAID_FLAGS: Dict[str, Dict] = {
     "stage_crew": {"text": "thay một lượt Đạo diễn sân khấu bằng 4–6 lượt chia vai mỗi cảnh (Đạo diễn, Quay phim, Quay phim duyệt có ảnh "
                            "clay, duyệt chốt) — ước tính ở tools/stage_auto.py; ngoại tuyến (--crew) 0 USD"},
     "qc_framing_cap": {"text": "thêm ảnh vào mỗi lượt QC clip; clip đổi bố cục bị hạ điểm → tự sửa khi qc_autofix"},   # rà 15/10
+    # C-M71 A2 (+ B5): cờ gọi trả phí mà trước không khai (costly_fix_flag = False → coi 0 USD). "fn" = số theo dự án (cần pid).
+    "hero_takes": {"fn": "_hero_money", "text": "thêm 1 clip mỗi shot ⭐ gửi riêng — giá ở ước tính Bước 4"},
+    "end_frames": {"fn": "_end_frame_money", "text": "thêm 1 ảnh khung cuối mỗi shot có end_state — giá ở ước tính nút Gen ảnh"},
+    "scene_qc_claude": {"text": "một lượt Claude mỗi cảnh khi đủ khung (≈ 0,5 USD mỗi lần chấm lại cả cảnh — đo 27/09); tắt cờ thì QC "
+                                "lớp 0 bằng code vẫn chạy"},
+    "voice_check_redo": {"text": "chạy tự động gửi lại TTS một lần cho câu thoại bị cờ lỗi — tính theo lượt gửi âm thanh (chưa có giá USD)"},
+    "story_check": {"text": "một lượt Claude (người xem lần đầu) mỗi lần bảng shot đổi, trước khi làm ảnh"},
+    "audio_first": {"text": "gửi TTS mọi câu thoại ngay sau Đạo diễn (trước ảnh) + một lượt Claude chọn giọng khi thiếu — tính theo lượt "
+                            "gửi âm thanh"},
 }
 
 OPS_LINES = (
@@ -65,14 +75,47 @@ def _short_label(label: str, n: int = 90) -> str:
     return first if len(first) <= n else first[: n - 1].rstrip() + "…"
 
 
-def _cost_items(conn) -> List[Dict]:
+def _hero_money(conn, pid: int) -> str:
+    """C-M71 A2: số clip ⭐ thêm của DỰ ÁN này + USD ước tính (cost.clip_estimate từng shot — cùng hàm ô 💰 / nút Gen)."""
+    from . import cost, hero_takes
+    from .pipeline import Pipeline
+    # rà kỹ C-M71: cùng tập shot với ước tính Bước 4 (cost.estimate_videos_by_scene: ready_for_video, bỏ shot đã có clip sống trừ
+    # đang chờ); chưa shot nào sẵn sàng video (Bước 1) → mọi shot của dự án, nói rõ "theo kế hoạch"
+    live = {r[0] for r in conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state NOT IN "
+                                       "('cancelled','rejected','queued')", (pid,))}
+    ready = [r["scene_id"] for r in cost.ready_for_video(Pipeline(conn), pid)]
+    planned = not ready
+    sids = [r[0] for r in conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (pid,))] if planned else \
+        [sid for sid in ready if sid not in live]
+    extra = hero_takes.extra_clips(conn, pid, sids)
+    where = " (theo kế hoạch — chưa shot nào sẵn sàng video)" if planned else ""
+    if not extra:
+        return "dự án này chưa có shot ⭐ gửi riêng — 0 clip thêm lúc này (mỗi shot ⭐ sau này thêm 1 clip)" + where
+    prices = [cost.clip_estimate(conn, sid) for sid in extra]
+    if any(p is None for p in prices):
+        return f"thêm {len(extra)} clip cho {len(extra)} shot ⭐{where} — chưa có giá model (xem ước tính dư ở Bước 4)"
+    return f"thêm {len(extra)} clip cho {len(extra)} shot ⭐{where} ≈ {sum(prices):.2f} USD (ước tính)"
+
+
+def _end_frame_money(conn, pid: int) -> str:
+    n = sum(1 for (d,) in conn.execute("SELECT data FROM scenes WHERE project_id=?", (pid,)) if _loads(d).get("end_state"))
+    return (f"thêm tối đa {n} ảnh khung cuối ({n} shot có end_state) — giá ở ước tính nút Gen ảnh" if n else
+            "dự án này chưa có shot có end_state — 0 ảnh khung cuối lúc này")
+
+
+def _cost_items(conn, pid: Optional[int] = None) -> List[Dict]:
     from . import cost, features
     out = []
     for name, spec in PAID_FLAGS.items():
         if name not in features.FEATURES or not features.on(name):
             continue
         label = _short_label(features.FEATURES[name]["label"])
-        if "stage" in spec:
+        if "fn" in spec:
+            try:
+                money = globals()[spec["fn"]](conn, pid) if pid is not None else spec["text"]
+            except Exception as e:  # noqa: BLE001 - the flag is still listed, the number is said missing
+                money = f"{spec['text']} (không tính được số của dự án: {type(e).__name__})"
+        elif "stage" in spec:
             try:
                 usd = cost.llm_estimate(conn, spec["stage"], 1, images=spec.get("images", 0))
             except Exception:  # noqa: BLE001 - the flag is still listed, only the number is missing
@@ -81,6 +124,10 @@ def _cost_items(conn) -> List[Dict]:
         else:
             money = spec["text"]
         out.append(_item("vang", f"`{name}` — {label}: {money}", WHERE_FLAGS))
+    for k, note in features.unmet_all().items():     # M7.4 B2: cờ bật / 🔒 khóa mà KHÔNG tác dụng (dialogue_take cần lip_sync) — nói ra
+        out.append(_item("vang", ("🔒 " if features.locked(k) else "") + note
+                         + (" — khóa lip_sync chờ 1 shot cận chạy thật (quyết định lip-sync-lock-after-real-run)" if "lip_sync" in note else ""),
+                         WHERE_FLAGS))
     others = [k for k in features.on_unverified() if k not in PAID_FLAGS]
     if others:
         out.append(_item("info", f"{len(others)} cờ chưa thử thật khác đang bật: " + ", ".join(others[:12])
@@ -169,6 +216,14 @@ def _fix_flag_items(conn, pid: int) -> List[Dict]:
         it["flag"] = r["name"]
         out.append(it)
     return out
+
+
+def _drift_items(data_dir: str, pid: int) -> List[Dict]:
+    """M7.2: cấu hình cờ khác dự án chạy trước (cờ đã bật nay tắt / máy khác hash khác) — VÀNG, không giữ việc."""
+    from . import features
+    found = features.drift(data_dir, pid)
+    h = features.config_hash() if found else ""
+    return [_item("vang", f"Drift cấu hình cờ: {d}", f"🧪 Tính năng thử — kiểm cờ trước khi gen (hash {h})") for d in found]
 
 
 # ---- 2. thứ có thể giữ việc -------------------------------------------------------------------------------------------------------
@@ -371,7 +426,8 @@ def _collect(conn, data_dir: str, pid: int) -> Dict:
         scenes = []
         items["inputs"].append(_unreadable("danh sách shot", e))
     for group, what, fn in (("fixes", "cờ sửa lỗi dự án trước", lambda: _fix_flag_items(conn, pid)),
-                            ("cost", "cờ tính năng", lambda: _cost_items(conn)),
+                            ("fixes", "drift cấu hình cờ", lambda: _drift_items(data_dir, pid)),
+                            ("cost", "cờ tính năng", lambda: _cost_items(conn, pid)),
                             ("hold", "mục Tổ rà soát", lambda: _review_items(conn, pid)),
                             ("cost", "ngân sách dự án", lambda: _budget_items(conn, pid)),   # 15/10: chỉ cảnh báo, không giữ việc
                             ("hold", "chế độ storyboard", lambda: _storyboard_items(conn, data_dir, pid, scenes)),

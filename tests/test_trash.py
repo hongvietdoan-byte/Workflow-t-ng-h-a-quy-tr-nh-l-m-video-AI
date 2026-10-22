@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import os
 import tempfile
 import time
@@ -100,6 +101,7 @@ class TrashFilesTests(unittest.TestCase):
 
 class SweepAndRunnerTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.data = tempfile.mkdtemp()
         self.p = Pipeline(connect())
         self.pid = self.p.create_project("t", "human_qc", 0.85, 2)

@@ -1,4 +1,5 @@
 """The whole pipeline run step after step (mock providers), plus the awkward sequences found while checking it."""
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -20,6 +21,7 @@ def no_sleep(_):
 
 class FullSequenceTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.data = tempfile.mkdtemp()
         self.p = Pipeline(connect())
         self.pid = self.p.create_project("seq", "human_qc", 0.85, 2)

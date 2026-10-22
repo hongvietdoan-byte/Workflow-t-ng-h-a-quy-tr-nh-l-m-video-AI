@@ -198,7 +198,7 @@
    "changes": "",
    "replaces": null,
    "enforced_by": [],
-   "status": "active"
+   "status": "replaced"
   },
   {
    "id": "byd-auto-shot-number-2026-10-15",
@@ -586,6 +586,228 @@
     {
      "kind": "code",
      "check": "check_subject_cleanup_dry_run"
+    }
+   ],
+   "status": "active"
+  },
+  {
+   "id": "v31-m6-crew-architecture-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'PHÊ DUYỆT KIẾN TRÚC M6 — AI VIDEO PRODUCTION TEAM', chat 21/10)",
+   "text": "M6 — tổ làm phim có người chịu trách nhiệm. Executive Producer (người dùng; thay tên 'Đội trưởng', quyền không đổi) quyết định cao nhất: định hướng sáng tạo + thay đổi lớn, ngân sách / giới hạn generation / chi vượt quyền, đổi dữ liệu-ý đồ-tài nguyên đã khóa, ngoại lệ quan trọng, sản phẩm cuối. Director (Đạo diễn AI) điều phối, phân công, giữ ý đồ, xử lý xung đột vai, chọn phương án sửa trong quyền; không vượt ngân sách, không đổi nội dung đã khóa, không duyệt thay EP. Vai chuyên trách: Scriptwriter, Cinematographer, 3D Artist, Storyboard Artist, Video Prompt Artist (vai riêng dưới Director — Director quyết ý đồ, VPA quyết cách diễn đạt; không thêm/xóa/đổi hành động lệch ý đồ; mâu thuẫn đầu vào trả vai chịu trách nhiệm; prompt người dùng sửa/khóa được bảo vệ; code chỉ đóng gói + kiểm payload, không âm thầm sửa nội dung; Shadow Mode so prompt builder cũ trước khi mặc định), Sound Designer, Editor / VFX, Continuity Validator (năng lực kiểm, không bắt buộc phiên Claude riêng). Claude Code / Codex = kỹ sư phát triển hệ thống, không tự sửa nội dung sáng tạo production. Không bắt buộc mỗi vai là agent riêng; ưu tiên tái dùng module có sẵn. Role Registry (đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang) + Handoff Contract (id dự án/shot, revision, phụ thuộc, sản phẩm, bằng chứng QC, trạng thái duyệt); vai không sửa dữ liệu của vai khác; lỗi sáng tạo → vai chuyên trách, lỗi hệ thống/API/code → kỹ sư; QC quan trọng độc lập với vai tạo sản phẩm. Dùng chung BYĐ v2, Kho, Scene World Map (không bắt buộc 3D), Continuity State, Write Guard, QC Evidence, Job Lifecycle + Cost Ledger — không nguồn dữ liệu song song; mọi thay đổi có revision, chỉ stale sản phẩm phụ thuộc thật. Dashboard cho EP: sửa theo vai, yêu cầu bằng ngôn ngữ tự nhiên, phiếu lỗi, payload thật, so phiên bản, lượt gen + ngân sách, duyệt vượt quyền, duyệt cuối; tối ưu tốc độ theo profiling, ưu tiên thời gian tới shot đạt chuẩn. Thứ tự: xen kẽ theo dependency với V3.1 — M6-P0 audit → P1 Role Registry/Handoff/Repair Budget/Generation Authorization → P2 nền M1/M2 → P3 VPA + Storyboard Artist shadow → P4 vai 3D/video/âm thanh/dựng/continuity → P5 Dashboard + tốc độ → P6 replay offline + pilot; không tự bật vai có quyền ghi production hoặc gọi API trả phí khi dependency chưa đạt nghiệm thu.",
+   "keeps": "v31-permission-tiers-2026-10-20 (3 cấp quyền); v31-d04 write guard, v31-d05 Kho, v31-d06 world map, v31-d07 QC shadow→guarded, v31-d09 sổ lỗi; qc-team-off-2026-10-14; drafts-approved-in-chat-2026-10-14; stage-crew-plan-2026-10-16 (vai sân khấu cũ gộp vào 3D Artist / Director / Cinematographer).",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code. Được làm ngay (Cấp 1): audit repo, tài liệu kiến trúc M6, đối chiếu Master Plan, roadmap / dependency / nghiệm thu / test plan / rollback, ghi sổ. CHƯA được: code pipeline M6 (Cấp 2), migration / sửa dữ liệu production, bật cờ mới trên máy chính, đổi provider / cấu hình job đang chạy, gọi API trả phí, tự gen lại trên production, xóa / ghi đè tài nguyên đã duyệt (Cấp 3). Chi tiết: docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 3/4b/5 (M6).",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-m6-generation-limits-policy-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'PHÊ DUYỆT KIẾN TRÚC M6 — AI VIDEO PRODUCTION TEAM', chat 21/10)",
+   "text": "M6 — giới hạn generation + quyền tự sửa. Mỗi shot trong một chu kỳ sản xuất được duyệt: ảnh tối đa 3 lượt (lần đầu + tối đa 2 lần tạo lại), video tối đa 2 lượt (lần đầu + tối đa 1 lần tạo lại); tính chung mọi vai, model, worker, đường gọi; không tự đặt lại khi sửa prompt, đổi model, restart worker hoặc đổi người phụ trách. Tự sửa + tự gen lại chỉ khi ĐỦ cả 6: (1) không vượt lượt được cấp, (2) không vượt ngân sách EP đã duyệt, (3) không đổi ý đồ / dữ liệu đã khóa, (4) có nguyên nhân rõ + phương án hợp lý, (5) không gửi trùng job / không retry khi trạng thái provider chưa xác minh, (6) không tự chuyển sang model / provider có chi phí ngoài phạm vi đã duyệt. Một cơ chế Generation Authorization dùng chung kiểm quyền, số lượt, revision, ngân sách, trạng thái job trước khi gửi; lượt provider đã nhận được tính tới khi có bằng chứng không phát sinh generation. Hết lượt / hết ngân sách / cần đổi ý đồ đã duyệt → chuyển Executive Producer. Đây là phê duyệt chính sách tự động hóa, CHƯA phải phê duyệt bật tự động gen trả phí trên production.",
+   "keeps": "Code hiện hành giữ nguyên tới khi M6.3 được duyệt Cấp 2: core/pipeline.py AUTO_REGEN_LIMIT (tự gen LẠI ảnh 3 / video 2, đếm từ thao tác gần nhất của người), quality_tier.RETRY_LIMIT, autopilot._job_caps. v31-d01b-money-policy-product-job-cap-2026-10-20 giữ hiệu lực (ngân sách dự kiến chỉ cảnh báo cho thao tác của người) — khi triển khai M6.3 ghi mục D01c replaces D01b cho phần giới hạn tự gen lại; câu hỏi mở cho EP: nâng nháp 480p→1080p có tính lượt không, thao tác EP có trừ lượt không, ngân sách tự sửa đặt thế nào, thang lùi model.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code. Được làm ngay (Cấp 1): audit repo, tài liệu kiến trúc M6, đối chiếu Master Plan, roadmap / dependency / nghiệm thu / test plan / rollback, ghi sổ. CHƯA được: code pipeline M6 (Cấp 2), migration / sửa dữ liệu production, bật cờ mới trên máy chính, đổi provider / cấu hình job đang chạy, gọi API trả phí, tự gen lại trên production, xóa / ghi đè tài nguyên đã duyệt (Cấp 3). Chi tiết: docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 3/4b/5 (M6).",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "replaced"
+  },
+  {
+   "id": "v31-m6-generation-limits-policy-b-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'PHÊ DUYỆT KIẾN TRÚC M6' + trả lời Q1–Q6, chat 21/10)",
+   "text": "M6 — giới hạn generation + quyền tự sửa. Mỗi shot trong một chu kỳ sản xuất được duyệt: ảnh tối đa 3 lượt (lần đầu + tối đa 2 lần tạo lại), video tối đa 2 lượt (lần đầu + tối đa 1 lần tạo lại); tính chung mọi vai, model, worker, đường gọi; không tự đặt lại khi sửa prompt, đổi model, restart worker hoặc đổi người phụ trách. Tự sửa + tự gen lại chỉ khi ĐỦ cả 6: (1) không vượt lượt được cấp, (2) không vượt ngân sách EP đã duyệt, (3) không đổi ý đồ / dữ liệu đã khóa, (4) có nguyên nhân rõ + phương án hợp lý, (5) không gửi trùng job / không retry khi trạng thái provider chưa xác minh, (6) không tự chuyển sang model / provider có chi phí ngoài phạm vi đã duyệt. Một cơ chế Generation Authorization dùng chung kiểm quyền, số lượt, revision, ngân sách, trạng thái job trước khi gửi; lượt provider đã nhận được tính tới khi có bằng chứng không phát sinh generation. Hết lượt / hết ngân sách / cần đổi ý đồ đã duyệt → chuyển Executive Producer. Đây là phê duyệt chính sách tự động hóa, CHƯA phải phê duyệt bật tự động gen trả phí trên production. Bổ sung EP trả lời 21/10: Q1 — bước nâng nháp 480p → 1080p (cùng bố cục / chuyển động của nháp đã duyệt) KHÔNG tính lượt video; Q2 — Executive Producer tự bấm Vẽ lại / Gen lại CÓ trừ lượt (hết lượt thì EP xác nhận vượt + lý do, ghi sổ cấp lượt, số đã dùng không đặt lại); Q4 — CÓ cho tự lùi model khi bị từ chối (vd. Seedance 2.5 → Kling) nếu model đích nằm trong danh sách model đã duyệt của dự án; lượt có bằng chứng không phát sinh generation không tính, lùi model không đặt lại số lượt. Q3 (ngân sách tự sửa) chưa chốt.",
+   "keeps": "Code hiện hành giữ nguyên tới khi M6.3 được duyệt Cấp 2: core/pipeline.py AUTO_REGEN_LIMIT (tự gen LẠI ảnh 3 / video 2, đếm từ thao tác gần nhất của người), quality_tier.RETRY_LIMIT, autopilot._job_caps. v31-d01b-money-policy-product-job-cap-2026-10-20 giữ hiệu lực (ngân sách dự kiến chỉ cảnh báo cho thao tác của người) — khi triển khai M6.3 ghi mục D01c replaces D01b cho phần giới hạn tự gen lại; câu hỏi mở cho EP: nâng nháp 480p→1080p có tính lượt không, thao tác EP có trừ lượt không, ngân sách tự sửa đặt thế nào, thang lùi model.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code. Được làm ngay (Cấp 1): audit repo, tài liệu kiến trúc M6, đối chiếu Master Plan, roadmap / dependency / nghiệm thu / test plan / rollback, ghi sổ. CHƯA được: code pipeline M6 (Cấp 2), migration / sửa dữ liệu production, bật cờ mới trên máy chính, đổi provider / cấu hình job đang chạy, gọi API trả phí, tự gen lại trên production, xóa / ghi đè tài nguyên đã duyệt (Cấp 3). Chi tiết: docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 3/4b/5 (M6).",
+   "replaces": "v31-m6-generation-limits-policy-2026-10-21",
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-g1-golden-compat-production-baseline-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "G1 (a) có điều kiện: Golden COMPAT dùng cấu hình production THỰC TẾ của baseline gốc (trạng thái cờ hiệu lực + model/provider theo job), chỉ bắt buộc TẮT các cờ MỚI V3.1. Không có snapshot cấu hình lịch sử → ghi rõ 'baseline tái dựng' trong fixture/báo cáo. COMPAT tách khỏi correctness regression.",
+   "keeps": "v31-d08-fixture-capture-readonly-2026-10-20 (chỉ đọc, snapshot, ghi SHA/cờ/model, tách compatibility/correctness)",
+   "changes": "Thay tiêu chí cũ 'mọi cờ verified False TẮT' của công cụ golden (CX20-2b) bằng baseline_flags + experimental_flags.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-fa-flag-fix-pack-a-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "F-A: DUYỆT phạm vi code Cấp 2 Gói A (docs/KE_HOACH_SUA_20_CO_2026-10-21.md mục 1): ưu tiên (1) change_review ngăn gửi job khi rà thất bại (đóng cổng khi lỗi, G35), (2) hero_takes ghi nhận đủ chi phí (khai costs), (3) director_rewrite bảo vệ trường người dùng đã sửa (cờ con respect_lock), (4) sửa kiểm tra chat_prompts (D6 + hết tiền). TẮT scene_qc_claude trên production KHÔNG nằm trong duyệt này: cần kiểm tuyến QC thay thế trước rồi xin Cấp 3 riêng.",
+   "keeps": "v31-permission-tiers-2026-10-20; v31-d01-money-policy-2026-10-20 (đóng cổng change_review khi lỗi là cổng rà sẵn có fail-closed, không phải điểm chặn theo ngân sách)",
+   "changes": "Mở code Gói A; đổi trạng thái cờ production vẫn Cấp 3.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-motion-prompt-user-locked-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "C-M25B giữ nguyên: motion prompt người dùng sửa tay phải có USER_LOCKED. Shadow chỉ quan sát; ENFORCE phải qua nghiệm thu và quyền bật riêng (C3-6).",
+   "keeps": "v31-d04-field-level-write-guard-2026-10-20",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-flag-lock-policy-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "K1/K2/K5: khóa cờ (verified True) TỪNG CỜ MỘT, không đồng loạt, chỉ khi đạt: test + replay dữ liệu thật + kiểm side effect (+ dependency). K1 send_claim, back_view_guard: duyệt NGUYÊN TẮC, khóa sau khi kiểm chứng dependency, 2 worker, crash/reconcile và replay production — không khóa chỉ vì test xanh. K2 (duyệt trước có điều kiện): video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence (5 cờ) + two_tier_quality, video_gate (2 cờ, khóa sau Gói B). K5: baseline làm song song Gói B, nghiệm thu tích hợp trước khi khóa cờ trên môi trường khác. Test xanh không là bằng chứng duy nhất.",
+   "keeps": "v31-permission-tiers-2026-10-20 (mỗi lần khóa = thao tác Cấp 3 có bằng chứng, ghi sổ)",
+   "changes": "Thay danh sách khóa chờ sau #31: tiêu chí khóa = test + replay + side effect, từng cờ.",
+   "replaces": "flag-lock-list-after-p31-2026-10-15",
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-k3-seedance-ref-groups-with-end-frames-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "K3 (b): sửa để seedance_ref_groups và end_frames cùng hoạt động đúng, không hy sinh khung cuối (B4: end_frames.py:32 bỏ khung cuối ở tuyến ref).",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-k4-k6-flag-baseline-reset-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "K4 (b): baseline cờ trong git CHỈ dùng khi môi trường chưa có cấu hình riêng (data/feature_settings.json); không tự ghi đè lựa chọn production. Thứ tự: REMOVED → khóa → 🧪 → preset → env → baseline có bảo vệ (không bật cờ costs/OPT_IN; học việc tối đa trainee; bộ test tắt baseline) → mặc định. Bổ sung effective config, config hash và cảnh báo drift. K6: nút '↺ Bỏ mọi lựa chọn riêng' phải có preview, xác nhận, sao lưu, khôi phục.",
+   "keeps": "docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 3 (mô phỏng: 0 cờ đổi máy chính, 0 cờ tốn tiền bật)",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-k7-v31-flags-verify-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "K7: duyệt KIỂM CHỨNG stale_code_alarm, diag_merge, budget_notice_d01, send_estimate; chỉ bật production sau khi xác minh không có side effect ngoài chỉ ghi / chỉ hiển thị (bật = Cấp 3, trình kèm bằng chứng). qc_false_alarm_fix + horizon_needs_sky chờ replay #31/#33. refusal_skip_same_picture CHƯA bật (đổi thứ tự đã chốt 27/09).",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "flag",
+     "name": "refusal_skip_same_picture",
+     "on": false
+    }
+   ],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-fb-fc-flag-packs-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "F-B: duyệt code Cấp 2; khóa từng cờ sau correctness regression, benchmark, kiểm chi phí. F-C: duyệt AUDIT + THIẾT KẾ từng cờ; chưa cho tự nối/bỏ hàng loạt — trình bảng quyết định chi tiết từng cờ trước khi đổi hành vi production. F-Q2: audio_first giữ TÙY CHỌN thử nghiệm cho workflow ưu tiên thoại, không bắt buộc mọi dự án. F-Q3: duyệt nguyên tắc thử 1 shot lip-sync thật khi có dự án phù hợp — chi phí trình riêng bằng pregen_check, CHƯA cấp quyền chi. F-Q4: two_tier_quality nghiệm thu khi dự toán vs chi thực ±5 % (tính đủ phát sinh) + thêm tiêu chí chất lượng.",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-stage-desk-actions-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "Bàn đạo diễn 3D phần thao tác (docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md): S-A phương án A (nút trong màn xem, theo đợt). S-B chỉ Executive Producer duyệt sân khấu; Director đề xuất, không tự duyệt. S-C mặc định cảnh báo VÀNG; shot đã yêu cầu plate 3D duyệt làm reference bắt buộc mà chưa duyệt → HOLD hoặc xác nhận ngoại lệ trước generation trả phí. S-D chia vai lại: hỏi xác nhận + preview thay đổi + đánh dấu stale đúng tài nguyên phụ thuộc. S-E mở nút API chỉ khi có số liệu chi phí, hạn mức thao tác riêng, quyền Cấp 3. S-F hoãn N12 Previs (giữ roadmap). S-G người dùng nhập câu ý đồ; Cinematographer chọn dữ liệu đo máy và ghi lại lựa chọn để kiểm.",
+   "keeps": "stage-auto-plan-2026-10-15, stage-crew-plan-2026-10-16",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_stage_desk_ep_only"
+    },
+    {
+     "kind": "code",
+     "check": "check_stage_desk_paid_gate"
+    },
+    {
+     "kind": "code",
+     "check": "check_stage_desk_reset_confirm"
+    }
+   ],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-m6-self-repair-budget-40-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "M6-Q3 (B): trần ngân sách tự sửa bổ sung = 40 % chi phí generation lượt đầu đã duyệt; EP đổi tỷ lệ theo dự án; không vượt tổng ngân sách dự án và giới hạn chi đã duyệt; giữ tối đa 3 ảnh + 2 video mỗi shot (gồm lần đầu); không tự reset bộ đếm khi sửa prompt / đổi model / restart; 3 shot liên tiếp cùng mã lỗi → dừng tự sửa + tạo phiếu; không tự gửi lại job submit chưa rõ; không đổi ý đồ, dữ liệu khóa, không tự tăng ngân sách.",
+   "keeps": "v31-m6-generation-limits-policy-b-2026-10-21; v31-d01-money-policy-2026-10-20 (ngân sách tự sửa chỉ giới hạn việc TỰ ĐỘNG của vai, không chặn thao tác EP)",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-m6-pack-a-approved-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "M6-A duyệt Cấp 2: Role Registry chỉ đọc (M6.1), Generation Authorization SHADOW (M6.3), Continuity Validator SHADOW (M6.9); cờ mặc định TẮT; không API trả phí, không sửa production. M6-B CHƯA duyệt — trình lại sau khi golden đạt và dependency M2 nghiệm thu.",
+   "keeps": "v31-m6-crew-architecture-2026-10-21",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-implementation-rules-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — văn bản 'QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6', chat 21/10) trả lời docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md",
+   "text": "Quy định triển khai: C3-3…C3-12 giữ trạng thái chờ; duyệt thiết kế / code Cấp 2 KHÔNG suy ra quyền xóa asset, migration, bật cờ production, pilot trả phí. Phân biệt duyệt thiết kế / code Cấp 2 / thao tác production Cấp 3 / chi phí. Mỗi gói: test, bằng chứng thực thi, acceptance criteria, rollback, rủi ro mở. Không tự đổi dữ liệu EP đã sửa/khóa; không tự bật cờ có chi phí / side effect / chưa kiểm chứng; test xanh không là bằng chứng duy nhất. Chỉ trình tiếp: xung đột, điều kiện nghiệm thu chưa đạt, thao tác Cấp 3.",
+   "keeps": "v31-permission-tiers-2026-10-20; v31-cap2-milestone-packages-approved-2026-10-20",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-golden-ab-acceptance-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — chat 21/10: 'Duyệt' đề xuất so A/B sau 4 lần nghiệm thu golden không đạt)",
+   "text": "Cổng nghiệm thu M1.9 (golden COMPAT, mở khóa gộp M2): so A/B trên CÙNG một bản chụp dữ liệu hiện tại — dựng gói gửi mọi shot #24/#27/#31/#33 bằng code main hiện tại (chưa có M2) và bằng code M2 tích hợp với cờ mới V3.1 TẮT, cả hai dùng cấu hình cờ sản xuất thật; phải GIỐNG BYTE, 0 ca lệch (ca không dựng được ở CẢ HAI bên ghi riêng, không tính lệch). Báo cáo ghi rõ 'baseline tái dựng: code main hiện tại trên dữ liệu hiện tại'. So với gói gửi lịch sử vẫn chạy kèm nhưng chỉ là tham khảo correctness, không làm cổng.",
+   "keeps": "v31-ep-g1-golden-compat-production-baseline-2026-10-21 (cấu hình production thật, chỉ cờ mới V3.1 TẮT, tách COMPAT/correctness); v31-d08-fixture-capture-readonly-2026-10-20 (chỉ đọc, snapshot)",
+   "changes": "Lần 1–4 (21/10) so với gói gửi 11–13/10: 64/68 ca dựng được nhưng 63 ca lệch vì dữ liệu Kho/nền/cảnh đổi sau ngày gửi — ngưỡng lịch sử không đạt được. So lịch sử đóng băng chỉ áp từ dự án mới (#34) khi có snapshot lúc gửi.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-ep-m210-lean-package-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — chat 21/10: 'Duyệt 3 câu trên' cho 3 bước M2.10 gói gửi tối giản)",
+   "text": "M2.10 gói gửi tối giản (prompt ngắn ref-first + bộ ảnh tham chiếu tối ưu theo shot, cách dùng kết hợp): DUYỆT 3 bước — (1) thiết kế bảng cách dùng theo loại shot + builder lean SHADOW cờ lean_package TẮT (Cấp 2, không gửi, golden byte giữ); (2) phiên chính chạy shadow trên gói thật #31/#33, 0 USD; (3) A/B có trả phí vài shot trong pilot vòng B — duyệt NGUYÊN TẮC, chi phí trình riêng bằng pregen_check trước khi chạy (Cấp 3 chi tiêu chưa cấp).",
+   "keeps": "v31-ep-implementation-rules-2026-10-21; v31-permission-tiers-2026-10-20; C3-11 pilot B (chưa chi)",
+   "changes": "Thêm M2.10 vào kế hoạch V3.1; đổi gói gửi production chỉ sau A/B đạt + duyệt riêng.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "crew-role-profiles-linked-2026-10-22",
+   "date": "2026-10-22",
+   "by": "người dùng (chat 22/10, phiên cloud)",
+   "text": "Mỗi vai có hồ sơ riêng: bạn là ai, vai trò, làm gì, chịu trách nhiệm gì, dưới quyền quản lý / giám sát của ai, đầu vào cần gì, đầu ra gồm gì + chất lượng phải đạt (KPI), đầu ra cho ai, người nhận đòi hỏi gì và đáp ứng ra sao — đặt liên kết có hệ quả giữa toàn bộ các vai để không thiếu / thừa khâu hay thông tin.",
+   "keeps": "Quyền đọc/ghi, bảng sở hữu trường, owns_errors của data/crew_roles.json (M6.1) giữ nguyên; cờ crew_registry vẫn TẮT.",
+   "changes": "data/crew_profiles.json (hồ sơ 9 mục + danh mục sản phẩm: vai làm ra, KPI ngưỡng + cách đo, người nhận + yêu cầu + KPI đáp ứng); core/crew.link_problems kiểm hai chiều trong `py -m core.crew check`; KPI chưa đo được khai 'chua_co:' và liệt kê ở `py -m core.crew hoso`.",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_crew_profiles_linked"
     }
    ],
    "status": "active"

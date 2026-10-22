@@ -54,6 +54,7 @@
       "send_claim": false,
       "poll_claim": false,
       "pause_before_submit": false,
+      "gen_auth_shadow": false,
       "send_estimate": false,
       "locomotion_end_frame": false,
       "auto_send_self_fix": false,
@@ -102,6 +103,7 @@
       "skill_dossier": false,
       "seedance_video_edit": false,
       "director_rewrite": false,
+      "director_rewrite_respect_lock": false,
       "change_review_frames": false,
       "change_review": false,
       "change_review_motion": false,
@@ -152,19 +154,29 @@
       "subject_capacity_guard": false,
       "world_map_sentences": false,
       "continuity_state": false,
+      "ui_step_log": false,
       "whitebox_height_dummy": false,
+      "stage_view_ui": false,
+      "crew_registry": false,
+      "continuity_validator": false,
+      "byd_v2_levels": false,
+      "field_guard": false,
+      "narration_offscreen": false,
+      "fit_durations_review": false,
+      "image_pregen": false,
+      "router_first_frame": false,
+      "sent_package_relpath": false,
+      "insert_inherit": false,
+      "stage_props_byd": false,
+      "ref_end_frames": false,
+      "lean_package": false,
       "kho_forms_v2": false
     },
-    "experimental_flags": [
-      "new_feature"
-    ]
+    "experimental_flags": ["new_feature"]
   },
   "video": {
     "kind": "video",
-    "args": [
-      "ref.bin",
-      "chữ gốc"
-    ],
+    "args": ["ref.bin", "chữ gốc"],
     "kwargs": {
       "model": "fake-video",
       "quality_tier": "draft",
@@ -196,10 +208,7 @@
       "ref.bin": "b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2"
     },
     "baseline": "{\"v\": 1, \"call\": \"submit\", \"prompt\": \"chữ gốc\", \"negative\": null, \"refs\": [{\"param\": \"image_path\", \"role\": \"start_frame\", \"label\": null, \"path\": \"ref.bin\", \"file\": \"ref.bin\", \"sha256\": \"b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2\"}, {\"param\": \"image_references\", \"role\": \"cast\", \"label\": null, \"path\": \"ref.bin\", \"file\": \"ref.bin\", \"sha256\": \"b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2\"}], \"provider\": \"fake\", \"model\": \"fake-video\", \"params\": {\"model\": \"fake-video\", \"quality_tier\": \"draft\"}, \"external_id\": \"fixture-video\", \"at\": \"2026-10-20T00:00:00+00:00\", \"pregen_fingerprint\": \"frozen-fingerprint\"}",
-    "correctness_roles": [
-      "start_frame",
-      "cast"
-    ],
+    "correctness_roles": ["start_frame", "cast"],
     "flags": {
       "new_feature": false,
       "legacy_verified": true,
@@ -225,6 +234,7 @@
       "send_claim": false,
       "poll_claim": false,
       "pause_before_submit": false,
+      "gen_auth_shadow": false,
       "send_estimate": false,
       "locomotion_end_frame": false,
       "auto_send_self_fix": false,
@@ -273,6 +283,7 @@
       "skill_dossier": false,
       "seedance_video_edit": false,
       "director_rewrite": false,
+      "director_rewrite_respect_lock": false,
       "change_review_frames": false,
       "change_review": false,
       "change_review_motion": false,
@@ -323,12 +334,25 @@
       "subject_capacity_guard": false,
       "world_map_sentences": false,
       "continuity_state": false,
+      "ui_step_log": false,
       "whitebox_height_dummy": false,
+      "stage_view_ui": false,
+      "crew_registry": false,
+      "continuity_validator": false,
+      "byd_v2_levels": false,
+      "field_guard": false,
+      "narration_offscreen": false,
+      "fit_durations_review": false,
+      "image_pregen": false,
+      "router_first_frame": false,
+      "sent_package_relpath": false,
+      "insert_inherit": false,
+      "stage_props_byd": false,
+      "ref_end_frames": false,
+      "lean_package": false,
       "kho_forms_v2": false
     },
-    "experimental_flags": [
-      "new_feature"
-    ],
+    "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"
   }
 }

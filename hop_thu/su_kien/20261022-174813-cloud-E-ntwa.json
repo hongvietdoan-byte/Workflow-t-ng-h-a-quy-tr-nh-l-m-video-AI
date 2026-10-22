@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-22T17:48:13.597080+07:00",
+  "lane": "cloud-E",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "cloud-E SẴN SÀNG nhận việc. Luật hạn mức người dùng 22/10: gói 5h chỉ dùng tới 70–80 % rồi DỪNG chờ đặt lại. Cloud KHÔNG đọc được % hạn mức → cloud-E ước theo lượng việc: mỗi cửa sổ 5h tối đa ~2 việc vừa (hoặc 1 việc code lớn + rà) kể cả nhánh phụ, rồi báo 'TẠM DỪNG HẠN MỨC' + giờ dự kiến làm tiếp; người dùng báo % thật thì theo số đó. Ưu tiên giao việc tài liệu / rà chỉ đọc / code vừa cho cloud-E."
+}

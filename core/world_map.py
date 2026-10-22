@@ -2,7 +2,9 @@
 (thiết kế docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md mục 2; D06 v31-d06-scene-world-map-flexible-2026-10-20; G2-4).
 
 Map là bản TỔNG HỢP ĐỌC từ dữ liệu sẵn có, không thay K1–K5, không bắt buộc 3D:
-- "3d"       — sân khấu đã đo: `stage/<stage>/k1_*/stage.json` (+ grid.json) và `doan_<cảnh>/blocking.json` (+ shot_specs.json). Tọa độ lấy
+- "3d"       — sân khấu đã đo: `stage.json` (+ grid.json) của K1 khai thẳng, không có thì của lượt; `doan_<cảnh>/<round>/blocking.json`
+               (+ shot_specs.json), `<round>` = `doan_<cảnh>/result.json` trường round (đường cũ `doan_<cảnh>/blocking.json` dự phòng;
+               refresh mặc định tự tìm `stage/*/doan_<cảnh>`; không ra 3D → `why` nói vì sao). Tọa độ lấy
                nguyên từ blocking (so với gốc O), mốc từ `stage.json.marks`; thiếu số → transform None + confidence "unknown" (KHÔNG bịa).
 - "2d"       — sơ đồ người vẽ (`world/plan2d_<cảnh>.json`: {"by", "points": [{"entity_id", "xy", "valid_from", "valid_to"}]}): z UNKNOWN.
 - "relative" — chỉ quan hệ trong khung rút từ BYĐ (`thanh_phan[].vung` trái/phải theo máy của shot) + vật cầm (`vat[].nguoi`, BYĐ v2).
@@ -145,8 +147,8 @@ def build_3d(story_scene, k1_dir: str, seg_dir: str, world_id=None, by: str = "c
     specs = (_read(os.path.join(seg_dir, "shot_specs.json")) or {}).get("shots") or []
     m = _base(story_scene, "3d", world_id, sources(k1_dir, seg_dir, byd), ["stage.json", "blocking.json"]   # C-FIX-THAP-5: BYĐ đổi → byd_changed
               + (["shot_specs.json"] if specs else []), by)
-    m["axes"] = stage.get("axes")
-    m["origin"] = {"stage": os.path.basename(os.path.dirname(os.path.abspath(k1_dir))), "xyz": [0.0, 0.0, 0.0],
+    m["axes"] = stage.get("axes") or ({k: stage[k] for k in ("axis", "east", "north") if k in stage} or None)   # K1 thật ghi axis/east/north
+    m["origin"] = {"stage": stage_name(k1_dir), "xyz": [0.0, 0.0, 0.0],
                    "model_xyz": stage.get("origin_model")}
     marks = stage.get("marks") or {}
     open_rows: Dict[str, Dict] = {}
@@ -230,25 +232,107 @@ def build_2d(story_scene, plan: Dict, plan_file: Optional[str] = None, world_id=
     return m
 
 
+def round_dir(seg_dir: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """(thư mục chứa blocking.json của đoạn, lý do khi không có). Dữ liệu thật (stage_auto): `doan_<cảnh>/result.json` trường `round`
+    (cc_<giờ> / r<n> / crew/final) → `doan_<cảnh>/<round>/blocking.json`; đường cũ `doan_<cảnh>/blocking.json` giữ làm dự phòng."""
+    if not seg_dir:
+        return None, None
+    if not os.path.isdir(seg_dir):
+        return None, f"không có thư mục đoạn {os.path.basename(os.path.normpath(seg_dir))}"
+    if os.path.exists(os.path.join(seg_dir, "blocking.json")) and not os.path.exists(os.path.join(seg_dir, "result.json")):
+        return seg_dir, None                              # đường cũ (fixture / dữ liệu trước stage_auto)
+    why = []
+    try:
+        rnd = (_read(os.path.join(seg_dir, "result.json")) or {}).get("round")
+    except (OSError, ValueError) as e:
+        rnd = None
+        why.append(f"result.json đọc lỗi ({type(e).__name__})")
+    if rnd:
+        rd = os.path.normpath(os.path.join(seg_dir, str(rnd)))
+        if os.path.exists(os.path.join(rd, "blocking.json")):
+            return rd, None
+        why.append(f"lượt «{rnd}» (result.json round) " + ("không có blocking.json" if os.path.isdir(rd) else "không có trên đĩa"))
+    elif not why:
+        why.append("không có result.json" if not os.path.exists(os.path.join(seg_dir, "result.json")) else "result.json không có round")
+    if os.path.exists(os.path.join(seg_dir, "blocking.json")):
+        return seg_dir, None                              # dự phòng: blocking.json ở gốc đoạn
+    return None, f"{os.path.basename(os.path.normpath(seg_dir))}: " + "; ".join(why)
+
+
+def stage_dir(k1_dir: Optional[str], rd: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """(thư mục chứa stage.json, lý do khi không có). K1 khai thẳng có stage.json → dùng; không thì stage.json của LƯỢT (K3/K4 chép
+    stage.json đã đo vào lượt — cùng hình học blocking được giải trên đó; #31 cảnh 4: K1 theo chỗ đứng chính HIỆN TẠI chưa từng đo)."""
+    if k1_dir and os.path.exists(os.path.join(k1_dir, "stage.json")):
+        return k1_dir, None
+    if rd and os.path.exists(os.path.join(rd, "stage.json")):
+        return rd, None
+    bits = []
+    if k1_dir:
+        bits.append(f"{os.path.basename(os.path.normpath(k1_dir))} không có stage.json")
+    if rd:
+        bits.append(f"lượt {os.path.basename(os.path.normpath(rd))} không có stage.json")
+    return None, "; ".join(bits) or None
+
+
+def stage_name(path_: str) -> str:
+    """Tên sân khấu (thư mục cha của k1_* / doan_*) từ thư mục K1 hoặc thư mục lượt bên trong doan_<cảnh>."""
+    start = p = os.path.abspath(path_)
+    while not os.path.basename(p).startswith(("k1_", "doan_")):
+        parent = os.path.dirname(p)
+        if parent == p:                                   # không nằm trong k1_* / doan_*: như cũ (thư mục cha)
+            return os.path.basename(os.path.dirname(start))
+        p = parent
+    return os.path.basename(os.path.dirname(p))
+
+
+def locate(data_dir: str, pid: int, story_scene) -> Tuple[Optional[str], Optional[str]]:
+    """(thư mục `stage/<sân khấu>/doan_<cảnh>`, lý do khi không có) — refresh mặc định tự tìm (không cần người truyền seg_dir)."""
+    import glob
+    from .stage_auto import key_of
+    key = key_of(str(story_scene))
+    hits = sorted(d for d in glob.glob(os.path.join(data_dir, str(pid), "stage", "*", f"doan_{key}")) if os.path.isdir(d))
+    if len(hits) > 1:
+        used = [d for d in hits if os.path.exists(os.path.join(d, "result.json"))]
+        hits = used if len(used) == 1 else hits
+    if not hits:
+        return None, f"không có thư mục stage/*/doan_{key} (cảnh chưa dàn sân khấu 3D)"
+    if len(hits) > 1:
+        return None, (f"cảnh {story_scene} có đoạn ở {len(hits)} sân khấu (" + ", ".join(stage_name(d) for d in hits)
+                      + ") — map một cảnh chưa gộp nhiều sân khấu, không chọn bừa")
+    return hits[0], None
+
+
 def build(story_scene, k1_dir: Optional[str] = None, seg_dir: Optional[str] = None, byd: Optional[Dict] = None,
-          plan2d_file: Optional[str] = None, world_id=None) -> Dict:
-    """Adapter (D06): 3D khi có đủ stage.json + blocking.json → 2D khi có sơ đồ người vẽ → tương đối từ BYĐ → UNKNOWN (why = thiếu gì)."""
+          plan2d_file: Optional[str] = None, world_id=None, notes: Optional[str] = None) -> Dict:
+    """Adapter (D06): 3D khi có đủ stage.json + blocking.json → 2D khi có sơ đồ người vẽ → tương đối từ BYĐ → UNKNOWN (why = thiếu gì).
+    `seg_dir` = doan_<cảnh> (đọc result.json → round) hoặc thẳng thư mục có blocking.json. Không ra 3D → `why` nói RÕ vì sao (cả khi
+    map tương đối), không im lặng."""
     missing = []
-    if k1_dir and seg_dir and os.path.exists(os.path.join(k1_dir, "stage.json")) and os.path.exists(os.path.join(seg_dir, "blocking.json")):
-        return build_3d(story_scene, k1_dir, seg_dir, world_id, byd=byd)
-    missing.append("sân khấu 3D (stage.json + blocking.json)")
+    rd, why_seg = round_dir(seg_dir)
+    sd, why_stage = stage_dir(k1_dir, rd)
+    if rd and sd:
+        m = build_3d(story_scene, sd, rd, world_id, byd=byd)
+        m["provenance"]["round"] = None if os.path.normpath(rd) == os.path.normpath(seg_dir) else os.path.relpath(rd, seg_dir)
+        m["provenance"]["stage_json_from"] = "k1" if sd == k1_dir else "round"
+        return m
+    reason = "; ".join(x for x in (notes, why_seg, why_stage) if x)
+    no3d = "sân khấu 3D (stage.json + blocking.json" + (f": {reason}" if reason else "") + ")"
+    missing.append(no3d)
     plan = _read(plan2d_file)
     if plan and plan.get("points"):
-        return build_2d(story_scene, plan, plan2d_file, world_id)
+        m = build_2d(story_scene, plan, plan2d_file, world_id)
+        m["why"] = "không 3D — thiếu " + no3d
+        return m
     missing.append("sơ đồ 2D người vẽ")
     if byd:
         m = build_relative(story_scene, byd, world_id)
         if m["kind"] == "relative":
+            m["why"] = "không 3D — thiếu " + no3d + "; quan hệ trái/phải rút từ BYĐ theo máy từng shot"
             return m
         missing.append("quan hệ trong BYĐ")
     else:
         missing.append("BYĐ")
-    m = _base(story_scene, "unknown", world_id, sources(k1_dir, seg_dir, byd, plan2d_file), [], "code")
+    m = _base(story_scene, "unknown", world_id, sources(sd or k1_dir, rd or seg_dir, byd, plan2d_file), [], "code")
     m["why"] = "thiếu " + ", ".join(missing) + " — map UNKNOWN, không bịa tọa độ (cần người duyệt / dựng sân khấu)"
     return m
 
@@ -330,6 +414,11 @@ def refresh(data_dir: str, pid: int, story_scene, **inputs) -> Optional[Dict]:
     if not enabled():
         return None
     inputs.setdefault("plan2d_file", plan2d_path(data_dir, pid, story_scene))
+    if "seg_dir" not in inputs and "k1_dir" not in inputs:   # MẶC ĐỊNH: tự tìm stage/*/doan_<cảnh> (result.json → round), không đoán
+        seg, why = locate(data_dir, pid, story_scene)
+        inputs["seg_dir"] = seg
+        if why:
+            inputs["notes"] = why
     return save(data_dir, pid, build(story_scene, **inputs))
 
 
@@ -353,8 +442,50 @@ SENTENCE_FLAG = "world_map_sentences"
 CENTRE_DEG = 8.0           # |góc ngang| dưới mức này = giữa khung
 BEHIND_GAP_M = 1.5         # hai người cùng phía khung, xa hơn ≥ chừng này = "phía sau"
 _SIDE_EN = {"left": "frame left", "centre": "frame centre", "right": "frame right"}
-_CLAUSE = re.compile(r"[.;,\n]|\bwhile\b|\band\b|\bbut\b|\bvà\b|\bcòn\b|\btrong khi\b", re.I)
-_SIDE_WORDS = {"left": re.compile(r"\bleft\b|bên trái|phía trái|sang trái", re.I), "right": re.compile(r"\bright\b|bên phải|phía phải|sang phải", re.I)}
+_CLAUSE = re.compile(r"[.;,:\n]|\bwhile\b|\band\b|\bbut\b|\bvà\b|\bcòn\b|\btrong khi\b", re.I)   # ':' — phần liệt kê sau là vế riêng
+# R1-SIDE báo nhầm #31 (22/10: shot 18 "behind Kelly's right shoulder", shot 34 "toward frame-right where three enemies stand"):
+# trái/phải chỉ là CHỖ TRONG KHUNG khi không phải bộ phận cơ thể / phía của chính người đó / một đầu của vật, và chỉ gán cho ĐÚNG chủ
+# thể của vế — mệnh đề "where X stand(s)" → X; còn lại → tên đứng gần nhất TRƯỚC chữ, không có thì tên đầu tiên SAU chữ.
+_SIDE_TOKEN = re.compile(r"\b(left|right)\b|(?:bên|phía|sang)\s+(trái|phải)", re.I)
+_BODY_AFTER = re.compile(r"^[\s-]*(?:hand(?:ed)?|arms?|shoulders?|legs?|foot|feet|knees?|hips?|elbows?|wrists?|fists?|palms?|thumbs?|"
+                         r"fingers?|eyes?|ears?|cheeks?|temples?|brows?|eyebrows?|thighs?|ankles?|gloves?|sleeves?|pockets?|holsters?|"
+                         r"(?:side|half)\s+of\s+(?:her|his|its|their|the|\w+['’]s)\s+(?:face|head|body|neck|chest|waist|torso))\b", re.I)
+_POSS_BEFORE = re.compile(r"(?:['’]s|\b(?:her|his|its|their|my|your))\s*$", re.I)          # "Kelly's right" / "to her left": phía của người
+_PART_AFTER = re.compile(r"^[\s-]*(?:end|side|edge|half|part|corner|wing|tip|flank)\s+of\s+(?!(?:the\s+)?(?:frame|screen|image|shot|picture)\b)",
+                         re.I)                                                          # "the RIGHT end of the wall": một đầu của vật
+_FRAME_BEFORE = re.compile(r"\b(?:frame|screen)[\s-]*$", re.I)
+_WHERE_AFTER = re.compile(r"^[\s-]*(?:(?:corner|side|edge)\s+(?:of\s+the\s+\w+\s+)?)?where\s+(.+?)(?=\s+(?:stand|stands|standing|is|are|sit|"
+                          r"sits|sitting|wait|waits|waiting|crouch|crouches|lie|lies|lying|hide|hides|appear|appears|gather|gathers|lurk|"
+                          r"lurks)\b|$)", re.I)
+
+
+def _side_claims(clause: str, names: List[str]) -> Dict[str, set]:
+    """{tên: {"left" / "right"}} mà vế chữ đặt CHO TÊN ĐÓ (theo chủ thể đúng của chữ trái/phải). Bộ phận cơ thể / phía của người / một đầu
+    của vật → không phải chỗ trong khung, bỏ (không gán cho ai)."""
+    spots = sorted((mt.start(), n) for n in names if n for mt in re.finditer(re.escape(str(n)), clause, re.I))
+    out: Dict[str, set] = {}
+    for tok in _SIDE_TOKEN.finditer(clause):
+        word = (tok.group(1) or tok.group(2) or "").lower()
+        side = "left" if word in ("left", "trái") else "right"
+        before, after = clause[:tok.start()], clause[tok.end():]
+        if tok.group(1):                                  # tiếng Anh: bộ phận cơ thể / sở hữu / một đầu của vật
+            if _BODY_AFTER.match(after) or _POSS_BEFORE.search(before):
+                continue
+            if _PART_AFTER.match(after) and not _FRAME_BEFORE.search(before):
+                continue
+        where = _WHERE_AFTER.match(after)
+        if where:                                         # "frame-right where X stand(s)" → chủ thể là X (có thể không là ai trên map)
+            lo, hi = tok.end() + where.start(1), tok.end() + where.end(1)
+            inside = [n for p, n in spots if lo <= p < hi]
+            if inside:
+                out.setdefault(inside[0], set()).add(side)
+            continue
+        prev = [n for p, n in spots if p < tok.start()]
+        nxt = [n for p, n in spots if p >= tok.end()]
+        who = prev[-1] if prev else (nxt[0] if nxt else None)
+        if who is not None:
+            out.setdefault(who, set()).add(side)
+    return out
 
 
 def sentences_enabled() -> bool:
@@ -371,8 +502,9 @@ def _cam_rel(m: Dict, camera: Optional[Dict]) -> Optional[Tuple[List[float], Lis
     return sub(camera["location"]), sub(camera["look_at"])
 
 
-def _place(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tuple[str, float]]:
-    """(trái | giữa | phải khung, độ sâu m) của điểm xy nhìn từ máy; sau lưng máy → None."""
+def frame_xy(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tuple[float, float]]:
+    """(ngang m — dương = phải khung, sâu m — dương = trước máy) của điểm xy trong hệ của máy; máy không có hướng → None.
+    Một phép chiếu cho câu vị trí (M3.3) và bất biến R1 (core/position_invariants)."""
     import math
     fx, fy = look[0] - loc[0], look[1] - loc[1]
     n = math.hypot(fx, fy)
@@ -380,7 +512,16 @@ def _place(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tup
         return None
     fx, fy = fx / n, fy / n
     dx, dy = xy[0] - loc[0], xy[1] - loc[1]
-    depth, lateral = dx * fx + dy * fy, dx * fy - dy * fx          # phải của hướng nhìn (x Đông, y Bắc, z lên)
+    return dx * fy - dy * fx, dx * fx + dy * fy          # phải của hướng nhìn (x Đông, y Bắc, z lên)
+
+
+def _place(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tuple[str, float]]:
+    """(trái | giữa | phải khung, độ sâu m) của điểm xy nhìn từ máy; sau lưng máy → None."""
+    import math
+    got = frame_xy(loc, look, xy)
+    if got is None:
+        return None
+    lateral, depth = got
     if depth <= 0.05:
         return None
     ang = math.degrees(math.atan2(lateral, depth))
@@ -446,6 +587,12 @@ def review(m: Optional[Dict], shot, current_text: str, camera: Optional[Dict] = 
     trái/phải NGƯỢC map cho cùng tên. Không sửa prompt, không chặn gen."""
     if not sentences_enabled():
         return None
+    return side_review(m, shot, current_text, camera)
+
+
+def side_review(m: Optional[Dict], shot, current_text: str, camera: Optional[Dict] = None) -> Dict:
+    """Phần thuần của review (không đọc cờ): câu đề xuất + vế chữ nói trái/phải NGƯỢC map. Bất biến R1 (core/position_invariants) gọi
+    trực tiếp — một cách đọc trái/phải cho cả REVIEW M3.3 và kiểm offline."""
     suggested, prov = position_sentence(m, shot, camera)
     out = {"level": "REVIEW", "shot": shot, "suggested": suggested, "provenance": prov, "mismatches": []}
     text = current_text or ""
@@ -453,11 +600,14 @@ def review(m: Optional[Dict], shot, current_text: str, camera: Optional[Dict] = 
     for e in (m or {}).get("entities") or []:
         labels[e["entity_id"]] = e.get("label") or e["entity_id"]
     clauses = [c.strip() for c in _CLAUSE.split(text) if c and c.strip()]
-    for eid, side in (prov.get("placed") or {}).items():
-        name = labels.get(eid, eid)
+    placed = prov.get("placed") or {}
+    claims = [(c, _side_claims(c, [str(labels.get(eid, eid)) for eid in placed])) for c in clauses]
+    for eid, side in placed.items():
+        name = str(labels.get(eid, eid))
         other = "right" if side == "left" else "left" if side == "right" else None
-        for c in clauses:                          # trái/phải đọc trong CÙNG vế với tên (không vớ chữ của người khác)
-            if other and re.search(re.escape(str(name)), c, re.I) and _SIDE_WORDS[other].search(c) and not _SIDE_WORDS[side].search(c):
+        for c, got in claims:                      # trái/phải gán cho ĐÚNG chủ thể của vế (không vớ chữ của người khác / bộ phận cơ thể)
+            sides = got.get(name) or set()
+            if other and other in sides and side not in sides:
                 out["mismatches"].append({"entity": name, "map": side, "text": c})
                 break
     return out

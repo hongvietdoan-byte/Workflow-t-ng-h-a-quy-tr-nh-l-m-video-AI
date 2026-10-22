@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T08:16:42.708418+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-M48-DESK-UI",
+  "to": "cloud-D",
+  "title": "Bàn đạo diễn 3D Đợt 1 — giao diện dashboard/stage_desk_ui.py + cờ stage_desk_ui (0 USD)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M48-DESK-UI",
+  "priority": 2
+}

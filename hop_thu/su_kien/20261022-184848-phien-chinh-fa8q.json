@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T18:48:48.170325+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FLAG20-TRIAGE",
+  "to": "cloud-E",
+  "title": "Đo từng cờ: vì sao verified 20 cờ làm hỏng 362 test — chỉ đo + tài liệu, 0 USD",
+  "spec": "docs/CLOUD_TASKS.md#### C-FLAG20-TRIAGE",
+  "priority": 2
+}

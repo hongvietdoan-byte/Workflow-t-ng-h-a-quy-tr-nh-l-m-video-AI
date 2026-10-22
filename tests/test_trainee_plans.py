@@ -1,5 +1,6 @@
 """B4 🎓 học việc (08/10): camera_setups / continuous_takes / end_frames only WRITE their plan (trainee_log), 0 USD, no effect —
 the Director prompt has no "Vị trí máy", shots.group_of is unchanged, no end frame is queued/drawn, the estimate counts none."""
+from tests._flags import pin_off
 import json
 import tempfile
 import unittest
@@ -24,6 +25,7 @@ def _log(conn, pid, feature):
 
 class TraineePlanTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         _trainee(self, *ROLES)
         self.p, self.pid = kenta_project(shot_mode="per_shot")
         llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T08:59:10.927884+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-FIX5",
+  "to": "cloud-C",
+  "title": "C-M83-TOOL chưa gộp: đường tệp thật khi chạy --db (VỪA) + 2 THẤP C-FIX4",
+  "spec": "docs/CLOUD_TASKS.md#### C-FIX5",
+  "priority": 2
+}

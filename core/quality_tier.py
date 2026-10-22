@@ -191,6 +191,10 @@ def hard_signs(conn, scene_id: int, data: Optional[Dict] = None) -> List[str]:
     if skill:
         signs.append("shot kỹ năng")
     voiced = data.get("lip_sync") is True
+    if voiced:
+        from . import lipsync               # M2.9 G17 (cờ narration_offscreen): lip_sync true mà chỉ lời dẫn → không có miệng để khớp
+        if lipsync.offscreen_on() and not lipsync.talking(data):
+            voiced = False
     if not voiced and data.get("shot_no"):
         try:
             from . import lipsync
@@ -1140,3 +1144,49 @@ def run_estimate(conn, pid: int, rows, pricing: Optional[Dict] = None) -> Dict:
         out["drafts"] += 1
     out["usd"] = round(out["usd"], 4)
     return out
+
+
+# ---- V3.1 M7.4 (F-Q4, sổ v31-ep-fb-fc-flag-packs-2026-10-21): nghiệm thu two_tier_quality — dự toán ↔ chi thực ±5 % + chất lượng --------
+COST_TOLERANCE = 0.05            # |chi thực − dự toán| / dự toán ≤ 5 %, tính ĐỦ phát sinh (gen lại, phụ phí video ref)
+FIRST_TRY_MIN = 0.8              # ≥ 80 % cảnh có bản cao duyệt ngay lần đầu
+FINAL_REGEN_MAX = 1              # trần gen lại bản cao (thiết kế 2 bậc: ≤ 1)
+
+
+def acceptance(estimate: Dict, actual_rows: List[Dict], final_jobs: List[Dict]) -> Dict:
+    """Thuần (test được). estimate = final_estimate() chụp TRƯỚC khi gen bản cao ({"usd", "scenes", "unknown"}); actual_rows = dòng đối soát
+    ClipAI (tools/clipai_cost_reconcile --json: {job_id, quality_tier, actual_usd}) của dự án; final_jobs = job video bậc final
+    ({id, scene_id, state}). Chi thực = MỌI job bậc final (cả gen lại / thử lại = phát sinh). Dòng chưa có tiền thật hay dự toán có cảnh
+    không tính được giá → KHÔNG RÕ, không bao giờ là đạt."""
+    rows = [r for r in actual_rows if r.get("quality_tier") == "final"]
+    unknown_actual = [r.get("job_id") for r in rows if r.get("actual_usd") is None]
+    actual = round(sum(float(r["actual_usd"]) for r in rows if r.get("actual_usd") is not None), 4)
+    est = estimate.get("usd")
+    why = []
+    if estimate.get("unknown"):
+        why.append(f"dự toán thiếu giá {len(estimate['unknown'])} cảnh")
+    if unknown_actual:
+        why.append(f"{len(unknown_actual)} job bản cao chưa có tiền thật (chạy lại đối soát)")
+    if not rows:
+        why.append("chưa có job bản cao nào trong đối soát")
+    if not est:
+        why.append("dự toán = 0 / không có — không so được")
+    diff = None if not est else round((actual - float(est)) / float(est), 4)
+    cost_ok = None if why else (diff is not None and abs(diff) <= COST_TOLERANCE)
+    # chất lượng: chỉ job ĐÃ được phán (duyệt / loại); lỗi nhà cung cấp (failed / cancelled) không phải lần gen lại; cảnh còn chờ phán →
+    # KHÔNG RÕ (rà C-M74)
+    by_scene: Dict[int, List[Dict]] = {}
+    pending = set()
+    for j in sorted(final_jobs, key=lambda j: j["id"]):
+        if j["state"] in ("approved", "rejected"):
+            by_scene.setdefault(j["scene_id"], []).append(j)
+        elif j["state"] not in ("failed", "cancelled"):
+            pending.add(j["scene_id"])
+    pending -= {sid for sid, js in by_scene.items() if any(x["state"] == "approved" for x in js)}
+    first_ok = sum(1 for js in by_scene.values() if js and js[0]["state"] == "approved")
+    over = sorted(sid for sid, js in by_scene.items() if len(js) - 1 > FINAL_REGEN_MAX)
+    share = None if not by_scene else round(first_ok / len(by_scene), 3)
+    quality_ok = None if share is None or pending else (share >= FIRST_TRY_MIN and not over)
+    return {"estimate_usd": est, "actual_usd": actual, "diff_pct": None if diff is None else round(diff * 100, 2), "cost_ok": cost_ok,
+            "cost_why": why, "first_try_share": share, "over_regen_scenes": over, "quality_ok": quality_ok,
+            "pending_scenes": sorted(pending),
+            "ok": cost_ok is True and quality_ok is True}

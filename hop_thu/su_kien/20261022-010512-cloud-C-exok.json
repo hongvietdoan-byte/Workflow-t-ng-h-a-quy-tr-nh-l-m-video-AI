@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T01:05:12.733882+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M63-FIX",
+  "branch": "cloud/v31-m63-fix",
+  "commit": "7a68a597",
+  "report": "docs/RA_CLOUD_M63_FIX_2026-10-22.md",
+  "text": "gen_auth.shadow_send trước slot.send ở 6 đường gửi thẳng (end_frames, quality_samples ×2, lipsync, scene_establish, costume, experiments) — ghi route+origin, không tính lượt shot/không kiểm tự sửa/model (khớp môi model riêng; tính vào trần hay không = câu hỏi M6-B); test AST giữ mọi slot.send(provider.submit có shadow trước. attempts đếm clip nhóm qua sent_group (UNION dùng chỉ mục, khử trùng task leader); ngân sách tính 1 lần/lượt gửi, khoản chi leader không đếm 2; bảng giá cache 60s. autoqc: mã dừng xóa khi lượt mới/lỗi khác/clear_video_error (không hết hạn theo RETRY_AFTER vì M7.4 cố ý giữ qua cửa sổ — đã ghi lý do). Rà 10 mục sửa hết. Suite 6973 passed, đỏ chỉ golden 3.14 nền. HẠN MỨC: không đọc được."
+}

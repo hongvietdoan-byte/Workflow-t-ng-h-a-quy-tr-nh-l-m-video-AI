@@ -1,5 +1,6 @@
 """Hộp thư 12/10 18:13 (#27 shot 3, job 782 → 783): a run / walk generated much longer than the shot gets no drawn end frame, and a run
 the camera follows gets the ground sentence — flag locomotion_end_frame (off by default: the old text and the old send, byte for byte)."""
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -44,6 +45,7 @@ class SentenceTests(unittest.TestCase):
 
 class RunnerEndFrameTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "framing_guard", "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         from core import batch, model_router
         flags_on(self, "end_frames")
         self.p, self.pid = kenta_project()

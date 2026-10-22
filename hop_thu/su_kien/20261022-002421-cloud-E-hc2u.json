@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T00:24:21.920139+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-M73",
+  "branch": "cloud/v31-m73",
+  "commit": "ae71d563",
+  "report": "docs/RA_CLOUD_M73_2026-10-21.md",
+  "text": "K3: cờ con ref_end_frames TẮT (cần end_frames + seedance_ref_groups). BẬT: shot cần khung cuối ở tuyến Seedance ref được vẽ khung cuối, tách khỏi nhóm gửi một mình (khung cuối = ảnh tham chiếu cuối có câu vai), gói ghi router_khung_cuoi; model không nhận (refs_with_end_frame) → không tách + VÀNG cho MỌI shot trong nhóm. Đã qua agent rà kỹ (2 VỪA + THẤP sửa: rollback không kẹt, không vẽ thừa cho shot đã có clip/đang bay). Nhóm A: TẮT 43 đỏ = gốc, BẬT 17 đỏ không mới; 512 test liên quan; golden 3.14 128 xanh / 3 đỏ môi trường; replay 0 USD cờ TẮT 4/4 byte. Tách nhóm = thêm clip ≥ 4 s + 1 ảnh/shot; chất lượng chỉ chứng minh bằng gen thật (Cấp 3). Nhánh tách từ cloud/v31-m2-tichhop."
+}

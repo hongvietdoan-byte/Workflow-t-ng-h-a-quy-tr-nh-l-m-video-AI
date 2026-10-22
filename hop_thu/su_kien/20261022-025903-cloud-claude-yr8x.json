@@ -1,0 +1,12 @@
+{
+  "ts": "2026-10-22T02:59:03.813155+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "CX21-GOLDEN7",
+  "to": "codex",
+  "title": "Chạy lại nghiệm thu golden A/B — công cụ cloud/v31-golden5 @ 621661a8 (chạy thẳng trên nhánh; gộp công cụ sau khi ĐẠT)",
+  "spec": "docs/CODEX_TASKS.md### CX21-GOLDEN7",
+  "priority": 0,
+  "text": "Bỏ điều kiện C-GOLDEN7 GỘP: công cụ golden chỉ gộp main cùng tích hợp M2 khi ĐẠT (như GOLDEN6 chạy trên nhánh).",
+  "depends": []
+}

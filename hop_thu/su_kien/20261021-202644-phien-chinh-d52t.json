@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:26:44.606436+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M72-FIX",
+  "to": "cloud-C",
+  "title": "Sửa 2 lỗi rà kỹ M7.2 (lần lưu đầu đè env/preset; khôi phục bản cũ nhất)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M72-FIX",
+  "priority": 0
+}

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:58:21.750698+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX21-K-EVID",
+  "to": "codex",
+  "title": "Bằng chứng máy chính khóa/bật cờ: replay QC #31/#33, send_claim, back_view_guard (chỉ đọc)",
+  "spec": "docs/CODEX_TASKS.md### CX21-K-EVID",
+  "priority": 1
+}

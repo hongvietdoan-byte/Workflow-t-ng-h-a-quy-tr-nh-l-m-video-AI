@@ -155,6 +155,116 @@ def check_stage_crew_plan():
 
 
 
+def _desk_project(n_shots=1):
+    """C-FIX6 mục 2: dự án tạm + đoạn sân khấu GIẢ (một cảnh, `n_shots` shot) để check S-B / S-C / S-D gọi HÀM thật (không dò chữ)."""
+    p, pid, sid = _pipeline_with_shot({"story_scene": 1})
+    sids = [sid]
+    for i in range(2, n_shots + 1):
+        idx = p.add_scene_next(pid, f"s{i}")
+        sids.append(p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (pid, idx)).fetchone()[0])
+    seg = {"id": "S1", "scene": "1", "stage": "phong", "shots": [{"id": s, "idx": i} for i, s in enumerate(sids, 1)]}
+    return p, pid, sids, seg, tempfile.mkdtemp(prefix="desk_check_")
+
+
+def check_stage_desk_ep_only():
+    """v31-ep-stage-desk-actions-2026-10-21 S-B: chỉ Executive Producer (NGƯỜI, Owner / chủ dự án) duyệt / trả lại sân khấu trên bàn đạo
+    diễn; Director / phiên Claude / công cụ không tự duyệt; nút nạp câu trả lời vai không nhận lượt duyệt (nguồn cố định claude_code).
+    C-FIX6 mục 2: kiểm HÀNH VI (gọi hàm) — đảo logic thì đỏ."""
+    from core import stage_auto, stage_desk as SD, write_guard
+    p, pid, _sids, seg, data = _desk_project()
+    conn, human, ai = p.conn, write_guard.actor("human", "tao@x"), write_guard.actor("ai", "director")
+    with mock.patch.dict(os.environ, {"DASHBOARD_AUTH": "off"}):
+        SD._need_ep(conn, pid, human, None, "Duyệt")                                    # đăng nhập TẮT: chủ máy là EP
+        for who in (ai, write_guard.actor("tool", "cli.stage_auto"), write_guard.actor("auto", "autopilot"), None):
+            with pytest.raises(SD.DeskError):
+                SD._need_ep(conn, pid, who, None, "Duyệt")                              # không phải NGƯỜI → từ chối
+    conn.execute("UPDATE projects SET created_by='tao@x' WHERE id=?", (pid,))
+    conn.execute("INSERT INTO project_watchers(project_id, email, level, added_at) VALUES (?,?,?,?)", (pid, "sua@x", "edit", "2026-10-22"))
+    with mock.patch.dict(os.environ, {"DASHBOARD_AUTH": "on"}):
+        assert SD.is_executive_producer(conn, pid, {"email": "tao@x", "role": "member"}), "chủ dự án = EP"
+        assert SD.is_executive_producer(conn, pid, {"email": "boss@x", "role": "owner"}), "Owner = EP"
+        assert not SD.is_executive_producer(conn, pid, {"email": "sua@x", "role": "member"}), "người được sửa không phải EP"
+        assert not SD.is_executive_producer(conn, pid, None), "đăng nhập BẬT mà không có danh tính không phải EP"
+        with pytest.raises(SD.DeskError):
+            SD._need_ep(conn, pid, write_guard.actor("human", "khac@x"), {"email": "tao@x", "role": "member"}, "Duyệt")   # actor ≠ đăng nhập
+        with pytest.raises(SD.DeskError):
+            SD._need_ep(conn, pid, write_guard.actor("human", "sua@x"), {"email": "sua@x", "role": "member"}, "Duyệt")
+    with mock.patch.object(SD, "segment", return_value=seg), \
+            mock.patch.object(stage_auto, "crew_user_verdict", side_effect=AssertionError("không được ghi")), \
+            mock.patch.dict(os.environ, {"DASHBOARD_AUTH": "off"}):
+        assert not SD.approve(conn, pid, data, "1", ai, None)["ok"], "Director không tự duyệt"
+        assert not SD.return_(conn, pid, data, "1", [{"shot": 1, "y_do": "x"}], ai, None)["ok"]
+    seen = []
+    with mock.patch.object(SD, "segment", return_value=seg), \
+            mock.patch.object(SD, "_start", lambda c, i, d, g, a, w, work: work(c, lambda m: None)), \
+            mock.patch.object(stage_auto, "crew_answer", side_effect=lambda *a, **k: (seen.append(k.get("source")), {"ok": True})[1]):
+        assert not SD.load_answer(conn, pid, data, "1", {"duyet": True}, human)["ok"], "nút nạp không nhận lượt duyệt"
+        assert seen == []
+        SD.load_answer(conn, pid, data, "1", {"vai": "dao_dien"}, human)
+    assert seen == ["claude_code"], "nguồn câu trả lời vai phải cố định claude_code (không phải người dùng)"
+
+
+def check_stage_desk_paid_gate():
+    """S-C: shot EP đánh dấu bắt buộc plate 3D đã duyệt mà sân khấu chưa được EP duyệt (Đạo diễn tự chốt không tính) / nền chưa xong →
+    HOLD ở MỌI đường gửi trả phí (runner — cùng hàm paid_hold), trừ khi EP xác nhận ngoại lệ (có lý do) → VÀNG. C-FIX6: chưa đánh dấu →
+    không VÀNG / không giữ (y hệt trước). Kiểm HÀNH VI."""
+    from core import runner as R, stage_auto, stage_desk as SD, write_guard
+    from core.providers import MockImageProvider
+    p, pid, sids, seg, data = _desk_project()
+    sid, conn, human = sids[0], p.conn, write_guard.actor("human", "ep@x")
+    st = {"phase": None, "inputs_changed": False, "inputs_known": True, "approved_by": None, "cams_this_stage": [], "label": "chưa dàn"}
+    job = {"id": 1, "scene_id": sid, "project_id": pid}
+    run = R.ImageRunner(p, MockImageProvider(), data)
+    with mock.patch.dict(os.environ, {"DASHBOARD_AUTH": "off"}), mock.patch.object(stage_auto, "segments", return_value=[seg]), \
+            mock.patch.object(SD, "scene_status", side_effect=lambda *a, **k: dict(st)):
+        assert SD.paid_gate(conn, pid, data, [sid]) == [] and run._desk_hold(job) is None, "chưa đánh dấu: không VÀNG / không giữ"
+        assert not SD.require_plate(conn, pid, data, sid, True, write_guard.actor("ai", "d"), None)["ok"], "chỉ EP đánh dấu"
+        assert SD.require_plate(conn, pid, data, sid, True, human, None)["ok"]
+        assert [x["level"] for x in SD.paid_gate(conn, pid, data, [sid])] == ["hold"]
+        assert "plate 3D bắt buộc" in (run._desk_hold(job) or ""), "runner (mọi đường gửi trả phí) phải giữ"
+        st.update(phase="xong", approved_by="dao_dien", cams_this_stage=[1])
+        with mock.patch.object(SD, "_plate_ready", return_value=None):
+            assert [x["level"] for x in SD.paid_gate(conn, pid, data, [sid])] == ["hold"], "Đạo diễn tự chốt ≠ EP duyệt"
+            st.update(approved_by="nguoi_dung")
+            assert SD.paid_gate(conn, pid, data, [sid]) == [] and run._desk_hold(job) is None, "EP duyệt + máy + nền xong → qua"
+        st.update(phase="duyet", approved_by=None)
+        assert not SD.allow_exception(conn, pid, data, sid, "", human, None)["ok"], "ngoại lệ cần lý do"
+        assert SD.allow_exception(conn, pid, data, sid, "gấp, chấp nhận lệch", human, None)["ok"]
+        assert [x["level"] for x in SD.paid_gate(conn, pid, data, [sid])] == ["warn"] and run._desk_hold(job) is None
+
+
+def check_stage_desk_reset_confirm():
+    """S-D: chia vai lại = hỏi xác nhận + xem trước; xác nhận mới cất lượt + ghi dấu; máy đã ghi giữ tới lượt duyệt mới; lượt duyệt sau
+    CHỈ shot đổi máy thành cũ và danh sách được ghi lại TRƯỚC khi xóa dấu (C-FIX6 mục 5). Kiểm HÀNH VI."""
+    from core import stage_auto, stage_desk as SD, write_guard
+    p, pid, sids, seg, data = _desk_project(2)
+    conn, human, calls = p.conn, write_guard.actor("human", "ep@x"), []
+
+    def cam(sid, lens):
+        conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"story_scene": 1, stage_auto.FIELD: {"lens": lens}}), sid))
+        conn.commit()
+    cam(sids[0], 30)
+    cam(sids[1], 50)
+    with mock.patch.object(SD, "segment", return_value=seg), mock.patch("core.camera_plan.drawn_shots", return_value=[2]), \
+            mock.patch.object(SD, "scene_status", return_value={"cams_this_stage": [1, 2]}), \
+            mock.patch.object(stage_auto, "_crew_reset", side_effect=lambda ctx: calls.append(ctx)):
+        r = SD.reset(conn, pid, data, "1", human)
+        mark = os.path.join(SD.seg_dir(data, pid, seg), SD.RESET_FILE)
+        assert not r["ok"] and r["needs_confirm"] and calls == [] and not os.path.exists(mark), "chưa xác nhận: chỉ xem trước"
+        for key in ("cams_kept", "plates_stale_after", "images_stale_after", "world_map_stale_after", "may_go_stale"):
+            assert key in r["preview"], f"xem trước thiếu {key}"
+        assert r["preview"]["plates_stale_after"] == [], "xem trước không được coi shot giữ nguyên máy là cũ"
+        assert SD.reset(conn, pid, data, "1", human, confirm=True)["ok"] and len(calls) == 1 and os.path.exists(mark)
+        assert json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (sids[0],)).fetchone()[0]).get(stage_auto.FIELD), \
+            "máy đã ghi phải giữ tới lượt duyệt mới"
+        cam(sids[1], 85)                                                                  # lượt mới: chỉ shot 2 đổi máy
+        rec = SD._close_reset(conn, pid, data, seg, human)
+    assert rec["plates_stale"] == [2] and rec["images_stale"] == [2], rec
+    assert not os.path.exists(mark), "dấu làm lại phải xóa sau lượt duyệt"
+    with open(os.path.join(SD.seg_dir(data, pid, seg), SD.RESET_STALE_FILE), encoding="utf-8") as f:
+        assert json.load(f)["plates_stale"] == [2], "danh sách đã cũ phải ghi lại trước khi xóa dấu"
+
+
 def check_stage_handheld_new_scenes():
     """16/10: cờ stage_handheld_props chỉ cho cảnh MỚI — đoạn đã dàn không có đồ cầm tay giữ đầu vào (vân tay) cũ; không bật qua preset."""
     import inspect
@@ -207,6 +317,17 @@ def check_subject_cleanup_dry_run():
         result = subjects.run_auto_cleanup(None, 1, 'fixture', library=library)
     assert result['deleted'] == [] and result['plan']['dry_run'] is True
     assert library.mock_calls == []
+
+
+def check_crew_profiles_linked():
+    """Người dùng 22/10: mỗi vai có hồ sơ 9 mục; sản phẩm ↔ người nhận ↔ KPI liên kết hai chiều, không thiếu / thừa."""
+    from core import crew
+    bad = crew.link_problems()
+    assert not bad, "liên kết vai lỗi: " + "; ".join(bad[:5])
+    prof = crew.load_profiles()
+    for r in crew.roles():
+        p = prof["profiles"][r["id"]]
+        assert all(p.get(k) for k in ("ban_la_ai", "vai_tro", "viec_lam", "chiu_trach_nhiem")), r["id"]
 
 
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
@@ -356,3 +477,31 @@ def test_c3_3_supersedes_legacy_cleanup_keeps_other_guards():
     for guard in ('preflight', 'không tự đổi model', 'nhân vật', 'TRÊN 3 NGÀY'):
         assert guard in new['keeps']
     check_subject_cleanup_dry_run()
+
+
+def test_v31_m6_architecture_recorded_as_direction_not_implementation():
+    """21/10 Executive Producer 'PHÊ DUYỆT KIẾN TRÚC M6': chốt định hướng kiến trúc + chính sách giới hạn generation — CHƯA duyệt code
+    (Cấp 2) hay tự gen trả phí (Cấp 3). Giới hạn mới là TỔNG lượt (ảnh 3 = 1+2, video 2 = 1+1); code hiện hành (AUTO_REGEN_LIMIT = số lần
+    TỰ gen lại) giữ nguyên tới khi M6.3 được duyệt — D01b chưa bị thay."""
+    items = {i["id"]: i for i in LEDGER["items"]}
+    crew = items["v31-m6-crew-architecture-2026-10-21"]
+    first = items["v31-m6-generation-limits-policy-2026-10-21"]
+    lim = items["v31-m6-generation-limits-policy-b-2026-10-21"]       # EP trả lời Q1/Q2/Q4 cùng ngày → bản b thay bản đầu
+    assert first["status"] == "replaced" and lim["replaces"] == first["id"]
+    assert crew["replaces"] is None
+    for it in (crew, lim):
+        assert it["status"] == "active", it["id"]
+        assert "không phải lệnh triển khai code" in it["changes"] and "Cấp 2" in it["changes"] and "Cấp 3" in it["changes"], it["id"]
+    for role in ("Executive Producer", "Director", "Scriptwriter", "Cinematographer", "3D Artist", "Storyboard Artist",
+                 "Video Prompt Artist", "Sound Designer", "Editor / VFX", "Continuity Validator"):
+        assert role in crew["text"], role
+    assert "kỹ sư" in crew["text"] and "Shadow Mode" in crew["text"]
+    assert "ảnh tối đa 3 lượt" in lim["text"] and "video tối đa 2 lượt" in lim["text"]
+    assert "CHƯA phải phê duyệt bật tự động gen trả phí" in lim["text"]
+    assert "AUTO_REGEN_LIMIT" in lim["keeps"] and "D01c" in lim["keeps"]
+    assert "KHÔNG tính lượt video" in lim["text"] and "CÓ trừ lượt" in lim["text"] and "CÓ cho tự lùi model" in lim["text"]
+    assert "Q3 (ngân sách tự sửa) chưa chốt" in lim["text"]
+    assert items["v31-d01b-money-policy-product-job-cap-2026-10-20"]["status"] == "active"
+    from core.pipeline import AUTO_REGEN_LIMIT                 # chưa triển khai M6.3: code giữ trần cũ
+    assert AUTO_REGEN_LIMIT == {"image_gen": 3, "video_gen": 2}
+

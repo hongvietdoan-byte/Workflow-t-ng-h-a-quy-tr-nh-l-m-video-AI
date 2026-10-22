@@ -127,6 +127,7 @@ def lint_motion(p: Pipeline, project_id: int, client, scene_ids: Optional[List[i
 
 def apply_lint(p: Pipeline, project_id: int, scene_id: int) -> bool:
     """Use the revised prompt proposed by the check (the prompt then waits for approval again)."""
+    from . import write_guard
     access.need_edit(p, project_id, "áp dụng sửa motion")
     row = p.conn.execute("SELECT s.idx, m.* FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE m.scene_id=?",
                          (scene_id,)).fetchone()
@@ -136,7 +137,8 @@ def apply_lint(p: Pipeline, project_id: int, scene_id: int) -> bool:
         return False
     llm_io.store_motion_prompts(p, project_id, {"scenes": [{"idx": row["idx"], "motion_prompt": new, "camera": row["camera"],
                                                             "duration_sec": row["duration_sec"],
-                                                            "negative_prompt": row["negative_prompt"]}]})
+                                                            "negative_prompt": row["negative_prompt"]}]},
+                               actor=write_guard.actor("human", p.actor or "dashboard"))   # M2.5: người bấm áp đề xuất = người ghi
     return True
 
 
@@ -319,9 +321,10 @@ def _end_frame_sent(job) -> bool:
 def _measure_clip(p: Pipeline, job, path: str, data: Dict, first, data_dir: str) -> Optional[Dict]:
     """S4.5: the clip's layer-0 numbers (core/clip_measure) against its storyboard picture — evidence for the QC, recorded in the diag
     log; None when nothing could be measured (OpenCV missing): the QC goes on by eye, as before."""
-    from . import clip_measure, diag, shots
+    from . import clip_measure, diag, lipsync, shots
     picture = first if first and os.path.exists(first) else shots.approved_image_path(p.conn, data_dir, job["project_id"], job["scene_id"])
-    speaking = bool(data.get("dialogue"))
+    # M2.9 G16 (cờ narration_offscreen): shot chỉ có lời dẫn không "đang nói" — không đo môi theo giọng
+    speaking = lipsync.talking(data) if lipsync.offscreen_on() else bool(data.get("dialogue"))
     audio, turns, note = _shot_voice(data_dir, job["project_id"], job["scene_id"], path) if speaking else (None, None, None)
     try:
         out = clip_measure.measure(path, picture, audio=audio, speaking=speaking, turns=turns,

@@ -148,4 +148,84 @@ def test_nothing_in_the_gen_path_reads_the_map():
     use = re.compile(r"^\s*(?:from\s+\S+\s+)?import\s+[^\n]*\bworld_map\b|\bworld_map\.\w", re.M)   # import / gọi hàm (tên cờ không tính)
     users = [str(p.relative_to(root)) for d in ("core", "dashboard") for p in (root / d).rglob("*.py")
              if p.name != "world_map.py" and use.search(p.read_text(encoding="utf-8", errors="replace"))]
-    assert users == []
+    # C-STAGE-VIEW (21/10): màn XEM sân khấu 3D (cờ stage_view_ui) chỉ đọc map để hiện — không thuộc đường gen; cấm ghi / dựng map
+    # C-3D-GOC-B (22/10): nguồn bố cục chung core/layout_facts (positions) + bất biến R1 core/position_invariants chỉ ĐỌC map để báo —
+    # không đưa vào gói gửi / mệnh đề QC, không ghi / dựng map
+    read_only_views = {"dashboard/stage_view_ui.py", "core/layout_facts.py", "core/position_invariants.py"}
+    assert [u for u in users if u.replace("\\", "/") not in read_only_views] == []
+    for view in read_only_views:
+        src = (root / view).read_text(encoding="utf-8")
+        for word in ("world_map.refresh(", "world_map.save(", "world_map.build", "world_map._write("):
+            assert word not in src, (view, word)
+
+
+# ---- 22/10: dữ liệu thật để blocking.json trong THƯ MỤC LƯỢT (doan_<cảnh>/result.json → round) -----------------------------------
+def _round_stage(tmp_path, round_name="cc_20261016_104931", blocking=True, k1=False, scene="4"):
+    """Bố cục như data/projects/31/stage/kho265/doan_4: result.json round → <round>/{stage.json, grid.json, blocking.json, shot_specs.json}."""
+    seg = tmp_path / "31" / "stage" / "kho265" / f"doan_{scene}"
+    rd = seg / round_name
+    rd.mkdir(parents=True)
+    (seg / "result.json").write_text(json.dumps({"round": round_name.replace(os.sep, "/"), "cams": {"14": {}}}), encoding="utf-8")
+    (rd / "stage.json").write_text(json.dumps(STAGE), encoding="utf-8")
+    (rd / "grid.json").write_text(json.dumps({"cells": []}), encoding="utf-8")
+    if blocking:
+        (rd / "blocking.json").write_text(json.dumps(BLOCKING_C4, ensure_ascii=False), encoding="utf-8")
+        (rd / "shot_specs.json").write_text(json.dumps(SPECS_C4), encoding="utf-8")
+    k1_dir = None
+    if k1:
+        k1_dir = seg.parent / "k1_trungtammecung_60"
+        k1_dir.mkdir()
+        (k1_dir / "stage.json").write_text(json.dumps(dict(STAGE, origin_model=[1.0, 2.0, 3.0])), encoding="utf-8")
+    return str(seg), str(rd), (str(k1_dir) if k1_dir else None)
+
+
+def test_default_refresh_finds_the_round_blocking(tmp_path):
+    """Lỗi 22/10: refresh mặc định (không truyền seg_dir) không bao giờ ra 3D — blocking ở doan_<cảnh>/<round>/, không ở doan_<cảnh>/."""
+    seg, rd, _ = _round_stage(tmp_path)
+    with ON:
+        m = W.refresh(str(tmp_path), 31, 4)
+    assert m["kind"] == "3d" and W.check(m) == []
+    assert _rows(m, "kelly") == [(13, 18, [0.0, 0.0, 0.0])]
+    assert m["origin"]["stage"] == "kho265" and m["provenance"]["round"] == "cc_20261016_104931"
+    assert m["provenance"]["stage_json_from"] == "round"
+    assert m["sources"]["blocking_json_sha"] == W.sources(rd, rd)["blocking_json_sha"]
+    assert (tmp_path / "31" / "world" / "scene_4.json").exists()
+
+
+def test_round_dir_with_explicit_k1_and_missing_k1_falls_back_to_round(tmp_path):
+    seg, rd, k1 = _round_stage(tmp_path, k1=True)
+    m = W.build(4, k1_dir=k1, seg_dir=seg)                                      # doan_<cảnh> → result.json → round
+    assert m["kind"] == "3d" and m["origin"]["model_xyz"] == [1.0, 2.0, 3.0] and m["provenance"]["stage_json_from"] == "k1"
+    gone = os.path.join(os.path.dirname(k1), "k1_mecungngarebac_42")             # #31 cảnh 4: K1 theo chỗ đứng chính hiện tại chưa đo
+    m = W.build(4, k1_dir=gone, seg_dir=seg)
+    assert m["kind"] == "3d" and m["provenance"]["stage_json_from"] == "round" and m["origin"]["model_xyz"] == [10.0, 5.0, 0.0]
+
+
+def test_round_without_blocking_says_why_relative_and_unknown(tmp_path):
+    """#31 cảnh 3: round 'crew/final' không có blocking.json → không 3D, map nói RÕ lý do (cả khi tương đối), không im lặng."""
+    _round_stage(tmp_path, round_name=os.path.join("crew", "final"), blocking=False, scene="3")
+    with ON:
+        rel = W.refresh(str(tmp_path), 31, 3, byd=BYD_C6)
+        unk = W.refresh(str(tmp_path), 31, 9)
+    assert rel["kind"] == "relative" and "crew/final" in rel["why"] and "không có blocking.json" in rel["why"] and W.check(rel) == []
+    assert unk["kind"] == "unknown" and "doan_9" in unk["why"] and "không bịa" in unk["why"]
+
+
+def test_round_missing_on_disk_and_legacy_root_blocking(tmp_path):
+    seg, rd, _ = _round_stage(tmp_path)
+    pathlib.Path(seg, "result.json").write_text(json.dumps({"round": "cc_khong_co"}), encoding="utf-8")
+    m = W.build(4, seg_dir=seg)
+    assert m["kind"] == "unknown" and "cc_khong_co" in m["why"] and "không có trên đĩa" in m["why"]
+    pathlib.Path(seg, "blocking.json").write_text(json.dumps(BLOCKING_C4, ensure_ascii=False), encoding="utf-8")   # đường cũ: dự phòng
+    k1, _ = _stage(tmp_path / "k")
+    m = W.build(4, k1_dir=k1, seg_dir=seg)
+    assert m["kind"] == "3d" and m["provenance"]["round"] is None
+
+
+def test_axes_read_from_real_k1_keys(tmp_path):
+    seg, rd, _ = _round_stage(tmp_path)
+    st = dict(STAGE)
+    st.pop("axes")
+    st.update(axis="x_dong_y_bac", east=[1, 0], north=[0, 1])
+    pathlib.Path(rd, "stage.json").write_text(json.dumps(st), encoding="utf-8")
+    assert W.build(4, seg_dir=seg)["axes"] == {"axis": "x_dong_y_bac", "east": [1, 0], "north": [0, 1]}

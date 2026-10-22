@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-22T09:24:30.133546+07:00",
+  "lane": "cloud-claude",
+  "kind": "tin",
+  "to": "cloud-E",
+  "task": "C-QC-BOCUC",
+  "text": "Việc mới ưu tiên 1 (người dùng 22/10 duyệt): C-QC-BOCUC — đề docs/CLOUD_TASKS.md. 0 USD, KHÔNG thêm cờ (khóa catalog tới khi golden xong), qc_team giữ học việc. Nhận bằng ke --lane cloud-E --nhan --push. Luật 5b: chưa ĐANG LÀM sau ~1 giờ (2 lượt điều phối) thì cloud-claude chuyển làn khác / tự làm."
+}

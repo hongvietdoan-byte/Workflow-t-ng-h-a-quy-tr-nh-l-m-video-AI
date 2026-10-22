@@ -47,6 +47,10 @@ def mode_control(name: str) -> None:
 def no_effect_note(name: str) -> str:
     """Said next to a flag that is really ON but changes nothing in this configuration."""
     other = NO_EFFECT_WITH.get(name)
+    if name == "end_frames":
+        from core import end_frames
+        if end_frames.ref_route_on():   # M7.3 (cờ ref_end_frames): tuyến ref-only giữ khung cuối — end_frames có tác dụng
+            return ""
     if other and features.on(name) and features.on(other):
         return (f"⚠ Bật thật nhưng không có tác dụng khi `{other}` bật (clip chỉ-ảnh-tham-chiếu: không gộp / quay liền / khung cuối) "
                 "— dùng 🎓 Học việc để vẫn đo được.")
@@ -163,6 +167,12 @@ def render_panel(conn) -> None:
     """Màn 🧪: the agreement table, "Chấm lại" and the cards."""
     if not features.trainee_list():
         return
+    if not st.session_state.get("trn_auto_scored"):   # C-QC-BOCUC 22/10: 366 dòng học việc, 0 dòng chấm — trước chỉ chấm lúc Xuất bản / bấm nút
+        st.session_state["trn_auto_scored"] = True
+        try:
+            rescore(conn)
+        except Exception as e:  # noqa: BLE001 - bảng vẫn hiện số cũ; nút Chấm lại còn đó
+            st.warning(f"Chưa tự chấm được vai học việc: {e}. Bấm '↻ Chấm lại'.")
     render_table(conn)
     if st.button("↻ Chấm lại (0 USD)", key="trn_rescore", help="So quyết định của vai học việc với lần duyệt của bạn (review_log)"):
         rescore(conn)

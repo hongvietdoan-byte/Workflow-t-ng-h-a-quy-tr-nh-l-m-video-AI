@@ -1,6 +1,7 @@
 """K1a "Lưu gói gửi" (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md): every send path writes what REALLY left — byte for byte — on
 the job (jobs.sent_package / end_frames.sent_package). A ledger, never a gate: a failure is said (diag warn) and the send stands.
 Provider doubles only, temporary databases, nothing under data/."""
+from tests._flags import pin_off
 import functools
 import hashlib
 import json
@@ -118,6 +119,10 @@ class ImagePathTests(Base):
 
 
 class VideoPathTests(Base):
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def video_job(self, prompt="slow push-in — Kenta “bước tới”"):
         scene = self.p.create_scene(self.pid, 1, "S1")
         img = self.p.create_job(scene)
@@ -181,6 +186,10 @@ class VideoPathTests(Base):
 
 class FinalFromDraftTests(unittest.TestCase):
     """N1 'nâng từ nháp': submit_final_from_sample sends no prompt — the package says so, and points at the draft's own package."""
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def test_final_from_sample_package(self):
         tmp = tempfile.mkdtemp()
@@ -229,6 +238,10 @@ class FinalFromDraftTests(unittest.TestCase):
 
 
 class EndFrameTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_end_frame_package_matches_the_call(self):
         from tests.test_v3 import _approve_all_images, kenta_project
         from tests.test_end_frames import _shot_with_end_state
@@ -307,6 +320,10 @@ class MigrationTests(unittest.TestCase):
 
 class RaSuaTests(Base):
     """Rà độc lập K1a (sp-ra-sua): order, ledger, followers, relink, signed URLs."""
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def video_scene(self, idx, prompt="slow push-in"):
         scene = self.p.create_scene(self.pid, idx, f"S{idx}")

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T22:55:15.919146+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-GOLDEN6",
+  "to": "cloud-C",
+  "title": "Golden A/B: worker không nạp code cây B (negative control đỏ) — sửa gốc",
+  "spec": "docs/CLOUD_TASKS.md#### C-GOLDEN6",
+  "priority": 0
+}

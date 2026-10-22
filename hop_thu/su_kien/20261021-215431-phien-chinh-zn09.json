@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T21:54:31.003865+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-GOLDEN5",
+  "to": "phien-chinh",
+  "title": "Công cụ golden so A/B (phiên chính tự làm theo luật 5b — cloud-C chưa nhận)",
+  "spec": "docs/CLOUD_TASKS.md#### C-GOLDEN5",
+  "priority": 0
+}

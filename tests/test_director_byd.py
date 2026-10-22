@@ -327,3 +327,38 @@ class ReviewFixTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClaudeCliTests(unittest.TestCase):
+    """V3.1 M2.9 A12 (#33: 22 lần VÀNG không BYĐ): Đạo diễn + lượt sửa BYĐ chạy qua ClaudeCliClient (`claude -p` giả, không tiến trình
+    thật) — câu trả lời CLI là chữ có lời dẫn + rào ```json``` → settle vẫn đọc được BYĐ đã sửa."""
+
+    def _cli(self, rec):
+        from types import SimpleNamespace
+
+        def run(args, input=None, **kw):
+            reply = rec.complete(input)
+            out = {"result": "Đây là kết quả đã sửa:\n\n" + reply.text + "\n\nXong.", "is_error": False,
+                   "usage": {"input_tokens": reply.input_tokens, "output_tokens": reply.output_tokens}}
+            return SimpleNamespace(returncode=0, stdout=json.dumps(out, ensure_ascii=False), stderr="")
+        return llm_runner.ClaudeCliClient(run=run)
+
+    def test_repair_round_through_claude_cli_stores_the_fixed_byd(self):
+        def bad(k, s):
+            b = _good(k, s)
+            b["may"]["co"] = "close"
+            return b
+
+        def fix(n, prompt):
+            ans = director_byd.mock_answer(prompt)
+            for r in ans["byd"]:
+                r["byd"]["may"]["co"] = "MS"
+            return ans
+        with mock.patch.dict(os.environ, ON):
+            p, pid = _project()
+            rec = RepairRecorder(edit=_with_byd(bad), fix=fix)
+            llm_runner.run_director(p, pid, self._cli(rec))
+            rows = _rows(p, pid)
+        self.assertEqual(len(rec.repairs), 1)
+        self.assertTrue(rows)
+        self.assertTrue(all(d["byd_kiem"]["muc"] == "ok" and d["byd"]["may"]["co"] == "MS" for d in rows), [d.get("byd_kiem") for d in rows])

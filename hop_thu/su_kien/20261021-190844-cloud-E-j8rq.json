@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:08:44.815025+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-FLAGFIX-PLAN",
+  "branch": "cloud/v31-flagfix-plan",
+  "commit": "37122efd",
+  "report": "docs/KE_HOACH_SUA_20_CO_2026-10-21.md",
+  "text": "3 gói duyệt: A chặn mất tiền/ghi đè (change_review fail-closed test thật + gộp diag G56; hero_takes khai costs — PHÁT HIỆN thêm end_frames, scene_qc_claude, voice_check_redo tốn tiền mà KHÔNG khai costs; director_rewrite không ghi đè _user_locked (prompt_rewrite._set_prompt); tắt scene_qc_claude; D6 trong pregen_check), B sửa báo nhầm/nhãn/giá rồi khóa (8 cờ, phần lớn = bật cờ con có sẵn), C cờ vô tác dụng nối/bỏ (7). 5 câu hỏi người dùng ở mục 5."
+}

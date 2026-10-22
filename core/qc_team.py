@@ -238,7 +238,7 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
     """One frame through GĐ2: spec → code → C1 → rules. frame: {"job_id", "path", "data", "label"?}. Returns the verdict and every
     piece of evidence (assertions, code results, answers)."""
     from . import qc_measure, qc_rules, qc_spec
-    spec = qc_spec.compile_frame(p.conn, pid, frame["job_id"], frame["data"], profiles=profiles)
+    spec = qc_spec.compile_frame(p.conn, pid, frame["job_id"], frame["data"], profiles=profiles, data_dir=data_dir)
     code = qc_measure.measure_frame(frame["path"], frame["data"], spec["assertions"])
     from . import palette                    # S14.51 (cờ palette_check): màu chính nhân vật đo bằng code — ghi chú, không quyết
     palette.attach(code, p.conn, pid, frame["path"], frame["data"])
@@ -269,7 +269,8 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
             "plan_conflicts": spec["plan_conflicts"], "missing_profiles": spec["missing_profiles"], "other_issues": other,
             "problems": problems, "usage": usage, "asked": [a["id"] for a in ask],
             "code": {k: v for k, v in code.items() if not k.startswith("_")},
-            "palette": code.get("_palette")}          # S14.51: kept apart — the "_" keys above are dropped
+            "palette": code.get("_palette"),          # S14.51: kept apart — the "_" keys above are dropped
+            "layout_missing": spec.get("layout_missing") or []}
 
 
 def estimate_usd(n_frames: int, assertions_per_frame: int = 12, model_in: float = 2.0, model_out: float = 10.0) -> float:
@@ -317,6 +318,19 @@ def note_of(res: Dict) -> str:
     return " · ".join(parts)[:600]
 
 
+LAYOUT_TYPES = ("layout", "place")
+
+
+def decision_of(res: Dict) -> str:
+    """🎓 quyết định ghi trainee_log: block / flag (C-QC-BOCUC 22/10: chỉ lỗi bố cục / nền — giữ cho người xem, tính như 'reject' khi so
+    với người) / pass. Lỗi nhỏ khác vẫn 'pass' như trước."""
+    if res["verdict"] == "block":
+        return "block"
+    if any(f.get("type") in LAYOUT_TYPES for f in res.get("fails") or []):
+        return "flag"
+    return "pass"
+
+
 def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[Dict], focus: Optional[List[int]] = None,
                  shadow: bool = False) -> Dict:
     """Run C1 + the code layer on the scene's frames to look at (`focus` = job ids; None = all). Not trusted yet: every frame is held
@@ -357,7 +371,7 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[D
                 res["palette_scene"] = scene_colours[r["job_id"]]
             results[r["job_id"]] = res
             if shadow:                         # 🎓 nothing the person can see before deciding
-                trainee.record(p.conn, "qc_team", pid, f"job:{r['job_id']}", "block" if res["verdict"] == "block" else "pass",
+                trainee.record(p.conn, "qc_team", pid, f"job:{r['job_id']}", decision_of(res),
                                would_do={"verdict": res["verdict"], "fails": [f.get("claim_vi") for f in res.get("fails") or []]},
                                detail={"asked": res.get("asked"), "arbiter": res.get("arbiter")}, cost_usd=FRAME_USD if res.get("asked") else 0.0,
                                scene_id=r.get("scene_id"),

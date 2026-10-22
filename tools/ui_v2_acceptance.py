@@ -368,7 +368,8 @@ def seed_states(out: str) -> None:
 def child(mode: str, v2: str, extra=()) -> dict:
     # tests/__init__.py đặt FEATURE_PROJECT_BUDGET=0 … → bỏ mọi FEATURE_* thừa hưởng để phép đo giống máy thật (chỉ FEATURE_UI_V2 do _env đặt)
     env = {k: v for k, v in os.environ.items() if not k.startswith("FEATURE_")}
-    env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1", FEATURE_SETTINGS_FILE=os.path.join(tempfile.mkdtemp(), "none.json"))
+    env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1", FEATURE_SETTINGS_FILE=os.path.join(tempfile.mkdtemp(), "none.json"),
+               FEATURE_BASELINE="0")                                # M7.2: phép đo không theo baseline cờ sản xuất
     out = subprocess.run([sys.executable, os.path.abspath(__file__), "_child", mode, v2, *extra], capture_output=True, text=True,
                          encoding="utf-8", cwd=ROOT, env=env).stdout
     return json.loads(out[out.index("@@JSON@@") + 8:])

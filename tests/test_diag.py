@@ -74,7 +74,7 @@ class StageNameTests(unittest.TestCase):
         """Scan: diag.record(conn, "<stage>"…), autopilot._d(p, pid, "<stage>"…), llm_runner._diagnosed("<stage>")."""
         import ast
         root = os.path.join(os.path.dirname(__file__), "..")
-        known, bad = {s for s, _ in diag.STAGES}, []
+        known, bad = {s for s, _ in diag.STAGES} | set(diag.OBSERVE), []     # OBSERVE: bước bấm / lệnh CLI (core/ui_step)
         for top in ("core", "dashboard"):
             for dp, _, fs in os.walk(os.path.join(root, top)):
                 for f in fs:

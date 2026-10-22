@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:11:34.608371+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-GOLDEN4",
+  "branch": "cloud/v31-golden4",
+  "commit": "bd0e398b",
+  "report": "docs/RA_CLOUD_GOLDEN4_2026-10-21.md",
+  "text": "Sửa gốc công cụ golden (tách từ cloud/v31-m2-tichhop): worker đọc mọi tệp data/ (chỉ đọc, sha vào manifest; exists/stat chỉ ghi cỡ) trừ danh sách cấm cứng (CSDL live, mọi .env, log/bak, backup, khóa/credential, tên NTFS lạ); replay giữ DATA_CHANGED có paths; chuỗi source_job_id đứt in chain+broken; fixture thêm sent_package_relpath. Test chạy Python 3.14 NATIVE trên cloud (uv): test_golden4 49 xanh (23 đỏ trên code cũ); golden 155 qua / 3 đỏ có sẵn do môi trường Linux (sha PNG Pillow, C:/). Lệnh chạy lại cho codex CX21-GOLDEN4 trong báo cáo."
+}

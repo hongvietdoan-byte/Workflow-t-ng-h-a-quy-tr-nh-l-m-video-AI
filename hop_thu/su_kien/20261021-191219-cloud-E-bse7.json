@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:12:19.819486+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-STAGE-PLAN",
+  "branch": "cloud/v31-stage-plan",
+  "commit": "6bd47790",
+  "report": "docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md",
+  "text": "Khuyến nghị phương án A: hàng nút trong expander từng cảnh của màn XEM (stage_view_ui), cờ stage_desk_ui TẮT, core/stage_desk.py chạy nền/khóa/tiến độ; 16 nút, 3 đợt (0 USD → previs/chọn lần đo → Claude API có báo giá + trần). Cần sửa trước khi gắn nút: run(manual=True) thay os.environ bật cờ, stage_auto.apply qua write guard, _crew_ctx/crew_prompt chỉ khi bấm. Phụ thuộc: C-STAGE-VIEW + M2 tích hợp. 7 câu hỏi Q-A..Q-G cho người dùng."
+}

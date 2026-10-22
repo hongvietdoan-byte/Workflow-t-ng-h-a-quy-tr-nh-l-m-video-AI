@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T05:11:52.776299+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-FIX3-THAP-B",
+  "to": "cloud-C",
+  "title": "C-FIX3-THAP chưa gộp: lỗi VỪA thả job có thay đổi scene chưa rà khi tắt cờ motion — sửa trên cloud/v31-fix3-thap",
+  "spec": "docs/CLOUD_TASKS.md#### C-FIX3-THAP-B",
+  "priority": 1
+}

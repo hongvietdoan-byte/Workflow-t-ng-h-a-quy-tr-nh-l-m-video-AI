@@ -1,5 +1,6 @@
 """1.5 / H5 "quay theo vị trí máy" (flag camera_setups): shots of one script scene sharing a camera set-up are made as ONE continuous clip
 from the first shot's picture, then cut at each shot's own seconds (trial 2A: shots 9+10 as one 4 s clip, 33% fewer paid seconds)."""
+from tests._flags import pin_off
 import json
 import os
 import unittest
@@ -11,6 +12,7 @@ from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # n
 
 class CameraSetupTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         import tempfile
         flags_on(self, "camera_setups")
         self.p, self.pid = kenta_project(shot_mode="per_shot")

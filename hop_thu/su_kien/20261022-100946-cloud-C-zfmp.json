@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T10:09:46.772829+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-3D-GOC-A",
+  "branch": "cloud/v31-3d-goc-a",
+  "commit": "3903a62e",
+  "report": "docs/RA_CLOUD_3D_GOC_A_2026-10-22.md",
+  "text": "Bước 0: 5 mục gốc V31-GOC1..5 (stage+owner định tuyến đúng Role Registry), 23 lỗi có owner + root_cause_id. R2/R3/R4: core/camera_invariants.py (0 USD, chỉ đọc, không đổi gói gửi, KHÔNG cờ mới) + tools/camera_invariants.py --project N (CSDL mode=ro). Sửa gốc máy nền sau cờ có sẵn whitebox_height_dummy (TẮT y nguyên; giờ OPT_IN_ONLY): slightly_high cúi 10° (A10); high/slightly_high giải theo HÌNH CHIẾU — đầu ở HEADROOM, đoạn thân đúng % khung (cũ nhỏ hơn 20–30%), xiên < MIN_DIST → ống dài hơn. G9 'its whole body' hết đỏ nhầm. 65 test (biến thể seed 1–5 × 5 bối cảnh giả lập + replay #31/#33); full: 7170 passed, chỉ 25 golden nền cũ đỏ. Rà quy ước 7: 1 CAO (cắt đầu) + các VỪA đã sửa. CẦN PHIÊN CHÍNH QUYẾT: slightly_high chưa vào shots.ANGLES/prompt DP; tự nối câu thay vào prompt cần cờ (khóa catalog); TPS khai high; trạng thái FIXED trong sổ đề xuất ở báo cáo mục 4 (chưa đổi). HẠN MỨC: không đọc được."
+}

@@ -1,4 +1,5 @@
 """UI v2 (S13, lane G) — Video screen: clip cards, hero, kept widget keys, flag OFF = the classic card."""
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -68,6 +69,10 @@ def md(at: AppTest) -> str:
 
 
 class VideoV2Tests(VideoSeed):
+    def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_every_state_has_a_card_with_the_fixed_pill_text(self):
         at = self.open_video()
         html = md(at)

@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import json
 import os
 import re
@@ -475,6 +476,10 @@ class CheckTests(unittest.TestCase):
 
 
 class FactoryAndRunnerTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_factory(self):
         with mock.patch.dict(os.environ, {"VIDEO_PROVIDER": "", "IMAGE_PROVIDER": ""}):
             self.assertIsNone(factory.video_provider())

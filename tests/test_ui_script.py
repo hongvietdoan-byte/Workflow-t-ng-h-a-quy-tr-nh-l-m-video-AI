@@ -1,6 +1,7 @@
 """S13 lane E: the Kịch bản screen under the UI v2 flag — empty project and project with scenes + characters + locked Bible.
 Every widget key of the old screen must still exist. S14.14 G-a (06/10): the old screen was removed — v2 is the only composition, flag
 off included (tests/test_ui_v2_default.py)."""
+from tests._flags import pin_off
 import os
 import tempfile
 import unittest
@@ -49,6 +50,7 @@ def ordered_keys(at):
 
 class ScriptScreenV2Tests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "m.sqlite")
         env = mock.patch.dict(os.environ, {"PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.tmp, "projects"),
@@ -292,6 +294,7 @@ class ScriptBoxTests(unittest.TestCase):
                                                    ScriptScreenV2Tests.project_with_bible)
 
     def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         ScriptScreenV2Tests.setUp(self)
         env = mock.patch.dict(os.environ, {"FEATURE_IDEA_TO_SCRIPT": "1"})
         env.start()

@@ -38,9 +38,79 @@ def needed(data: Dict, shot_mode: Optional[str], ignore_route: bool = False) -> 
     itself even when its clip goes out as a Seedance reference group — the plan is recorded, nothing is drawn."""
     if shot_mode != "per_shot" or data.get("continuous_with_next"):
         return False
-    if not ignore_route and route(data) == "seedance_ref":
+    if not ignore_route and route(data) == "seedance_ref" and not ref_route_on():
         return False                  # not drawn on its own for a reference-only Seedance clip (11/10: one drawn by hand — 🔁 vẽ lại — IS sent, as the last reference picture)
     return bool((data.get("end_state") or "").strip())
+
+
+# ---- V3.1 M7.3 (B4, sổ v31-ep-k3-seedance-ref-groups-with-end-frames-2026-10-21; cờ ref_end_frames, mặc định TẮT) -----------------
+# Tuyến ref-only (seedance_ref_groups) giữ khung cuối: shot cần khung cuối được vẽ như tuyến khung đầu + cuối và tách khỏi nhóm ref-only
+# (seedance_refs._groups) để gửi một mình — khung cuối đi như ảnh tham chiếu cuối có câu vai trò (adapter ClipAI). Model tuyến ref
+# không nhận khung cuối (data/provider_rules.json `last_frame`) → không tách, không vẽ, báo VÀNG (ref_unsupported_reason).
+REF_FLAG = "ref_end_frames"
+
+
+def ref_end_frames_on() -> bool:
+    return features.on(REF_FLAG)
+
+
+def ref_route_on() -> bool:
+    """Tuyến ref-only có khung cuối: cờ ref_end_frames + end_frames bật + model tuyến ref nhận khung cuối."""
+    if not ref_end_frames_on() or not enabled():
+        return False
+    from . import model_router
+    return model_router.ref_mode_takes_end_frame()
+
+
+def _ref_shot_wants_end(data: Dict, shot_mode: Optional[str]) -> bool:
+    return shot_mode == "per_shot" and not data.get("continuous_with_next") and route(data) == "seedance_ref" \
+        and bool((data.get("end_state") or "").strip())
+
+
+def own_clip_reason(data: Dict, shot_mode: Optional[str], conn=None) -> Optional[str]:
+    """Vì sao shot tuyến ref này phải gửi MỘT MÌNH (khung cuối không đi được trong clip nhóm nhiều shot), None = không cần. `conn`: shot
+    runner LUÔN bỏ khung cuối (skip_reason — vật kỹ năng → GHÉP) không tách (rà M7.3 THẤP c)."""
+    if not ref_route_on() or not _ref_shot_wants_end(data, shot_mode):
+        return None
+    if conn is not None and skip_reason(conn, 0, data):
+        return None
+    return "cần khung cuối (end_state: " + (data.get("end_state") or "").strip()[:80] + ")"
+
+
+def ref_carried(conn, scene_id: int, data: Dict) -> bool:
+    """Rà M7.3 VỪA/THẤP: cờ bật giữa dự án — shot tuyến ref mà phần clip của nó đã có (clip của chính nó, không có job video chờ gửi lại)
+    hoặc đang đi trong clip nhóm đang bay của shot khác: không vẽ khung cuối (sẽ không được gửi), không tính giá, không giữ clip."""
+    if not ref_route_on() or route(data) != "seedance_ref":
+        return False
+    own = conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='video_gen'", (scene_id,)).fetchall()
+    states = {r[0] for r in own}
+    if states & {"succeeded", "pending_review", "approved"} and not states & {"queued", "running"}:
+        return True
+    for r in conn.execute("SELECT sent_group FROM jobs WHERE type='video_gen' AND state IN ('queued','running') AND sent_group IS NOT NULL"
+                          " AND scene_id<>?", (scene_id,)).fetchall():
+        try:
+            if any(int(g.get("id")) == scene_id for g in json.loads(r[0]) or []):
+                return True
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return False
+
+
+def wanted(conn, scene_id: int, data: Dict, shot_mode: Optional[str]) -> bool:
+    """needed() + (M7.3) không phải shot tuyến ref mà clip đã mang phần của nó (ref_carried). Cờ ref_end_frames tắt = needed()."""
+    return needed(data, shot_mode) and not ref_carried(conn, scene_id, data)
+
+
+def ref_unsupported_reason(data: Dict, shot_mode: Optional[str]) -> Optional[str]:
+    """Cờ ref_end_frames + end_frames bật, shot tuyến ref cần khung cuối, nhưng model tuyến ref không nhận khung cuối → lý do (VÀNG,
+    REVIEW — không âm thầm bỏ), else None."""
+    if not ref_end_frames_on() or not enabled() or not _ref_shot_wants_end(data, shot_mode):
+        return None
+    from . import model_router
+    if model_router.ref_mode_takes_end_frame():
+        return None
+    return ("shot cần khung cuối (end_state) nhưng model tuyến Seedance tham chiếu không nhận khung cuối (data/provider_rules.json "
+            "last_frame) — clip gửi KHÔNG kèm khung cuối, cảnh kết thúc theo prompt; cân nhắc gửi tuyến khung đầu + cuối (Kling)")
 
 
 def _start_job(conn, scene_id: int):
@@ -92,6 +162,8 @@ _ASK_KEY = "end_frame_asked:{}"     # app_settings: this row was asked by a pers
 AUTO_WAITING = "khung cuối do chạy tự động xếp — chờ chạy tự động chạy tiếp, hoặc bấm 🖼 Vẽ khung cuối"
 BUDGET_PREFIX = "chưa vẽ được khung cuối: "
 SKILL_SKIP = "shot vật kỹ năng xuất hiện: dựng GHÉP code, không vẽ khung cuối"
+# V3.1 M2.9 A11: thông điệp runner theo MÃ lý do (skip_reason) + vật thật ({vat} = " Tháp băng" hoặc ""), code diag giữ nguyên
+SKIP_TEXT = {"skill_object": "shot có vật kỹ năng{vat} xuất hiện"}
 CLAIM = "đang gửi"
 CLAIM_STALE_S = 120                 # a claim older than this was left by a crashed sender: taken over
 DROP_CODES = ("end_frame_distance", "locomotion_end_frame", "end_frame_skill_object", "end_frame_unsupported")
@@ -277,7 +349,7 @@ def queue(p: Pipeline, project_id: int) -> List[int]:
     for s in p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
         data = json.loads(s["data"] or "{}")
         start = _start_job(p.conn, s["id"])
-        if not needed(data, mode) or start is None or skip_reason(p.conn, s["id"], data):
+        if not wanted(p.conn, s["id"], data, mode) or start is None or skip_reason(p.conn, s["id"], data):
             continue
         row = current(p.conn, s["id"])
         if row is not None and row["start_job_id"] == start["id"] and row["state"] in ("queued", "running", "ready", "failed") \
@@ -416,6 +488,14 @@ def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) 
                 _set(p, row["id"], state="rejected", note=skip)
                 _diag(p, row, "info", "end_frame_skill_object", f"khung cuối không vẽ: {skip}")
                 continue
+            from . import stage_desk               # C-FIX6 (S-C): đường trả phí ngoài runner — cùng cổng plate 3D bắt buộc (EP);
+            # rà kỹ C-FIX6 A4: ĐẦU nhánh queued — bị giữ thì không dựng prompt/refs, không ghi diag tham chiếu lặp mỗi tick
+            desk = stage_desk.paid_hold(p.conn, project_id, data_dir, [row["scene_id"]])
+            if desk:
+                if row["note"] != f"chờ: {desk}":
+                    _set(p, row["id"], note=f"chờ: {desk}")
+                    _diag(p, row, "warn", "stage_desk_hold", f"khung cuối chưa gửi: {desk}")
+                continue
             start = os.path.join(data_dir, str(project_id), "images", f"job_{row['start_job_id']}.png")
             if not os.path.exists(start):
                 _set(p, row["id"], state="failed", note="thiếu file ảnh khung đầu")
@@ -462,6 +542,10 @@ def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) 
                     _diag(p, row, "warn", "budget", f"khung cuối chưa gửi: {slot.over}")
                     break
                 sent_args = (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
+                from . import gen_auth             # C-M63-FIX: M6.3 shadow ở đường gửi không qua runner (ghi, không chặn)
+                if gen_auth.enabled():             # C-M63-FIX2: cờ tắt → không hỏi provider.usage_info() thêm lần nào
+                    gen_auth.shadow_send(p.conn, project_id=project_id, scene_id=row["scene_id"], kind="image_gen",
+                                         model=kwargs.get("model") or _usage_model(provider), route="end_frame", data_dir=data_dir)
                 try:
                     ext = slot.send(provider.submit, *sent_args, **kwargs)
                 except ProviderError as e:
@@ -475,7 +559,7 @@ def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) 
                 if info is not None:
                     used, tier = info(kwargs["model"]) if kwargs.get("model") else info()
                     slot.record(model=used, tier=tier)
-            sent_meta = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
+            sent_meta = [sent_package.meta_entry(r) for r in refs]      # C-M26: + path / asset_id khi cờ sent_package_relpath
             # K1a: what really left, written with the task id (a ledger, never a gate; imported at the top: nothing here may raise)
             package, warns = sent_package.safe_build(provider.submit, sent_args, kwargs, kind="image", provider=provider,
                                                      external_id=ext, meta=sent_meta, extra={"stage": "end_frame"})

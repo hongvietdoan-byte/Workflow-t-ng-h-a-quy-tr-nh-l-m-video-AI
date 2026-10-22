@@ -1,0 +1,680 @@
+{
+ "_note": "Hồ sơ vai + danh mục sản phẩm (người dùng 22/10): mỗi vai — bạn là ai, vai trò, việc làm, chịu trách nhiệm, dưới quyền ai (= reports_to trong data/crew_roles.json), ai giám sát, đầu vào (sản phẩm của vai khác), đầu ra (sản phẩm của mình); mỗi sản phẩm — vai làm ra, KPI (ngưỡng + cách đo), người nhận + yêu cầu của từng người nhận + KPI nào đáp ứng. Kiểm liên kết hai chiều: py -m core.crew check (không thiếu, không thừa). cach_do 'chua_co:' = KPI CHƯA đo được tự động (py -m core.crew hoso).",
+ "version": 1,
+ "external_consumers": ["ngoai:phat_hanh"],
+ "profiles": {
+  "executive_producer": {
+   "ban_la_ai": "Người dùng — Executive Producer, người quyết cao nhất của dự án",
+   "vai_tro": "Định hướng sáng tạo, ngân sách, duyệt ngoại lệ và sản phẩm cuối",
+   "viec_lam": ["Đưa ý tưởng / brief", "Duyệt Kho", "Cấp lượt gen + ngân sách", "Trả lời leo thang", "Duyệt bản giao"],
+   "chiu_trach_nhiem": ["Quyết định chi tiền vượt trần", "Đổi dữ liệu / ý đồ đã khóa", "Chất lượng bản phát hành"],
+   "giam_sat": [],
+   "dau_vao": [
+    "shot_plan",
+    "danh_sach_tai_nguyen",
+    "duyet_clip_trong_tran",
+    "start_frame_image",
+    "image_job",
+    "ban_dung",
+    "popup",
+    "phu_de",
+    "qc_evidence",
+    "code",
+    "tool"
+   ],
+   "dau_ra": ["y_tuong_kich_ban_goc", "kho_tai_nguyen", "cap_luot_gen", "duyet_vuot_quyen", "duyet_san_pham_cuoi"]
+  },
+  "director": {
+   "ban_la_ai": "Đạo diễn AI — trưởng tổ làm phim",
+   "vai_tro": "Biến kịch bản thành ý đồ từng shot (BYĐ) và điều phối các vai trong trần",
+   "viec_lam": ["Chia shot + thời lượng", "Viết BYĐ v2", "Khóa hồ sơ nhân vật", "Lập bảng kê tài nguyên", "Phân công", "Chọn take trong trần"],
+   "chiu_trach_nhiem": ["Ý đồ nhất quán toàn phim", "Không vượt ngân sách / trần", "Leo thang đúng lúc cho EP"],
+   "giam_sat": ["executive_producer"],
+   "dau_vao": [
+    "y_tuong_kich_ban_goc",
+    "kho_tai_nguyen",
+    "cap_luot_gen",
+    "duyet_vuot_quyen",
+    "kich_ban",
+    "thoai",
+    "video_prompt",
+    "video_job",
+    "qc_evidence",
+    "phieu_loi_de_xuat"
+   ],
+   "dau_ra": ["byd", "shot_plan", "danh_sach_tai_nguyen", "ho_so_nhan_vat", "duyet_clip_trong_tran", "phan_cong"]
+  },
+  "scriptwriter": {
+   "ban_la_ai": "Biên kịch",
+   "vai_tro": "Viết kịch bản theo cảnh và thoại",
+   "viec_lam": ["Ý tưởng → kịch bản", "Viết / sửa thoại", "Ghi ý câu thoại (delivery)"],
+   "chiu_trach_nhiem": ["Thoại đúng người nói", "Không đổi ý đồ đã duyệt"],
+   "giam_sat": ["director"],
+   "dau_vao": ["y_tuong_kich_ban_goc", "byd", "phan_cong", "phieu_loi_de_xuat"],
+   "dau_ra": ["kich_ban", "thoai"]
+  },
+  "cinematographer": {
+   "ban_la_ai": "Quay phim (DP)",
+   "vai_tro": "Quyết góc máy, bố cục, coverage cho mỗi shot",
+   "viec_lam": [
+    "Đặt cỡ / góc / chuyển động / ống kính",
+    "Blocking + bên khung của người",
+    "Chọn góc máy dùng lại cho cảnh nhiều shot",
+    "Tự duyệt máy theo số đo sân khấu"
+   ],
+   "chiu_trach_nhiem": ["Trục 180° + bố cục cùng chỗ", "Máy khớp nền 3D"],
+   "giam_sat": ["director", "continuity_validator"],
+   "dau_vao": ["byd", "shot_plan", "phan_cong", "stage", "phieu_loi_de_xuat", "tai_lieu_tham_khao"],
+   "dau_ra": ["camera_plan"]
+  },
+  "artist_3d": {
+   "ban_la_ai": "Họa sĩ 3D / dàn cảnh",
+   "vai_tro": "Dựng sân khấu 3D, giải máy, render nền",
+   "viec_lam": ["Dàn cảnh + chỗ đứng", "Giải máy (stage_camera)", "Render nền đúng máy", "Giữ toạ độ một nguồn xuyên shot"],
+   "chiu_trach_nhiem": ["Tỉ lệ đúng Kho", "Khối giữ chỗ không lây cảnh", "Nền không cũ"],
+   "giam_sat": ["director", "continuity_validator"],
+   "dau_vao": ["kho_tai_nguyen", "byd", "danh_sach_tai_nguyen", "phan_cong", "camera_plan", "phieu_loi_de_xuat"],
+   "dau_ra": ["stage", "plate_3d"]
+  },
+  "storyboard_artist": {
+   "ban_la_ai": "Họa sĩ storyboard",
+   "vai_tro": "Viết prompt ảnh, lắp gói, gen + gen lại ảnh khung đầu",
+   "viec_lam": ["Viết image_prompt", "Chọn ảnh tham chiếu", "Gen ảnh trong trần", "Ảnh neo cho shot cùng chỗ"],
+   "chiu_trach_nhiem": ["Đúng người / look", "Bố cục cùng chỗ", "Không vượt 3 lượt ảnh"],
+   "giam_sat": ["director", "continuity_validator"],
+   "dau_vao": ["kho_tai_nguyen", "cap_luot_gen", "byd", "shot_plan", "ho_so_nhan_vat", "phan_cong", "camera_plan", "stage", "plate_3d", "phieu_loi_de_xuat"],
+   "dau_ra": ["start_frame_image", "image_job"]
+  },
+  "video_prompt_artist": {
+   "ban_la_ai": "Người viết prompt video",
+   "vai_tro": "Diễn đạt ý đồ thành prompt đúng model và gửi video",
+   "viec_lam": ["Viết motion prompt", "Kiểm mâu thuẫn trước khi gọi model", "Lắp gói video", "Gửi video trong trần"],
+   "chiu_trach_nhiem": ["Phủ đủ nhịp BYĐ", "Không viết đè prompt khóa", "Không vượt 2 lượt video"],
+   "giam_sat": ["director", "continuity_validator"],
+   "dau_vao": [
+    "kho_tai_nguyen",
+    "cap_luot_gen",
+    "thoai",
+    "byd",
+    "shot_plan",
+    "ho_so_nhan_vat",
+    "phan_cong",
+    "camera_plan",
+    "stage",
+    "plate_3d",
+    "start_frame_image",
+    "phieu_loi_de_xuat",
+    "tai_lieu_tham_khao"
+   ],
+   "dau_ra": ["video_prompt", "video_job"]
+  },
+  "sound_designer": {
+   "ban_la_ai": "Thiết kế âm thanh",
+   "vai_tro": "Giọng, nhạc, SFX, khớp môi",
+   "viec_lam": ["Chọn giọng", "TTS thoại", "Brief + nhạc", "SFX", "Khớp môi"],
+   "chiu_trach_nhiem": ["Đúng câu đúng giọng", "Khớp môi"],
+   "giam_sat": ["director", "continuity_validator"],
+   "dau_vao": ["cap_luot_gen", "thoai", "byd", "ho_so_nhan_vat", "phan_cong", "video_job", "phieu_loi_de_xuat"],
+   "dau_ra": ["voice", "music", "sfx", "lip_sync"]
+  },
+  "editor_vfx": {
+   "ban_la_ai": "Dựng phim / VFX",
+   "vai_tro": "Ghép clip, âm thanh, chữ thành bản giao",
+   "viec_lam": ["Dựng bản thô", "Chuyển cảnh", "Phụ đề", "Popup", "Xuất bản"],
+   "chiu_trach_nhiem": ["Final QC không chặn", "Bản giao đúng định dạng"],
+   "giam_sat": ["director", "continuity_validator"],
+   "dau_vao": ["thoai", "byd", "shot_plan", "duyet_clip_trong_tran", "phan_cong", "voice", "music", "sfx", "lip_sync", "phieu_loi_de_xuat"],
+   "dau_ra": ["ban_dung", "popup", "phu_de"]
+  },
+  "continuity_validator": {
+   "ban_la_ai": "QC độc lập / giám sát liền mạch",
+   "vai_tro": "Soi sản phẩm của mọi vai, ghi bằng chứng, chỉ đúng vai chủ sửa",
+   "viec_lam": ["QC ảnh / video / chuỗi / bản dựng", "Ghi bằng chứng", "Lập phiếu lỗi có vai chủ"],
+   "chiu_trach_nhiem": ["Không sửa sản phẩm", "Mỗi phát hiện có vai chủ", "Độ tin của QC (khớp người)"],
+   "giam_sat": ["director"],
+   "dau_vao": ["byd", "ho_so_nhan_vat", "camera_plan", "stage", "plate_3d", "start_frame_image", "image_job", "video_prompt", "video_job", "ban_dung"],
+   "dau_ra": ["qc_evidence", "phieu_loi_de_xuat"]
+  },
+  "engineer": {
+   "ban_la_ai": "Kỹ sư (Claude Code / Codex)",
+   "vai_tro": "Xây và sửa công cụ, không làm thay vai sản xuất",
+   "viec_lam": ["Code + test", "Công cụ kiểm 0 USD", "Tài liệu nghề / luật model", "Sổ lỗi"],
+   "chiu_trach_nhiem": ["Bằng chứng chạy thật", "Không ghi dữ liệu sản xuất"],
+   "giam_sat": ["executive_producer"],
+   "dau_vao": [],
+   "dau_ra": ["code", "tool", "tai_lieu_tham_khao"]
+  }
+ },
+ "products": {
+  "y_tuong_kich_ban_goc": {
+   "ten": "Ý tưởng / kịch bản gốc + brief (độ dài, giọng điệu, khán giả)",
+   "producer": "executive_producer",
+   "fields": [],
+   "kpi": [{"id": "brief_du_muc", "ten": "Brief đủ: bối cảnh, nhân vật, độ dài, giọng điệu", "nguong": "4/4 mục", "cach_do": "code:core/idea_to_script"}],
+   "consumers": {
+    "scriptwriter": [{"yeu_cau": "Đủ bối cảnh, nhân vật, độ dài mong muốn, giọng điệu để viết kịch bản", "dap_ung": "brief_du_muc"}],
+    "director": [{"yeu_cau": "Biết độ dài + giọng điệu để chia shot đúng nhịp", "dap_ung": "brief_du_muc"}]
+   }
+  },
+  "kho_tai_nguyen": {
+   "ten": "Kho: ảnh chuẩn nhân vật / trang phục / bối cảnh / đạo cụ / mô hình 3D đã duyệt",
+   "producer": "executive_producer",
+   "fields": ["assets.*", "asset_images"],
+   "kpi": [
+    {"id": "kho_du_anh_chuan", "ten": "Mọi tên trong bảng kê tài nguyên có ảnh chuẩn ĐÃ duyệt", "nguong": "100 %", "cach_do": "code:core/readiness"},
+    {
+     "id": "kho_ti_le_dung",
+     "ten": "Mô hình 3D có chiều cao / tỉ lệ thật (height_m)",
+     "nguong": "100 % vật dùng trên sân khấu",
+     "cach_do": "code:core/location_pack"
+    }
+   ],
+   "consumers": {
+    "director": [{"yeu_cau": "Biết nhân vật / đạo cụ nào đã có ảnh chuẩn để khóa hồ sơ", "dap_ung": "kho_du_anh_chuan"}],
+    "artist_3d": [{"yeu_cau": "Mô hình 3D đúng tỉ lệ để dựng sân khấu", "dap_ung": "kho_ti_le_dung"}],
+    "storyboard_artist": [{"yeu_cau": "Ảnh chuẩn đã duyệt để gửi kèm khi gen ảnh", "dap_ung": "kho_du_anh_chuan"}],
+    "video_prompt_artist": [{"yeu_cau": "Ảnh chuẩn để gửi kèm gói video", "dap_ung": "kho_du_anh_chuan"}]
+   }
+  },
+  "cap_luot_gen": {
+   "ten": "Cấp lượt gen / ngân sách / ngoại lệ chi (Generation Authorization)",
+   "producer": "executive_producer",
+   "fields": [],
+   "kpi": [
+    {
+     "id": "tran_ro_rang",
+     "ten": "Mỗi shot có trần lượt ảnh / video + dự toán trước khi chi",
+     "nguong": "100 % job trả phí",
+     "cach_do": "code:core/gen_auth"
+    }
+   ],
+   "consumers": {
+    "director": [{"yeu_cau": "Biết trần để duyệt clip trong trần", "dap_ung": "tran_ro_rang"}],
+    "storyboard_artist": [{"yeu_cau": "Biết còn bao nhiêu lượt ảnh", "dap_ung": "tran_ro_rang"}],
+    "video_prompt_artist": [{"yeu_cau": "Biết còn bao nhiêu lượt video", "dap_ung": "tran_ro_rang"}],
+    "sound_designer": [{"yeu_cau": "Biết trần chi TTS / nhạc / khớp môi", "dap_ung": "tran_ro_rang"}]
+   }
+  },
+  "duyet_vuot_quyen": {
+   "ten": "Quyết định ngoại lệ / đổi dữ liệu đã khóa / đổi ý đồ lớn",
+   "producer": "executive_producer",
+   "fields": [],
+   "kpi": [
+    {
+     "id": "tra_loi_co_ly_do",
+     "ten": "Mỗi yêu cầu leo thang có quyết định + lý do ghi sổ",
+     "nguong": "100 % (trong phiên làm việc)",
+     "cach_do": "code:core/decisions"
+    }
+   ],
+   "consumers": {"director": [{"yeu_cau": "Quyết định rõ để mở khóa / đổi ý đồ, ghi sổ kiểm được", "dap_ung": "tra_loi_co_ly_do"}]}
+  },
+  "duyet_san_pham_cuoi": {
+   "ten": "Duyệt bản giao cuối",
+   "producer": "executive_producer",
+   "fields": [],
+   "kpi": [
+    {
+     "id": "duyet_cuoi_co_bang_chung_qc",
+     "ten": "Chỉ duyệt khi cổng phát hành có bằng chứng QC",
+     "nguong": "100 %",
+     "cach_do": "code:core/release_gate"
+    }
+   ],
+   "consumers": {"ngoai:phat_hanh": [{"yeu_cau": "Bản đã duyệt, đúng định dạng kênh", "dap_ung": "duyet_cuoi_co_bang_chung_qc"}]}
+  },
+  "kich_ban": {
+   "ten": "Kịch bản theo cảnh (nơi, người, hành động, mục đích)",
+   "producer": "scriptwriter",
+   "fields": ["scenes.data.text", "projects.script_text"],
+   "kpi": [
+    {"id": "canh_du_truong", "ten": "Mỗi cảnh có nơi + người + hành động + mục đích", "nguong": "100 % cảnh", "cach_do": "code:core/story_check"},
+    {"id": "khong_doi_y_do_da_duyet", "ten": "Không đổi ý đồ đã duyệt", "nguong": "0 lần", "cach_do": "code:core/change_review"}
+   ],
+   "consumers": {
+    "director": [
+     {"yeu_cau": "Cảnh đủ dữ kiện để chia shot + viết BYĐ", "dap_ung": "canh_du_truong"},
+     {"yeu_cau": "Bản sửa không âm thầm đổi ý đã duyệt", "dap_ung": "khong_doi_y_do_da_duyet"}
+    ]
+   }
+  },
+  "thoai": {
+   "ten": "Thoại: câu, người nói, ý (delivery)",
+   "producer": "scriptwriter",
+   "fields": ["scenes.data.dialogue", "scenes.data.delivery"],
+   "kpi": [
+    {"id": "thoai_dung_nguoi_noi", "ten": "Mỗi câu đúng người nói có mặt trong shot", "nguong": "100 %", "cach_do": "code:core/dialogue"},
+    {"id": "thoai_vua_thoi_luong", "ten": "Độ dài câu đọc ≤ thời lượng shot", "nguong": "100 % câu", "cach_do": "code:core/audio_first"}
+   ],
+   "consumers": {
+    "sound_designer": [{"yeu_cau": "Câu + người nói + ý để chọn giọng và đọc", "dap_ung": "thoai_dung_nguoi_noi"}],
+    "director": [{"yeu_cau": "Biết độ dài câu để đặt thời lượng shot", "dap_ung": "thoai_vua_thoi_luong"}],
+    "video_prompt_artist": [{"yeu_cau": "Biết ai nói trong shot để viết khớp môi / diễn", "dap_ung": "thoai_dung_nguoi_noi"}],
+    "editor_vfx": [{"yeu_cau": "Chữ thoại chuẩn cho phụ đề", "dap_ung": "thoai_dung_nguoi_noi"}]
+   }
+  },
+  "byd": {
+   "ten": "Bảng ý đồ đạo diễn (BYĐ v2): cảm xúc, nhịp, diễn xuất, trạng thái cuối, đường video",
+   "producer": "director",
+   "fields": [
+    "scenes.data.byd",
+    "scenes.data.emotional_intent",
+    "scenes.data.beat",
+    "scenes.data.performance",
+    "scenes.data.end_state",
+    "scenes.data.video_route"
+   ],
+   "kpi": [
+    {"id": "byd_v2_du_truong", "ten": "BYĐ v2 đủ trường bắt buộc", "nguong": "100 % shot", "cach_do": "code:core/shot_intent"},
+    {
+     "id": "khong_doi_truong_khoa",
+     "ten": "Không ghi đè trường người đã khóa",
+     "nguong": "0 lần",
+     "cach_do": "chua_co:core/write_guard (M2.5, chờ gộp M2 sau golden)"
+    },
+    {
+     "id": "byd_khong_mau_thuan",
+     "ten": "BYĐ không mâu thuẫn trường khác của chính shot (P31-G18)",
+     "nguong": "0 mâu thuẫn",
+     "cach_do": "code:core/camera_invariants:byd_vs_fields"
+    }
+   ],
+   "consumers": {
+    "scriptwriter": [{"yeu_cau": "Ý đồ rõ, đủ trường, không tự mâu thuẫn để làm phần việc của mình", "dap_ung": "byd_v2_du_truong"}],
+    "cinematographer": [{"yeu_cau": "Ý đồ rõ, đủ trường, không tự mâu thuẫn để làm phần việc của mình", "dap_ung": "byd_v2_du_truong"}],
+    "artist_3d": [{"yeu_cau": "Ý đồ rõ, đủ trường, không tự mâu thuẫn để làm phần việc của mình", "dap_ung": "byd_v2_du_truong"}],
+    "storyboard_artist": [{"yeu_cau": "Ý đồ rõ, đủ trường, không tự mâu thuẫn để làm phần việc của mình", "dap_ung": "byd_v2_du_truong"}],
+    "video_prompt_artist": [{"yeu_cau": "Ý đồ rõ, đủ trường, không tự mâu thuẫn để làm phần việc của mình", "dap_ung": "byd_v2_du_truong"}],
+    "sound_designer": [{"yeu_cau": "Ý đồ rõ, đủ trường, không tự mâu thuẫn để làm phần việc của mình", "dap_ung": "byd_v2_du_truong"}],
+    "editor_vfx": [{"yeu_cau": "Ý đồ rõ, đủ trường, không tự mâu thuẫn để làm phần việc của mình", "dap_ung": "byd_v2_du_truong"}],
+    "continuity_validator": [{"yeu_cau": "Ý đồ làm thước so bằng chứng QC", "dap_ung": "byd_khong_mau_thuan"}]
+   }
+  },
+  "shot_plan": {
+   "ten": "Chia shot: số shot, thứ tự, thời lượng, model",
+   "producer": "director",
+   "fields": ["scenes.data.duration_s", "motion_prompts.duration_sec"],
+   "kpi": [
+    {"id": "thoi_luong_khop", "ten": "Tổng thời lượng shot khớp độ dài đã duyệt", "nguong": "± 10 %", "cach_do": "code:core/shots"},
+    {"id": "khong_vuot_ngan_sach", "ten": "Dự toán kế hoạch ≤ ngân sách / trần", "nguong": "100 %", "cach_do": "code:core/project_budget"}
+   ],
+   "consumers": {
+    "cinematographer": [{"yeu_cau": "Biết shot nào, dài bao nhiêu để đặt máy", "dap_ung": "thoi_luong_khop"}],
+    "storyboard_artist": [{"yeu_cau": "Danh sách shot cần khung đầu", "dap_ung": "thoi_luong_khop"}],
+    "video_prompt_artist": [{"yeu_cau": "Thời lượng + model để viết prompt đúng giới hạn", "dap_ung": "thoi_luong_khop"}],
+    "editor_vfx": [{"yeu_cau": "Thứ tự + thời lượng để dựng", "dap_ung": "thoi_luong_khop"}],
+    "executive_producer": [{"yeu_cau": "Dự toán trước khi chi", "dap_ung": "khong_vuot_ngan_sach"}]
+   }
+  },
+  "danh_sach_tai_nguyen": {
+   "ten": "Bảng kê tài nguyên (nhân vật / trang phục / bối cảnh / đạo cụ cần có)",
+   "producer": "director",
+   "fields": [],
+   "kpi": [
+    {
+     "id": "ke_du_ten",
+     "ten": "Mọi tên trong kịch bản có dòng trong bảng kê",
+     "nguong": "100 %",
+     "cach_do": "chua_co:kiểm code bảng kê ↔ tên trong kịch bản (asset_checklist hiện chỉ là lượt Claude)"
+    }
+   ],
+   "consumers": {
+    "executive_producer": [{"yeu_cau": "Biết Kho còn thiếu gì để bổ sung / duyệt", "dap_ung": "ke_du_ten"}],
+    "artist_3d": [{"yeu_cau": "Biết bối cảnh / đạo cụ nào cần mô hình 3D", "dap_ung": "ke_du_ten"}]
+   }
+  },
+  "ho_so_nhan_vat": {
+   "ten": "Hồ sơ nhân vật / Character Lock (mô tả, trang phục, luật khóa)",
+   "producer": "director",
+   "fields": ["characters.description", "characters.wardrobe", "characters.lock_rules"],
+   "kpi": [
+    {
+     "id": "ho_so_khop_kho",
+     "ten": "Hồ sơ khớp ảnh chuẩn Kho (không tự đổi màu / phụ kiện)",
+     "nguong": "100 % nhân vật",
+     "cach_do": "code:core/qc_spec"
+    },
+    {"id": "ho_so_da_khoa", "ten": "Nhân vật chính đã khóa Bible trước gen", "nguong": "100 %", "cach_do": "code:core/readiness"}
+   ],
+   "consumers": {
+    "storyboard_artist": [{"yeu_cau": "Mô tả + luật khóa để vẽ đúng người", "dap_ung": "ho_so_khop_kho"}],
+    "video_prompt_artist": [{"yeu_cau": "Luật khóa để không đổi trang phục trong clip", "dap_ung": "ho_so_khop_kho"}],
+    "sound_designer": [{"yeu_cau": "Tính cách / tuổi để chọn giọng", "dap_ung": "ho_so_da_khoa"}],
+    "continuity_validator": [{"yeu_cau": "Thước so nhận diện nhân vật", "dap_ung": "ho_so_khop_kho"}]
+   }
+  },
+  "duyet_clip_trong_tran": {
+   "ten": "Clip đã chọn (take) trong trần lượt",
+   "producer": "director",
+   "fields": ["scenes.data.chosen_video_job"],
+   "kpi": [{"id": "chon_co_bang_chung", "ten": "Chọn take có bằng chứng QC, trong trần", "nguong": "100 %", "cach_do": "code:core/takes"}],
+   "consumers": {
+    "editor_vfx": [{"yeu_cau": "Biết take nào dùng cho bản dựng", "dap_ung": "chon_co_bang_chung"}],
+    "executive_producer": [{"yeu_cau": "Clip đã qua Đạo diễn trước khi EP xem", "dap_ung": "chon_co_bang_chung"}]
+   }
+  },
+  "phan_cong": {
+   "ten": "Phân công + trần lượt theo vai cho dự án",
+   "producer": "director",
+   "fields": [],
+   "kpi": [{"id": "moi_khau_co_vai", "ten": "Mỗi khâu dự án có đúng một vai chủ", "nguong": "100 % khâu", "cach_do": "code:core/crew"}],
+   "consumers": {
+    "scriptwriter": [{"yeu_cau": "Biết việc của mình và trần lượt", "dap_ung": "moi_khau_co_vai"}],
+    "cinematographer": [{"yeu_cau": "Biết việc của mình và trần lượt", "dap_ung": "moi_khau_co_vai"}],
+    "artist_3d": [{"yeu_cau": "Biết việc của mình và trần lượt", "dap_ung": "moi_khau_co_vai"}],
+    "storyboard_artist": [{"yeu_cau": "Biết việc của mình và trần lượt", "dap_ung": "moi_khau_co_vai"}],
+    "video_prompt_artist": [{"yeu_cau": "Biết việc của mình và trần lượt", "dap_ung": "moi_khau_co_vai"}],
+    "sound_designer": [{"yeu_cau": "Biết việc của mình và trần lượt", "dap_ung": "moi_khau_co_vai"}],
+    "editor_vfx": [{"yeu_cau": "Biết việc của mình và trần lượt", "dap_ung": "moi_khau_co_vai"}]
+   }
+  },
+  "camera_plan": {
+   "ten": "Kế hoạch máy: cỡ, góc, chuyển động, ống kính, blocking, hướng nền, góc máy dùng lại, lý do",
+   "producer": "cinematographer",
+   "fields": [
+    "scenes.data.size",
+    "scenes.data.angle",
+    "scenes.data.move",
+    "scenes.data.lens_mm",
+    "scenes.data.start_frame",
+    "scenes.data.blocking",
+    "scenes.data.plate_view",
+    "scenes.data.plate_setup",
+    "scenes.data.camera_setup",
+    "scenes.data.why"
+   ],
+   "kpi": [
+    {"id": "co_canh_khop_byd", "ten": "Cỡ / góc phục vụ ý đồ BYĐ", "nguong": "100 % shot", "cach_do": "code:core/camera_plan"},
+    {"id": "may_khop_nen", "ten": "Hướng máy khớp nền 3D của chỗ đứng", "nguong": "100 % shot có nền", "cach_do": "code:core/plate_layout_qc"},
+    {
+     "id": "truc_180",
+     "ten": "Shot cùng chỗ giữ cùng phía trục trừ khi khai lý do",
+     "nguong": "0 vi phạm không lý do",
+     "cach_do": "code:core/layout_facts:same_view"
+    },
+    {
+     "id": "ben_nguoi_khai_ro",
+     "ten": "Blocking khai bên khung của mỗi người",
+     "nguong": "100 % shot ≥ 2 người",
+     "cach_do": "code:core/layout_facts:side_in_blocking"
+    }
+   ],
+   "consumers": {
+    "artist_3d": [{"yeu_cau": "Cỡ / góc / ống kính để giải máy trên sân khấu", "dap_ung": "co_canh_khop_byd"}],
+    "storyboard_artist": [{"yeu_cau": "Bố cục khung + bên của người", "dap_ung": "ben_nguoi_khai_ro"}],
+    "video_prompt_artist": [{"yeu_cau": "Chuyển động máy + ống kính để viết prompt", "dap_ung": "co_canh_khop_byd"}],
+    "continuity_validator": [{"yeu_cau": "Thước kiểm trục 180° / bên trái-phải", "dap_ung": "truc_180"}]
+   }
+  },
+  "stage": {
+   "ten": "Sân khấu 3D: dàn cảnh, máy đã giải (stage_camera), chỗ đứng (plate_spot), toạ độ xuyên shot",
+   "producer": "artist_3d",
+   "fields": ["scenes.data.stage_camera", "scenes.data.stage_segment", "scenes.data.plate_spot"],
+   "kpi": [
+    {
+     "id": "khoi_giu_cho_khong_sang_canh_khac",
+     "ten": "Khối giữ chỗ không lây sang cảnh khác (P31-G1)",
+     "nguong": "0 lần",
+     "cach_do": "code:core/continuity_state"
+    },
+    {
+     "id": "ti_le_dung_ho_so_kho",
+     "ten": "Người nộm / vật đúng chiều cao Kho (P31-G2)",
+     "nguong": "100 %",
+     "cach_do": "chua_co:check_framing (C-3D-GOC-A) chỉ đo % khung theo cỡ cảnh — chưa so chiều cao người nộm / vật với hồ sơ Kho (whitebox_height_dummy + R5)"
+    },
+    {
+     "id": "vi_tri_mot_nguon",
+     "ten": "Cùng vật cùng cảnh cùng toạ độ ở mọi shot (P31-G46)",
+     "nguong": "0 lệch không khai",
+     "cach_do": "code:core/position_invariants:scene_report"
+    },
+    {
+     "id": "may_hop_le",
+     "ten": "Máy không xuyên vật / không sát người dưới khoảng cách tối thiểu (P31-G49)",
+     "nguong": "0 vi phạm",
+     "cach_do": "chua_co:check_floor (C-3D-GOC-A) đo sàn / bậc dưới máy + chân — chưa kiểm máy xuyên vật / khoảng cách tối thiểu tới người"
+    }
+   ],
+   "consumers": {
+    "cinematographer": [{"yeu_cau": "Số đo khung thật (khoảng cách, cỡ người) để tự duyệt máy", "dap_ung": "ti_le_dung_ho_so_kho"}],
+    "storyboard_artist": [{"yeu_cau": "Máy + chỗ đứng để vẽ đúng bố cục", "dap_ung": "may_hop_le"}],
+    "video_prompt_artist": [{"yeu_cau": "Dữ kiện hình học (mốc trong khung, chân trời) để viết prompt", "dap_ung": "vi_tri_mot_nguon"}],
+    "continuity_validator": [{"yeu_cau": "Toạ độ một nguồn để so liền mạch", "dap_ung": "vi_tri_mot_nguon"}]
+   }
+  },
+  "plate_3d": {
+   "ten": "Render nền 3D đúng máy của shot",
+   "producer": "artist_3d",
+   "fields": [],
+   "kpi": [
+    {
+     "id": "render_dung_ke_hoach",
+     "ten": "Render đang gắn là render của kế hoạch máy hiện tại (không cũ)",
+     "nguong": "100 % shot",
+     "cach_do": "code:core/place_refs:stale"
+    },
+    {"id": "nen_khong_che_khung", "ten": "Không mảng phẳng che kín cảnh xa (P31 shot 5)", "nguong": "0 khung", "cach_do": "code:core/plate_layout_qc"}
+   ],
+   "consumers": {
+    "storyboard_artist": [{"yeu_cau": "Nền đúng máy để vẽ ảnh trên đó", "dap_ung": "render_dung_ke_hoach"}],
+    "video_prompt_artist": [{"yeu_cau": "Nền đúng để gửi kèm gói video", "dap_ung": "render_dung_ke_hoach"}],
+    "continuity_validator": [{"yeu_cau": "Thước so ảnh với nền", "dap_ung": "nen_khong_che_khung"}]
+   }
+  },
+  "start_frame_image": {
+   "ten": "Ảnh khung đầu đã duyệt (+ khung cuối nếu cần)",
+   "producer": "storyboard_artist",
+   "fields": ["scenes.data.image_prompt"],
+   "kpi": [
+    {"id": "anh_dung_nguoi_dung_look", "ten": "Đúng người, đúng trang phục, đúng look", "nguong": "100 % ảnh duyệt", "cach_do": "code:core/qc_team"},
+    {
+     "id": "bo_cuc_cung_cho",
+     "ten": "Shot cùng chỗ giữ bố cục với ảnh neo (bên người, mốc)",
+     "nguong": "0 lệch không khai",
+     "cach_do": "code:core/qc_spec:_layout_assertions"
+    },
+    {"id": "khong_vuot_3_luot_anh", "ten": "Không vượt trần lượt ảnh", "nguong": "≤ 3 lượt / shot", "cach_do": "code:core/gen_auth"}
+   ],
+   "consumers": {
+    "video_prompt_artist": [{"yeu_cau": "Khung đầu đã duyệt, đúng bố cục để làm ảnh vào clip", "dap_ung": "bo_cuc_cung_cho"}],
+    "continuity_validator": [{"yeu_cau": "Ảnh để soi liền mạch giữa shot", "dap_ung": "anh_dung_nguoi_dung_look"}],
+    "executive_producer": [{"yeu_cau": "Ảnh cần duyệt, có ghi chú QC", "dap_ung": "anh_dung_nguoi_dung_look"}]
+   }
+  },
+  "image_job": {
+   "ten": "Job ảnh + gói gửi model ảnh (prompt cuối + ảnh tham chiếu + vai)",
+   "producer": "storyboard_artist",
+   "fields": ["scenes.data.layout", "scenes.data.layout_people", "end_frames.prompt"],
+   "kpi": [
+    {
+     "id": "goi_anh_qua_cong",
+     "ten": "Gói qua pregen_check (không mục đỏ) trước khi chi",
+     "nguong": "100 % job",
+     "cach_do": "code:tools/pregen_check.py"
+    }
+   ],
+   "consumers": {
+    "continuity_validator": [{"yeu_cau": "Biết gói đã gửi (ảnh tham chiếu nào) để quy lỗi đúng vai", "dap_ung": "goi_anh_qua_cong"}],
+    "executive_producer": [{"yeu_cau": "Giá + gói trước khi duyệt chi", "dap_ung": "goi_anh_qua_cong"}]
+   }
+  },
+  "video_prompt": {
+   "ten": "Motion prompt + camera + negative, đã dịch",
+   "producer": "video_prompt_artist",
+   "fields": ["motion_prompts.motion_prompt", "motion_prompts.camera", "motion_prompts.negative_prompt", "scenes.data.motion_en"],
+   "kpi": [
+    {"id": "coverage_all_byd_beats", "ten": "Mỗi nhịp BYĐ có cụm chữ diễn đạt", "nguong": "100 %", "cach_do": "code:core/chat_prompt"},
+    {"id": "lint_pass", "ten": "Qua motion_prompt_lint / speaker_lint", "nguong": "≥ 98 %", "cach_do": "code:core/motion_prompt_lint"},
+    {"id": "length_within_model_limit", "ten": "Độ dài trong giới hạn model", "nguong": "100 %", "cach_do": "code:core/video_pregen"},
+    {
+     "id": "no_locked_field_changed",
+     "ten": "Không viết đè prompt người khóa",
+     "nguong": "0 lần",
+     "cach_do": "chua_co:core/write_guard (M2.5, chờ gộp M2 sau golden)"
+    },
+    {
+     "id": "chu_khop_khung_dau",
+     "ten": "Chữ không nhắc thứ không có trong khung đầu / máy không thấy (P31-G11/G26)",
+     "nguong": "0 câu",
+     "cach_do": "code:core/camera_invariants:text_vs_view"
+    }
+   ],
+   "consumers": {
+    "director": [{"yeu_cau": "Prompt phủ đủ ý đồ để duyệt trong trần", "dap_ung": "coverage_all_byd_beats"}],
+    "continuity_validator": [{"yeu_cau": "Chữ đã gửi để so với clip", "dap_ung": "chu_khop_khung_dau"}]
+   }
+  },
+  "video_job": {
+   "ten": "Job video + clip trả về",
+   "producer": "video_prompt_artist",
+   "fields": [],
+   "kpi": [
+    {
+     "id": "goi_video_qua_cong",
+     "ten": "Gói video qua cổng (video_pregen + cổng S-C nền 3D) trước khi chi",
+     "nguong": "100 % job",
+     "cach_do": "code:core/video_pregen"
+    },
+    {"id": "khong_vuot_2_luot_video", "ten": "Không vượt trần lượt video", "nguong": "≤ 2 lượt / shot", "cach_do": "code:core/gen_auth"}
+   ],
+   "consumers": {
+    "director": [{"yeu_cau": "Các take để chọn", "dap_ung": "goi_video_qua_cong"}],
+    "sound_designer": [{"yeu_cau": "Clip để khớp môi / đặt âm", "dap_ung": "goi_video_qua_cong"}],
+    "continuity_validator": [{"yeu_cau": "Clip để QC video", "dap_ung": "goi_video_qua_cong"}]
+   }
+  },
+  "voice": {
+   "ten": "Giọng đọc thoại (TTS)",
+   "producer": "sound_designer",
+   "fields": ["characters.voice_profile"],
+   "kpi": [{"id": "thoai_dung_cau_dung_giong", "ten": "Đúng câu, đúng giọng nhân vật", "nguong": "100 % câu", "cach_do": "code:core/voice"}],
+   "consumers": {"editor_vfx": [{"yeu_cau": "Tệp thoại đúng câu, đúng thời điểm", "dap_ung": "thoai_dung_cau_dung_giong"}]}
+  },
+  "music": {
+   "ten": "Nhạc (brief + bản nhạc)",
+   "producer": "sound_designer",
+   "fields": ["projects.music_mode"],
+   "kpi": [{"id": "nhac_vua_ban_dung", "ten": "Độ dài / nhịp khớp bản dựng", "nguong": "± 1 s", "cach_do": "code:core/music"}],
+   "consumers": {"editor_vfx": [{"yeu_cau": "Nhạc đúng độ dài, đúng không khí", "dap_ung": "nhac_vua_ban_dung"}]}
+  },
+  "sfx": {
+   "ten": "Hiệu ứng âm thanh",
+   "producer": "sound_designer",
+   "fields": ["scenes.data.sfx_plan"],
+   "kpi": [{"id": "sfx_dung_cho", "ten": "SFX đúng hành động trong clip", "nguong": "100 % mục sfx_plan", "cach_do": "code:core/sfx_plan"}],
+   "consumers": {"editor_vfx": [{"yeu_cau": "SFX theo mốc thời gian clip", "dap_ung": "sfx_dung_cho"}]}
+  },
+  "lip_sync": {
+   "ten": "Clip đã khớp môi",
+   "producer": "sound_designer",
+   "fields": [],
+   "kpi": [{"id": "khop_moi", "ten": "Môi khớp thoại", "nguong": "QC-V3-LIP_SYNC không đỏ", "cach_do": "code:core/lipsync"}],
+   "consumers": {"editor_vfx": [{"yeu_cau": "Clip khớp môi thay clip gốc", "dap_ung": "khop_moi"}]}
+  },
+  "ban_dung": {
+   "ten": "Bản dựng (bản thô → bản giao)",
+   "producer": "editor_vfx",
+   "fields": ["projects.sub_settings"],
+   "kpi": [
+    {
+     "id": "final_qc_khong_block",
+     "ten": "Final QC không chặn (đen, đứng hình, độ dài, độ phân giải)",
+     "nguong": "0 block",
+     "cach_do": "code:core/final_qc"
+    }
+   ],
+   "consumers": {
+    "executive_producer": [{"yeu_cau": "Bản giao có bằng chứng QC để duyệt cuối", "dap_ung": "final_qc_khong_block"}],
+    "continuity_validator": [{"yeu_cau": "Bản dựng để QC cuối", "dap_ung": "final_qc_khong_block"}]
+   }
+  },
+  "popup": {
+   "ten": "Popup cuối clip",
+   "producer": "editor_vfx",
+   "fields": [],
+   "kpi": [{"id": "popup_dung_mau", "ten": "Popup đúng mẫu đã duyệt", "nguong": "100 %", "cach_do": "code:core/end_popup"}],
+   "consumers": {"executive_producer": [{"yeu_cau": "Popup đúng mẫu kênh", "dap_ung": "popup_dung_mau"}]}
+  },
+  "phu_de": {
+   "ten": "Phụ đề (dịch)",
+   "producer": "editor_vfx",
+   "fields": [],
+   "kpi": [{"id": "phu_de_khop_thoai", "ten": "Phụ đề khớp thoại + thời điểm", "nguong": "100 % câu", "cach_do": "code:core/subtitles"}],
+   "consumers": {"executive_producer": [{"yeu_cau": "Phụ đề đúng chữ, đúng lúc", "dap_ung": "phu_de_khop_thoai"}]}
+  },
+  "qc_evidence": {
+   "ten": "Bằng chứng QC (ảnh / video / liền mạch / bản dựng)",
+   "producer": "continuity_validator",
+   "fields": ["file:crew/continuity_validator.jsonl"],
+   "kpi": [
+    {"id": "khong_sua_san_pham", "ten": "Chỉ ghi bằng chứng, không sửa sản phẩm", "nguong": "0 lần ghi sản phẩm", "cach_do": "code:core/crew"},
+    {
+     "id": "qc_khop_nguoi",
+     "ten": "Khớp quyết định của người (học việc)",
+     "nguong": "khớp cân bằng ≥ 75 %",
+     "cach_do": "tool:tools/trainee_score_report.py"
+    }
+   ],
+   "consumers": {
+    "director": [{"yeu_cau": "Bằng chứng đáng tin để chọn take / trả việc", "dap_ung": "qc_khop_nguoi"}],
+    "executive_producer": [{"yeu_cau": "Bằng chứng cho cổng phát hành", "dap_ung": "qc_khop_nguoi"}]
+   }
+  },
+  "phieu_loi_de_xuat": {
+   "ten": "Phiếu lỗi: phát hiện + trường sửa + vai chủ + bằng chứng",
+   "producer": "continuity_validator",
+   "fields": [],
+   "kpi": [{"id": "moi_phat_hien_co_vai_chu", "ten": "Mỗi phát hiện có vai chủ sửa được", "nguong": "100 %", "cach_do": "code:core/crew:owner_of_error"}],
+   "consumers": {
+    "scriptwriter": [{"yeu_cau": "Phiếu chỉ đúng trường mình sửa + bằng chứng", "dap_ung": "moi_phat_hien_co_vai_chu"}],
+    "cinematographer": [{"yeu_cau": "Phiếu chỉ đúng trường mình sửa + bằng chứng", "dap_ung": "moi_phat_hien_co_vai_chu"}],
+    "artist_3d": [{"yeu_cau": "Phiếu chỉ đúng trường mình sửa + bằng chứng", "dap_ung": "moi_phat_hien_co_vai_chu"}],
+    "storyboard_artist": [{"yeu_cau": "Phiếu chỉ đúng trường mình sửa + bằng chứng", "dap_ung": "moi_phat_hien_co_vai_chu"}],
+    "video_prompt_artist": [{"yeu_cau": "Phiếu chỉ đúng trường mình sửa + bằng chứng", "dap_ung": "moi_phat_hien_co_vai_chu"}],
+    "sound_designer": [{"yeu_cau": "Phiếu chỉ đúng trường mình sửa + bằng chứng", "dap_ung": "moi_phat_hien_co_vai_chu"}],
+    "editor_vfx": [{"yeu_cau": "Phiếu chỉ đúng trường mình sửa + bằng chứng", "dap_ung": "moi_phat_hien_co_vai_chu"}],
+    "director": [{"yeu_cau": "Phiếu chỉ đúng trường mình sửa + bằng chứng", "dap_ung": "moi_phat_hien_co_vai_chu"}]
+   }
+  },
+  "code": {
+   "ten": "Code pipeline đã kiểm",
+   "producer": "engineer",
+   "fields": [],
+   "kpi": [
+    {
+     "id": "test_va_bang_chung_chay_that",
+     "ten": "Có test + bằng chứng chạy thật trước khi nói 'đã sửa'",
+     "nguong": "100 % thay đổi",
+     "cach_do": "doc:docs/CHUAN_XAY_DUNG.md"
+    },
+    {"id": "khong_ghi_noi_dung_production", "ten": "Không ghi nội dung sản xuất thay vai", "nguong": "0 lần", "cach_do": "code:core/crew"}
+   ],
+   "consumers": {"executive_producer": [{"yeu_cau": "Thay đổi có bằng chứng, không đụng dữ liệu sản xuất", "dap_ung": "test_va_bang_chung_chay_that"}]}
+  },
+  "tool": {
+   "ten": "Công cụ kiểm / đo 0 USD",
+   "producer": "engineer",
+   "fields": [],
+   "kpi": [{"id": "cong_cu_chi_doc", "ten": "Công cụ đọc bản sao CSDL, không ghi dữ liệu thật", "nguong": "100 %", "cach_do": "test:tests"}],
+   "consumers": {"executive_producer": [{"yeu_cau": "Công cụ an toàn chạy trên máy chính", "dap_ung": "cong_cu_chi_doc"}]}
+  },
+  "tai_lieu_tham_khao": {
+   "ten": "Tài liệu nghề + luật model (knowledge/roles, knowledge/model_guides, provider_rules)",
+   "producer": "engineer",
+   "fields": [],
+   "kpi": [
+    {
+     "id": "tai_lieu_cap_nhat",
+     "ten": "Luật model khớp nhà cung cấp hiện dùng",
+     "nguong": "rà mỗi đợt đổi model",
+     "cach_do": "chua_co:lịch rà tài liệu"
+    }
+   ],
+   "consumers": {
+    "cinematographer": [{"yeu_cau": "Nguyên tắc quay phim (dp.md)", "dap_ung": "tai_lieu_cap_nhat"}],
+    "video_prompt_artist": [{"yeu_cau": "Giới hạn + cách viết theo model", "dap_ung": "tai_lieu_cap_nhat"}]
+   }
+  }
+ }
+}

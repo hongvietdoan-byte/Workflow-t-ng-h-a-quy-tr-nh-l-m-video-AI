@@ -14,6 +14,12 @@ from unittest.mock import patch
 import pytest
 
 
+# C-GOLDEN2 (g): worker dựng gói (tools/golden_capture.replay_builder, tools/golden_db_replay.build_from_database) chỉ chạy native Python 3.14
+needs_native_314 = pytest.mark.skipif(not (sys.version_info[:2] == (3, 14) and sys.prefix == sys.base_prefix),
+                                      reason="cần worker native Python 3.14 (golden_capture / golden_db_replay) — máy này khác (cloud 3.13); "
+                                             "chạy ở máy chính")
+
+
 @pytest.fixture
 def database(tmp_path):
     with patch.object(os, "environ", {}):
@@ -48,6 +54,7 @@ def build(database, job_id, manifest=None):
 
 
 @pytest.mark.parametrize('job_id',[1,2])
+@needs_native_314
 def test_actual_prepare_build_native(database, job_id):
     result = build(database,job_id)
     assert result['status'] == 'BUILT', result
@@ -63,6 +70,7 @@ def test_manifest_missing_is_insufficient(database):
     assert build(database,1,{})['status'] == 'INSUFFICIENT_INPUT'
 
 
+@needs_native_314
 def test_db_drift_is_data_changed(database):
     result = build(database,2)
     assert result['status'] == 'BUILT', result
@@ -71,6 +79,7 @@ def test_db_drift_is_data_changed(database):
     assert build(database,2,result['manifest'])['status'] == 'DATA_CHANGED'
 
 
+@needs_native_314
 def test_file_drift_is_data_changed(database):
     result = build(database,2)
     assert result['status'] == 'BUILT', result
@@ -78,6 +87,7 @@ def test_file_drift_is_data_changed(database):
     assert build(database,2,result['manifest'])['status'] == 'DATA_CHANGED'
 
 
+@needs_native_314
 def test_capture_and_replay_without_sidecar(database):
     module,db,root,flags = database
     expected = json.loads((Path(__file__).parent/'golden/db_package_expected.json').read_text(encoding='utf-8'))
@@ -111,6 +121,7 @@ def test_virtual_environment_is_fail_closed(database):
             build(database, 1)
 
 
+@needs_native_314
 def test_missing_dependency_appearing_is_data_changed(database):
     result=build(database,1)
     assert result['status']=='BUILT',result
@@ -131,6 +142,7 @@ def test_insufficient_history_is_not_code_mismatch(database):
 
 
 @pytest.mark.parametrize('name',['../outside','C:/outside','data/projects/24/../../outside'])
+@needs_native_314
 def test_unsafe_manifest_path_rejected(database,name):
     result=build(database,1)
     result['manifest']['files']={name:None}
@@ -138,6 +150,7 @@ def test_unsafe_manifest_path_rejected(database,name):
         build(database,1,result['manifest'])
 
 
+@needs_native_314
 def test_api_leaves_global_cwd_and_environment(database):
     fake={}
     with patch.object(os,'environ',fake),patch.object(os,'chdir',side_effect=AssertionError('global cwd')):
@@ -205,6 +218,7 @@ def test_summary_counts_distinct_shots_and_keeps_insufficient_separate():
 
 
 @pytest.mark.parametrize('cached',[True,False,'ambiguous'])
+@needs_native_314
 def test_verified_hosted_refs_use_only_active_cached_registry(database,cached):
     module,db,root,flags=database
     flags['seedance_subjects']=True
@@ -260,6 +274,7 @@ def test_legacy_flags_must_be_explicit(database):
         build(database,1)
 
 
+@needs_native_314
 def test_low_level_read_is_fingerprinted(database):
     module,db,root,flags=database
     target=root/'data/pricing.json'
@@ -296,6 +311,7 @@ with patch.object(os,'environ',{}):
         assert answer['files']['data/pricing.json']==hashlib.sha256(b'{}').hexdigest()
 
 
+@needs_native_314
 def test_capture_cli_preserves_explicit_public_config(database):
     module,db,root,flags=database
     expected=json.loads((Path(__file__).parent/'golden/db_package_expected.json').read_text(encoding='utf-8'))
@@ -330,7 +346,9 @@ def test_job_ref_permission_is_exact_file_readonly(database, name):
 
 
 @pytest.mark.parametrize("name", ["data/_plates3d/cache/plate.png", "data/assets/900/ref.png"])
-def test_worker_reads_only_job_ref_and_reports_blocked_sibling(database,name):
+@needs_native_314   # gọi thẳng _worker: trên 3.13 audit hook đệ quy trong pathlib.relative_to (đỏ cả trên main ở cloud)
+def test_worker_reads_job_ref_and_sibling_into_manifest(database,name):
+    """C-GOLDEN4: mọi tệp dưới data/ đọc được (chỉ đọc) và vào manifest có sha — thay luật cũ "chỉ đúng tệp ref, anh em bị chặn"."""
     module,db,root,flags=database
     target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b"synthetic referenced image")
     sibling=target.with_name('other.png');sibling.write_bytes(b"unreferenced")
@@ -348,12 +366,12 @@ with patch.object(os,'environ',{}):
  from tools.golden_db_replay import _worker,SandboxDenied
  from core import runner
  request=json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
+ original=runner.ImageRunner._submit_args
  def probe(self,job):
   path=Path(request['root'])/sys.argv[3]
   assert path.read_bytes()==b'synthetic referenced image'
-  try:path.with_name('other.png').read_bytes()
-  except SandboxDenied as exc:Path('denied.json').write_text(json.dumps(exc.diagnostic))
-  return None
+  assert path.with_name('other.png').read_bytes()==b'unreferenced'
+  return original(self,job)
  with patch.object(runner.ImageRunner,'_submit_args',probe):
   result=_worker(request)
  Path('answer.json').write_text(json.dumps(result))
@@ -361,4 +379,6 @@ with patch.object(os,'environ',{}):
         result=subprocess.run([sys.executable,'-I','-B','-c',code,str(Path(__file__).resolve().parents[1]),str(path),name],cwd=box,
             env={'SYSTEMROOT':'C:/Windows','HOME':temp,'USERPROFILE':temp,'TEMP':temp,'TMP':temp},capture_output=True,timeout=60)
         assert result.returncode==0
-        assert json.loads((box/'denied.json').read_text())=={'kind':'data','path':str(Path(name).with_name('other.png')).replace('\\','/')}
+        files=json.loads((box/'answer.json').read_text()).get('files') or {}
+        sibling_name=str(Path(name).with_name('other.png')).replace('\\','/')
+        assert sibling_name in files and name in files

@@ -39,6 +39,7 @@ PART_LABELS = {
     "dao_cu": "Đạo cụ dự án",                 # 12/10 #27: project_prop_lock (core/prop_lock)
     "nhat_quan": "Diễn xuất ↔ hành động",     # 13/10 V9 (cờ motion_consistency_lint)
     "nhip": "Số nhịp ↔ thời lượng",          # 13/10 V9
+    "giu_yen": "Giữ yên quá lâu",            # 21/10 M7.4 (G51: clip đơ / giữ tư thế mà lint không bắt)
     "trang_thai_nv": "Trạng thái nhân vật",   # 13/10 V10 (cờ character_state_lock)
     "anh_ref": "Ảnh tham chiếu",             # 13/10 V13 (cờ ref_rule_early)
 }
@@ -73,12 +74,15 @@ _END = re.compile(r"\bends?\b|\bending\b|\bholds?\b|\buntil\b|\bfinal\b|\bfinish
                   r"\blast frame\b|\bkết\b|\bdừng\b|\bgiữ\b", I)
 
 # ---- (b) khung ↔ tư thế -------------------------------------------------------------------------------------------------------
+# C-3D-GOC-A (G9, #31 shot 17): "aura along ITS whole body" tả cây súng, không phải người — "its whole/full body" (đồ vật / con vật) không
+# phải tư thế thấy chân của nhân vật; "her / his / their / the whole body" vẫn tính
 _CLOSE = re.compile(r"\bmedium close[- ]up\b|\b(?:extreme )?close[- ]up\b|\bno legs\b|\bmid[- ]chest up\b|\bfrom the (?:chest|waist|shoulders?) up\b|"
                     r"\bhead and shoulders\b|\bcận mặt\b|\btrung cận\b|không thấy chân", I)
 _CLOSE_CS = re.compile(r"\b(?:MCU|ECU|CU)\b")
 _LEGS = re.compile(r"\bsprawl\w*\b|\bseated on the (?:ground|floor)\b|\bsit(?:s|ting)? on the (?:ground|floor)\b|"
                    r"\blegs? (?:stretched|spread|outstretched|splayed|sprawled)\b|\bstretched[- ]out legs\b|\bkneeling,? full[- ]body\b|"
-                   r"\bfull[- ]bod(?:y|ies)\b(?! (?:reference|sheet|picture|image|turnaround|character sheet)\b)|\bfeet (?:are )?visible\b|\b(?:whole|entire) body\b|\bhead to toe\b|ngồi bệt|thấy chân|"
+                   r"(?<!\bits )\bfull[- ]bod(?:y|ies)\b(?! (?:reference|sheet|picture|image|turnaround|character sheet)\b)|\bfeet (?:are )?visible\b|"
+                   r"(?<!\bits )\b(?:whole|entire) body\b|\bhead to toe\b|ngồi bệt|thấy chân|"
                    r"duỗi chân|sõng soài|\bcả người\b", I)
 
 # ---- (c) chi tiết ghê — luật tầng 1 cho mọi dự án Free Fire (người dùng chốt 09/10) ----------------------------------------
@@ -549,6 +553,7 @@ def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff:
     out += outfit_issues(prompt, data, chars)
     out += pov_hand_issues(prompt, data, ff)
     out += beat_issues(data)
+    out += hold_issues(prompt, data)
     out += state_issues(prompt, data)
     return out + _common(prompt, data, chars, "motion", ff)
 
@@ -625,6 +630,50 @@ def beat_issues(data: Dict) -> List[Dict]:
         return []
     return [_issue("warn", "nhip", f"Hành động có {beats} nhịp trong {sec:g} s (> {BEATS_PER_SECOND:g} nhịp/giây) — model sẽ bỏ nhịp, "
                                    "không tới trạng thái cuối (#27 s20: 1,5 s thụp→bật→chạy). Tách shot hoặc tăng thời lượng.")]
+
+
+# M7.4 (G51, 19/10 người dùng: clip #31 đơ / giữ tư thế): motion bảo giữ yên / chậm mà không có hành động kế → model giữ khung cả đoạn
+_HOLD = re.compile(r"\b(?:holds?|holding)\s+(?:still|(?:the|this|that|his|her|their)\s+(?:pose|position|stance))\b|\bpaus(?:es|e|ing)\b|"
+                   r"\bpoised\b|\bstays?\s+(?:still|motionless|frozen)\b|\bremains?\s+(?:still|motionless|frozen)\b|"
+                   r"\b(?:stands?|sits?|kneels?|lies?)\s+(?:still|motionless|frozen)\b|\bfreez(?:es|e)\s+in\s+place\b|"
+                   r"\bđứng yên\b|\bgiữ nguyên tư thế\b|\bbất động\b", I)
+# câu mà chủ ngữ là máy / ánh sáng / khí / vật nền — chuyển động máy hay nền, không phải người giữ yên (rà C-M74: 'camera slowly pushes in')
+_NOT_PERSON = re.compile(r"^\s*(?:the\s+)?(?:camera|shot|frame|lens|light|lights|sun|moon|smoke|fire|flames?|dust|fog|mist|rain|snow|wind|"
+                         r"water|waves?|leaves|grass|trees?|clouds?|sky|background|scene|hair|cape|cloth|flag|máy quay|khói|lửa|bụi|ánh sáng)\b", I)
+_NEXT = re.compile(r"\b(?:then|before|after that|suddenly|until)\b|\brồi\b|\bsau đó\b|→|->|\b(?:walk\w*|steps?|stepping|turn\w*|raises?|"
+                   r"lift\w*|swing\w*|aims?|reach\w*|lunge\w*|charg\w*|strik\w*|punch\w*|kick\w*|spin\w*|draws?|nods?|"
+                   r"looks?\s+(?:up|down|left|right|back|around))\b", I)
+_SECONDS = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:s\b|sec\b|secs\b|seconds?\b|giây\b)", I)
+_ENDING = re.compile(r"\bends?\s+(?:with|on|in)\b|\bin the end\b|\bfinal\s+(?:pose|frame|beat|moment|position)\b|\bkết thúc\b", I)
+HOLD_MAX_S = 1.5                       # quyết định 11/10 "video không được đơ" (= final_qc.FREEZE_S, QC-V2-STILL_OVER_1_5S)
+
+
+def hold_issues(prompt: str, data: Dict) -> List[Dict]:
+    """VÀNG (không chặn): câu motion bảo nhân vật giữ yên / dừng / chậm mà SAU đó không có hành động kế, và ước thời gian giữ > 1,5 s
+    (số giây ghi rõ trong câu, không thì phần thời lượng còn lại sau chữ giữ). Câu trạng thái cuối ('It ends with …') không tính. Cờ
+    motion_consistency_lint TẮT → []."""
+    if not consistency_on() or not prompt:
+        return []
+    try:
+        sec = float((data or {}).get("duration_s") or 0)
+    except (TypeError, ValueError):
+        sec = 0.0
+    sents = [m for m in re.finditer(r"[^.!?\n]+", prompt)]
+    for i, sm in enumerate(sents):
+        sent = sm.group(0)
+        h = _HOLD.search(sent)
+        if not h or _ENDING.search(sent) or _NOT_PERSON.search(sent):
+            continue
+        after = sent[h.end():] + " " + (sents[i + 1].group(0) if i + 1 < len(sents) and not _ENDING.search(sents[i + 1].group(0)) else "")
+        if _NEXT.search(after) or _verbs_in(after):
+            continue
+        n = _SECONDS.search(sent)
+        est = float(n.group(1).replace(",", ".")) if n else (sec * (len(prompt) - (sm.start() + h.start())) / len(prompt) if sec else 0.0)
+        if est > HOLD_MAX_S:
+            return [_issue("warn", "giu_yen", f"Motion bảo '{h.group(0)}' rồi không có hành động kế — ước giữ yên ≈ {est:.1f} s "
+                                              f"(> {HOLD_MAX_S:g} s): clip dễ ĐƠ (G51). Thêm hành động sau, hoặc rút thời lượng / ghi rõ "
+                                              "'for a beat, then …'.")]
+    return []
 
 
 def bleed_issues(data: Dict, neighbours: Iterable[Tuple[str, Dict]]) -> List[Dict]:
@@ -1121,6 +1170,8 @@ def _say(conn, project_id, scene_id, label: str, fc: Dict) -> None:
 
 
 def _write(conn, scene_id: int, data: Dict, fc: Dict) -> None:
+    from . import write_guard                      # V3.1 M2.5 (cờ field_guard, shadow): ghi cả bảng đọc từ trước (L6) → diag stale_write
+    write_guard.observe(conn, scene_id, {"formula_check": fc}, write_guard.actor("auto", "prompt_formula"), read_data=data)
     data["formula_check"] = fc
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene_id))
 
@@ -1163,6 +1214,8 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             fc["cross"] = [i for i in cross if r["idx"] in i.get("shots", [])]
             _write(conn, r["id"], data, fc)
         conn.commit()
+        from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+        _wg.flush(conn)
         warn_only = []
         for r, data, fc in results:
             if any(i["level"] == "red" for i in fc["image"] + fc["motion"] + fc["growth"]):
@@ -1180,6 +1233,8 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             diag.record(conn, "director", "warn", "Công thức prompt (giữa các shot): " + i["msg"], "prompt_formula", project_id)
     except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the paid plan
         conn.rollback()
+        from . import write_guard as _wg                   # rà M25-1: diag shadow của lần ghi đã hủy không được ghi
+        _wg.discard(conn)
         diag.record(conn, "director", "warn", f"không kiểm được công thức prompt: {type(e).__name__}: {e}", "prompt_formula", project_id)
 
 
@@ -1209,12 +1264,16 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
         fc.update(image_sha=_sha(image), motion_sha=_sha(motion), at=_now())
         _write(conn, scene_id, data, fc)
         conn.commit()
+        from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+        _wg.flush(conn)
         _say(conn, project_id, scene_id, _label(data, row["idx"]) + f" ({'ảnh' if kind == 'image' else 'motion'} vừa lưu)",
              dict(fc, image=fc["image"] if kind == "image" else [], motion=fc["motion"] if kind == "motion" else [],
                   growth=[g for g in fc["growth"] if g.get("kind") == kind], cross=[]))
     except Exception as e:  # noqa: BLE001 - never a reason to lose a saved prompt
         try:
             conn.rollback()
+            from . import write_guard as _wg               # rà M25-1: diag shadow của lần ghi đã hủy không được ghi
+            _wg.discard(conn)
         except Exception:  # noqa: BLE001
             pass
         diag.record(conn, "director", "warn", f"không kiểm được công thức prompt (shot #{scene_id}): {type(e).__name__}: {e}",

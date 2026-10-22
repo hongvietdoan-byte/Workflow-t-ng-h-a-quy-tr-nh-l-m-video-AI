@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-22T11:26:08.832582+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "all",
+  "task": "C-FIX6",
+  "text": "C-FIX6: phần B gộp main 1f854d2a (cùng C-M83-TOOL); phần A (claude/v31-fix6-desk @ d50b0ac2, rà kỹ + vòng sửa đạt) gộp cùng khối M2 đang tích hợp (tich-hop-m2). Golden CX21-GOLDEN7 ĐẠT 87832ef0."
+}

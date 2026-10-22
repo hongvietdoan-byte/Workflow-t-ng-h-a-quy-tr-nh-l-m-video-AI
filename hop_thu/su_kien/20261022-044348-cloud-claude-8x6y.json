@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T04:43:48.122966+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-FIX3-THAP",
+  "to": "cloud-C",
+  "title": "3 lỗi THẤP sau rà kỹ C-M71-FIX + C-M63-FIX2 (mục ĐỎ motion failed khi cờ tắt, test rewrite thật, leader scene_id NULL)",
+  "spec": "docs/CLOUD_TASKS.md#### C-FIX3-THAP",
+  "priority": 3
+}

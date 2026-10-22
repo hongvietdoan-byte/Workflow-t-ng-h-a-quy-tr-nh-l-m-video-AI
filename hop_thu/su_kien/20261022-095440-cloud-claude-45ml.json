@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-22T09:54:40.622032+07:00",
+  "lane": "cloud-claude",
+  "kind": "tin",
+  "to": "cloud-C",
+  "task": "C-3D-GOC-A",
+  "text": "LIÊN KẾT (người dùng 22/10): đọc docs/CLOUD_TASKS.md mục 'LIÊN KẾT C-3D-GOC-A / C-3D-GOC-B / C-QC-BOCUC'. Hợp đồng chung core/layout_facts.facts_for_shot — cloud-claude push v1 lên main sớm; R2/R3 điền people/camera/landmarks TRONG hàm đó, câu tả nền sinh từ landmarks; không viết hàm bố cục song song. C-3D-GOC-B chuyển về cloud-C, làm SAU A (ưu tiên 3). C-QC-BOCUC cloud-claude tự làm."
+}

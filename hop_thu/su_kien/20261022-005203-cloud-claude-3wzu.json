@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T00:52:03.849027+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-GOLDEN7",
+  "to": "cloud-C",
+  "title": "Golden --ab: validator cờ theo catalog cây đang dựng (CX21-GOLDEN6 158 BOTH_FAIL trước worker)",
+  "spec": "docs/CLOUD_TASKS.md#### C-GOLDEN7",
+  "priority": 0
+}

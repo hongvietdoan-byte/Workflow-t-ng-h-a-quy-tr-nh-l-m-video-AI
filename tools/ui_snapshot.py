@@ -135,9 +135,11 @@ def index_markdown(date: str, shots: List[Dict], total_bytes: int, notes: Option
 
 
 # ---- dữ liệu mẫu ---------------------------------------------------------------------------------------------------------------
-def build_sample_data(out_dir: str, primary: str = "rich", n_projects: int = 50, scenes_primary: int = 30, images: bool = True) -> Dict:
+def build_sample_data(out_dir: str, primary: str = "rich", n_projects: int = 50, scenes_primary: int = 30, images: bool = True,
+                      rich_others: Optional[int] = None) -> Dict:
     """Dựng CSDL + ảnh mẫu bằng API Pipeline thật. Dự án #1 (mở mặc định) có trạng thái `primary`; #2.. xoay vòng các trạng thái, vài
-    cái tên dài. Trả {"db", "data", "projects": [(id, name, kind)]}. Xóa dựng cũ trong out_dir."""
+    cái tên dài. Trả {"db", "data", "projects": [(id, name, kind)]}. Xóa dựng cũ trong out_dir.
+    `rich_others` (đo tải M8.3, tools/load_test_ui.py): mọi dự án #2.. cũng đủ trạng thái như dự án chính, mỗi dự án `rich_others` shot."""
     from core.db import connect
     from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts, store_scene_analysis
     from core.pipeline import Pipeline
@@ -242,9 +244,9 @@ def build_sample_data(out_dir: str, primary: str = "rich", n_projects: int = 50,
     pid = make(first_kind, LONG_NAME, 0 if first_kind == "empty" else scenes_primary, rich=(primary == "rich"))
     made.append((pid, LONG_NAME, first_kind))
     for n in range(2, n_projects + 1):
-        kind = KINDS[(n - 2) % len(KINDS)]
+        kind = "idle" if rich_others else KINDS[(n - 2) % len(KINDS)]
         name = f"{NAMES[n % len(NAMES)]}{n}" + (" — " + LONG_NAME[:70] if n % 7 == 0 else "")
-        pid = make(kind, name, 0 if kind == "empty" else 3 + n % 5, rich=False)
+        pid = make(kind, name, rich_others or (0 if kind == "empty" else 3 + n % 5), rich=bool(rich_others))
         made.append((pid, name, kind))
     p.conn.close()                                # Windows: không đóng thì không xóa được thư mục tạm
     return {"db": db, "data": data, "projects": made}
@@ -335,7 +337,8 @@ class Runner:
     # -- app
     def start_app(self, db: str, data: str) -> None:
         env = dict(os.environ, PIPELINE_DB=db, PIPELINE_DATA=data, AUDIO_PROVIDER="mock", LLM_PROVIDER="mock", SUBJECT_PROVIDER="mock",
-                   MOCK_REAL_MEDIA="1", FEATURE_UI_V2="1", DASHBOARD_AUTH="off", DASHBOARD_SYNC_BACKGROUND="0", FEATURE_SETTINGS_FILE=os.path.join(self.work, "feature_settings.json"))
+                   MOCK_REAL_MEDIA="1", FEATURE_UI_V2="1", DASHBOARD_AUTH="off", DASHBOARD_SYNC_BACKGROUND="0", FEATURE_SETTINGS_FILE=os.path.join(self.work, "feature_settings.json"),
+                   FEATURE_BASELINE="0")                                   # M7.2: chụp màn không theo baseline cờ sản xuất
         for k in ("ANTHROPIC_API_KEY", "CLIPAI_API_KEY"):
             env.pop(k, None)
         log = open(os.path.join(self.work, "streamlit.log"), "w", encoding="utf-8")

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T06:13:25.506294+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-FIX3-THAP-B",
+  "branch": "cloud/v31-fix3-thap",
+  "commit": "d8240a92",
+  "report": "docs/RA_CLOUD_FIX3_THAP_2026-10-22.md",
+  "text": "Sửa gốc thay vì vá nhánh tắt cờ: _COVERED (lần rà lỗi chưa có mục che → mục ĐỎ, bỏ cận lần rà đạt gần nhất) — đóng kịch bản a/b/c + lỗi để lại M71 (lỗi chưa ai gọi blocking). Mỗi shot 1 mục rà lỗi mở (gắn lại vào lần mới); Rà lại chạy sau lần rà đạt; ✓ Đã sửa mục rà lỗi = Rà lại (trước mở cổng khi chưa rà). Test cũ test_failed_review_older_than_a_good_review_does_not_hold đổi thành ..._still_holds. ⚠️ Trước khi gộp: chạy truy vấn đếm (chỉ đọc) trong báo cáo trên máy chính — lần failed cũ chưa có mục sẽ bật ĐỎ. Dọn mkdtemp + mock _usd_of_jobs. 9 test mới/đổi (đỏ trên code cũ), full 7100 passed (25 golden nền). 3 lượt agent rà, sửa hết VỪA. 0 USD. HẠN MỨC: không đọc được."
+}

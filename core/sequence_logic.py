@@ -178,6 +178,8 @@ def check(p: Pipeline, project_id: int, client, data_dir: str, sequence: Optiona
     continuity_shadow.run(p, project_id, data_dir, out)
     from . import continuity_state           # V3.1 M3.4 (cờ continuity_state, TẮT): expected/observed/resolved, chỉ ghi — never raises
     continuity_state.run(p, project_id, data_dir)
+    from . import continuity_validator       # V3.1 M6.9 (cờ continuity_validator, TẮT): định tuyến lỗi về vai chủ, chỉ ghi — never raises
+    continuity_validator.run(p, project_id, data_dir)
     return out
 
 

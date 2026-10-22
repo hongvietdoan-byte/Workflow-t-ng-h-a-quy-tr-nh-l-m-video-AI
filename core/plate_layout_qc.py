@@ -201,8 +201,8 @@ def no_sky_reason(conn, pid: Optional[int], scene_id: Optional[int], plate_path:
     data = data or {}
     if str(data.get("angle") or "").lower() == "overhead":
         return "góc máy từ trên cao (overhead) — khung không lộ trời"
-    byd = data.get("byd") if isinstance(data.get("byd"), dict) else {}
-    if isinstance(byd.get("noi_chon"), dict) and byd["noi_chon"].get("trong_nha") is True:
+    from . import shot_intent                      # V3.1 M2.1: đọc BYĐ qua adapter
+    if shot_intent.read(data, "noi_chon.trong_nha")[0] is True:
         return "BYĐ: nơi chốn trong nhà"
     if conn is not None and pid is not None:
         try:

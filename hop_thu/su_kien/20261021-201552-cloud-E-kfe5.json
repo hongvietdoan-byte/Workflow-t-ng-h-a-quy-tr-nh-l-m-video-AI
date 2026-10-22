@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:15:52.358014+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-M75",
+  "branch": "cloud/v31-m75",
+  "commit": "552cd1e4",
+  "report": "docs/KE_HOACH_SUA_20_CO_2026-10-21.md",
+  "text": "Mục 6 'Bảng quyết định Gói C' (7 cờ, mỗi dòng: đề xuất / trước-sau / ai ảnh hưởng / chi phí / test / rollback / ô EP chọn): audio_first GIỮ TÙY CHỌN (F-Q2) thành ô dự án; story_check NỐI nút Bước 1; voice_check_redo NỐI có trần sau shadow 1 dự án; stage_auto NỐI sau C-M24 + G3 + preflight #31; stage_handheld_props, stage_crew_user_approve GIỮ; continuity_layout THAY THẾ khi M3.4/M4.3/M6.9 bật. Phát hiện: story_check + audio_first tốn tiền mà không khai costs."
+}

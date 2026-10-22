@@ -19,6 +19,22 @@ DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 
 
 def main(argv=None):
+    from core import ui_step                             # C-DEVSYS-MAPS-FIX: cli_step ghi SAU khi chạy, theo kết quả thật
+    return ui_step.run_cli("stage_auto", _main, argv)
+
+
+_HOLDS = []                                              # M4.8 khóa S các đoạn lệnh này đang ghi — nhả khi _main xong (mọi nhánh return)
+
+
+def _main(argv, step):
+    try:
+        return _run(argv, step)
+    finally:
+        while _HOLDS:
+            _HOLDS.pop().__exit__(None, None, None)
+
+
+def _run(argv, step):
     ap = argparse.ArgumentParser(prog="stage_auto.py")
     ap.add_argument("--project", type=int, required=True)
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))
@@ -63,6 +79,10 @@ def main(argv=None):
     from core.camera_plan import drawn_shots
     from core.db import connect
     conn = connect(os.path.abspath(a.db))
+    if not (a.beats or a.score or a.prompt_out or a.dry):  # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên
+        # sơ đồ; chế độ chỉ đọc / chỉ in đề (--beats, --score, --prompt-out, --dry) không ghi; ghi ở ui_step.run_cli SAU khi chạy
+        step.update(conn=conn, project=a.project, task="sân khấu 3D" + (f" cảnh {', '.join(a.scene)}" if a.scene else " cả dự án")
+                    + (" · khai họ sân khấu" if a.set_family else ""))
     if a.set_family:
         stage_auto.set_family(conn, a.place or [], a.set_family)
         print(f"Đã khai họ sân khấu '{a.set_family}' cho Kho {a.place}")
@@ -75,6 +95,16 @@ def main(argv=None):
               + (f" · ĐÃ có ảnh shot {drawn}" + ("" if a.force else " → bỏ qua (thêm --force)") if drawn else ""))
     for h in stage_auto.family_hints(segs):
         print("⚠", h)
+    if not (a.score or a.dry):                          # M4.8: GIỮ khóa S các đoạn (hai chiều: nút bàn đạo diễn gặp lệnh này cũng từ chối)
+        from core import stage_desk, write_guard
+        hold = stage_desk.hold_segments(conn, a.project, a.data_dir, segs, "cli stage_auto", write_guard.actor("tool", "cli.stage_auto"))
+        try:
+            hold.__enter__()
+        except stage_desk.DeskError as e:
+            print("⛔", e)
+            step.update(result="warn", why="đoạn đang được thao tác trên Dashboard (khóa S)")
+            return
+        _HOLDS.append(hold)
     from core import features
     if a.cam_tay:
         os.environ[stage_auto.HANDHELD_REDO_ENV] = "1"
@@ -85,10 +115,12 @@ def main(argv=None):
     if a.crew or a.crew_approve or a.crew_tra_lai:     # 16/10 chia vai (kế hoạch docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md)
         if len(segs) != 1:
             print("Chế độ chia vai cần đúng MỘT cảnh (--scene)")
+            step.update(result="warn", why="sai tham số: cần đúng MỘT cảnh")   # C-DEVSYS-MAPS-FIX: không làm gì ≠ ok
             return
         g = segs[0]
         if (a.answer or a.crew_approve or a.crew_tra_lai) and drawn_shots(conn, g) and not a.force:
             print(f"{g['id']}: có shot đã vẽ ảnh — thêm --force để đổi máy")
+            step.update(result="warn", why="có shot đã vẽ ảnh — chưa đổi máy")
             return
         if a.crew_approve or a.crew_tra_lai:
             tra = []
@@ -118,10 +150,13 @@ def main(argv=None):
                 f.write(chr(10).join(r["errors"]) if r.get("errors") else "ĐẠT")
             print(json.dumps({k: v for k, v in r.items() if k not in ("errors", "result")}, ensure_ascii=False, indent=1, default=str))
             print(("LỖI (" + str(len(r["errors"])) + ") → " + loi) if r.get("errors") else f"ĐẠT — bước kế: {r.get('phase')}")
+            if r.get("errors"):
+                step.update(result="error", why=f"câu trả lời chia vai LỖI ({len(r['errors'])})")
         return
     if a.prompt_out or a.answer:
         if len(segs) != 1:
             print("Chế độ ngoại tuyến cần đúng MỘT cảnh (--scene)")
+            step.update(result="warn", why="sai tham số: cần đúng MỘT cảnh")
             return
         g = segs[0]
         if a.prompt_out:
@@ -132,6 +167,7 @@ def main(argv=None):
         if a.answer:
             if drawn_shots(conn, g) and not a.force:
                 print(f"{g['id']}: có shot đã vẽ ảnh — thêm --force để đổi máy")
+                step.update(result="warn", why="có shot đã vẽ ảnh — chưa đổi máy")
                 return
             from core.llm_runner import extract_json
             try:
@@ -145,6 +181,8 @@ def main(argv=None):
                 f.write(chr(10).join(r["errors"]) if r["errors"] else "ĐẠT")
             print(json.dumps({k: v for k, v in r.items() if k != "errors"}, ensure_ascii=False, indent=1))
             print(("LỖI (" + str(len(r["errors"])) + ") → " + loi) if r["errors"] else "ĐẠT — đã ghi stage_camera")
+            if r["errors"]:
+                step.update(result="error", why=f"câu trả lời ngoại tuyến LỖI ({len(r['errors'])})")
         return
     if a.beats:                                          # 16/10: ảnh nhìn từ trên theo nhịp cho người duyệt — 0 USD, không ghi CSDL
         os.makedirs(a.beats, exist_ok=True)
@@ -206,6 +244,7 @@ def main(argv=None):
         return
     if not a.yes:
         print("Chưa chạy (thêm --yes --max-usd <USD> để đồng ý chi tiền; --dry để xem đề bài 0 USD)")
+        step.clear()                                     # chỉ in ước tính: không phải việc làm thay Dashboard → không ghi
         return
     from core import llm_runner
     from core.adapters.check import load_dashboard_env

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:52:43.363323+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-GOLDEN4",
+  "to": "cloud-E",
+  "title": "Golden: worker đọc mọi data/ có fingerprint (sửa gốc lần 3 không đạt)",
+  "spec": "docs/CLOUD_TASKS.md#### C-GOLDEN4",
+  "priority": 0
+}

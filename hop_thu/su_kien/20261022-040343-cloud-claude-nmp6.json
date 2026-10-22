@@ -1,0 +1,11 @@
+{
+  "ts": "2026-10-22T04:03:43.453222+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "CX21-GOLDEN7",
+  "to": "phien-chinh",
+  "title": "Nghiệm thu golden A/B — Claude MÁY CHÍNH chạy 1 lượt (codex hết tuần 92 %, bàn giao 22/10 04:0x)",
+  "spec": "docs/CODEX_TASKS.md### CX21-GOLDEN7",
+  "priority": 0,
+  "text": "Đọc báo cáo codex/v31-golden7@a69099fe + thư chốt 03:31 (db0ccfac). Native negative control trước (xanh mới chạy), snapshot mode=ro mới, A pin a117497d (ghi SHA), B cloud/v31-m2-tichhop 9746a6ea, tool cloud/v31-golden5 621661a8, baseline union 159 / 32 experimental TẮT explicit; 158 ca #24/#27/#31/#33 + loaded paths. ĐẠT → báo XONG để điều phối gộp tích hợp M2 một lần."
+}

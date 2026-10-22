@@ -71,7 +71,7 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 
 | Chỉ số | Hành động |
 |---|---|
-| Context phiên chính **65–75 %** | điểm nghỉ |
+| Context phiên chính **≥ 60 %** | commit + push gói bàn giao rồi làm tiếp; ~70 % Claude Code tự nén trong cùng phiên (mục 4) — KHÔNG clear/lưu trữ phiên |
 | $ **≥ 80 %** | chỉ cho **1** phiên con chạy cùng lúc; báo USD còn lại mỗi lần |
 | $ **≥ 85 %** | điểm nghỉ (trần cứng) — TUYỆT ĐỐI tránh vượt 90–95 % (người dùng: đoạn này % tăng rất nhanh) |
 
@@ -79,7 +79,7 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 
 | Chỉ số | Hành động |
 |---|---|
-| Context phiên chính **65–75 %** | điểm nghỉ |
+| Context phiên chính **≥ 60 %** | commit + push gói bàn giao rồi làm tiếp; ~70 % Claude Code tự nén trong cùng phiên (mục 4) — KHÔNG clear/lưu trữ phiên |
 | Hạn mức 5 giờ **90–95 %** hoặc tuần **≥ 95 %** (người dùng 06/10: dùng 5 giờ tới 90–95 %; tuần nâng 05/10) | điểm nghỉ — **TRÁNH VƯỢT 95 %**: đã ≥ 90 % thì không mở/đánh thức phiên con nào nữa, chỉ gộp phần đã xong |
 | Hạn mức 5 giờ **≥ 60 %** | chỉ cho **1** phiên con chạy cùng lúc |
 | Hạn mức 5 giờ **70–90 %** | chỉ cho chạy **việc NHỎ** (một phiên, phạm vi chặt, ≈ ≤ 30 lượt gọi công cụ / ≈ ≤ 100k token — ước mỗi việc nhỏ tốn ≈ 3–6 % hạn mức 5 giờ); trước khi mở ước xem có vượt 90–95 % không, có nguy cơ thì KHÔNG mở; không mở việc lớn, không đánh thức phiên có context lớn |
@@ -88,26 +88,31 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 ## 4. Điểm nghỉ
 **Hai loại dừng, đừng lẫn:**
 - **Dừng vì hạn mức gói** (5 giờ 90–95 % / tuần ≥ 95 %; tránh vượt 95 %), context còn thấp → KHÔNG cần `/clear`. Làm bước 1–4 bên dưới, rồi đặt lịch `CronCreate` một lần (vài phút sau giờ hạn mức đặt lại, lấy từ `resetsAt`) để tự làm tiếp TRONG CÙNG phiên, và báo người dùng giờ chạy lại.
-- **Dừng vì context** (65–75 %) → làm bước 1–5: người dùng `/clear` rồi gõ "tiếp tục".
-- **THAY 20/10 23:58 — phiên chính điều phối (người dùng chỉ điều khiển từ xa MỘT phiên): context chạm ~70 % → KHÔNG mở phiên mới.** Làm: (1) chờ/ghi lại phiên con đang chạy (không bỏ dở việc gộp giữa chừng: cây sạch, không xung đột); (2) commit + push trạng thái: kế hoạch + `plan_progress --write`, gói bàn giao trong mục 📨 TODO.md dạng `**PHIÊN KẾ (điều phối V3.1 sau /clear) — ĐỌC ĐẦU TIÊN.**` ghi: lịch Cron đang có (id, lịch, đề bài rút gọn — /clear có thể xóa lịch → tạo lại), nhánh đang gộp dở, việc XONG chờ gộp, câu hỏi chờ người dùng, mục Cấp 3 chờ; (3) gọi `mcp__ccd_session_mgmt__clear_session` cho `self` (bị từ chối, vd Remote Control → nhờ người dùng gõ `/clear`); (4) sau /clear hook nạp gói → đọc gói, kiểm `CronList`, thiếu lịch điều phối thì tạo lại theo gói, rồi điều phối tiếp. Mục cũ dưới (mở phiên mới) chỉ dùng khi người dùng yêu cầu.
-- **Tự chuyển phiên khi context chạm ~70 % (người dùng 16/10: "không để context vượt quá 70 %, tự commit và bắt đầu phiên mới, tiếp tục
-  làm theo thông tin đã commit")**: làm bước 1–3, rồi mở phiên mới bằng `mcp__ccd_session__start_session` (`initiation: "user_asked"`,
-  `context: "fresh"`) với đề bài: đọc mục 📨 BÀN GIAO đầu `TODO.md` (dòng mới nhất của phiên này) + file kế hoạch / đánh giá được trỏ
-  tới, làm tiếp đúng các việc ghi "phiên kế làm" theo thứ tự, giữ mọi quy ước CLAUDE.md. Đề bài phải tự đủ (đường dẫn, lệnh, trạng thái
-  chờ duyệt, việc KHÔNG được tự làm). Báo người dùng một dòng kèm link phiên mới; phiên cũ dừng việc.
-  **Sau khi đóng gói xong + phiên mới đã chạy → CLEAR phiên cũ (người dùng 16/10: "sau khi đóng gói thì cho clear session")**: kiểm
-  gói đã lên main (`git log origin/main -1` có commit bàn giao) và phiên mới đã khởi động (kết quả `start_session` có session_id), rồi
-  gọi `mcp__ccd_session_mgmt__clear_session` (nạp bằng `ToolSearch select:mcp__ccd_session_mgmt__clear_session`) cho phiên CŨ
-  (`self`). Ứng dụng từ chối (vd Remote Control đang bật) → báo người dùng gõ `/clear`. Không clear khi còn phiên con đang chạy chưa
-  báo về, hay còn thay đổi chưa commit.
+- **Context phiên chính (THAY 21/10 — người dùng: "khi context đạt 70 % lại tự động lưu trữ session, ngắt kết nối remote; yêu cầu là
+  commit rồi clear và tự làm tiếp")**. Gốc lỗi: `mcp__ccd_session_mgmt__clear_session` (và archive / mở phiên mới) **LƯU TRỮ phiên** → Remote
+  Control đứt, người dùng mất phiên đang điều khiển. Claude KHÔNG tự gõ được `/clear`; cách thay trong CÙNG phiên: `.claude/settings.json`
+  đặt `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` → Claude Code **tự nén context ở ~70 %** (cùng phiên, cùng remote), hook `SessionStart` matcher
+  `compact` (`tools/session_handoff.py`) nạp lại gói bàn giao ngay sau khi nén. Làm:
+  1. **Context ≥ ~60 %** (đo `get_usage` trước mỗi lượt điều phối): ở điểm sạch gần nhất (không giữa lúc gộp / xung đột) **commit + push gói
+     bàn giao** trong mục 📨 TODO.md dạng `**PHIÊN KẾ (điều phối V3.1 sau nén) — ĐỌC ĐẦU TIÊN.**` (lịch Cron đang có: id, lịch, đề bài rút
+     gọn; nhánh gộp dở; việc XONG chờ gộp; câu hỏi chờ người dùng; mục Cấp 3 chờ) + kế hoạch + `plan_progress --write`. Ghi lại gói mỗi
+     khi trạng thái đổi nhiều (gói luôn mới nhất lúc nén tới).
+  2. **Làm tiếp bình thường** — KHÔNG dừng chờ người dùng, KHÔNG báo "gõ /clear". Tới ~70 % Claude Code tự nén.
+  3. **Sau khi nén** (hook in "PHIÊN NÀY VỪA TỰ NÉN CONTEXT"): đọc gói + file nó trỏ tới, sửa "ĐỌC ĐẦU TIÊN" → "ĐÃ NHẬN <giờ> (sau nén)",
+     commit + push, `CronList` (thiếu lịch điều phối thì tạo lại theo gói), rồi điều phối tiếp.
+  4. **TUYỆT ĐỐI KHÔNG** gọi `clear_session`, `archive_session`, `start_session` / mở phiên mới cho chính phiên chính, trừ khi người dùng
+     yêu cầu đúng việc đó trong chat. Người dùng ngồi máy có thể tự gõ `/clear` — hook `clear` cũng nạp gói, làm như bước 3.
+  5. Không có `get_usage` → coi ~3 nhánh lớn là gần ngưỡng, ghi gói sớm.
+- **(Cũ, đã thay 21/10)** "THAY 20/10 23:58 … gọi `clear_session` cho `self`" và "Tự chuyển phiên khi context chạm ~70 % (16/10) … mở
+  phiên mới + clear phiên cũ": KHÔNG dùng nữa — chính bước đó lưu trữ phiên và ngắt Remote Control. Phiên CON / phiên cloud riêng
+  (không phải phiên người dùng điều khiển) vẫn có thể dừng ở điểm nghỉ theo bước 1–4 dưới.
 
 1. Chờ mọi phiên con xong (không bỏ dở giữa chừng).
 2. Gộp các nhánh đã xanh và đã rà. Nhánh dở thì để nguyên trên nhánh, kèm `HANDOFF.md`.
 3. Cập nhật kế hoạch chính + `plan_progress --write` (ghi vào kế hoạch chính) + với V3.1 tôn trọng cấp quyền mục 4b (code Cấp 2 chỉ sau khi người dùng duyệt phạm vi) + `TODO.md`, ghi rõ **bước kế + file nguồn + nhánh dở (tên, commit cuối)**. Commit, push, pull ở `D:\AI-Video-Pipeline`.
 4. Báo người dùng: đã xong gì (mã commit), còn gì, các chỉ số hiện tại, câu để gõ tiếp ("tiếp tục Sxx").
-5. **Xóa phiên:** khi đã mở phiên mới làm tiếp (mục trên, người dùng cho phép thường trực 16/10) thì clear phiên cũ theo đúng điều
-   kiện ở đó. Không mở phiên mới (dừng vì hạn mức, chờ người dùng) thì KHÔNG tự xóa: người dùng gõ `/clear` rồi "tiếp tục".
-   Remote Control đang bật thì ứng dụng từ chối `clear_session` → nhờ người dùng `/clear`.
+5. **Không tự xóa / lưu trữ phiên** (21/10): không gọi `clear_session` / `archive_session` / mở phiên mới thay phiên chính. Context
+   do auto-compact 70 % lo (mục trên); dừng vì hạn mức thì đặt `CronCreate` làm tiếp trong cùng phiên.
 
 ## 4b. Quy trình một tính năng / sửa gốc (đã dùng 16/10 — chia vai sân khấu, previs)
 1. Người dùng nêu vấn đề → đo số thật 0 USD trước khi kết luận (vd bảng số đo Blender shot 10) → nêu gốc, KHÔNG đặt luật cấm cứng

@@ -111,7 +111,7 @@ def _first_frame(clip_frames: List, picture: Optional[str]) -> Tuple[Optional[Di
 def _held(data: Dict) -> List[Dict]:
     from . import shot_intent
     out = []
-    for v in shot_intent.vat_items(data.get("byd")):
+    for v in shot_intent.read(data, "vat")[0]:
         if isinstance(v, dict) and str(v.get("cach") or "").lower() in ("cam", "cầm"):
             out.append({"qc_code": "QC-L7-PROP_HELD", "registry_ids": ["P31-G51"], "vat": v.get("vat"), "nguoi": v.get("nguoi"),
                         "ly_do": "code không đo được vật trong tay — cần quan sát VLM (qc_observe), shadow chưa kiểm"})

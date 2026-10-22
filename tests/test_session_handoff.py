@@ -43,3 +43,23 @@ def test_line_merely_mentioning_mark_is_not_a_pack():
 def test_behind_main_warns_and_no_section():
     assert "chậm 3 commit" in sh.render(TODO, "origin/main", behind=3)
     assert "Không thấy mục" in sh.render("# TODO\n", "x")
+
+
+def test_compact_event_tells_the_same_session_to_continue_even_on_a_claimed_pack():
+    # 21/10: clear_session lưu trữ phiên + đứt Remote Control → nay tự nén trong cùng phiên, hook `compact` nạp lại gói
+    todo = TODO.replace("ĐỌC ĐẦU TIÊN.** (1)", "ĐÃ NHẬN 16/10 16:20 (phiên C).** (1)")
+    out = sh.render(todo, "origin/main", event="compact")
+    assert "VỪA TỰ NÉN" in out and "(1) sửa previs" in out and "gói cũ" not in out
+    assert "KHÔNG gọi clear_session" in out
+
+
+def test_hook_event_reads_source_from_stdin_json():
+    assert sh.hook_event('{"source": "compact", "session_id": "x"}') == "compact"
+    assert sh.hook_event("") == "startup" and sh.hook_event("không phải json") == "startup"
+
+
+def test_settings_compact_at_70_and_hook_runs_after_compaction():
+    import json, os
+    cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", ".claude", "settings.json"), encoding="utf-8"))
+    assert cfg["env"]["CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"] == "70"
+    assert "compact" in cfg["hooks"]["SessionStart"][0]["matcher"].split("|")

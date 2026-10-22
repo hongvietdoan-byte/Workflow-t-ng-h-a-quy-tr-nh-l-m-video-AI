@@ -22,6 +22,7 @@ from typing import Dict, List, Optional
 from . import audio_lib, dialogue, features, voice
 
 FEATURE = "lip_sync"
+OFFSCREEN = "narration_offscreen"
 _NO_FACE = ("EWS", "GAME_TPS")
 _CLOSE = ("ECU", "CU", "MCU")
 # How long a sent post lip sync may stay 'running' before it is given up (the clip keeps its mouth, said): sync.so answers in minutes;
@@ -54,6 +55,22 @@ def method_for(data: Dict, post_ok: Optional[bool] = None) -> str:
 
 def take_on() -> bool:
     return features.on("dialogue_take")
+
+
+def offscreen_on() -> bool:
+    """V3.1 M2.9 (cờ narration_offscreen, TẮT): mọi caller hỏi `talking` thay cho "có dòng thoại" / "lip_sync is True"."""
+    return features.on(OFFSCREEN)
+
+
+def talking(data: Optional[Dict]) -> bool:
+    """V3.1 M2.9: có người nói TRONG khung — một dòng thoại của người không phải lời dẫn / giọng ngoài khung (speaker_lint.in_frame:
+    bỏ narrator, "(V.O.)", người không có trong `characters` khi shot ghi danh sách) và không phải nhãn chữ trên màn
+    (dialogue.is_non_speaker). MỘT nguồn cho cảnh báo ảnh định danh (G53), đo môi QC (G16), dấu hiệu shot khó (G17), sổ khớp môi (G15)."""
+    if not isinstance(data, dict):
+        return False
+    from .speaker_lint import in_frame
+    return any(str(s).strip() and not dialogue.is_non_speaker(str(s)) and in_frame(data, str(s))
+               for s, _ in dialogue.scene_lines(data))
 
 
 def voiced(method: str) -> bool:
@@ -115,8 +132,26 @@ def _save(data_dir: str, pid: int, idx: Dict) -> None:
 
 def mark(data_dir: str, pid: int, scene_id: int, **fields) -> None:
     idx = index(data_dir, pid)
-    idx[str(scene_id)] = {**idx.get(str(scene_id), {}), **fields}
+    old = idx.get(str(scene_id), {})
+    if fields.get("method") == "skip" and offscreen_on():
+        # M2.9 G15: shot nay không khớp môi (chỉ lời dẫn / người nói ngoài khung) → bỏ trạng thái khớp môi cũ ('done' giữ giây giọng
+        # cứng ở synced_scene_ids); tệp âm thanh không xóa
+        old = {k: v for k, v in old.items() if k not in ("state", "offsets", "job_id")}
+    idx[str(scene_id)] = {**old, **fields}
     _save(data_dir, pid, idx)
+
+
+def forget_skipped(data_dir: str, pid: int, scene_id: int, data: Optional[Dict]) -> bool:
+    """M2.9 G15 (cờ narration_offscreen): shot sắp gửi lại mà nay không khớp môi (method "skip": chỉ lời dẫn, người nói ngoài khung,
+    cỡ rộng…) nhưng sổ khớp môi còn trạng thái cũ → ghi method "skip" (mark xóa state / offsets / job_id) để voice.place_on_timeline
+    không giữ giây giọng của clip cũ. Cờ TẮT hoặc không có mục cũ: không đọc / ghi gì thêm. True khi đã xóa."""
+    if not offscreen_on() or method_for(data or {}) != "skip":
+        return False
+    rec = index(data_dir, pid).get(str(scene_id)) or {}
+    if not any(k in rec for k in ("state", "offsets", "job_id")):
+        return False
+    mark(data_dir, pid, scene_id, method="skip")
+    return True
 
 
 def synced_scene_ids(data_dir: str, pid: int) -> set:
@@ -277,6 +312,9 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
                 log(f"Khớp môi dừng: {slot.over}")
                 say("warn", "budget", f"khớp môi dừng: {slot.over}", s["id"], job["id"])
                 break
+            from . import gen_auth                 # C-M63-FIX: M6.3 shadow ở đường gửi không qua runner (ghi, không chặn)
+            gen_auth.shadow_send(p.conn, project_id=pid, scene_id=s["id"], kind="video_gen", model=getattr(provider, "model", None),
+                                 route="lipsync", data_dir=data_dir)
             try:
                 task = slot.send(provider.submit, job["result_path"], seg["path"])
             except ProviderError as e:

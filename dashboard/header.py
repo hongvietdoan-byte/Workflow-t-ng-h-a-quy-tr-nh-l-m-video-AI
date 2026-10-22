@@ -690,6 +690,10 @@ def _dialog_features(p: Pipeline) -> None:
         st.info(note)
     for note in features.locked_off_ignored().values():      # 15/10: an old OFF of a 🔒 verified flag is ignored — said
         st.info(note)
+    for note in features.baseline_problems():                 # M7.2: baseline hỏng — nói ra, không im lặng
+        st.warning(note)
+    st.caption(f"Cấu hình cờ hiệu lực: hash `{features.config_hash()}`"
+               + (" · đang theo baseline cờ sản xuất (máy chưa có lựa chọn riêng)" if features.baseline_active() else ""))
     q = st.text_input("Tìm", key="feat_q", placeholder="tên hoặc lý do…").strip().lower()
     only_unv = st.checkbox("Chỉ tính năng chưa thử thật", False, key="feat_unv")
     rows = []
@@ -729,9 +733,40 @@ def _dialog_features(p: Pipeline) -> None:
             st.rerun()
     if len(rows) > 60:
         st.caption(f"… còn {len(rows) - 60} tính năng: lọc bằng ô Tìm.")
+    # M7.2 / K6 (sổ v31-ep-k4-k6-flag-baseline-reset-2026-10-21): bỏ lựa chọn riêng = xem trước cờ nào đổi → xác nhận → sao lưu → làm;
+    # khôi phục bản sao lưu được. Trước: một bấm xóa hết, không hỏi, không sao lưu.
+    ss = st.session_state
     if (cur["flags"] or cur.get("modes")) and st.button("↺ Bỏ mọi lựa chọn riêng (theo preset)", key="feat_reset"):
-        features.save_settings(flags={k: None for k in list(cur["flags"])}, modes={k: None for k in list(cur.get("modes") or {})})
-        st.rerun()
+        ss["feat_reset_ask"] = True
+    if ss.get("feat_reset_ask"):
+        prev = features.reset_preview()
+        n_choices = len(cur["flags"]) + len(cur.get("modes") or {})
+        st.warning(f"Bỏ {n_choices} lựa chọn riêng (giữ preset) — {len(prev)} cờ sẽ đổi trạng thái. Tệp hiện tại được sao lưu trước, "
+                   "khôi phục được ở mục ↩ bên dưới.")
+        st.markdown("\n".join(f"- `{escape(r['name'])}`: {r['now']} → **{r['after']}**" for r in prev[:40])
+                    + (f"\n- … và {len(prev) - 40} cờ nữa" if len(prev) > 40 else "") if prev else "- (không cờ nào đổi trạng thái)")
+        y, n = st.columns(2)
+        if y.button("Có — sao lưu rồi bỏ", key="feat_reset_yes", type="primary"):
+            path = features.reset_choices()
+            ss.pop("feat_reset_ask", None)
+            C.log_ui(p, "bo_lua_chon_co", page="tinh_nang", detail=path or "")
+            st.rerun()
+        if n.button("Không", key="feat_reset_no"):
+            ss.pop("feat_reset_ask", None)
+            st.rerun()
+    backups = features.list_backups()
+    if backups:
+        with st.expander(f"↩ Khôi phục cài đặt cờ đã sao lưu ({len(backups)})"):
+            pick = st.selectbox("Bản sao lưu", [b["path"] for b in backups], key="feat_restore_pick",
+                                format_func=lambda x: next(f"{b['name']} · {b['n_flags']} lựa chọn" for b in backups if b["path"] == x))
+            if st.button("↩ Khôi phục bản này (bản đang dùng được sao lưu trước)", key="feat_restore"):
+                try:
+                    features.restore_settings(pick)
+                except (OSError, ValueError) as e:
+                    st.error(f"Không khôi phục được: {e}")
+                else:
+                    C.log_ui(p, "khoi_phuc_co", page="tinh_nang", detail=pick)
+                    st.rerun()
     st.divider()
     trainee_ui.render_panel(p.conn)
 

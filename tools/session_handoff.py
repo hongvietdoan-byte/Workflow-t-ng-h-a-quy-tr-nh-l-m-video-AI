@@ -6,7 +6,12 @@ Gói bàn giao = dòng `  - [..] ... ĐỌC ĐẦU TIÊN ...` mới nhất trong
 "ĐÃ NHẬN <giờ>" → hook không thúc phiên sau làm lại. Không bao giờ làm hỏng phiên: mọi lỗi → in một dòng báo, thoát 0.
 
     py -X utf8 tools/session_handoff.py          (hook gọi) in gói bàn giao + trạng thái worktree so với origin/main
+
+21/10 (người dùng): phiên chính chạm ~70 % context từng gọi `clear_session` → ứng dụng LƯU TRỮ phiên, Remote Control đứt. Nay context
+được nén TỰ ĐỘNG trong cùng phiên (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` ở .claude/settings.json) và hook chạy cả khi `compact`: đọc
+`source` từ JSON hook gửi qua stdin, sau khi nén thì bảo chính phiên này làm tiếp theo gói mới nhất (kể cả gói nó đã ghi ĐÃ NHẬN).
 """
+import json
 import os
 import subprocess
 import sys
@@ -57,11 +62,25 @@ def latest_pack(lines: list):
     return None
 
 
-def render(todo: str, source: str, behind: int = 0) -> str:
+COMPACT_NOTE = (
+    "PHIÊN NÀY VỪA TỰ NÉN CONTEXT (auto-compact ~70 %, cùng phiên — Remote Control vẫn nối). Không chờ người dùng: nạp skill "
+    "`vong-lam-viec-theo-plan`, đọc gói bàn giao mới nhất dưới đây (do chính phiên này ghi trước khi nén) + file nó trỏ tới, "
+    "`CronList` (thiếu lịch điều phối thì tạo lại theo gói), rồi LÀM TIẾP đúng việc dở. KHÔNG gọi clear_session / archive / "
+    "start_session (lưu trữ phiên, đứt remote — người dùng 21/10).")
+
+
+def render(todo: str, source: str, behind: int = 0, event: str = "startup") -> str:
     lines = handoff_lines(todo)
     if not lines:
         return f"[bàn giao] Không thấy mục {SECTION} trong TODO.md ({source})."
     head = [f"[bàn giao] Đọc từ {source}."]
+    if event == "compact":
+        pack = latest_pack(lines) or lines[0]
+        head.append(COMPACT_NOTE)
+        if behind:
+            head.append(f"Worktree chậm {behind} commit so với origin/main → `git fetch origin && git merge --ff-only origin/main`.")
+        body = pack if len(pack) <= MAX_CHARS else pack[:MAX_CHARS] + " …(cắt — đọc đủ trong TODO.md)"
+        return "\n".join(head + ["GÓI:", body])
     if behind:
         head.append(f"Worktree đang chậm {behind} commit so với origin/main → chạy "
                     "`git fetch origin && git merge --ff-only origin/main` trước khi làm.")
@@ -82,7 +101,21 @@ def render(todo: str, source: str, behind: int = 0) -> str:
     return "\n".join(head + ["GÓI:", body])
 
 
+def hook_event(raw: str) -> str:
+    """`source` của SessionStart (startup | resume | clear | compact | fork) từ JSON hook gửi qua stdin; lỗi → startup."""
+    try:
+        return str((json.loads(raw) or {}).get("source") or "startup")
+    except (ValueError, AttributeError):
+        return "startup"
+
+
 def main() -> int:
+    event = "startup"
+    try:
+        if not sys.stdin.isatty():
+            event = hook_event(sys.stdin.read())
+    except Exception:  # noqa: BLE001 - không có stdin: coi như mở phiên
+        pass
     try:
         source, behind = "origin/main", 0
         try:
@@ -96,7 +129,7 @@ def main() -> int:
             source = "TODO.md cục bộ"
             with open(os.path.join(ROOT, "TODO.md"), encoding="utf-8") as f:
                 todo = f.read()
-        print(render(todo, source, behind))
+        print(render(todo, source, behind, event))
     except Exception as e:
         print(f"[bàn giao] Hook không đọc được TODO.md ({str(e)[:200]}) — tự đọc mục {SECTION} đầu TODO.md.")
     return 0

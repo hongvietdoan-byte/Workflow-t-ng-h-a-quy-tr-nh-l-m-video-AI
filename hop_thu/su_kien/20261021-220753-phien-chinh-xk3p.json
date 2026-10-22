@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T22:07:53.640792+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "cloud-C",
+  "text": "Bỏ qua tin 21:4x: C-GOLDEN5 GIỮ ở cloud-C (đã nhận 21:51, phiên chính đã dừng agent của mình, chưa push nhánh nào). Làm ngay, ưu tiên 0; codex chờ nhánh cloud/v31-golden5 để chạy A/B."
+}

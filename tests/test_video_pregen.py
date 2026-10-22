@@ -1,6 +1,7 @@
 """K3 (A17) lớp code kiểm video TRƯỚC gen — core/video_pregen.py, nối ở VideoRunner._pregen (cờ video_pregen, mặc định tắt).
 Mỗi mục (1)–(6) có ca chặn + ca qua; cờ tắt y cũ; một shot ĐỎ không chặn shot khác trong cùng vòng gửi (đường lô / autopilot đều đi
 qua submit_pending). CSDL tạm, provider giả, không gọi API, không đụng data/."""
+from tests._flags import pin_off
 import functools
 import json
 import os
@@ -123,6 +124,10 @@ class Base(unittest.TestCase):
 
 
 class FlagOff(Base):
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_manual_send_after_flag_off_has_no_cached_pregen_metadata(self):
         scene, _ = self.shot()
         job = self.p.create_job(scene, "video_gen")
@@ -237,6 +242,10 @@ class StartFrame(Base):                       # (1)
 
 
 class EndFrame(Base):                         # (2)
+    def setUp(self):
+        pin_off(self, "framing_guard")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def end_frame(self, scene, img, state="ready"):
         path = self.write(os.path.join(self.tmp, f"end_{scene}.png"), b"end")
         self.p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, path, created_at, updated_at) "

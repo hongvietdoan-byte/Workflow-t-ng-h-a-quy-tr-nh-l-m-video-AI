@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T00:05:29.473109+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-M81B",
+  "branch": "cloud/v31-m81b",
+  "commit": "fabeeafb",
+  "report": "docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md",
+  "text": "Mục 8c 'Khi lỗi và khi muốn đổi' (+343 dòng): thẻ cảnh 4 nút; thẻ lỗi Chuyện gì–Máy đã thử gì–Bạn chọn, lựa chọn có giá, hết lượt tự sửa không tự chi (Pipeline._escalate đã đúng); bảng >20 loại lỗi (mã thật) → câu + lựa chọn; đổi đầu vào qua package_overrides + M2.10 + lineage/change_review + _user_locked; đổi đầu ra 0 USD (bỏ/đổi thứ tự cảnh = MỚI). Cú bấm: lỗi 1–2, đổi skin/nền 4. PDF docs/pdf/M8_1_Che_do_Don_gian.pdf 19 trang (đã kiểm tiếng Việt/emoji). Câu hỏi EP mới Q-G (_spawn_retry đặt lại bộ đếm khi người bấm — lệch sổ M6 'tính chung mọi vai'), Q-H, Q-I."
+}

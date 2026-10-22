@@ -3,6 +3,7 @@ import hashlib
 import json
 import math
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -119,6 +120,10 @@ def send(p, pid, sid, kind, provider, data_dir, max_usd=4.0):
     access.need_edit(p, pid, "gửi phép thử độ nét")
     if not features.on("seedance_sample_mode"):
         raise ValueError("Bật tính năng thử độ nét Seedance 2.5 trước khi gửi.")
+    from . import stage_desk                  # C-FIX6 (S-C): đường trả phí ngoài runner — cùng cổng plate 3D bắt buộc (EP)
+    desk = stage_desk.paid_hold(p.conn, pid, data_dir, [sid])
+    if desk:
+        raise ValueError("Không gửi phép thử: " + desk)
     usd = estimate(kind)
     if not math.isfinite(float(max_usd)) or max_usd <= 0 or max_usd > 4.0:
         raise ValueError("Trần phép so phải > 0 và ≤ 4 USD.")
@@ -156,6 +161,12 @@ def send(p, pid, sid, kind, provider, data_dir, max_usd=4.0):
             items.append(entry)
             _save(data_dir, pid, items)  # survive interrupted/uncertain POST; prevents paying twice
             attempted = False
+            try:                                   # C-M63-FIX: M6.3 shadow ở đường gửi không qua runner (ghi, không chặn).
+                from . import gen_auth             # C-M63-FIX2: lỗi cổng shadow KHÔNG được để mục kẹt "sending" (đã _save) + ăn trần 4 USD
+                gen_auth.shadow_send(p.conn, project_id=pid, scene_id=sid, kind="video_gen", model=MODEL,
+                                     route=f"quality_sample_{kind}", data_dir=data_dir, origin=None)   # người bấm
+            except Exception as e:  # noqa: BLE001 - quan sát, không phải điều khiển
+                print(f"[gen_auth] shadow phép thử chất lượng lỗi: {type(e).__name__}: {e}", file=sys.stderr)
             try:
                 if source:
                     attempted = True

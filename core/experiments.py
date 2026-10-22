@@ -85,12 +85,25 @@ def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_
     first = os.path.join(data_dir, str(project_id), "images", f"job_{scenes[0]['jid']}.png")
     aspect = formats.project_aspect(p.project(project_id))
     kwargs = {"multi_prompt": shots}
+    # C-FIX6 vòng rà kỹ A1: đường video trả phí theo NHÓM shot không qua runner → tự gọi cổng S-C (EP đánh dấu plate 3D bắt buộc).
+    # Không đánh dấu = None ngay (một os.path.isfile) → y hệt trước.
+    from . import stage_desk
+    sent_ids = [s["id"] for s in scenes[:len(shots)] if s.get("id")]
+    hold = stage_desk.paid_hold(p.conn, project_id, data_dir, sent_ids)
+    if hold:
+        raise ValueError(f"Không gửi thử nghiệm multi-shot — {hold}")
     if aspect:
         kwargs["aspect_ratio"] = formats.spec(aspect)["clip"]
     # check + submission + ledger entry as one step (S14.1 / S14.16: a paused project and 'out_of_credit' stop; the caps warn)
     with spend_gate.spend(p.conn, "video", provider.name, project_id=project_id, model=MODEL, tier=_tier(), units=total,
                           ledger_stage="kling_multishot") as slot:
         slot.raise_if_over("Không gửi thử nghiệm multi-shot")
+        from . import gen_auth                     # C-M63-FIX: M6.3 shadow (thử nghiệm multi-shot — mỗi shot của nhóm một dòng)
+        if gen_auth.enabled():
+            ids = [s["id"] for s in scenes[:len(shots)] if "id" in s.keys() and s["id"]]   # shot thật sự đi (_plan cắt ở 15 s)
+            for sid in ids or [None]:
+                gen_auth.shadow_send(p.conn, project_id=project_id, scene_id=sid, kind="video_gen", model=MODEL,
+                                     route="kling_multishot", data_dir=data_dir, origin=None)   # người bấm
         task = slot.send(provider.submit, first, shots[0]["prompt"], None, total, "kling", **kwargs)
         slot.record()
     items = load(data_dir, project_id)

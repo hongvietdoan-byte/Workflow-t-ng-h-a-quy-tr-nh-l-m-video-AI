@@ -91,9 +91,11 @@ def plan_conflicts(data: Dict) -> List[str]:
     return sorted(set(out))
 
 
-def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: Optional[Dict[str, Dict]] = None) -> Dict:
+def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: Optional[Dict[str, Dict]] = None,
+                  data_dir: Optional[str] = None) -> Dict:
     """{"assertions": [...], "plan_conflicts": [...], "missing_profiles": [...]} for one frame. `profiles` (name → approved profile)
-    may be given (tests / a whole scene at once); otherwise read with assets.standard_for."""
+    may be given (tests / a whole scene at once); otherwise read with assets.standard_for. `data_dir` (C-QC-BOCUC 22/10): with a
+    connection, the bố cục / chỗ đứng assertions read core/layout_facts (+ "layout_missing": why one was not made)."""
     from . import assets
     cast = [str(c).upper() for c in data.get("characters") or []]
     out: List[Dict] = []
@@ -134,8 +136,9 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
             q = f"Look at {name}'s cap: what do you SEE at the forehead and at the nape? Report `cap_marks` only (the direction is decided by code)."
             out.append(_a(frame_job, "headwear", name, claim, q, True, "model", "block", "profile.must_keep", view))
     blocking = str(data.get("blocking") or "")
+    from . import layout_facts
     for name in cast:
-        m = re.search(rf"\b{re.escape(name)}\b[^,;.]*?\bframe[- ](left|right|center|centre)\b", blocking, re.I)
+        m = layout_facts.blocking_side_match(blocking, name)
         if m:
             out.append(_a(frame_job, "layout", name, f"{name} ở nửa {m.group(1)} khung", f"Is {name} on the frame-{m.group(1)} side?",
                           m.group(1).lower(), "code+model", "minor", "blocking"))
@@ -181,6 +184,51 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
                    f["question"] + " Report `geo_seen` only (the code decides).", f["value"], "code+model", "block", "stage_camera")
             a.update(observe="geo", fact=f, options=list(f["options"]))
             out.append(a)
+    layout_missing = _layout_assertions(conn, project_id, frame_job, data, data_dir, cast, out)
     out.sort(key=lambda a: (a["priority"], a["subject"]))
     return {"assertions": out, "plan_conflicts": plan_conflicts(data), "missing_profiles": missing,
-            **({"geometry_missing": geo_missing} if geo_missing else {})}
+            **({"geometry_missing": geo_missing} if geo_missing else {}),
+            **({"layout_missing": layout_missing} if layout_missing else {})}
+
+
+def _layout_assertions(conn, project_id: int, frame_job: int, data: Dict, data_dir: Optional[str], cast: List[str],
+                       out: List[Dict]) -> List[str]:
+    """C-QC-BOCUC (người dùng 14/10 qc-team-off: checklist phải có lỗi bố cục / chỗ đứng; 22/10 làm): đọc core/layout_facts — một
+    nguồn với kiểm bố cục và gói 3D, không tự tính. Mức tối đa 'minor' (đánh dấu, D07 — bố cục / góc máy không chắc → REVIEW).
+      (a) người chưa tự khai bên: bên khung theo shot CÙNG CHỖ rộng nhất, chỉ khi hai máy cùng phía trục (layout_facts.expected_side);
+      (b) nền so render 3D: số đo code của plate_layout_qc cho ĐÚNG khung này (job) — không hỏi model.
+    Trả lý do không lập được (không im lặng)."""
+    if conn is None or not data_dir:
+        return []
+    from . import layout_facts
+    sid = layout_facts.scene_of_job(conn, frame_job)
+    if sid is None:
+        return ["không biết khung thuộc shot nào — bỏ mệnh đề bố cục"]
+    facts = layout_facts.facts_for_shot(conn, project_id, sid, data_dir, data=data)
+    why: List[str] = []
+    has_side = {a["subject"] for a in out if a["type"] == "layout"}
+    for name in cast:
+        if name in has_side:
+            continue
+        es = layout_facts.expected_side(conn, project_id, sid, data_dir, name, mine=facts)
+        if es["side"] is None:
+            if facts["mates"]:
+                why.append(f"{name}: {es['why']}")
+            continue
+        ref = conn.execute("SELECT idx FROM scenes WHERE id=?", (es["ref_scene_id"],)).fetchone()
+        ref_txt = f"shot {ref['idx']}" if ref else "shot cùng chỗ"
+        out.append(_a(frame_job, "layout", name, f"{name} ở nửa {es['side']} khung như {ref_txt} cùng chỗ {facts['spot']}",
+                      f"Is {name} on the frame-{es['side']} side?", es["side"], "code+model", "minor", f"cung_cho:{ref_txt}"))
+    h = facts["horizon"]
+    if h["job_id"] == frame_job and h["mismatch"] is not None:
+        if h["measured"]:
+            res = ({"status": "certain_fail", "note": "nền lệch render 3D: " + "; ".join(h["reasons"])} if h["mismatch"] else
+                   {"status": "certain_ok", "note": "nền khớp render 3D (plate_layout_qc)"})
+        else:
+            res = {"status": "not_measurable", "note": "; ".join(h["reasons"]) or "không đo được bố cục nền"}
+        a = _a(frame_job, "place", "-", "Nền (chân trời / mảng che) khớp render 3D của shot", "", True, "code", "minor", "plate_layout_qc")
+        a["code_result"] = res
+        out.append(a)
+    elif facts["camera"]["source"] != "none":
+        why.append("nền chưa đo so render 3D cho khung này (plate_layout_qc chưa có bản ghi của job)")
+    return why

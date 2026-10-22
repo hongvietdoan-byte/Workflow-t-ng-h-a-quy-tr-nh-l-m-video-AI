@@ -1,4 +1,5 @@
 """K1/K2 — an end frame for a shot whose end_state changes something, sent as first + last frame (feature `end_frames`)."""
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -38,6 +39,7 @@ class NeededTests(unittest.TestCase):
 
 class EndFrameFlowTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.p, self.pid = kenta_project()
         llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())
         self.sid = _shot_with_end_state(self.p, self.pid)
@@ -107,6 +109,7 @@ class ManualSendTests(unittest.TestCase):
     nowhere; a clip waiting for its end frame waited without a reason."""
 
     def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         from core import batch, model_router
         from tests._flags import flags_on
         flags_on(self, "end_frames")
@@ -357,6 +360,10 @@ class ConcurrentPollTests(unittest.TestCase):
 class SkillObjectSkipTests(unittest.TestCase):
     """R3 (rà S3): a shot where the skill object appears gets no drawn end frame (the runner always drops it — the build is the code
     composite): not queued, not drawn, the card says why and shows no paid button."""
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def test_queue_skips_skill_object_rising_shot(self):
         from core import framing_guard
@@ -382,6 +389,10 @@ class SkillObjectSkipTests(unittest.TestCase):
 class SkillObjectEndFrameTests(unittest.TestCase):
     """Rà S2 'việc cho S3' (1): the end frame of a shot with the glue wall uses the SAME words as the video prompt — it stands at full
     height (skill_objects.standing_text / guard_prompt), never 'pops up' (người dùng 13/10 21:31)."""
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def test_end_frame_prompt_says_the_wall_is_standing(self):
         from core import skill_objects
