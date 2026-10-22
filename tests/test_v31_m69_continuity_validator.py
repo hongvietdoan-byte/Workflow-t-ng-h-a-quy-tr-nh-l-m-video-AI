@@ -44,7 +44,7 @@ def test_fixture_p31_routes_to_the_right_roles():
     assert got[("QC-L13-CONTINUITY", "cam", (28, 29))] == "director"                     # G51/G52: lệch ở BYĐ (layer byd) → Director sửa
     assert got[("QC-L13-CONTINUITY", "noi", (34, 35))] == "director"                     # G1: đổi nơi chốn trong BYĐ → Director xác nhận ý đồ
     assert got[("QC-L7-PROP_MISSING", None, (35,))] == "artist_3d"                       # G1: khối sân khấu render vào nền (layer stage)
-    assert got[("QC-L13-CONTINUITY", "huong_khung", (35, 36))] == "director"             # G41: hướng chạy (L3)
+    assert got[("QC-L13-CONTINUITY", "huong_khung", (35, 36))] == "director"             # G41: hướng chạy — layer byd → Director (sổ lỗi khâu L3b, chủ khâu Quay phim là ứng viên thứ hai)
     assert got[("QC-V2-STILL_OVER_1_5S", None, (13,))] == "video_prompt_artist"         # M4.2 observed (G51: đơ 6 s)
     assert got[("QC-L9-HORIZON_MISMATCH", None, (9,))] == "cinematographer"              # qc_evidence mã có vai riêng
     assert all(r["owner"] != "continuity_validator" for r in rec["routed"])              # QC độc lập
