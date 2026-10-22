@@ -95,6 +95,13 @@ FEATURES: Dict[str, Dict] = {
                                      "hàng đợi có lý do, không gửi (0 USD)", "verified": False,
         "why": "V3.1 M1.3 (G36, #31): tạm dừng 03:42:31 vẫn gửi job 1075 lúc 03:42:41 — runner chỉ kiểm paused đầu lượt quét; "
                "thử bằng provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "gen_auth_shadow": {"label": "Cổng quyền gen (M6.3) chạy BÓNG: ngay trước khi gửi job ảnh / video của shot, ghi cho phép / "
+                                          "sẽ chặn + lý do (trần 3 ảnh / 2 video mỗi shot tính chung, ngân sách tự sửa 40 % lượt đầu, 3 shot "
+                                          "liền cùng lỗi, gửi chưa rõ, trùng job, đổi dữ liệu khóa, model ngoài phạm vi) vào "
+                                          "<dự án>/crew/gen_auth_shadow.jsonl — KHÔNG chặn, không đổi gói gửi (0 USD)", "verified": False,
+        "why": "V3.1 M6.3 Gói M6-A (sổ v31-ep-m6-pack-a-approved-2026-10-21, chính sách v31-m6-generation-limits-policy-b-2026-10-21, "
+               "ngân sách v31-ep-m6-self-repair-budget-40-2026-10-21): đo quyết định của cổng trên dự án thật trước khi cho chặn (M6-B chưa "
+               "duyệt); thử bằng provider giả, chưa chạy thật"},
     "send_estimate": {"label": "Ước tính giá ĐÚNG gói sẽ gửi: video nháp theo bậc nháp (480p) + video tham chiếu, bản cao 1080p nâng từ nháp "
                                "tính cả video vào, Claude qua claude_cli = 0 USD API (chỉ đổi con số báo giá, không chặn gì — 0 USD)",
         "verified": False,
@@ -180,7 +187,7 @@ FEATURES: Dict[str, Dict] = {
     },
     "voice_check_redo": {
         "label": "Chạy tự động: tạo lại giọng thoại bị cờ lỗi (cắt/thiếu chữ/ngắt quãng) một lần",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 A2: gửi lại TTS trả tiền
         "why": "AU-f mới (2026-09-24): ngưỡng độ dài/im lặng và so chữ nghe được chưa đo trên giọng Việt thật — cờ sai thì trả tiền TTS vô ích",
     },
     "film_crew": {
@@ -267,7 +274,7 @@ FEATURES: Dict[str, Dict] = {
     "story_check": {
         "label": "Người xem lần đầu: 1 lượt Claude chỉ đọc cái sẽ hiện trên màn hình (hành động, thoại, chữ — không đọc ý đồ Director) rồi "
                  "kể lại truyện và chỉ chỗ khó hiểu, trước khi làm ảnh",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 (B5): một lượt Claude
         "why": "2026-09-29 (kế hoạch S3.2, sau #8: truyện cụt, Maxim trúng đạn không thấy ai bắn): mới thử bằng Claude giả lập — chưa biết "
                "người xem Claude có bắt đúng chỗ người xem thật thấy khó hiểu không (lần chạy kiểm K)",
     },
@@ -281,7 +288,7 @@ FEATURES: Dict[str, Dict] = {
     "audio_first": {
         "label": "Timeline theo âm thanh: tạo giọng ngay sau Director, kéo độ dài từng shot theo giọng thật, kiểm tổng so với mục tiêu "
                  "kịch bản (±10 %) và khóa timeline TRƯỚC khi làm ảnh / video",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 (B5): TTS mọi câu sớm + Claude chọn giọng (claude_tasks.cast_voices)
         "why": "2026-09-29 (kế hoạch S2, sau #8: dự kiến 58 s ra 83 s vì giọng làm sau clip): mới thử bằng test, chưa chạy trên dự án thật",
     },
     "music_fit": {
@@ -350,7 +357,7 @@ FEATURES: Dict[str, Dict] = {
     "scene_qc_claude": {
         "label": "QC theo cảnh lớp 1: Claude MỘT lượt mỗi cảnh tự chạy khi đủ khung (tắt: khung mới đi thẳng tới người duyệt, lớp 0 "
                  "bằng code vẫn chạy; bật agent QC thì agent thay lớp này)",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 A2: một lượt Claude mỗi cảnh
         "why": "Nghiệm thu 2026-09-27 trên 33 khung có nhãn của #8 không đạt (bỏ lọt 6 khung dán, báo nhầm 12/21 khung tốt); chấm lại cả "
                "cảnh sau mỗi lần vẽ lại tốn ~0,5 USD Claude chỉ để ghi chú (docs/CHAY_THU_2026-09-27_NHAT_KY.md phát hiện 44)",
     },
@@ -419,6 +426,14 @@ FEATURES: Dict[str, Dict] = {
                  "bỏ đạo cụ thì đổi vân tay đầu vào → sân khấu đã dựng thành 'cũ', dựng lại là lượt Claude trả tiền",
         "verified": False,
     },
+    "ui_step_log": {
+        "label": "Ghi từng bước bấm (C-DEVSYS-MAPS): nút chính Bước 1–5 + lệnh CLI làm thay Dashboard ghi một dòng diag_events "
+                 "(ui_step / cli_step: màn, nút, kết quả ok / cảnh báo / lỗi + mã) để sơ đồ dây chuyền AI Dev System tô theo dự án thật; "
+                 "không đổi hành vi nút, lỗi ghi không làm hỏng nút; 0 USD",
+        "verified": False,
+        "why": "Người dùng 21/10: sơ đồ 'Làm phim qua Dashboard' theo DỰ ÁN THẬT — chỗ nào cảnh báo / lỗi / phải làm ngoài Dashboard. "
+               "Chưa chạy trên Dashboard thật",
+    },
     "continuity_state": {
         "label": "continuity_state SHADOW (V3.1 M3.4): trạng thái mong đợi giữa 2 shot liền từ BYĐ (vật cầm giữ / mất / đổi tay, tư thế cuối → "
                  "đầu, nơi chốn, hướng trên khung) + quan sát của QC shadow (M4.2 / M4.3) + đồ thị phụ thuộc → <dự án>/world/continuity_state.json; "
@@ -441,6 +456,22 @@ FEATURES: Dict[str, Dict] = {
         "why": "G14: voice.fit_durations kéo dài MỌI shot có giọng (kể cả chỉ lời dẫn) và ghi thẳng motion_prompts — tiền video thêm không "
                "ai duyệt. Chưa chạy trên dữ liệu thật",
     },
+    "crew_registry": {
+        "label": "Role Registry CHỈ ĐỌC (V3.1 M6.1): data/crew_roles.json — vai, quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ "
+                 "trách, leo thang; tra cứu vai của một đường ghi / lỗi gốc → vai chủ. Không ghi gì, không đổi đường ghi / gửi job",
+        "verified": False,
+        "why": "Sổ v31-ep-m6-pack-a-approved-2026-10-21 (M6-A Cấp 2). Audit M6.0: không đường ghi nào có actor = vai → chưa định tuyến lỗi "
+               "về vai chủ được. Cờ chỉ mở registry cho đường chạy (Continuity Validator); `py -m core.crew check` luôn kiểm",
+    },
+    "continuity_validator": {
+        "label": "Continuity Validator SHADOW (V3.1 M6.9): gom phát hiện continuity_state + qc_evidence + QC shadow M4.2/M4.3, định tuyến "
+                 "về vai chủ theo Role Registry + sổ lỗi → <dự án>/crew/continuity_validator.jsonl; CHỈ ghi bằng chứng — không chặn, "
+                 "không giữ job, không gọi Claude/API, 0 USD (cần crew_registry)",
+        "verified": False,
+        "why": "#31 G51 / G52 / G1: lỗi liên tục chỉ người thấy và không ai đứng tên sửa. Sổ v31-ep-m6-pack-a-approved-2026-10-21. "
+               "Chạy sau QC logic chuỗi. Tự gọi continuity_state.build (M3.4) + đọc tệp M4.2/M4.3 KỂ CẢ khi cờ của chúng TẮT (chỉ tính, không "
+               "ghi tệp của chúng). Chưa chạy trên dữ liệu thật",
+    },
     "whitebox_height_dummy": {
         "label": "Người nộm whitebox đúng chiều cao hồ sơ Kho (height_m) + máy ở tầm mắt 0,93 × height_m, pitch eye (≤ 5°) / slightly_high "
                  "(cúi ~10°); thiếu chiều cao → báo, không im lặng (V3.1 M3.2, offline — không gửi gì thêm cho model)",
@@ -462,6 +493,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "D04 (data/decisions.json v31-d04-field-level-write-guard): lỗ hổng L1–L6 của audit M0.10 (motion prompt / duration_s / "
                "video_route / image_prompt người sửa bị AI đè, mất cập nhật luồng nền). Shadow trước để đo số ca thật. Chưa chạy trên dữ liệu thật",
+    },
+    "stage_view_ui": {
+        "label": "Xem sân khấu 3D (chỉ đọc) ở Bước 2: mỗi cảnh tấm clay / khối, nền 3D từng shot + hướng máy, sơ đồ world map 2D, người nộm, "
+                 "câu vị trí gợi ý, cảnh báo nền cũ / hỏng / map cũ — không render, không ghi, 0 USD",
+        "verified": False,
+        "why": "Người dùng 21/10: Dashboard chưa xem được sân khấu 3D, mọi thứ chạy CLI và ảnh nằm trong thư mục. Chưa kiểm trên #31 thật",
     },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
@@ -567,9 +604,13 @@ FEATURES: Dict[str, Dict] = {
     },
     "end_frames": {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 A2: thêm 1 ảnh trả tiền mỗi shot đổi trạng thái
         "trainee": True,       # 08/10 người dùng: học việc — chạy + ghi quyết định, so với người, không tác động (docs/KE_HOACH_HOC_VIEC_2026-10-08.md)
-        "why": "🎓 Học việc từ 08/10 (KIEM_22: kết luận T): chạy bóng, ghi trainee_log để so với người, không đổi phim; bật thật chỉ khi đủ chuẩn và bạn duyệt. K1/K2 (kế hoạch tổng K-a): tốn thêm 1 ảnh mỗi shot đổi trạng thái; chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
+        "costs": True,         # M7.4 (A2 / B5): BẬT thật = vẽ thêm 1 ảnh khung cuối mỗi shot đổi trạng thái (tiền ảnh) — không bật hàng loạt
+        "why": "Có chế độ 🎓 học việc (08/10, KIEM_22 kết luận T: chạy bóng, ghi trainee_log, không đổi phim) VÀ chế độ BẬT thật ở 🧪 "
+               "(vẽ thật ảnh khung cuối, gửi clip khung đầu + cuối) — máy đang ở chế độ nào xem dòng nguồn ở trên. "
+               "Tốn thêm 1 ảnh mỗi shot đổi trạng thái (K1/K2 kế hoạch K-a). #31: end_frame_missing 9 lần; thông điệp 'ném keo' sai 28 lần "
+               "(P33-A11, sửa ở cloud/v31-m29). Chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
     },
     "ui_v2": {
         "label": "Giao diện v2 kiểu “AI product”: nền tối aurora, thẻ kính, nút gradient + glow, thanh bước viên thuốc, pill trạng thái, chữ gradient (lớp thiết kế dashboard/design/, chạy trên cùng các màn hiện có)",
@@ -601,7 +642,7 @@ FEATURES: Dict[str, Dict] = {
     "hero_takes": {
         "label": "Shot ⭐ (hero / money_shot) gửi riêng được gen THÊM một bản cùng đầu vào; code đo lớp 0 cả hai, bản ít lỗi hơn được dùng, "
                  "ngang nhau thì giữ cả hai cho bạn chọn ở Bước 4 (ước tính tính 2 bản)",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 A2: thêm 1 clip trả tiền mỗi shot ⭐
         "why": "S0.14 T4 (người dùng duyệt 2026-09-30): người làm phim AI TQ 'cảnh xịn = gen nhiều rồi chọn'; dồn tiền vào vài shot then "
                "chốt thay vì gen lại mọi shot (core/hero_takes.py) — chưa chạy thật; thêm ≈ 1 USD mỗi shot ⭐ Seedance 2.5 4–5 s",
     },
@@ -623,6 +664,14 @@ FEATURES: Dict[str, Dict] = {
                  "lỗi, lưu bản cũ, thẻ ảnh/clip hiện so sánh cũ/mới + nút dùng lại prompt cũ — thay cho nối 'Fix: …' cuối prompt",
         "verified": False,
         "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
+    },
+    "director_rewrite_respect_lock": {
+        "label": "Đạo diễn viết lại prompt: trường bạn đã sửa / khóa (image_prompt, motion_prompt trong _user_locked) chỉ được ĐỀ XUẤT "
+                 "(diag + nút áp dụng), không ghi đè; lần gen lại dùng câu sửa 'Fix: …' như cũ",
+        "verified": False,
+        "why": "C-M71 A3 (P33-A4 #33: Đạo diễn viết lại image_prompt shot 1–3 người đã chỉnh tay). Mặc định TẮT (bật = Cấp 3, sổ "
+               "v31-ep-fa-flag-fix-pack-a-2026-10-21); motion_prompt chỉ được bảo vệ khi đã nằm trong _user_locked (đánh dấu khi sửa "
+               "tay Bước 3 = C-M25B, chưa gộp)",
     },
     "change_review_frames": {"fixes_projects": [24], "costs": True, 
         "label": "Tổ rà soát phân biệt khung đầu, quá trình và khung cuối; đếm nhịp chuyển động thay vì câu",
@@ -915,8 +964,9 @@ FEATURES: Dict[str, Dict] = {
                "khác mặt đất S8; S18 địch đã gục vẫn xả súng; S19 nói 'vừa hạ gục Xúc Tu Đỏ' không có shot. Chưa chạy thật (ước ~0,1 USD #31)",
     },
     "two_tier_quality": {
-        "label": "Video 2 bậc chất lượng: MỌI shot gen NHÁP Seedance 2.5 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
-                 "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); gen thẳng chỉ khi người chọn (13/10). Bỏ qua 'Thử rẻ'",
+        "label": "Video 2 bậc chất lượng: shot PHỨC TẠP gen NHÁP Seedance 2.5 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
+                 "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); shot DỄ đi thẳng 720p (15/10, đường 'Tự động'), "
+                 "người chọn 'Nháp trước' / 'Cao luôn' từng shot được. Bỏ qua 'Thử rẻ'. Nghiệm thu: tools/two_tier_acceptance.py (±5 % + chất lượng)",
         "verified": False,
         "why": "N1 (người dùng chốt 08/10, docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md mục 5a): bản cuối draft_task 1080p "
                "chưa chạy thật lần nào (≈ 2,1 USD / 4 s ước tính) — phải chạy thật 1 lần (hỏi giá trước) rồi mới bật",
@@ -939,7 +989,8 @@ HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
 OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
-                      "stage_handheld_props")
+                      "stage_handheld_props",
+                      "ui_step_log")           # C-DEVSYS-MAPS: ghi CSDL mỗi bước bấm — chỉ bật khi chọn riêng (preset Thử nghiệm không bật)
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
@@ -1005,6 +1056,18 @@ def save_settings(preset: str = None, flags: Dict = None, modes: Dict = None) ->
     save many flags at once leave locked flags out (dashboard/header.py, core/before_run.enable_fix_flags only saves True)."""
     import json
     cur = {"preset": settings()["preset"], "flags": dict(settings()["flags"]), "modes": dict(settings().get("modes") or {})}
+    if baseline_active() and preset not in ("stable", "experimental"):
+        # M7.2 (rà C-M72): lần lưu ĐẦU trên máy theo baseline → gieo baseline (đã bảo vệ) vào tệp, không thì baseline thôi áp và mọi cờ
+        # khác "rơi" về mặc định không báo. C-M72-FIX: chỉ gieo cờ ĐANG theo baseline (env FEATURE_X thắng — không đè thành tệp 🧪);
+        # chọn preset Ổn định / Thử nghiệm ở lần đầu = chọn theo preset, không gieo.
+        for k in FEATURES:
+            b = baseline_state(k)
+            if b is None or locked(k) or b == default_state(k) or source(k) != "baseline":
+                continue
+            if b == "trainee":
+                cur["modes"][k] = "trainee"
+            else:
+                cur["flags"][k] = b == "on"
     if preset is not None:
         if preset not in PRESETS:
             raise ValueError(f"preset không có: {preset}")
@@ -1056,6 +1119,93 @@ def _env(name: str) -> str:
     return os.environ.get("FEATURE_" + name.upper(), "").strip().lower()
 
 
+# ---- V3.1 M7.2 (sổ v31-ep-k4-k6-flag-baseline-reset-2026-10-21, docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 3 thứ tự F) ------------------
+# data/flag_baseline.json (trong git) = trạng thái cờ sản xuất, chụp bằng `py -m core.features --baseline-capture` trên máy chính. Chỉ là
+# "hạt giống" cho máy CHƯA có data/feature_settings.json (worktree / cloud / Codex) — không bao giờ ghi đè lựa chọn của máy đã cấu hình.
+# Đứng sau env, trước mặc định; bảo vệ: không bật cờ `costs` / OPT_IN_ONLY, cờ học việc tối đa trainee. Bộ test tắt (FEATURE_BASELINE_FILE
+# rỗng — tests/__init__.py); FEATURE_BASELINE=0 tắt ở mọi máy.
+_BASELINE = {"stamp": None, "path": None, "data": None, "problem": None}
+
+
+def baseline_path() -> str:
+    """"" = baseline tắt (FEATURE_BASELINE_FILE đặt rỗng)."""
+    env = os.environ.get("FEATURE_BASELINE_FILE")
+    if env is not None:
+        return env
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "flag_baseline.json")
+
+
+def baseline() -> Dict:
+    """{"flags": {name: "on"|"trainee"|"off"}, ...} của tệp baseline ({} khi không có / tắt). Tệp hỏng → {} + baseline_problems()."""
+    path = baseline_path()
+    try:
+        stamp = os.stat(path).st_mtime_ns if path else None
+    except OSError:
+        stamp = None
+    if _BASELINE["stamp"] != stamp or _BASELINE["path"] != path:
+        data, problem = {}, None
+        if stamp is not None:
+            try:
+                import json
+                with open(path, encoding="utf-8") as f:
+                    raw = json.load(f)
+                flags = raw.get("flags") if isinstance(raw, dict) else None
+                if not isinstance(flags, dict):
+                    raise ValueError("thiếu bảng flags")
+                data = dict(raw, flags={k: ("on" if v is True else "off" if v is False else str(v))
+                                        for k, v in flags.items() if k in FEATURES})
+            except (OSError, ValueError, AttributeError) as e:
+                problem = f"baseline cờ {path} hỏng ({type(e).__name__}: {e}) — bỏ qua, máy dùng mặc định code"
+        _BASELINE.update(stamp=stamp, path=path, data=data, problem=problem)
+    return _BASELINE["data"]
+
+
+def baseline_problems() -> List[str]:
+    baseline()
+    return [_BASELINE["problem"]] if _BASELINE["problem"] else []
+
+
+def baseline_active() -> bool:
+    """Baseline có hiệu lực: không phải bộ test, không FEATURE_BASELINE=0, có tệp baseline, và máy CHƯA có tệp 🧪 (thứ tự F)."""
+    if _TEST_BYPASS or os.environ.get("FEATURE_BASELINE", "").strip().lower() in _NO or not baseline_path():
+        return False
+    settings()                                        # đã stat tệp 🧪 (cache theo mtime) — không stat thêm mỗi lần đọc cờ
+    if _SETTINGS["stamp"] is not None:
+        return False
+    return bool(baseline().get("flags"))
+
+
+def _paid(name: str) -> bool:
+    """Cờ tốn tiền: `costs`, OPT_IN_ONLY, hoặc trong before_run.PAID_FLAGS (rà C-M72: director_rewrite / director_camera_plan /
+    two_tier_quality / stage_camera không có `costs` nhưng đổi lời gọi trả tiền)."""
+    if FEATURES[name].get("costs") or name in OPT_IN_ONLY:
+        return True
+    from . import before_run
+    return name in before_run.PAID_FLAGS
+
+
+def _guarded(name: str, want: Optional[str]) -> Optional[str]:
+    """Bảo vệ của baseline: không bao giờ BẬT (kể cả học việc) cờ tốn tiền / OPT_IN_ONLY; cờ học việc tối đa trainee; giá trị lạ / học
+    việc cho cờ không có học việc → None (không nói gì, rơi về mặc định)."""
+    meta = FEATURES[name]
+    if want not in MODES:
+        return None
+    if want in ("on", "trainee") and _paid(name):
+        return None
+    if meta.get("trainee") and want == "on":
+        return "trainee"
+    if want == "trainee" and not meta.get("trainee"):
+        return None
+    return want
+
+
+def baseline_state(name: str) -> Optional[str]:
+    """Trạng thái baseline (đã qua bảo vệ) của cờ, None khi baseline không áp / không nói về cờ này."""
+    if not baseline_active():
+        return None
+    return _guarded(name, baseline()["flags"].get(name))
+
+
 LOCKED_TEXT = "🔒 đã kiểm chứng — khóa bật (chỉ sửa code mới tắt)"
 
 
@@ -1100,17 +1250,20 @@ def locked_off_ignored() -> Dict[str, str]:
 
 
 def state(name: str) -> str:
+    return _state(name, settings())
+
+
+def _state(name: str, s: Dict) -> str:
     """"on" / "trainee" (🎓 học việc: runs and records its decision, never acts) / "off". Order (KE_HOACH_HOC_VIEC_2026-10-08 mục 1):
     removed flag → 🔒 verified flag (15/10: always on) → choice on the 🧪 screen (modes / flags) → preset (stable: only verified;
     experimental: a học-việc flag is trainee, never on) → FEATURE_<NAME> (=trainee, or =1 for a học-việc flag → trainee; real ON only
-    from 🧪; =0 off) → default_state() (`verified` or `default_on`)."""
+    from 🧪; =0 off) → baseline (M7.2: chỉ máy chưa có tệp 🧪, có bảo vệ) → default_state() (`verified` or `default_on`)."""
     if name in REMOVED:
         return "off"
     if locked(name):
         return "on"
     meta = FEATURES[name]
     trainee = bool(meta.get("trainee"))
-    s = settings()
     if name in (s.get("modes") or {}):
         return "trainee"
     if name in s["flags"]:
@@ -1131,7 +1284,7 @@ def state(name: str) -> str:
         return "on"
     if env in _NO or env == "trainee":
         return "off"
-    return default_state(name)
+    return baseline_state(name) or default_state(name)
 
 
 def default_state(name: str) -> str:
@@ -1161,12 +1314,13 @@ def active(name: str) -> bool:
 
 # S14.4 C1b (04/10): a flag that only works together with another one (dialogue_take: the runner asks lipsync.enabled() = lip_sync
 # first). Shown in 🧪 instead of a flag that looks ON and does nothing. B1 học việc: qc_team only runs inside scene_qc (by active()).
-REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",), "change_review_motion": ("change_review",),
+REQUIRES = {"director_rewrite_respect_lock": ("director_rewrite",), "dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",), "change_review_motion": ("change_review",),
             "ambient_motion": ("prompt_formula",), "plate_anchored_image": ("place_render_refs",),
             "anchor_by_spot": ("storyboard_api",),
             # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
             "stage_auto": ("stage_camera", "place_render_refs"),
-            "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",)}
+            "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",),
+            "continuity_validator": ("crew_registry",)}      # M6.9 định tuyến theo Role Registry M6.1
 
 
 def unmet(name: str) -> list:
@@ -1207,6 +1361,8 @@ def _why_state(name: str) -> str:
     if env:
         return "dashboard.env / môi trường" + (f" (FEATURE_{name.upper()}={env} với cờ học việc → học việc)"
                                                 if FEATURES[name].get("trainee") and (env in _YES or env == "trainee") else "")
+    if baseline_state(name):
+        return f"baseline cờ sản xuất ({baseline_path()}) — máy chưa có lựa chọn riêng"
     if FEATURES[name]["verified"]:
         return "mặc định: đã thử thật → bật"
     if FEATURES[name].get("default_on"):
@@ -1256,7 +1412,8 @@ def fix_flags_off(project_id: Optional[int]) -> List[Dict]:
 
 
 SOURCES = {"removed": "đã bỏ khỏi code", "locked": LOCKED_TEXT, "settings": "màn 🧪 (data/feature_settings.json)", "preset": "preset",
-           "env": "dashboard.env / môi trường (FEATURE_<NAME>)", "default": "mặc định code"}
+           "env": "dashboard.env / môi trường (FEATURE_<NAME>)", "baseline": "baseline cờ sản xuất (data/flag_baseline.json)",
+           "default": "mặc định code"}
 
 
 def source(name: str) -> str:
@@ -1270,7 +1427,9 @@ def source(name: str) -> str:
         return "settings"
     if s["preset"] in ("stable", "experimental"):
         return "preset"
-    return "env" if _env(name) else "default"
+    if _env(name):
+        return "env"
+    return "baseline" if baseline_state(name) else "default"
 
 
 def report() -> List[Dict]:
@@ -1302,6 +1461,226 @@ def report_md(rows: Optional[List[Dict]] = None) -> str:
     return "\n".join(out)
 
 
+# ---- M7.2: cấu hình hiệu lực + hash + drift --------------------------------------------------------------------------------------
+def _machine() -> str:
+    import platform
+    return platform.node() or "?"
+
+
+def config_hash(states: Optional[Dict[str, str]] = None) -> str:
+    """Dấu vân tay 16 hex của trạng thái hiệu lực mọi cờ — hai máy / hai lần chạy cùng hash = cùng cấu hình cờ."""
+    import hashlib
+    import json
+    states = {n: state(n) for n in FEATURES} if states is None else states
+    return hashlib.sha256(json.dumps(sorted(states.items()), ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+
+
+def effective_config() -> Dict:
+    """{flags: {cờ: on|trainee|off}, sources: {cờ: nguồn}, hash, baseline_active, machine} — cấu hình cờ THẬT của máy này."""
+    flags = {n: state(n) for n in FEATURES}
+    return {"flags": flags, "sources": {n: source(n) for n in FEATURES}, "hash": config_hash(flags),
+            "baseline_active": baseline_active(), "machine": _machine()}
+
+
+def _snapshot_path(data_dir: str, pid) -> str:
+    return os.path.join(data_dir, str(pid), "flag_config.json")
+
+
+def remember_config(data_dir: str, pid) -> Optional[str]:
+    """Ghi cấu hình cờ hiệu lực của dự án `pid` (<data>/<pid>/flag_config.json) — mốc để dự án sau so drift. Lỗi ghi → None (không chặn)."""
+    import datetime
+    import json
+    cfg = effective_config()
+    snap = {"hash": cfg["hash"], "flags": cfg["flags"], "machine": cfg["machine"],     # `at` tới micro giây: drift chọn dự án gửi CUỐI
+            "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="microseconds")}
+    path = _snapshot_path(data_dir, pid)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+        return path
+    except OSError:
+        return None
+
+
+def drift(data_dir: str, pid) -> List[str]:
+    """Cảnh báo drift của dự án `pid` so với mốc cấu hình mới nhất của DỰ ÁN KHÁC: cờ đã bật / học việc ở dự án trước mà nay tắt; dự án
+    trước chạy ở máy khác với hash khác. Không có mốc → []. Chỉ đọc."""
+    import json
+    best = None
+    try:
+        names = os.listdir(data_dir)
+    except OSError:
+        return []
+    for d in names:
+        if d == str(pid):
+            continue
+        path = _snapshot_path(data_dir, d)
+        try:
+            with open(path, encoding="utf-8") as f:
+                stamp = str(json.load(f).get("at") or "")      # lần GỬI cuối (runner ghi mỗi lần gửi) — không theo mtime
+        except (OSError, ValueError, AttributeError):
+            if not os.path.exists(path):
+                continue
+            stamp = ""
+        if best is None or stamp > best[0]:
+            best = (stamp, d, path)
+    if best is None:
+        return []
+    try:
+        with open(best[2], encoding="utf-8") as f:
+            snap = json.load(f)
+    except (OSError, ValueError):
+        return [f"mốc cấu hình cờ dự án #{best[1]} hỏng ({best[2]}) — không so được drift"]
+    now = {n: state(n) for n in FEATURES}
+    out = [f"cờ {n} {'bật' if was == 'on' else 'học việc'} ở dự án #{best[1]} nay TẮT ({why_state(n)})"
+           for n, was in sorted((snap.get("flags") or {}).items()) if n in now and was in ("on", "trainee") and now[n] == "off"]
+    if snap.get("machine") and snap["machine"] != _machine() and snap.get("hash") != config_hash(now):
+        out.append(f"dự án #{best[1]} chạy ở máy khác ({snap['machine']}) với cấu hình cờ khác (hash {snap.get('hash')} ≠ {config_hash(now)})")
+    return out
+
+
+# ---- M7.2: baseline chụp / so ---------------------------------------------------------------------------------------------------
+def baseline_capture(path: Optional[str] = None) -> str:
+    """Chụp trạng thái hiệu lực máy này thành tệp baseline (chạy trên MÁY CHÍNH rồi commit). Trả đường dẫn."""
+    import datetime
+    import json
+    path = path or baseline_path()
+    if not path:
+        raise ValueError("baseline đang tắt (FEATURE_BASELINE_FILE rỗng) — không có chỗ ghi")
+    cfg = effective_config()
+    data = {"flags": cfg["flags"], "hash": cfg["hash"], "machine": cfg["machine"],
+            "captured": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "note": "M7.2: chỉ áp ở máy CHƯA có data/feature_settings.json; không bật cờ costs / OPT_IN_ONLY; học việc tối đa trainee"}
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1, sort_keys=True)
+    os.replace(tmp, path)
+    _BASELINE["stamp"] = object()
+    return path
+
+
+def baseline_diff() -> Dict:
+    """here: cờ mà tệp baseline ghi khác trạng thái hiệu lực máy này (máy chính sau khi chụp phải = []); fresh: một máy MỚI (chưa có tệp 🧪,
+    không env) sẽ khác máy này ở cờ nào và vì sao (bảo vệ costs / OPT_IN, học việc tối đa trainee, baseline không ghi)."""
+    raw = baseline().get("flags") or {}
+    here, fresh = [], []
+    for n in FEATURES:
+        now = state(n)
+        if n in raw and raw[n] != now:
+            here.append({"name": n, "now": now, "baseline": raw[n]})
+        if n in REMOVED:
+            new, why = "off", "đã bỏ khỏi code"
+        elif FEATURES[n]["verified"]:
+            new, why = "on", "khóa"
+        else:
+            g = _guarded(n, raw.get(n))
+            new = g or default_state(n)
+            why = ("baseline" if g == raw.get(n) else "baseline bị bảo vệ hạ (" + (
+                "cờ tốn tiền / OPT_IN không bao giờ tự bật" if _paid(n)
+                else "học việc tối đa trainee" if FEATURES[n].get("trainee") else "giá trị không áp được") + ")") if g or n in raw \
+                else "baseline không ghi → mặc định code"
+        if new != now:
+            fresh.append({"name": n, "now": now, "fresh": new, "why": why})
+    return {"path": baseline_path(), "active_here": baseline_active(), "here": here, "fresh": fresh}
+
+
+# ---- M7.2 / K6: bỏ lựa chọn riêng an toàn (preview, xác nhận ở UI, sao lưu, khôi phục) ---------------------------------------------
+MAX_BACKUPS = 30
+
+
+def _backup_dir() -> str:
+    return os.path.join(os.path.dirname(settings_path()), "backup")
+
+
+def backup_settings() -> Optional[str]:
+    """Chép tệp 🧪 hiện tại vào <data>/backup/feature_settings.<giờ>.json. Không có tệp → None."""
+    import datetime
+    import shutil
+    src = settings_path()
+    if not os.path.isfile(src):
+        return None
+    os.makedirs(_backup_dir(), exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    dst = os.path.join(_backup_dir(), f"feature_settings.{stamp}.json")
+    shutil.copy2(src, dst)
+    for old in list_backups()[MAX_BACKUPS:]:          # giữ MAX_BACKUPS bản mới nhất
+        try:
+            os.remove(old["path"])
+        except OSError:
+            pass
+    return dst
+
+
+def list_backups() -> List[Dict]:
+    """Bản sao lưu tệp 🧪, mới nhất trước: [{path, name, n_flags}]."""
+    import json
+    out = []
+    d = _backup_dir()
+    for name in sorted(os.listdir(d), reverse=True) if os.path.isdir(d) else []:
+        if not (name.startswith("feature_settings.") and name.endswith(".json")):
+            continue
+        path = os.path.join(d, name)
+        try:
+            with open(path, encoding="utf-8") as f:
+                n = len((json.load(f).get("flags") or {}))
+        except (OSError, ValueError, AttributeError):
+            n = None
+        out.append({"path": path, "name": name, "n_flags": n})
+    return out
+
+
+def _state_with(data: Dict, name: str) -> str:
+    """Trạng thái của `name` nếu tệp 🧪 là `data` — thuần (không đụng cache chung: luồng nền / phiên khác đọc cờ cùng lúc)."""
+    return _state(name, data)
+
+
+def reset_preview() -> List[Dict]:
+    """Cờ đổi trạng thái nếu bỏ mọi lựa chọn riêng (giữ preset): [{name, now, after, why}]."""
+    cur = settings()
+    bare = {"preset": cur["preset"], "flags": {}, "modes": {}}
+    out = []
+    for n in sorted(set(cur["flags"]) | set(cur.get("modes") or {})):
+        now, after = state(n), _state_with(bare, n)
+        if now != after:
+            out.append({"name": n, "now": now, "after": after})
+    return out
+
+
+def reset_choices() -> Optional[str]:
+    """Sao lưu tệp 🧪 rồi bỏ mọi lựa chọn riêng (giữ preset). Trả đường dẫn bản sao lưu."""
+    cur = settings()
+    path = backup_settings()
+    save_settings(flags={k: None for k in list(cur["flags"])}, modes={k: None for k in list(cur.get("modes") or {})})
+    return path
+
+
+def restore_settings(path: str) -> Optional[str]:
+    """Khôi phục một bản sao lưu (chỉ tệp trong thư mục backup). Sao lưu bản đang dùng trước; trả đường dẫn bản đó. Lựa chọn cũ tắt cờ 🔒
+    vẫn bị bỏ qua như mọi khi (locked_off_ignored)."""
+    import json
+    real = os.path.realpath(path)
+    name = os.path.basename(real)
+    if os.path.normcase(os.path.dirname(real)) != os.path.normcase(os.path.realpath(_backup_dir())) \
+            or not name.startswith("feature_settings.") or not name.endswith(".json"):
+        raise ValueError(f"{path} không phải bản sao lưu cài đặt cờ ({_backup_dir()})")
+    with open(real, encoding="utf-8") as f:
+        text = f.read()
+    raw = json.loads(text)
+    if not isinstance(raw, dict) or not isinstance(raw.get("flags", {}), dict):
+        raise ValueError(f"{path} không đúng dạng cài đặt cờ")
+    before = backup_settings()                    # C-M72-FIX: có thể dọn chính bản cũ nhất (giữ MAX_BACKUPS) — ghi từ nội dung đã đọc
+    tmp = settings_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, settings_path())
+    _SETTINGS["stamp"] = object()
+    return before
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     import argparse
     import json
@@ -1314,7 +1693,34 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--report", action="store_true", help="bảng trạng thái mọi cờ (bật/tắt + nguồn)")
     ap.add_argument("--json", action="store_true", help="xuất JSON thay bảng")
     ap.add_argument("--project", type=int, help="liệt kê cờ sửa lỗi dự án trước còn TẮT với dự án này")
+    ap.add_argument("--baseline-capture", action="store_true", help="chụp trạng thái hiệu lực máy này vào data/flag_baseline.json (máy chính)")
+    ap.add_argument("--baseline-diff", action="store_true", help="so baseline với máy này (máy chính phải 0 cờ đổi) + máy mới sẽ khác gì")
+    ap.add_argument("--config", action="store_true", help="cấu hình cờ hiệu lực + hash")
     a = ap.parse_args(argv)
+    if a.baseline_capture:
+        print(f"Đã chụp baseline: {baseline_capture()} (hash {config_hash()})")
+        return 0
+    if a.baseline_diff:
+        d = baseline_diff()
+        if a.json:
+            print(json.dumps(d, ensure_ascii=False, indent=1))
+            return 0
+        print(f"Baseline {d['path'] or '(tắt)'} · áp ở máy này: {'có' if d['active_here'] else 'không (máy đã có tệp 🧪)'}")
+        for p_ in baseline_problems():
+            print("⚠ " + p_)
+        print(f"So với máy này: {len(d['here'])} cờ đổi")
+        for r in d["here"]:
+            print(f"  {r['name']}: máy này {r['now']} · baseline {r['baseline']}")
+        print(f"Máy MỚI (chưa có tệp 🧪, không env) sẽ khác máy này ở {len(d['fresh'])} cờ:")
+        for r in d["fresh"]:
+            print(f"  {r['name']}: {r['now']} → {r['fresh']} ({r['why']})")
+        return 0
+    if a.config:
+        cfg = effective_config()
+        print(json.dumps(cfg, ensure_ascii=False, indent=1) if a.json else f"hash {cfg['hash']} · máy {cfg['machine']} · baseline "
+              f"{'áp' if cfg['baseline_active'] else 'không áp'} · bật {sum(v == 'on' for v in cfg['flags'].values())} / "
+              f"học việc {sum(v == 'trainee' for v in cfg['flags'].values())} / tắt {sum(v == 'off' for v in cfg['flags'].values())}")
+        return 0
     if a.project is not None:
         rows = fix_flags_off(a.project)
         print(json.dumps(rows, ensure_ascii=False, indent=1) if a.json else

@@ -473,6 +473,7 @@ def report_project(conn, pid: int, pricing: dict, floors: dict) -> tuple:
     # 8. chẩn đoán
     if has_table(conn, "diag_events"):
         rows = conn.execute("SELECT stage, severity, code, SUM(count) n, MAX(message) m FROM diag_events WHERE project_id=?"
+                            " AND stage NOT IN ('ui_step', 'cli_step')"   # C-DEVSYS-MAPS-FIX: bước bấm / lệnh CLI = quan sát, không phải sự cố
                             " GROUP BY stage, severity, code ORDER BY n DESC LIMIT 12", (pid,)).fetchall()
         if rows:
             w("### 8. Sự kiện chẩn đoán (diag)")

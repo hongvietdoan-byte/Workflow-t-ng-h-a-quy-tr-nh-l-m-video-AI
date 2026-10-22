@@ -332,7 +332,7 @@ class RunTests(Base):
             todo, kept, _ = camera_plan.todo_groups(self.p.conn, pid, self.data)
         self.assertEqual(todo, [])
         self.assertTrue(kept)
-        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CAMERA": ""}):   # máy sân khấu không được dùng → G0 như cũ
+        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CAMERA": "0"}):   # TẮT tường minh (C-FLAGTEST8) → G0 như cũ
             todo, _, _ = camera_plan.todo_groups(self.p.conn, pid, self.data)
         self.assertEqual(sorted(s["idx"] for g in todo for s in g["shots"]), [1, 2, 3])
 
@@ -449,7 +449,7 @@ class RunTests(Base):
         self.assertEqual(len(location_pack.stage_report(self.p.conn, items)), 1)       # 2 chỗ đứng, chưa có sân khấu → giữ
         stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
         self.assertEqual(location_pack.stage_report(self.p.conn, items), [])
-        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CAMERA": ""}):              # máy sân khấu không được dùng → vẫn giữ
+        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CAMERA": "0"}):              # máy sân khấu không được dùng → vẫn giữ
             self.assertEqual(len(location_pack.stage_report(self.p.conn, items)), 1)
 
 
@@ -581,7 +581,7 @@ if __name__ == "__main__":
 class ReviewFixTests(Base):
     def test_needs_stage_camera_and_place_refs(self):
         self.assertEqual(features.REQUIRES["stage_auto"], ("stage_camera", "place_render_refs"))
-        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CAMERA": ""}):
+        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CAMERA": "0"}):
             self.assertFalse(stage_auto.enabled())
 
     def test_weapons_are_not_floor_blocks(self):

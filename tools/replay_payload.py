@@ -12,6 +12,8 @@ logic song song. Cách chạy an toàn trên dữ liệu thật (CSDL lưu đư�
   - so với jobs.sent_package thật: ảnh (nhãn, file), câu khóa đạo cụ, câu HÌNH vật kỹ năng, câu hướng chạy;
   - provider giả (không có hàm gửi); mọi lệnh MỞ GHI / tạo / xóa / đổi tên dưới `<main>/data` bị CHẶN (PermissionError);
   - xong: gỡ junction bằng os.rmdir (không theo link) rồi mới xóa thư mục thử.
+  - NGOẠI LỆ ghi duy nhất (C-DEVSYS-MAPS): khi cờ ui_step_log BẬT ở CHÍNH máy <main> (tệp 🧪 của nó / FEATURE_UI_STEP_LOG), SAU khi
+    xong lượt dựng lại, thêm MỘT dòng diag_events stage cli_step vào CSDL thật (việc làm ngoài Dashboard → sơ đồ AI Dev System).
 In ra từng shot: ảnh gửi (Image N, nhãn, vai, file, mã mục Kho), so với `jobs.sent_refs` thật của job gần nhất, các diag, prompt.
 """
 import argparse
@@ -256,6 +258,16 @@ def replay(conn, pid: int, data_dir: str, shot=None) -> list:
     return out
 
 
+def annotate_d6(conn, results: list) -> list:
+    """C-M71 A5 (P31-G29): máy chính BẬT D6 (chat_prompts) mà gói dựng lại ở đây luôn TẮT D6 → mỗi shot thêm "d6" = bản D6 đã lưu
+    của job (core.chat_prompt.saved_view, 0 USD, không gọi Claude) hoặc lời "chưa xem được" — không in im lặng bản code ghép như gói thật."""
+    from core import chat_prompt
+    for s in results:
+        if not s.get("error"):
+            s["d6"] = chat_prompt.saved_view(conn, s["job_id"], "image", assembled=s.get("prompt"))
+    return results
+
+
 def _print(results: list, width: int) -> None:
     for s in results:
         print(f"=== shot {s['idx']} (scene {s['scene_id']}, job {s['job_id']}) ===")
@@ -282,6 +294,11 @@ def _print(results: list, width: int) -> None:
             if sev != "info":
                 print(f"  diag {sev} {code}: {msg[:200]}")
         print("  prompt:", (s["prompt"][:width] + " …") if width and len(s["prompt"]) > width else s["prompt"])
+        d6 = s.get("d6")
+        if d6:
+            print("  D6:", d6["note"])
+            if d6.get("prompt"):
+                print("  prompt D6:", (d6["prompt"][:width] + " …") if width and len(d6["prompt"]) > width else d6["prompt"])
 
 
 def main(argv=None) -> int:
@@ -343,7 +360,37 @@ def main(argv=None) -> int:
                 print("CẢNH BÁO: junction chưa gỡ được — KHÔNG xóa thư mục thử", work, file=sys.stderr)
             else:
                 shutil.rmtree(work, ignore_errors=True)
+    _cli_step(main_dir, a.project, "dựng lại gói gửi model" + (f" shot {a.shot}" if a.shot else " mọi shot"))
     return 0
+
+
+def _main_flag_on(main_dir: str, name: str) -> bool:
+    """Cờ của MÁY <main> (không phải repo đang chạy lệnh): tệp 🧪 <main>/data/feature_settings.json, rồi FEATURE_<NAME> môi trường."""
+    try:
+        with open(os.path.join(main_dir, "data", "feature_settings.json"), encoding="utf-8") as f:
+            flags = json.load(f).get("flags") or {}
+        if name in flags:
+            return flags[name] is True
+    except (OSError, ValueError, AttributeError):
+        pass
+    return os.environ.get("FEATURE_" + name.upper(), "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _cli_step(main_dir: str, pid: int, task: str) -> None:
+    """C-DEVSYS-MAPS (cờ ui_step_log, TẮT = không làm gì): một dòng cli_step vào CSDL THẬT — lần ghi duy nhất của công cụ này, SAU khi
+    sandbox xong (WriteGuard chỉ bọc lượt dựng lại). Lỗi không bao giờ làm hỏng lệnh."""
+    try:
+        from core import ui_step
+        db = os.path.join(main_dir, "data", "manifest.sqlite")
+        if not _main_flag_on(main_dir, ui_step.FLAG) or not os.path.isfile(db):
+            return
+        conn = sqlite3.connect(db, timeout=5)
+        try:
+            ui_step.cli(conn, "replay_payload", pid, task, flag_checked=True)   # cờ của <main>, không phải repo chạy lệnh
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - quan sát, không phải điều khiển
+        pass
 
 
 if __name__ == "__main__":

@@ -157,3 +157,54 @@ def test_the_export_button_is_never_disabled_by_the_gate():
     block = src[src.index("def _deliver_button"):src.index("def _deliver_button") + 2000]
     assert "release_gate.check(" in block and "release_gate.enabled()" in block
     assert 'disabled=not chosen, width="stretch"' in block                # nút không phụ thuộc kết quả cổng
+
+
+# ---- M7.4 B7 (cloud-C 21/10): cổng không đọc video → trước đây KHÔNG BAO GIỜ thấy đen / đứng hình (final_black_freeze) -------------
+def test_b7_black_freeze_unmeasured_is_not_passed(world):
+    p, pid, sids, data = world
+    _final(p, pid)
+    with mock.patch.dict(os.environ, {"FEATURE_FINAL_BLACK_FREEZE": "1"}):
+        res = _run(world)
+    g2 = res["items"][1]
+    assert g2["state"] == "chua_dat" and "CHƯA ĐO" in g2["why"]
+
+
+def test_b7_black_freeze_of_this_render_is_shown(world):
+    from core import final_qc
+    p, pid, sids, data = world
+    _final(p, pid)
+    fid = p.conn.execute("SELECT MAX(id) FROM outputs WHERE project_id=? AND kind='final'", (pid,)).fetchone()[0]
+    final_qc._save_full(data, pid, fid, [{"code": "freeze_frame", "level": "warn", "msg": "ĐỨNG HÌNH 2.1 s (3.0–5.1 s, shot 2)"}])
+    with mock.patch.dict(os.environ, {"FEATURE_FINAL_BLACK_FREEZE": "1"}):
+        res = _run(world)
+    g2 = res["items"][1]
+    assert g2["state"] == "dat" and "ĐỨNG HÌNH 2.1 s" in g2["why"] and g2["numbers"]["warns"] == 2
+    final_qc._save_full(data, pid, fid + 99, [])                       # lần đo của bản dựng KHÁC → không tính
+    with mock.patch.dict(os.environ, {"FEATURE_FINAL_BLACK_FREEZE": "1"}):
+        assert _run(world)["items"][1]["state"] == "chua_dat"
+
+
+def test_b7_flag_off_g2_unchanged(world):
+    p, pid, sids, data = world
+    _final(p, pid)
+    with mock.patch.dict(os.environ, {"FEATURE_FINAL_BLACK_FREEZE": ""}):
+        assert _run(world)["items"][1]["state"] == "dat"
+
+
+def test_b7_full_check_saves_what_the_gate_reads(world, tmp_path):
+    from core import final_qc
+    p, pid, sids, data = world
+    video = tmp_path / "final.mp4"
+    video.write_bytes(b"x")
+    p.conn.execute("INSERT INTO outputs (project_id, kind, path, manifest, created_at) VALUES (?, 'final', ?, '{}', '2026-10-21')",
+                   (pid, str(video)))
+    p.conn.commit()
+    fid = p.conn.execute("SELECT MAX(id) FROM outputs WHERE project_id=? AND kind='final'", (pid,)).fetchone()[0]
+    spans = {"black": [], "freeze": [(3.0, 5.5)]}
+    with mock.patch.dict(os.environ, {"FEATURE_FINAL_BLACK_FREEZE": "1"}), \
+            mock.patch("core.final_qc.black_freeze_spans", return_value=spans), \
+            mock.patch("core.ffmpeg_studio.probe_duration", return_value=10.0), \
+            mock.patch("core.final_qc.check_silence", return_value=[]), mock.patch("core.ffmpeg_studio.probe_size", return_value=None):
+        final_qc.run(p, pid, data)
+    got = final_qc.last_full(data, pid, fid)
+    assert got and got[0]["code"] == "freeze_frame"

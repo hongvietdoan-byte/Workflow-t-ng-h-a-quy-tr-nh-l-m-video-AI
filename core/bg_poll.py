@@ -15,6 +15,7 @@ khi lệnh dòng lệnh chạm trần (script_cap), job xếp hàng quá AUTO_SE
 Ngoại lệ (cờ auto_send_self_fix, hộp thư 12/10): job tự sửa (origin 'auto', gen lại) ở dự án không có chạy tự động nào sở hữu — xem
 queued_by_person."""
 import os
+import re
 import threading
 import time
 from typing import Callable, Dict, List, Optional, Tuple
@@ -233,9 +234,15 @@ def autoqc_round(conn, db_path: str, data_dir: str) -> Dict[int, str]:
             if n >= AUTOQC_TRIES:
                 if n == AUTOQC_TRIES:                 # said once per unchanged set
                     _autoqc_tries[(db_path, pid, kind)] = (sig, n + 1)
-                    _say(conn, pid, "warn", f"vòng nền đã bắt đầu tự kiểm tra {'ảnh' if kind == 'image' else 'clip'} dự án #{pid} "
-                         f"{AUTOQC_TRIES} lần mà {len(sig)} job vẫn chờ (cảnh chưa đủ khung / Claude lỗi hoặc bị chặn) — không tự gọi "
-                         "lại tới khi có job mới; mở trang dự án để xem lỗi và kiểm tay", "bg_autoqc_stuck")
+                    why, err = _stuck_reason(conn, pid, kind, sig, data_dir)   # M7.4 (P31-G57: bg_autoqc_stuck ×29): nói đúng lý do, chờ đủ khung = im
+                    if why == "claude":
+                        _say(conn, pid, "warn", f"vòng nền ngừng tự kiểm tra {'ảnh' if kind == 'image' else 'clip'} dự án #{pid}: Claude "
+                             f"không dùng được ({err[:160]}) — không tự gọi lại tới khi có job mới; kiểm Claude / lượt gói rồi bấm kiểm tay",
+                             "bg_autoqc_no_claude")
+                    elif why != "waiting_frames":
+                        _say(conn, pid, "warn", f"vòng nền đã bắt đầu tự kiểm tra {'ảnh' if kind == 'image' else 'clip'} dự án #{pid} "
+                             f"{AUTOQC_TRIES} lần mà {len(sig)} job vẫn chờ" + (f" (lỗi gần nhất: {err[:160]})" if err else "")
+                             + " — không tự gọi lại tới khi có job mới; mở trang dự án để xem lỗi và kiểm tay", "bg_autoqc_stuck")
                 continue
             try:
                 if go(db_path, data_dir, pid):
@@ -249,6 +256,39 @@ def autoqc_round(conn, db_path: str, data_dir: str) -> Dict[int, str]:
             _say(conn, pid, "info", f"vòng nền bắt đầu tự kiểm tra {' + '.join('ảnh' if k == 'image' else 'clip' for k in started)} "
                  f"dự án #{pid} (không cần mở trang)", "bg_autoqc")
     return out
+
+
+def _stuck_reason(conn, pid: int, kind: str, sig, data_dir: str) -> tuple:
+    """Vì sao job vẫn chờ sau AUTOQC_TRIES lần: ("claude", lỗi) — lần tự kiểm dừng vì Claude (mã LlmError STOP_CODES / chưa có Claude, lưu
+    theo MÃ, không dò chữ); ("waiting_frames", "") — QC theo cảnh đợi đủ khung (qc_scene.scene_frames chưa đủ): chờ im; ("unknown", lỗi | "")."""
+    from . import autoqc, llm_runner
+    err = (autoqc.last_error(pid) if kind == "image" else autoqc.video_last_error(pid)) or ""
+    code = autoqc.last_error_code(kind, pid)
+    if code and (code in llm_runner.STOP_CODES or code == "no_client"):
+        return "claude", err or code
+    if not err and kind == "image":
+        try:
+            from . import qc_scene
+            if qc_scene.active() and _scene_incomplete(conn, pid, sig, data_dir):
+                return "waiting_frames", ""
+        except Exception:  # noqa: BLE001 - không phân loại được: nói như cũ
+            pass
+    return "unknown", err
+
+
+def _scene_incomplete(conn, pid: int, job_ids, data_dir: str) -> bool:
+    """Cảnh kịch bản của các job chờ chưa đủ khung theo ĐÚNG luật QC cảnh (qc_scene.scene_frames → None)."""
+    import json as _json
+    from .pipeline import Pipeline
+    from . import qc_scene
+    stories = set()
+    for r in conn.execute(f"SELECT s.data FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.id IN ({','.join('?' * len(job_ids))})",
+                          tuple(job_ids)):
+        st = _json.loads(r[0] or "{}").get("story_scene")
+        if st is not None:
+            stories.add(st)
+    p = Pipeline(conn)
+    return any(qc_scene.scene_frames(p, pid, st, data_dir) is None for st in stories)
 
 
 def _say(conn, pid: Optional[int], level: str, msg: str, code: str) -> None:

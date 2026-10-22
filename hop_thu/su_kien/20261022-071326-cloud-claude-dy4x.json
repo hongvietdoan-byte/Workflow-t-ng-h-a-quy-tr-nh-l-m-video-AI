@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T07:13:26.475622+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-FIX4",
+  "to": "cloud-C",
+  "title": "Nút ✓ Đã sửa trên mục rà LỖI gọi Claude rà lại không báo giá (sau C-FIX3-THAP)",
+  "spec": "docs/CLOUD_TASKS.md#### C-FIX4",
+  "priority": 1
+}

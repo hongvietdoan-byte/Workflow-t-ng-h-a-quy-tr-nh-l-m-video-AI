@@ -407,7 +407,8 @@ def _worker(request):
         conn.execute("UPDATE jobs SET sent_package=NULL")
         job.pop("sent_package", None)
         conn.commit()
-        fake_env = {"PIPELINE_DB": str(scratch / "data/manifest.sqlite"), "FEATURE_SETTINGS_FILE": str(scratch / "data/feature_settings.json")}
+        fake_env = {"PIPELINE_DB": str(scratch / "data/manifest.sqlite"), "FEATURE_SETTINGS_FILE": str(scratch / "data/feature_settings.json"),
+                    "FEATURE_BASELINE": "0"}                       # M7.2: replay theo cờ ghi trong yêu cầu, không theo baseline
         for key,value in request["public_config"].items():
             fake_env[{"image_model":"DEEPIX_MODEL", "video_model":"VIDEO_MODEL"}.get(key,key)] = str(value)
         moment = datetime.datetime.fromisoformat(request["envelope"]["at"])

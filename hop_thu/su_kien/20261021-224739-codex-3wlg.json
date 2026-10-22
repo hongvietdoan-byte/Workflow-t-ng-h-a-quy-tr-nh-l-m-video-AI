@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T22:47:39.280902+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX21-GOLDEN5",
+  "branch": "codex/v31-golden5",
+  "commit": "22d7b565",
+  "report": "docs/RA_CX21_GOLDEN5_CODEX_2026-10-21.md",
+  "text": "Đã chạy đủ158ca/316workerA/B trên snapshot5 mới: SAME127/DIFF0/ONE_FAIL0/BOTH_FAIL31; #24 SAME15 BF9,#27 SAME28 BF16,#31 SAME78 BF0,#33 SAME6 BF6. A eb7fd954 B9746a6ea tool46f81fc0. Bảngtool đạt ngưỡng/exit0 nhưng CHƯA CHỐT ĐẠT nghiệm thu vì native negativecontrol test_real_worker_two_code_trees_same_and_one_line_changed ĐỎ21.61s: sau đổi1dòngsent_package câyB vẫn DIFF+ONE_FAIL0. Không sửa/nới test/comparator. Root rà/push report-only22d7b565; cần chủtool sửa/xác minh negativecontrol trước quyết gộpM2. 0USD/readonly,0timeout,3worktree tạm gỡ, snapshot ngoàiGit."
+}

@@ -1463,3 +1463,47 @@ Nghiệm thu: phiên chính chụp lại ≥ 3 ảnh + ≥ 3 video COMPAT mỗi 
 `tools/merge_union.py` `merge_json`, list không có `id`: hợp kiểu union → A xóa `f2`, B thêm `fB` cho `["f1","f2","f3","fB"]`. Sửa theo `base`:
 `[x for x in ours if x in theirs or x not in base] + [x for x in theirs if x not in ours and x not in base]` (base không phải list → như cũ). Test "một bên xóa,
 bên kia thêm" ĐỎ→XANH. Nhánh `codex/v31-fix2-21`. Báo cáo ngắn trong docs/RA_CX21_FIX_CODEX_2026-10-21.md (mục bổ sung).
+
+### CX21-GOLDEN3 — chạy NGHIỆM THU golden #24/#27 lần 3 ở máy chính (ưu tiên 0; 0 USD, CHỈ ĐỌC)
+Nhánh `cloud/v31-m2-tichhop` (cloud-C gom M21/M25/M25B/M26/M29/DP9/DP10/GOLDEN2 + sửa 4 VỪA). Tạo worktree TẠM của nhánh ngoài repo (vd D:/AI-Video-Output/golden-wt3),
+chạy công cụ từ đó theo báo cáo docs/RA_CLOUD_GOLDEN2_*.md trên nhánh. Dữ liệu: snapshot CSDL MỚI bằng sqlite3 backup từ `file:D:/AI-Video-Pipeline/data/manifest.sqlite?mode=ro`
+→ D:/AI-Video-Output/golden-snapshot-3/manifest.sqlite; ref-root D:/AI-Video-Pipeline (chỉ đọc). Cờ: `baseline_flags` = trạng thái hiệu lực sản xuất hiện tại
+(core.features.state() của repo máy chính) + `experimental_flags` = các cờ MỚI V3.1 (verified False, thêm từ 20/10 — liệt kê tường minh) đều false.
+Model/provider theo jobs.model của từng job. Chọn MỌI shot có job ảnh/video #24 và #27. KHÔNG ghi data/ thật, KHÔNG sửa/commit repo chính, KHÔNG API trả phí.
+Báo cáo docs/RA_CX21_GOLDEN3_CODEX_2026-10-2x.md (commit lên nhánh codex/v31-golden3 chỉ chứa báo cáo): mỗi dự án distinct_compat_image_shots /
+distinct_compat_video_shots / COMPAT / DATA_CHANGED / CODE_MISMATCH / INSUFFICIENT_INPUT + lý do; ĐẠT khi ≥3 ảnh + ≥3 video COMPAT mỗi dự án và 0 CODE_MISMATCH.
+Lỗi công cụ còn lại → ghi gốc, không tự sửa. Gỡ worktree tạm. XONG hộp thư — phiên chính quyết gộp.
+
+### CX21-M23 (tiếp) — hoàn tất theo HANDOFF_M23.md trên codex/v31-m23: sửa 1 P1 + 2 P2 đường ghi mà lượt rà hẹp đã thấy (test ĐỎ→XANH), rồi báo XONG.
+
+### CX21-GOLDEN4 — chạy nghiệm thu golden lần 4 (ưu tiên 0 khi cloud-E báo XONG C-GOLDEN4)
+Như CX21-GOLDEN3 nhưng trên nhánh `cloud/v31-golden4` (allowlist đọc data/ có fingerprint) và snapshot MỚI golden-snapshot-4; cờ theo sổ
+v31-ep-g1-golden-compat-production-baseline-2026-10-21 (baseline sản xuất thực tế + chỉ cờ mới V3.1 TẮT; ghi rõ "baseline tái dựng"). Báo cáo
+docs/RA_CX21_GOLDEN4_CODEX_2026-10-2x.md trên nhánh codex/v31-golden4. XONG hộp thư.
+
+### CX21-K-EVID — bằng chứng máy chính cho khóa/bật cờ (ưu tiên 1, làm trong lúc chờ C-GOLDEN4; 0 USD, CHỈ ĐỌC)
+Sổ v31-ep-flag-lock-policy-2026-10-21 + v31-ep-k7-v31-flags-verify-2026-10-21. Trên dữ liệu thật máy chính (CSDL mở mode=ro / bản sao snapshot; không ghi data/,
+không gửi job, không API trả phí). Mỗi phần một mục báo cáo, dừng ở phần nào hết hạn mức thì ghi rõ:
+(1) qc_false_alarm_fix + horizon_needs_sky: phát lại QC đã ghi của #31 và #33 (qc_observe / video_gate) với cờ TẮT vs BẬT trên bản sao → số ca báo nhầm A5/A6/G20
+    trước/sau, có ca đúng nào bị bỏ sót không (bảng ca).
+(2) send_claim (K1): đếm job #27–#33 có trùng gửi / claim, kiểm 2 worker giả + crash/reconcile bằng test có sẵn (tests/test_v31_t12_m12_m13_gaps.py…) chạy TUẦN TỰ
+    trên Windows; liệt kê side effect khi khóa (đường gọi nào đổi hành vi).
+(3) back_view_guard (K1): dependency seedance_ref_groups + per_shot — đếm gói gửi thật có câu back_view (jobs.sent_package) theo dự án; side effect khi khóa.
+Báo cáo docs/RA_CX21_K_EVID_CODEX_2026-10-2x.md (nhánh codex/v31-k-evid chỉ báo cáo). XONG hộp thư — phiên chính trình EP từng cờ (Cấp 3).
+
+### CX21-GOLDEN5 — chạy nghiệm thu golden A/B ở máy chính (ưu tiên 0 khi cloud-C báo XONG C-GOLDEN5)
+Sổ v31-ep-golden-ab-acceptance-2026-10-21. Theo lệnh trong docs/RA_CLOUD_GOLDEN5_*.md: worktree tạm A = origin/main, B = origin/cloud/v31-m2-tichhop (nếu
+cloud-C đã gộp thêm m24/m72… thì dùng nhánh tích hợp mới nhất ghi trong hộp thư), công cụ từ cloud/v31-golden5; snapshot CSDL mới mode=ro → golden-snapshot-5;
+cờ = trạng thái hiệu lực sản xuất + cờ mới V3.1 false. Dự án #24, #27, #31, #33. Báo cáo docs/RA_CX21_GOLDEN5_CODEX_2026-10-2x.md (nhánh codex/v31-golden5):
+SAME / DIFF / BOTH_FAIL / ONE_FAIL theo dự án + kết luận ĐẠT (0 DIFF, 0 ONE_FAIL). Gỡ worktree tạm. Chỉ đọc, 0 USD. XONG hộp thư.
+
+### CX21-GOLDEN7 — chạy LẠI nghiệm thu golden A/B (ưu tiên 0) sau khi cloud-C sửa validator catalog (C-GOLDEN7 XONG; cloud-claude giao 22/10)
+Như CX21-GOLDEN6 (cùng baseline 155 cờ + 30 experimental TẮT, KHÔNG loại gen_auth_shadow), công cụ từ nhánh cloud/v31-golden5 MỚI NHẤT (có sửa C-GOLDEN7).
+Thứ tự: negative control native trước (đỏ → dừng); snapshot CSDL MỚI mode=ro; A = origin/main mới nhất, B = origin/cloud/v31-m2-tichhop mới nhất (ghi SHA).
+Công cụ trả mã 2 (lỗi precondition) → dừng, báo nguyên văn, không chạy lại. ĐẠT = negative control xanh + 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥ 1 SAME + loaded
+evidence đủ cho mọi ca dựng được. Báo cáo docs/RA_CX21_GOLDEN7_CODEX_2026-10-2x.md (nhánh codex/v31-golden7). XONG hộp thư.
+
+### CX21-GOLDEN6 — chạy LẠI nghiệm thu golden A/B (ưu tiên 0) sau khi cloud-C sửa negative control (C-GOLDEN6 XONG)
+Như CX21-GOLDEN5 nhưng công cụ từ nhánh cloud/v31-golden5 MỚI NHẤT (có sửa C-GOLDEN6). TRƯỚC KHI chạy 158 ca: chạy negative control native (sửa 1 dòng builder
+cây B → phải ra DIFF/ONE_FAIL ≥ 1) — đỏ thì dừng, báo lỗi, không chạy tiếp. Kết quả mỗi ca in đường dẫn module core thật đã nạp cho A và B. ĐẠT = negative
+control xanh + 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥ 1 SAME. Báo cáo docs/RA_CX21_GOLDEN6_CODEX_2026-10-2x.md (nhánh codex/v31-golden6). XONG hộp thư.

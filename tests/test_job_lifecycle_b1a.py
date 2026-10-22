@@ -6,6 +6,7 @@ being paused (Pipeline.start → PipelinePaused) or the job cancelled while `sub
 T9: (core.composite.composite_video — removed with the green-screen code, S14.9 06/10.)
 
 Fake providers, an in-memory database, 0 USD — no real API is called."""
+from tests._flags import pin_off
 import os
 import tempfile
 import unittest
@@ -44,6 +45,10 @@ class _Base(unittest.TestCase):
 
 
 class PausedOrCancelledWhileSubmitting(_Base):
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_project_paused_while_submit_is_in_flight_is_not_paid_twice(self):
         """Before: external_id committed, then p.start() raised PipelinePaused → the job stayed queued with its paid task; after
         resuming, the next pass sent it again (paid twice)."""

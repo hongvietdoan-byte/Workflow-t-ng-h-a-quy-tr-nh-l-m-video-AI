@@ -694,3 +694,376 @@ Chạy CẢ BỘ test trên nhánh tích hợp (Linux; golden 3.14 skip là đú
 docs/RA_CLOUD_M2_TICHHOP_2026-10-2x.md (danh sách merge + sha, xung đột đã hợp, 4 lỗi đã sửa + test). XONG hộp thư. Phiên chính sẽ nghiệm thu golden #24/#27
 trên nhánh này ở máy chính rồi gộp main một lần.
 ```
+
+## Chia việc 21/10 tối (người dùng: "chia lại task cho codex, cloud-C, cloud-E qua hòm thư")
+
+#### C-FLAGTEST8 (cloud-C — ưu tiên 0; chỉ TEST, không đổi hành vi code)
+```
+Bối cảnh: docs/DANH_GIA_HIEU_QUA_CO_2026-10-21.md đề nghị KHÓA 8 cờ (send_claim, video_pregen, framing_guard, plate_view_sentence, stage_camera,
+seedance_ref_groups, back_view_guard, chat_first). Đo 21/10 (máy chính): ép 8 cờ BẬT kiểu "soft" (= verified True) → 164 test ĐỎ / 6752 qua (mốc 1 đỏ) —
+lặp lại vụ 13/10 (khóa 20 cờ → 362 đỏ → revert). Danh sách: docs/flagmatrix/k8_failed_2026-10-21.txt; phân loại sơ bộ: docs/flagmatrix/k8_classify_2026-10-21.json.
+Plugin ép cờ: tools/testing/flagforce.py (PYTHONPATH=tools/testing python -m pytest -p flagforce; FLAGMATRIX_ON="a,b", FLAGMATRIX_MODE=soft|hard).
+Làm: với mỗi test đỏ, xác định (A) test ngầm dựa vào cờ TẮT mặc định → sửa test cho TỰ ĐẶT trạng thái cờ nó cần (helper flag()/flags_off có sẵn
+trong tests/_flags.py), KHÔNG nới assert; (B) lỗi thật của code khi cờ BẬT → KHÔNG sửa code, ghi vào báo cáo (file:dòng, kịch bản, đề xuất sửa).
+Nghiệm thu: chạy cả bộ 2 lần — mặc định (= như cũ) và FLAGMATRIX_ON=8 cờ soft → đỏ chỉ còn nhóm (B). Mỗi file test sửa một commit nhỏ.
+Nhánh cloud/v31-flagtest8. Báo cáo docs/RA_CLOUD_FLAGTEST8_2026-10-2x.md (bảng: test · nhóm A/B · cờ · cách sửa). XONG hộp thư.
+```
+
+#### C-M60-AUDIT (cloud-C — ưu tiên 3; Cấp 1 chỉ tài liệu)
+```
+M6.0 phần còn lại (docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 0 + kế hoạch V3.1 dòng M6.0): audit MỌI caller tạo job (ảnh / video / Claude /
+TTS / nhạc …: file:hàm, ai gọi — Dashboard nút nào, autopilot, CLI, nền) và MỌI đường ghi nội dung production theo vai dự kiến (Director, Storyboard,
+Video Prompt Artist, 3D, Sound, Editor, Continuity, Kỹ sư); đánh dấu đường nào "Kỹ sư (Claude Code) ghi nội dung production" (vi phạm hướng M6).
+Đề xuất check tự động cho sổ quyết định (`check_*` kiểu tests/test_decisions.py) — chỉ đề xuất. Profiling Dashboard KHÔNG làm ở cloud (cần máy chính).
+Kết quả docs/V3_1_M6_0_AUDIT_VAI_2026-10-2x.md, nhánh cloud/v31-m60-audit. XONG hộp thư.
+```
+
+#### C-FLAGFIX-PLAN (cloud-E — ưu tiên 1; Cấp 1 chỉ tài liệu)
+```
+Gói sửa 20 cờ nhóm "SỬA rồi bật/khóa" của docs/DANH_GIA_HIEU_QUA_CO_2026-10-21.md mục 4 (video_gate, two_tier_quality, motion_consistency_lint,
+change_review, director_rewrite, chat_prompts, bg_autoqc, lip_sync, dialogue_take, end_frames, scene_qc, stage_auto, stage_handheld_props,
+stage_crew_user_approve, travel_truth, continuity_layout, hero_takes, audio_first, story_check, voice_check_redo) + 2 cờ nguy hiểm (scene_qc_claude,
+director_rewrite). Mỗi cờ: lỗi cụ thể (mã devsys/errors.json nếu có, file:hàm), gốc, cách sửa đề xuất, test ĐỎ→XANH dự kiến, tác động khi đang BẬT ở máy
+chính (cờ nào đang BẬT: xem bảng mục 3), có làm thêm điểm chặn / tốn tiền không, cấp quyền (Cấp 2 code / Cấp 3 đổi trạng thái), thứ tự ưu tiên
+(change_review "cổng mở khi Claude lỗi → job tự gửi" + hero_takes "tốn tiền mà không khai costs" lên đầu). Gom thành 2–3 GÓI để người dùng duyệt một lần.
+docs/KE_HOACH_SUA_20_CO_2026-10-2x.md, nhánh cloud/v31-flagfix-plan. XONG hộp thư.
+```
+
+## Việc theo quyết định EP 21/10 (sổ `v31-ep-*-2026-10-21`; kế hoạch V3.1 nhóm M7 + M6-A)
+Luật chung mọi gói (v31-ep-implementation-rules-2026-10-21): test ĐỎ→XANH, bằng chứng thực thi, acceptance criteria, rollback, rủi ro mở trong báo cáo;
+cờ mới TẮT (thêm vào tests/golden/package_inputs.json = false); KHÔNG đổi trạng thái cờ production, KHÔNG API trả phí, KHÔNG sửa dữ liệu EP đã khóa.
+
+#### C-M71 (cloud-E — ưu tiên 0) — M7.1 Gói A sửa cờ (Cấp 2 đã duyệt)
+```
+Theo docs/KE_HOACH_SUA_20_CO_2026-10-21.md mục 1 (A1, A2, A3, A5) + bằng chứng docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 2.4.3 (B3, B5):
+A1 change_review: rà lỗi (Claude lỗi / timeout / trả rỗng) → cổng ĐÓNG (giữ job, ghi diag có mã), không tự gửi (G35); vòng với director_rewrite qua
+   core/prompt_rewrite.py:500. A2 hero_takes: khai costs + ước tính đúng ở before_run (không còn 0 USD). A3 director_rewrite: cờ con
+   director_rewrite_respect_lock (verified False) — trường người dùng đã sửa/khóa: Đạo diễn chỉ ĐỀ XUẤT, không ghi đè (dùng write guard M2.5 nếu đã
+   trên main, không thì kiểm provenance hiện có). A5 chat_prompts: kiểm gói có D6 + xử lý lỗi hết tiền rõ ràng. KHÔNG làm A4 (tắt scene_qc_claude = Cấp 3).
+Cờ TẮT / hành vi cũ giữ byte (test). Nhánh cloud/v31-m71. Báo cáo docs/RA_CLOUD_M71_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M72 (cloud-C — ưu tiên 1, SAU C-FLAGTEST8) — M7.2 baseline cờ + effective config + reset an toàn
+```
+Theo sổ v31-ep-k4-k6-flag-baseline-reset-2026-10-21 + docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 3 (thứ tự F): tệp baseline trong git (vd data/flag_baseline.json —
+trạng thái cờ sản xuất) CHỈ áp khi môi trường CHƯA có data/feature_settings.json; thứ tự REMOVED → khóa → 🧪 → preset → env → baseline có bảo vệ → mặc định;
+bảo vệ: không bật cờ costs / OPT_IN_ONLY, học việc tối đa trainee, bộ test tắt baseline (FEATURE_BASELINE_FILE rỗng). Thêm effective_config() + config_hash()
++ cảnh báo drift (cờ đã bật ở dự án trước nay tắt / máy khác hash khác) — nguồn "baseline" trong source()/why_state(). Công cụ --baseline-diff: trên máy
+chính phải ra 0 cờ đổi. Nút "↺ Bỏ mọi lựa chọn riêng" (dashboard/header.py ~732): preview thay đổi, xác nhận, sao lưu, khôi phục. Test bất biến: 0 cờ đổi khi
+có cấu hình riêng; 0 cờ costs bị bật trên máy trống. Nhánh cloud/v31-m72. Báo cáo docs/RA_CLOUD_M72_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M73 (cloud-E — ưu tiên 2) — M7.3 seedance_ref_groups + end_frames cùng chạy
+```
+Sổ v31-ep-k3-seedance-ref-groups-with-end-frames-2026-10-21. Gốc B4 (docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 2.4.3): core/end_frames.py:32 bỏ khung cuối ở
+tuyến ref của seedance_ref_groups. Sửa để shot đủ điều kiện khung cuối vẫn có khung cuối khi đi tuyến ref (theo khả năng model — nếu model tuyến ref không
+nhận khung cuối thì router M2.8/DP10 phải chọn tuyến khác hoặc báo REVIEW, không âm thầm bỏ). Test 47 ca nhóm A của seedance_ref_groups không được nới.
+Nhánh cloud/v31-m73. Báo cáo docs/RA_CLOUD_M73_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M75 (cloud-E — ưu tiên 4, chỉ tài liệu) — M7.5 bảng quyết định từng cờ Gói C
+```
+Sổ v31-ep-fb-fc-flag-packs-2026-10-21 (F-C): mỗi cờ Gói C (docs/KE_HOACH_SUA_20_CO_2026-10-21.md mục 3) — một dòng quyết định: nối / bỏ / giữ tùy chọn, hành
+vi production trước-sau, ai bị ảnh hưởng, chi phí, test, rollback. audio_first = TÙY CHỌN thử nghiệm cho workflow ưu tiên thoại (F-Q2). Trình EP duyệt từng dòng.
+docs/KE_HOACH_SUA_20_CO_2026-10-21.md thêm mục "6. Bảng quyết định Gói C", nhánh cloud/v31-m75. XONG hộp thư.
+```
+
+#### C-M61-M69 (cloud-E nhánh phụ — ưu tiên 3) — M6.1 Role Registry + M6.9 Continuity Validator SHADOW (Gói M6-A)
+```
+Sổ v31-ep-m6-pack-a-approved-2026-10-21. Theo docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 2a (data/crew_roles.json + core/crew.py CHỈ ĐỌC: vai, quyền
+đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang) và mục 5 (Continuity Validator: continuity_state + qc_evidence + định tuyến lỗi về vai
+chủ — SHADOW chỉ ghi). Cờ mới TẮT (crew_registry, continuity_validator). Không đổi đường ghi/gửi job. Nhánh cloud/v31-m61-m69. Báo cáo
+docs/RA_CLOUD_M61_M69_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M63 (cloud-C — ưu tiên 2, SAU C-M72) — M6.3 Generation Authorization SHADOW (Gói M6-A)
+```
+Sổ v31-ep-m6-pack-a-approved-2026-10-21 + v31-m6-generation-limits-policy-b-2026-10-21 + v31-ep-m6-self-repair-budget-40-2026-10-21. Theo
+docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 4: một hàm authorize(job) gọi NGAY trước provider.submit ở MỌI đường (ImageRunner/VideoRunner, autopilot,
+repair router, nút Dashboard) — SHADOW: chỉ ghi quyết định (cho phép / sẽ chặn + lý do: vượt 3 ảnh / 2 video mỗi shot tính chung, vượt ngân sách tự sửa
+40 % lượt đầu, 3 shot liên tiếp cùng mã lỗi, submit chưa rõ, đổi ý đồ/dữ liệu khóa, đổi model ngoài phạm vi) — KHÔNG chặn. Bộ đếm không reset khi sửa
+prompt / đổi model / restart. Cờ generation_authorization TẮT; giữ byte gói gửi (golden tổng hợp). Không đụng phần poll/submit claim M1.2/M1.3 ngoài
+một lời gọi shadow. Nhánh cloud/v31-m63. Báo cáo docs/RA_CLOUD_M63_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M74 (pool — ưu tiên 6) — M7.4 Gói B sửa cờ
+```
+Sổ v31-ep-fb-fc-flag-packs-2026-10-21 (F-B). Theo docs/KE_HOACH_SUA_20_CO_2026-10-21.md mục 2 + bằng chứng mục 2.4.3 (B2 dialogue_take/lip_sync, B7 release_gate
+không thấy final_black_freeze, B8 travel_truth vs stage_camera ưu tiên máy). two_tier_quality: nghiệm thu dự toán vs chi ±5 % tính đủ phát sinh + tiêu chí
+chất lượng (F-Q4). Mỗi cờ một commit + test. KHÔNG khóa cờ. Nhánh cloud/v31-m74 (hoặc codex/v31-m74). Báo cáo docs/RA_*_M74_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-GOLDEN4 (cloud-E — ưu tiên 0, TRƯỚC C-M71; mở khóa gộp M2)
+```
+Nghiệm thu golden lần 3 (docs/RA_CX21_GOLDEN3_CODEX_2026-10-21.md trên nhánh codex/v31-golden3) KHÔNG ĐẠT lần thứ 3 vì CÔNG CỤ, 0 CODE_MISMATCH:
+60/68 ca INSUFFICIENT_INPUT do worker bị chặn đọc data/skills (allowlist tools/golden_db_replay.py:_worker.allowed() liệt kê từng thư mục); 4 ca chuỗi
+source_job_id; replay_fixture() biến capture DATA_CHANGED không manifest thành INSUFFICIENT_INPUT. Lần 1 thiếu data/_plates3d, lần 3 thiếu data/skills →
+SỬA GỐC, không vá từng thư mục: cho worker ĐỌC mọi tệp dưới data/ của ref-root (chỉ đọc), MỌI lần đọc được ghi vào dependency manifest có sha (fingerprint),
+trừ danh sách cấm cứng: data/manifest.sqlite live (chỉ dùng bản snapshot), dashboard.env, *.env, tệp khóa/credential, data/backup/**; ghi/đổi/xóa/mạng/
+subprocess vẫn chặn như cũ. replay_fixture giữ nguyên phân loại DATA_CHANGED của capture. Kiểm lại 4 ca source_job_id (in chuỗi id bị đứt).
+Test ĐỎ→XANH: worker đọc data/skills/x.json → có trong manifest; đọc dashboard.env → bị chặn; DATA_CHANGED giữ qua replay. Làm TRÊN nhánh tích hợp:
+tách cloud/v31-golden4 từ origin/cloud/v31-m2-tichhop (công cụ C-GOLDEN2 chỉ có ở đó). Báo cáo docs/RA_CLOUD_GOLDEN4_2026-10-2x.md kèm lệnh chạy lại.
+XONG hộp thư → codex chạy nghiệm thu lần 4 (CX21-GOLDEN4) trên cloud/v31-golden4.
+```
+
+#### C-DEVSYS-MAPS (cloud-C nhánh phụ — ưu tiên 1; người dùng yêu cầu 21/10: "vẽ thêm 3 sơ đồ này vào AI dev sys để theo dõi cụ thể chi tiết sự thay đổi")
+```
+Ba sơ đồ 17/10 hiện là SVG vẽ TAY từ dữ liệu cứng: docs/so_do/gen_dashboard.py (SO_DO_DASHBOARD — màn → nút → khâu, tiện/lỏng/thiếu),
+docs/so_do/gen_hien_trang_khau.py (SO_DO_HIEN_TRANG_KHAU — khâu L1–L16 × kiểm trước tiền / kiểm sau / kết luận từ / lỗi · kế hoạch),
+docs/so_do/SO_DO_TRUONG_CAU_TRUC_2026-10.svg (luồng trường JSON BYĐ → khâu đọc → gói gửi → hồi quy). Làm thành trang AI Dev System 8502 SỐNG, như trang
+"🗺 Sơ đồ tiến độ" (devsys/app.py page_plan_map + devsys/plan_map.py — học cách vẽ SVG + màu theo dữ liệu):
+1. Dữ liệu tách khỏi code: devsys/pipeline_maps.json — mỗi ô (nút Dashboard / ô khâu / nút trường) có: nhãn, mô tả, khâu (L…), mã việc kế hoạch liên quan
+   (M4.7, M4.8, M2.1, A2a…), cờ liên quan, và "bằng chứng" máy kiểm được (file + tên hàm/nút phải tồn tại; cờ phải BẬT hiệu lực). Khởi tạo từ dữ liệu cứng
+   2 tệp gen_*.py + SVG trường cấu trúc (giữ đúng nội dung 17/10 làm MỐC).
+2. Màu TÍNH, không tô tay: xanh = bằng chứng có + cờ hiệu lực BẬT (devsys.stages effective / core.features.state) + việc kế hoạch ✅; vàng = có code nhưng cờ
+   TẮT / chỉ người / chỉ theo nút; đỏ = thiếu (không có nút / hàm / kiểm); tím = việc kế hoạch đang làm sửa ô này. Lỗi mở theo khâu từ devsys/errors.json.
+3. Theo dõi THAY ĐỔI: mỗi lần dựng ghi ảnh chụp trạng thái ô vào devsys/data/pipeline_maps_history.jsonl (thư mục data devsys, không vào git — như
+   user_answers); tab "Thay đổi" liệt kê ô đổi màu so với lần trước và so với MỐC 17/10: ngày, ô, màu cũ → mới, lý do (việc ✅ nào / cờ nào bật / commit nào
+   qua git log tệp bằng chứng). Có bộ lọc theo khâu.
+4. Trang mới "🧭 Sơ đồ dây chuyền" (4 tab: Làm phim qua Dashboard · Hiện trạng khâu · Trường cấu trúc · Thay đổi) + lệnh xuất SVG
+   `py -m devsys.pipeline_maps <thư mục>`. Không đọc data/ sản xuất ngoài trạng thái cờ (như stages); không ghi CSDL.
+Test ĐỎ→XANH: ô có bằng chứng + cờ bật → xanh; tắt cờ → vàng; xóa hàm bằng chứng → đỏ; đổi việc kế hoạch ⬜→✅ → lịch sử ghi 1 dòng thay đổi; mốc 17/10 dựng lại
+đủ số ô của 3 SVG cũ. Khai devsys/areas.json. Nhánh cloud/v31-devsys-maps. Báo cáo docs/RA_CLOUD_DEVSYS_MAPS_2026-10-2x.md kèm ảnh SVG xuất. XONG hộp thư —
+phiên chính kiểm trên 8502 máy chính (khởi động lại 8502) rồi gửi ảnh người dùng.
+BỔ SUNG người dùng 21/10 (sơ đồ "Làm phim qua Dashboard" theo DỰ ÁN THẬT):
+5. Ghi từng bước bấm: dashboard ghi sự kiện thao tác nhẹ (cờ mới ui_step_log, TẮT mặc định; một hàm chung gọi ở các nút chính của step1–step5: dự án, màn,
+   nút, thời điểm, kết quả ok / cảnh báo / lỗi + mã lỗi) vào bảng/tệp sự kiện chỉ-thêm (ưu tiên dùng diag_events sẵn có với kind='ui_step'; không đổi
+   hành vi nút, lỗi ghi log không được làm hỏng nút). Lệnh CLI làm thay Dashboard (tools/stage_auto.py, stage_previs.py, replay_payload.py, sửa CSDL bằng
+   script) ghi sự kiện kind='cli_step' (công cụ, dự án, việc).
+6. Trên sơ đồ, chọn một DỰ ÁN (#31, #33…): ô nút tô theo sự kiện thật của dự án đó — có cảnh báo/hold → VÀNG kèm số lần + câu cảnh báo mới nhất (tooltip);
+   lỗi / bỏ qua cổng / gen lại vượt trần → ĐỎ kèm mã lỗi (devsys/errors.json); chạy ổn → xanh. Ô không ai bấm → xám. Mỗi sự kiện cli_step cho việc thuộc
+   một khâu Dashboard → VẼ THÊM nút ảo nét đứt "THIẾU NÚT: <việc>" gắn vào đúng cột màn + đường nối từ ô ngoài-Dashboard, đếm số lần phải làm ngoài.
+   Khung cảnh báo trên đầu trang: các ô đỏ/vàng của dự án đang chọn.
+Test thêm: sự kiện hold ở nút Gen ảnh → ô vàng; lỗi → đỏ; cli_step stage_auto → xuất hiện nút ảo nét đứt ở cột STORYBOARD; cờ ui_step_log TẮT → Dashboard không
+ghi gì (byte giống). Đọc CSDL thật chỉ bằng mode=ro.
+```
+
+#### C-M72-FIX (cloud-C — ưu tiên 0, trên cloud/v31-m72) — 2 lỗi rà kỹ phiên chính 21/10
+```
+1. TRUNG BÌNH core/features.py:946-954 save_settings gieo baseline_state(k) vào tệp 🧪 ở lần lưu đầu mà không xét env/preset → env FEATURE_X=0 bị đè thành on;
+   preset stable/experimental lần đầu cũng bị đè. Sửa: chỉ gieo khi source(k) == "baseline"; bỏ gieo khi preset truyền vào là stable/experimental.
+   Test: máy mới + FEATURE_X=0 + baseline X=on, lưu cờ khác → state(X) == "off"; lưu đầu preset="stable" → cờ chưa verified off.
+2. THẤP core/features.py:1558-1560 restore_settings: 30 bản sao lưu + khôi phục bản cũ nhất → backup_settings() dọn mất chính bản đó → FileNotFoundError.
+   Sửa: ghi raw đã đọc ra tệp tạm (không copyfile(real)) hoặc không xóa real khi dọn. Test: 30 bản, khôi phục bản cũ nhất thành công, nội dung khớp.
+Commit trên cloud/v31-m72, cập nhật báo cáo, XONG hộp thư (mã C-M72-FIX). Ghi chú: tệp data/flag_baseline.json chỉ tạo ở máy chính bằng
+py -m core.features --baseline-capture SAU khi gộp (phiên chính làm, Cấp 3 nhẹ: có diff 0 cờ đổi).
+```
+
+#### C-GOLDEN5 (cloud-C — ưu tiên 0, TRƯỚC C-M74) — công cụ golden so A/B (EP duyệt 21/10)
+```
+Sổ v31-ep-golden-ab-acceptance-2026-10-21. Tách từ origin/cloud/v31-golden4 (công cụ C-GOLDEN2 + C-GOLDEN4). Thêm chế độ --ab: với MỘT snapshot CSDL + ref-root
+chỉ đọc + MỘT file cờ (baseline_flags sản xuất + experimental_flags cờ mới V3.1 = false), dựng gói gửi (đúng hàm ImageRunner/VideoRunner._build_package +
+pregen_fingerprint) cho mọi scene có job ảnh/video của các dự án chỉ định bằng HAI cây code: --code-a <thư mục worktree main> và --code-b <worktree M2 tích hợp>;
+mỗi bên chạy worker cách ly như hiện có (đọc data/ có fingerprint, cấm ghi/mạng). So byte gói A vs B từng ca: SAME / DIFF (in trường lệch đầu tiên, không in
+prompt đầy đủ) / BOTH_FAIL (cả hai không dựng được — ghi riêng) / ONE_FAIL (chỉ một bên lỗi — tính như DIFF). Kết quả JSON + bảng theo dự án; ĐẠT = 0 DIFF,
+0 ONE_FAIL. So lịch sử giữ nguyên làm cột tham khảo. Test ĐỎ→XANH bằng 2 cây code tổng hợp (giống / khác một dòng prompt / một bên lỗi). Ghi lệnh chạy
+mẫu cho máy chính (git worktree add main + m2-tichhop). Nhánh cloud/v31-golden5. Báo cáo docs/RA_CLOUD_GOLDEN5_2026-10-2x.md. XONG hộp thư.
+```
+
+## CHUYỂN VIỆC KHI LÀN CHẠM GIỚI HẠN (người dùng 21/10)
+Làn sắp chạm giới hạn: push nhánh dở + HANDOFF.md + tin hộp thư "DỪNG: <mã> dở ở <nhánh>@<sha>, còn lại …" TRƯỚC khi dừng. Phiên chính thấy việc đó đang
+chặn việc khác (ưu tiên 0 / có depends / đường găng) → giao lại ngay cùng mã cho làn khác hoặc tự làm nốt; làn nhận làm tiếp từ nhánh dở, không làm lại từ đầu.
+
+#### C-DEVSYS-MAPS-FIX (cloud-C — ưu tiên 1, sau C-GOLDEN5; trên cloud/v31-devsys-maps) — lỗi rà phiên chính 21/10
+```
+VỪA 1: core/ui_step.py:15 xếp skip vào warn — đề mục 6: bỏ qua cổng / gen lại vượt trần → ĐỎ kèm mã lỗi. Sửa skip → error, truyền error_code ở
+  dashboard/steps/step2.py:263 (gen ảnh khi cổng chặn) + nhánh gen lại vượt trần. Test: bấm gen khi cổng chặn → ô sb.pregate ĐỎ.
+VỪA 2: ui_step gọi diag.record (thử lại 3 lần × timeout 60 s) → CSDL khóa làm nút / stage_auto / stage_previs đứng tới ~3 phút. Sửa: kết nối riêng
+  PRAGMA busy_timeout ≈ 1000 ms, INSERT một lần, lỗi thì bỏ (ghi <db>.diag_lost.log). Test: giữ BEGIN IMMEDIATE → ui_step.cli trả < 2 s, không ném lỗi.
+VỪA 3: devsys/pipeline_maps.json ô sb.stage3d khai cờ stage_view_ui (chưa có trong core/features.py — nhánh C-STAGE-VIEW chưa gộp) → dùng tên cờ đúng hoặc
+  đánh dấu "chờ C-STAGE-VIEW"; siết test_real_map_builds_and_everything_named_exists: assert not m["unknown_flags"].
+THẤP: stage_previs --plan-only không ghi cli_step; stage_auto/stage_previs ghi kết quả SAU khi chạy (lỗi → error); replay_payload chỉ kiểm cờ máy chính
+  (_main_flag_on) rồi ghi diag; tools/audit_run.py:475 + tools/kld_round_stats.py:86 lọc ui_step/cli_step; bằng chứng quá chung (send_preview_ui.py|video,
+  final_qc.py|popup, dashboard/**|Gen ảnh) → tên hàm / key nút cụ thể; ghi rõ trong báo cáo 13/49 ô 'loose' tay.
+XONG hộp thư (mã C-DEVSYS-MAPS-FIX).
+```
+
+#### C-M210-DESIGN (cloud-E — ưu tiên 1 sau C-M71; chỉ tài liệu + code SHADOW cờ TẮT) — M2.10 gói gửi tối giản
+```
+Người dùng 21/10: prompt hiện quá dài (ảnh #31 TB 5.380 ký tự / ~940 từ, #33 11.059 ký tự; video 3.000–4.000 ký tự), gói ảnh TB 6 ref (character 2,9 · place_render
+1,3 · object · character_form · previous_scene · atmosphere), video TB 5,6 ref tới 15, có start_frame NHƯNG vẫn gửi lại character/location (9 ref trùng sha).
+Mẫu Weave Canvas (Deepix): khung storyboard ~60 từ gọi "Figure 1/Figure 2"; video 1 câu ("Use frame 1 as start, frame 2 as end…", "They happily hug each other.").
+Đầu vào số liệu: docs/data/goi_gui_31_33_2026-10-21.md (phiên chính trích từ gói thật — đọc trước). Tài liệu chính thức: docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md,
+knowledge/reference_assets_prompting.md (Seedance 2.5: mỗi tài sản một dòng vai trò + thứ KHÔNG lấy; có video ref thì không tả lại động tác; Kling <<<image_N>>>).
+Làm 2 phần:
+(1) docs/KE_HOACH_GOI_GUI_TOI_GIAN_2026-10-2x.md — CÁCH DÙNG KẾT HỢP prompt + ref: bảng theo loại shot (ảnh khung đầu 1 người / nhiều người / có vật / đổi
+    skin-trang phục / đổi nền; video có khung đầu / khung đầu+cuối / video ref hành động) → bộ ref TỐI THIỂU (vai, thứ tự, giới hạn số theo model), câu vai
+    trò mẫu, thân lệnh 2–4 câu, câu nào trong builder hiện tại (prop lock, plate_view_sentence, back_view, câu vị trí M3.3, ghi chú tóc/áo, câu 'chỉ gợi')
+    GIỮ (ảnh không thay được) / BỎ (trùng ảnh) / ĐỔI thành dòng vai trò; quy tắc đổi skin/nền giữa cảnh = thay 1 ref + 1 dòng; tiếng Việt → dịch ngắn hay gửi
+    thẳng (đề xuất thử); rủi ro (3 người, ảnh trang phục lẫn tóc, model bỏ qua ref không gọi tên) + chốt an toàn; chỉ số đo (độ dài, số ref, phủ BYĐ, tỉ lệ
+    đạt lần đầu).
+(2) core/lean_package.py SHADOW (cờ lean_package TẮT, verified False): từ BYĐ v2 + refs đã chọn → dựng gói tối giản bên cạnh gói thật, ghi so sánh (độ dài,
+    ref bỏ/giữ + lý do, trường BYĐ nào không còn được nói) vào diag/tệp — KHÔNG gửi, không đổi gói thật (golden byte giữ). Test ĐỎ→XANH theo các loại shot.
+Nhánh cloud/v31-m210. Báo cáo docs/RA_CLOUD_M210_2026-10-2x.md. XONG hộp thư — phiên chính chạy shadow trên #31/#33 thật rồi trình EP A/B (Cấp 3).
+```
+
+#### C-M81 (pool — ưu tiên 2; Cấp 1 tài liệu) — M8.1 audit thao tác + thiết kế CHẾ ĐỘ ĐƠN GIẢN
+```
+Người dùng 21/10: Dashboard dành cả cho người ÍT kiến thức video AI → tối giản, tối ưu nút + thao tác. Đọc dashboard/steps/*, dashboard/header.py, sơ đồ
+docs/so_do/SO_DO_DASHBOARD_2026-10-17.svg + gen_dashboard.py (màn → nút → khâu), devsys/pipeline_maps.json (nhánh cloud/v31-devsys-maps nếu chưa gộp).
+Ra docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-2x.md: bảng mọi nút (màn, tên, khi nào cần, ai dùng, tốn tiền?) → GIỮ / GỘP / ẨN (chế độ Chuyên gia) / TỰ ĐỘNG;
+luồng 4 bước cho người mới (ý tưởng → duyệt kịch bản → duyệt ảnh → duyệt video → tải bản giao) với ít quyết định nhất; đổi thuật ngữ sang chữ thường
+(BYĐ, plate, ref, motion… → giải thích 1 dòng); mặc định an toàn (không tốn tiền khi bấm nhầm, xác nhận + giá trước khi gen); cảnh báo dễ hiểu thay mã lỗi;
+bản vẽ màn (ASCII/SVG); chỉ số đo (số cú bấm tới video đầu tiên, số quyết định, thời gian). Không code. Nhánh cloud/v31-m81. XONG hộp thư — phiên chính trình EP.
+```
+
+#### C-GOLDEN6 (cloud-C — ưu tiên 0, đường găng) — negative control của --ab không bắt được thay đổi cây B
+```
+Codex chạy A/B (docs/RA_CX21_GOLDEN5_CODEX_*.md trên nhánh codex/v31-golden5): 158 ca #24/#27/#31/#33 → SAME 127 · DIFF 0 · ONE_FAIL 0 · BOTH_FAIL 31 — NHƯNG
+negative control native ĐỎ: sửa một dòng sent_package.py ở cây B mà công cụ vẫn ra DIFF + ONE_FAIL = 0 (assert ((0 + 0) >= 1)). Tức có thể worker KHÔNG nạp code
+của --code-b (import core/ từ cây khác / sys.path / cache .pyc / _plain(name, …) kiểm chữ ký sau worker — xem dòng 62 báo cáo). Tìm gốc, sửa để mỗi bên nạp
+ĐÚNG cây code của nó (in đường dẫn module core.runner / core.sent_package thật đã nạp vào kết quả mỗi ca), negative control native xanh (sửa 1 dòng builder
+cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BUILT 29, NO_SENT 6…) ghi lý do theo nhóm. Trên nhánh cloud/v31-golden5 (commit mới),
+báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
+```
+
+#### C-M48-DESK-CORE (cloud-E — ưu tiên 1; Cấp 2 đã duyệt: sổ v31-ep-stage-desk-actions-2026-10-21 S-A…S-G; cloud-claude giao 22/10) — Bàn đạo diễn 3D Đợt 1, tầng lõi
+```
+Theo docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md mục 0, 2, 4, 5, 7, 9, 10, 13 (Đợt 1, 0 USD). NỀN NHÁNH: write guard (M2.5) mới có trên
+cloud/v31-m2-tichhop (chưa gộp main — chờ golden) → tạo cloud/v31-m48-desk-core từ origin/cloud/v31-m2-tichhop + merge origin/main mới nhất (xung đột
+features.py/areas.json/package_inputs.json: tools/merge_union.py). Làm: core/stage_desk.py MỚI (status theo cảnh, khóa S, một luồng nền mỗi dự án, xếp hàng
+Blender qua plates3d.blender_turn, tiến độ ra <data>/<pid>/stage/desk_progress.json) + stage_auto.apply(..., who=None) ghi qua write_guard.write_scene (SHADOW,
+expected_rev, giữ _user_locked) + run(manual) + hàm cho nút N1–N11 TRỪ N13 (không gọi Claude API, không tiền) + sổ quyết định (S-B chỉ EP duyệt sân khấu; S-C
+plate 3D bắt buộc chưa duyệt → HOLD/xác nhận ngoại lệ trước gen trả phí; S-D chia vai lại = hỏi + preview + stale đúng phụ thuộc) có check_* kiểm được.
+Cờ: KHÔNG thêm cờ UI (việc C-M48-DESK-UI); nếu cần cờ lõi thì TẮT, verified False. Test 1–10, 12–13 của mục 10 (Blender giả). KHÔNG sửa dashboard/
+(trừ không gì) — API công khai của stage_desk ghi rõ ở đầu module + báo cáo để C-M48-DESK-UI gọi. Báo cáo docs/RA_CLOUD_M48_DESK_CORE_2026-10-2x.md.
+Gộp main CÙNG tích hợp M2 khi golden ĐẠT. XONG hộp thư.
+```
+
+#### C-M48-DESK-UI (cloud-D — ưu tiên 2; song song C-M48-DESK-CORE, không chồng file; cloud-claude giao 22/10) — Bàn đạo diễn 3D Đợt 1, giao diện
+```
+Theo cùng kế hoạch mục 3, 4, 9, 10, 12 (Đợt 1). Nhánh cloud/v31-m48-desk-ui từ origin/main (stage_view_ui đã gộp). Làm dashboard/stage_desk_ui.py MỚI: hàng
+nút trong expander từng cảnh của màn XEM (dashboard/stage_view_ui.py gọi MỘT dòng ở cuối expander, chỉ khi cờ stage_desk_ui BẬT); nút N1–N11 trừ N13 theo
+bảng mục 4 (duyệt / trả lại + lý do / làm lại / ảnh ghép / render lại / render nền / đề bài ngoại tuyến), mỗi nút gọi hàm của core/stage_desk (API đặt theo
+mục 4 kế hoạch; khi C-M48-DESK-CORE chưa có thì gọi qua lớp mỏng có thể thay — test bằng stub). Hiện tiến độ đọc desk_progress.json, khóa nút khi đang chạy,
+xác nhận trước thao tác đổi dữ liệu; quyền: chỉ EP thấy Duyệt (S-B). Cờ MỚI stage_desk_ui: TẮT, verified False, KHÔNG costs, REQUIRES ("stage_view_ui",),
+thêm vào core/features.py + tests/golden/package_inputs.json (false) + devsys/areas.json (khu step2). Test AppTest: cờ TẮT → màn XEM giống byte (test
+tests/test_v31_stage_view.py vẫn xanh, không st.button); cờ BẬT → đủ nút, bấm gọi đúng hàm stub, không gọi Claude/không ghi CSDL ngoài hàm lõi. Báo cáo
+docs/RA_CLOUD_M48_DESK_UI_2026-10-2x.md (ảnh chụp màn Playwright nếu được). XONG hộp thư.
+```
+
+#### C-FIX4 (cloud-C — ưu tiên 1, TRƯỚC phần còn lại C-M83-TOOL nếu kịp; cloud-claude 22/10 06:5x sau rà kỹ C-FIX3-THAP-B) — nút "✓ Đã sửa" gọi Claude không báo giá
+```
+core/change_review.py ~699-705 (sau C-FIX3-THAP): bấm "✓ Đã sửa" trên mục rà LỖI (review_fail) âm thầm gọi rerun_failed → đưa lần sửa về chờ rà + tốn tiền
+Claude, không ước tính / không báo trước (trái CHUAN_XAY_DUNG "mọi lời gọi tốn tiền qua sổ chi + ước tính trước"). Sửa: với mục review_fail, nút hiện rõ
+"🔁 Rà lại — ≈ X USD" (ước tính qua cost.llm_estimate stage change_review, như nút Rà lại sẵn có) hoặc ẩn "✓ Đã sửa" cho loại mục này; giữ "Bỏ qua". Test giao
+diện (AppTest) + test không gọi rerun_failed khi chưa xác nhận. Nhánh cloud/v31-fix4 từ main. XONG hộp thư.
+```
+
+#### C-FIX3-THAP-B (cloud-C — ưu tiên 1, TRƯỚC C-M83-TOOL; cloud-claude 22/10 05:2x) — rà kỹ C-FIX3-THAP: CHƯA GỘP, sửa trên CÙNG nhánh cloud/v31-fix3-thap
+```
+Agent rà kỹ: mục (1) mở lại kịch bản "CAO 1" — thả job có thay đổi SCENE chưa ai rà. core/change_review.py ~523-525 (cờ motion TẮT → motion 'failed' thành
+skipped) + câu `done` trong _hold_failed ~594 + _LAST_OK ~580. Đường đi: cờ motion BẬT; một nhóm rà cùng shot có scene #10 + motion #11 cùng lỗi (timeout) →
+cả hai failed, mục ĐỎ gắn event mới nhất #11 (motion); người sửa scene tiếp → #12 rà đạt (#12.before đã là trạng thái sau #10 nên Claude không thấy #10); trên
+main mục #11 vẫn giữ (đúng). Tắt cờ motion → #11 skipped → mục đóng; tìm lỗi scene mới đòi id > _LAST_OK = 12 nên #10 không sinh mục mới → cổng mở, job tốn
+tiền đi dù #10 chưa rà. Sửa (chọn một): chỉ đổi motion failed → skipped khi CÙNG shot không còn scene failed id nhỏ hơn; HOẶC chuyển mục ĐỎ sang event scene
+failed mới nhất của nhóm thay vì đóng. Test đỏ→xanh đúng kịch bản trên (qua process_pending thật). Phụ: dọn mkdtemp trong test (2); _usd_of_jobs giả trả []
+khi id rỗng → làm chắc. Commit mới trên cloud/v31-fix3-thap, cập nhật báo cáo, XONG hộp thư mã C-FIX3-THAP-B.
+```
+
+#### C-FIX3-THAP (cloud-C — ưu tiên 3; việc NHỎ; cloud-claude giao 22/10 sau rà kỹ C-M71-FIX + C-M63-FIX2) — 3 lỗi THẤP còn lại
+```
+Nhánh mới cloud/v31-fix3-thap từ main, test đỏ→xanh:
+1. core/change_review.py ~521 + _blocking ~658: cờ change_review_motion TẮT chỉ đổi motion pending/code_only → skipped; mục ĐỎ review_fail của sự kiện motion
+   'failed' (Claude timeout) vẫn mở và vẫn chặn. Cờ tắt → đóng cả mục review_fail của sự kiện motion (hoặc đổi failed → skipped). Test chạy qua process_pending
+   với cờ TẮT (không UPDATE tay như test_failed_finding_closes_when_its_event_is_skipped).
+2. tests/test_v31_m71_fix.py ~39-43 chỉ dò mã nguồn: thêm test chạy rewrite() thật — client giả ném out_of_credit ở job nguồn A, job nguồn B vẫn gọi Claude;
+   + test saved_view (chat_prompt.py ~353).
+3. core/gen_auth.py ~233-237: job leader scene_id NULL có sent_group bị bỏ khỏi cả lượt đầu lẫn làm lại → tính theo shot thành viên như trước + test.
+Báo cáo docs/RA_CLOUD_FIX3_THAP_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M63-FIX2 (cloud-D — ưu tiên 2; việc NHỎ ≤ 30 lượt gọi; cloud-claude giao 22/10 sau RÀ KỸ C-M63-FIX) — lỗi rà C-M63-FIX (đã gộp main)
+```
+Agent rà kỹ (0 CAO). Nhánh mới cloud/v31-m63-fix2 từ main, test đỏ→xanh:
+1. VỪA core/gen_auth.py ~114-117 + _repair_budget ~189-193: attempts() UNION 2 nhánh quét TOÀN bảng jobs (bảng jobs KHÔNG có index — báo cáo M63-FIX ghi sai
+   "dùng chỉ mục"), gọi cho từng cặp (shot, loại) trong SPEND_LOCK → chậm hơn trước. Sửa: đọc jobs/sent_group của dự án MỘT lần trong _repair_budget (không thêm
+   migration/index CSDL thật — index = Cấp 3); sửa câu trong docs/RA_CLOUD_M63_FIX_*.md.
+2. THẤP core/end_frames.py ~467: `kwargs.get("model") or _usage_model(provider)` tính trước khi kiểm cờ → gọi thêm provider.usage_info() khi cờ TẮT; bọc
+   `if gen_auth.enabled():` như experiments.
+3. THẤP core/quality_samples.py ~159: shadow_send nằm NGOÀI try sau _save(state="sending") → nếu ném lỗi, mục kẹt "sending" + tính vào trần 4 USD; chuyển vào try.
+4. THẤP core/gen_auth.py ~195-196 repair_ids = set(repair) − set(first_ids): clip nhóm gửi lại của A mà là lượt đầu của B bị tính vào first → ngân sách phình
+   40 %; xếp vào bên làm lại (thận trọng tiền) + test.
+5. THẤP _busy ~388 chỉ xem scene_id → bỏ sót clip nhóm đang chạy chứa shot này (runner có _group_inflight ~1921) — dùng lại.
+6. THẤP test: tests/test_v31_m63_gen_auth.py — autoqc test gán tuple vào _codes (thật là chuỗi) + để lại autoqc._errors[78/79] toàn cục (dọn trong teardown);
+   end_frames test gọi shadow_send trực tiếp — thêm một test chạy qua đường gửi thật với provider giả, cờ BẬT.
+Báo cáo docs/RA_CLOUD_M63_FIX2_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M71-FIX (cloud-E — ưu tiên 1; cloud-claude giao 22/10 sau RÀ KỸ đợt gộp tich-hop-2210) — lỗi rà M71 (đã gộp main)
+```
+Agent rà kỹ 22/10 (0 CAO): sửa trên nhánh mới cloud/v31-m71-fix từ main, test đỏ→xanh từng mục:
+1. VỪA core/chat_prompt.py:279-296: QUOTA_KEY dùng chung → một dự án báo out_of_credit làm D6 dừng 600 s cho MỌI dự án (kể cả dự án có Claude riêng còn
+   tiền, M1.4b) → gửi bản code ghép. Khóa theo nguồn Claude của dự án (vd chat_prompt_quota:<khóa client/provider> hoặc :<project_id> nếu client theo dự án).
+2. THẤP core/change_review.py ~529 + _hold_failed ~190: tắt change_review_motion → process_pending đổi motion code_only (kể cả dòng hết tiền) sang skipped,
+   mục ĐỎ chỉ tự đóng khi e.state='reviewed' → kẹt tới khi người bấm Bỏ qua; rà lại ra skipped (keys rỗng) cũng kẹt. Tự đóng mục khi sự kiện của nó skipped.
+3. THẤP core/change_review.py 526-536: nhánh client_for — nhóm code_only của dự án KHÔNG có Claude bị continue nhưng vẫn ăn suất LIMIT 5 → ≥ 5 nhóm id nhỏ
+   như vậy làm nhóm hết tiền của dự án CÓ Claude không bao giờ tới lượt. Lọc trước khi áp LIMIT.
+4. Ghi chú: data/flag_baseline.json (M7.2) ghi hero_takes / scene_qc_claude on; nay costs:True → _guarded hạ OFF trên máy MỚI (chưa có tệp 🧪). Đúng thiết kế;
+   ghi rõ vào báo cáo + đề xuất chụp lại baseline (KHÔNG tự đổi cờ production).
+5. Rò tệp test: tests/test_v31_dp12_pilot_a.py (qua core/seedance_refs ref_padded) ghi data/ref_padded/*_pad.png vào data/ THẬT của repo khi chạy cả bộ → test phải ghi vào thư mục tạm (tmp_path / DATA_DIR giả); test đỏ: chạy test rồi kiểm repo data/ref_padded không có tệp mới.
+Báo cáo docs/RA_CLOUD_M71_FIX_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M83-TOOL (cloud-E — ưu tiên 2; Cấp 1 công cụ đo, 0 USD; cloud-claude giao 22/10) — công cụ đo tải 10 người cho M8.3 (lượt đo thật = máy chính)
+```
+Kế hoạch V3.1 M8.3: "10 phiên trình duyệt tự động mở dự án, xem, duyệt, bấm gen (giả); đo thời gian vẽ từng màn, CPU/RAM tiến trình Streamlit, chờ khóa SQLite,
+luồng nền nhân bản theo phiên, khóa Blender, hàng đợi Claude CLI → bảng giới hạn". tools/load_test.py hiện chỉ đo autopilot (không có trình duyệt). Làm
+tools/load_test_ui.py (Playwright, Chromium có sẵn /opt/pw-browsers; executablePath nếu pin version khác; KHÔNG playwright install):
+1. Dựng CSDL TẠM giả (≥ 3 dự án × 20–40 shot, ảnh giả nhỏ) hoặc --db <bản sao> (mở mode=ro → backup vào thư mục tạm, như tools/scene_layout_audit.py);
+   khởi Streamlit dashboard trên cổng riêng với provider GIẢ (MOCK, độ trễ giả) — tuyệt đối không khóa API / không gọi trả phí.
+2. N phiên (1, 2, 5, 10 mặc định) song song: mở Trang chủ → dự án → Bước 2 (xem thẻ, duyệt 1 ảnh) → Bước 4 (xem) → bấm Gen giả; mỗi bước đo thời gian tới khi
+   màn ổn định (không còn spinner / "Running").
+3. Đo phía server: CPU/RAM tiến trình Streamlit (psutil), số luồng, thời gian chờ khóa SQLite (bọc connect/execute bằng bộ đếm qua biến môi trường đo),
+   số luồng nền theo phiên.
+4. Ra bảng markdown + JSON: p50/p95 từng màn theo N, CPU/RAM đỉnh, khóa SQLite, ngưỡng "chậm" (màn chính > 2 s) xuất hiện ở N nào, khâu nghẽn.
+5. Test nhanh (không trình duyệt): dựng CSDL giả + bộ tổng hợp số đo; test có trình duyệt đánh dấu slow.
+Không sửa dashboard/ (chỉ đo). Báo cáo docs/RA_CLOUD_M83_TOOL_2026-10-2x.md kèm số đo chạy thử trên cloud (ghi rõ: Linux cloud ≠ máy chính) + lệnh cho máy chính
+chạy lượt thật. Nhánh cloud/v31-m83-tool. XONG hộp thư.
+```
+
+#### C-GOLDEN7 (cloud-C — ưu tiên 0, đường găng; cloud-claude giao 22/10) — validator cờ của --ab dùng catalog CÂY CÔNG CỤ thay vì cây đang dựng
+```
+CX21-GOLDEN6 (docs/RA_CX21_GOLDEN6_CODEX_2026-10-22.md, nhánh codex/v31-golden6): negative control native XANH, nhưng lượt thật 158/158 BOTH_FAIL TRƯỚC worker,
+0 worker spawn. Gốc: build_from_database() (tools/golden_db_replay.py ~dòng 215) gọi validate_baseline_flags() / feature_catalog() của tools/golden_capture.py
+= catalog FEATURES của CÂY CÔNG CỤ (153 cờ), trong khi baseline phủ hợp A∪B (155 cờ; main có cờ mới gen_auth_shadow) → ValueError
+"experimental_flags cần list tên cờ duy nhất có trong catalog"; run_ab() nuốt lỗi đầu vào thành INSUFFICIENT_INPUT/BOTH_FAIL thay vì dừng mã 2.
+Sửa trên nhánh cloud/v31-golden5 (commit mới):
+1. Ở --ab (code_root có giá trị): validate + "thiếu cờ" theo catalog của CHÍNH cây đang dựng (_catalog(code_root), đã có cho _preflight); experimental hợp lệ khi
+   có trong catalog cây đó HOẶC trong hợp A∪B (cờ chỉ có ở một cây = TẮT ở cây kia là đúng nghĩa). Không --ab: giữ y nguyên.
+2. Lỗi cấu hình (validator / catalog) là lỗi PRECONDITION của cả lượt → run_ab dừng mã 2 với thông báo rõ, không gộp thành BOTH_FAIL từng ca.
+3. Test đỏ→xanh: hai cây giả, cây A có thêm một cờ (như gen_auth_shadow) mà cây công cụ không có → trước: mọi ca BOTH_FAIL; sau: dựng được cả hai bên; cấu hình
+   sai (cờ lạ không thuộc A∪B) → mã 2, không chạy ca nào. Giữ test negative control native.
+Báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN7". XONG hộp thư (mã C-GOLDEN7) — codex nhận CX21-GOLDEN7 sau đó.
+```
+
+#### C-M81B (pool — ưu tiên 1; Cấp 1 tài liệu) — bổ sung M8.1: KHI LỖI và KHI MUỐN ĐỔI ở chế độ Đơn giản
+```
+EP 21/10 hỏi: "khi lỗi gen ảnh / gen video người dùng đơn giản làm gì, vào thao tác ra sao? tối giản nhưng vẫn đổi được đầu vào / đầu ra theo ý". Bản M8.1
+(docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md) mới có "Vẽ lại / Làm lại + lý do bằng lời", thẻ lỗi 3 dòng, máy tự sửa trong trần M6. Thêm mục "8c. Khi lỗi và
+khi muốn đổi" vào CÙNG tệp:
+1. THẺ CẢNH thống nhất (ảnh + clip) với 4 nút cố định: "✔ Được" · "✍ Sửa bằng lời" · "🖼 Đổi ảnh tham chiếu" · "⋯ Khác" (bản cũ, bỏ cảnh, chế độ Chuyên gia).
+2. Khi LỖI (gen hỏng, bị nhà cung cấp từ chối, QC trượt, hết lượt tự sửa 3 ảnh / 2 video theo M6): thẻ "Chuyện gì — Máy đã thử gì — Bạn chọn" với 2–3 lựa chọn
+   kèm giá: (a) thử lại với góp ý (gõ lời), (b) đổi ảnh tham chiếu / đổi cách quay đơn giản hơn (máy đề xuất sẵn), (c) giữ bản tốt nhất hiện có, (d) báo kỹ thuật
+   (phiếu M6 lên Director/Kỹ sư). Bảng ánh xạ loại lỗi (devsys/errors.json + lỗi provider: kiểm duyệt người thật, hết tiền, timeout, Kho đầy, sai nhân vật,
+   đứng hình, lẫn tóc/áo…) → câu + lựa chọn. Hết lượt tự sửa: KHÔNG tự chi thêm, chỉ hiện lựa chọn.
+3. ĐỔI ĐẦU VÀO kiểu Weave Canvas: gắn 1 ảnh mới (trang phục / skin / nền / đạo cụ) vào cảnh + 1 dòng lời ("dùng áo này cho Kelly từ cảnh 3") → máy cập nhật
+   bộ ảnh tham chiếu + dòng vai trò (nối M2.10 gói gửi tối giản), đánh dấu cũ đúng các ảnh/clip phụ thuộc (S-D), báo giá vẽ lại. Đổi thoại / giọng / độ dài / góc
+   quay bằng lời → Đạo diễn sửa trường BYĐ, người thấy bản trước/sau trước khi chi. Dữ liệu người sửa → USER_LOCKED (sổ v31-ep-motion-prompt-user-locked).
+4. ĐỔI ĐẦU RA: chọn bản cũ (‹ ›), cắt ngắn clip, bỏ / đổi thứ tự cảnh, thay nhạc — 0 USD, không cần Chuyên gia.
+5. Đếm thao tác: lỗi → giải quyết ≤ 3 cú bấm; đổi skin/nền một cảnh ≤ 4 cú bấm (gắn ảnh + 1 câu + xem giá + đồng ý).
+Bản vẽ ASCII thẻ cảnh + thẻ lỗi. Không code. Xuất kèm PDF docs/pdf/M8_1_Che_do_Don_gian.pdf (pandoc → Chrome/Edge in PDF, như tools/build_docs.sh) để EP xem điện thoại.
+Nhánh cloud/v31-m81b. XONG hộp thư.
+```
+
+#### C-M63-FIX (cloud-C — ưu tiên 1) — lỗi rà phiên chính 22/10 (M6.3 + M7.4, đã gộp main)
+```
+VỪA (M6.3): gen_auth.shadow chưa phủ MỌI đường gửi tiền — các chỗ gọi slot.send(provider.submit…) thẳng: core/end_frames.py:466, core/quality_samples.py:162,171,
+  core/lipsync.py:281, core/scene_establish.py:336, core/costume.py:87, core/experiments.py:94 → gọi gen_auth.shadow({scene_id, type}) trước mỗi slot.send (shadow,
+  không chặn). Test: cờ BẬT, end_frames / quality_samples với provider giả → có dòng jsonl.
+THẤP (M6.3): attempts() (gen_auth.py:112) chỉ đếm scene_id — clip nhóm Seedance do shot đầu gửi không tính cho shot cùng nhóm → đếm thêm job có sent_group chứa
+  id shot; test shot đầu gửi 2 lần → shot cùng nhóm ATTEMPTS_EXHAUSTED. repair_budget N+1 truy vấn + nạp bảng giá mỗi lượt trong SPEND_LOCK → cache theo lượt.
+THẤP (M7.4): autoqc._codes không bao giờ xóa (clear_error autoqc.py:83 không ai gọi; clear_video_error :192 không xóa mã video) → sau một lần Claude dừng mọi lần
+  kẹt sau báo nhầm "Claude không dùng được" → xóa khi lượt chạy xong không lỗi / hết hạn theo RETRY_AFTER; test.
+Nhánh cloud/v31-m63-fix từ origin/main. XONG hộp thư.
+```

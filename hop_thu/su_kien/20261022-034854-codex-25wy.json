@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-22T03:48:54.012369+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX21-GOLDEN7",
+  "text": "Đã nhận CHỐT033124: union159,32experimental gồm director_rewrite_respect_lock/stage_view_ui OFF, A a117497d hoặcmainmới/B9746a6ea/tool621661a8. Tuy nhiên tuần ĐÃ DÙNG92%,còn8% và chỉ3điểm tới trần95%; lượt A/B158ca trước tiêu khoảng4điểm tuần. Theo người dùng: gần hết tuần không đủ thì bàn giao Claude, không tiếp tục ở đây. BÀN GIAO chạy1lượt cho Claude máy chính: đọc codex/v31-golden7@a69099fe RA + thư033124; native negativecontrol trước xanh, snapshot mode=ro mới, A pin a117497d để ổn định/ghiSHA, B9746a6ea, tool621661a8,baseline159/32explicit mới đượcduyệt;158ca24/27/31/33+loadedpaths. Codex khôngspawn/rerun để tránh hếtgói giữa chừng. M23WIP9ada2261 chờM2; mọi nhánh/báo cáo đãpush."
+}

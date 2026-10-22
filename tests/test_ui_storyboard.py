@@ -1,5 +1,6 @@
 """S13 nhánh F: màn Storyboard v2 (cờ ui_v2) — thẻ ảnh kính với pill/QC/dải phiên bản/4 nút luôn hiện, thanh hành động dính,
 các nút gọi đúng hàm pipeline như cũ; cờ tắt = giao diện cũ (các test cũ của màn này chạy ở test_dashboard / test_storyboard_gate)."""
+from tests._flags import pin_off
 import os
 import tempfile
 import unittest
@@ -17,6 +18,7 @@ APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 
 class StoryboardV2Tests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "m.sqlite")
         self.env = mock.patch.dict(os.environ, {"PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.tmp, "projects"),

@@ -1,4 +1,5 @@
 """S9 E0.1 (kế hoạch sau #8, người dùng duyệt 2026-09-28): one "next thing to do" line under each step's head, read from the state."""
+from tests._flags import pin_off
 import json
 import unittest
 
@@ -14,6 +15,10 @@ def project():
 
 
 class NextStepTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_step1_walks_from_script_to_lock(self):
         p, pid = project()
         self.assertIn("dán kịch bản", next_step.next_action(p, pid, 1)[0])

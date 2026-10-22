@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:47:03.680362+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M72-FIX",
+  "branch": "cloud/v31-m72",
+  "commit": "2c0852d6",
+  "report": "docs/RA_CLOUD_M72_2026-10-21.md",
+  "text": "2 lỗi rà kỹ đã sửa trên cloud/v31-m72 (test đỏ→xanh): (1) lần lưu đầu chỉ gieo cờ source=='baseline' — env FEATURE_X=0 không bị đè, chọn preset stable/experimental lần đầu không gieo; (2) khôi phục bản sao lưu cũ nhất khi đủ 30 bản: ghi tệp 🧪 từ nội dung đã đọc trước khi sao lưu (không còn FileNotFoundError). test_v31_m72 23 ca xanh; bộ đủ 6871 xanh, đỏ = 25 golden(3.14). Nhắc: data/flag_baseline.json chụp trên máy chính sau khi gộp. HẠN MỨC: không đọc được."
+}

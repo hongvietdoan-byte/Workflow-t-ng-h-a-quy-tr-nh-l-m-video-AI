@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T02:58:36.407687+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-M63-FIX2",
+  "to": "cloud-C",
+  "title": "Lỗi rà kỹ C-M63-FIX (attempts quét toàn bảng, 4 THẤP) — chuyển từ cloud-D (im >1 giờ, luật 5b)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M63-FIX2",
+  "priority": 2
+}

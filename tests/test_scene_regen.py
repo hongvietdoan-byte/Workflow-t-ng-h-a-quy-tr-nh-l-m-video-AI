@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -56,6 +57,7 @@ class SceneEditTests(unittest.TestCase):
 
 class RegenerateVideoTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.data = tempfile.mkdtemp()
         self.p = Pipeline(connect())
         self.pid = self.p.create_project("t", max_retry=1)
@@ -146,6 +148,7 @@ class RiskNoteTests(unittest.TestCase):
 
 class GeneratedAudioOptionTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.t = FakeTransport()
         self.p = ClipAIVideoProvider(TOKEN, "https://clipai.example", self.t)
         self.image = write(os.path.join(tempfile.mkdtemp(), "i.png"), b"\x89PNG-fake")

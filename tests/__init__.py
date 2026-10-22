@@ -14,6 +14,7 @@ os.environ.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")      # folder auto-sync 
 import core.features as _features  # noqa: E402
 
 _features._TEST_BYPASS = True
+os.environ.setdefault("FEATURE_BASELINE_FILE", "")             # M7.2: bộ test không đọc baseline cờ sản xuất (data/flag_baseline.json)
 os.environ.setdefault("FEATURE_PROJECT_BUDGET", "0")
 os.environ.setdefault("FEATURE_DIRECTOR_TWO_PASS", "0")
 os.environ.setdefault("FEATURE_DIALOGUE_TAKE", "0")

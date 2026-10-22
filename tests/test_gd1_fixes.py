@@ -1,5 +1,6 @@
 """Kế hoạch V4, GĐ1 — M16 (video fingerprint knows model + sound), M18 (price comparison keeps overrides / multi-shot),
 M19 (multi-shot is not measured by the prompt it does not send; each shot carries the "Avoid")."""
+from tests._flags import pin_off
 import os
 import tempfile
 import unittest
@@ -245,6 +246,10 @@ class TimedMusicTests(unittest.TestCase):
 
 class RecoverToolRelinkTests(unittest.TestCase):
     """`tools/recover_clips.py --relink`: the find-by-prompt recovery of the automatic run, for jobs written off earlier."""
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_the_tool_reopens_a_written_off_job_on_its_real_task(self):
         import sys
         from unittest import mock
@@ -269,6 +274,10 @@ class RecoverToolRelinkTests(unittest.TestCase):
 class RefusedThenSwitchedTests(unittest.TestCase):
     """M14: Seedance refused the shot, the shot was moved to Kling — and then nothing sent it again (a refusal is not a transient
     error). Now the new try is queued at once and goes out on Kling."""
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_the_switched_shot_is_sent_again_on_kling(self):
         from core import batch, model_router
         from core.providers import MockVideoProvider, ProviderError

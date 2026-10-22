@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from core import end_popup, ffmpeg_studio, shot_normalize
 from core.db import connect
@@ -40,10 +41,37 @@ class FoldPostOnlyTests(unittest.TestCase):
         self.assertFalse(shot_normalize.post_only({"characters": [], "action": "quảng trường vắng, gió thổi"}))
 
 
+# C-PORT4: subtitles.discover() chỉ quét thư mục font Windows (+ data/fonts, FONT_DIRS). Trên Linux không có font nào → PIL rơi về font
+# bitmap mặc định (vài điểm ảnh, không dấu) → dòng vàng chỉ còn 2 điểm. Máy không có font tiếng Việt trong discover(): chỉ cho test một
+# thư mục font hệ thống có dấu qua FONT_DIRS (đường cấu hình có sẵn); không có thư mục nào như vậy → bỏ qua test có lý do.
+_LINUX_VN_FONT_DIRS = ("/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/truetype/noto", "/usr/share/fonts/noto",
+                       "/usr/share/fonts/truetype/freefont", "/usr/share/fonts/dejavu")
+
+
+def _vn_font_dirs():
+    """None = discover() đã có font tiếng Việt (máy chính); '' = không tìm được; còn lại = giá trị FONT_DIRS cho test."""
+    from core import subtitles
+    if any(f.vietnamese for f in subtitles.discover()):
+        return None
+    dirs = [d for d in _LINUX_VN_FONT_DIRS if os.path.isdir(d)]
+    if dirs:
+        with mock.patch.dict(os.environ, {"FONT_DIRS": os.pathsep.join(dirs)}):
+            if any(f.vietnamese for f in subtitles.discover()):
+                return os.pathsep.join(dirs)
+    return ""
+
+
 @unittest.skipUnless(_ffmpeg(), "ffmpeg không có trên máy")
 class PopupRenderTests(unittest.TestCase):
     def setUp(self):
         from PIL import Image, ImageDraw
+        fonts = _vn_font_dirs()
+        if fonts == "":
+            self.skipTest("không có font hiển thị đủ dấu tiếng Việt (Windows: Arial/GFF; Linux: cài fonts-dejavu/Noto hoặc đặt FONT_DIRS)")
+        if fonts:
+            patch = mock.patch.dict(os.environ, {"FONT_DIRS": fonts})
+            patch.start()
+            self.addCleanup(patch.stop)
         self.dir = tempfile.mkdtemp()
         self.video = os.path.join(self.dir, "in.mp4")
         subprocess.run([_ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x203040:s=360x640:d=3:r=24",

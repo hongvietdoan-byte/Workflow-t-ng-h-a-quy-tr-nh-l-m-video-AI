@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T04:17:59.073443+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M71-FIX",
+  "branch": "cloud/v31-m71-fix",
+  "commit": "e887f4de",
+  "report": "docs/RA_CLOUD_M71_FIX_2026-10-22.md",
+  "text": "1 VỪA D6 tạm ngừng theo provider của job (quota_scope) — hết tiền ở dự án anthropic không dừng dự án claude_cli; 2 mục ĐỎ rà lỗi tự đóng khi sự kiện skipped; 3 lọc dự án có Claude trước LIMIT; 4 ghi chú baseline M7.2 (hero_takes/scene_qc_claude bị _guarded hạ OFF trên máy mới — đề xuất chụp lại, không đổi cờ); 5 GỐC rò data/ref_padded: 16 test pop PIPELINE_DATA ở tearDown xóa thư mục cách ly → test sau ghi data/ thật; conftest đặt lại mỗi test + PAD_DIR tạm; 72 tệp *_pad.png đã lọt vào git (qua commit gộp) — gỡ khỏi git + .gitignore (LƯU Ý khi gộp). Chứng minh: tắt sửa → 4 tệp mới; bật → 0. Suite 7079 passed, đỏ chỉ golden 3.14 nền. HẠN MỨC: không đọc được."
+}

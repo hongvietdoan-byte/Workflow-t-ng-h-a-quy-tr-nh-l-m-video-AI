@@ -1,4 +1,5 @@
 """Kế hoạch v3: reference-video analysis (GĐ1). Later phases add their tests here."""
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -84,6 +85,10 @@ def kenta_project(shot_mode="per_shot", style="SHORT_FILM"):
 
 
 class ShotLayerTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_the_director_splits_every_scene_into_shots_without_repeating_lines(self):
         from core import dialogue, shots
         p, pid = kenta_project()
@@ -229,6 +234,10 @@ def _approve_all_motion(p, pid, data):
 
 
 class ConsistencyTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups", "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_a_continuing_shot_waits_for_the_previous_picture_and_ends_on_the_next_one(self):
         # S14.9: chain_previous_auto removed — the previous picture is chained only in storyboard mode (storyboard_mode 1)
         from core import batch, shots
@@ -370,6 +379,10 @@ class VietnameseVoiceTests(unittest.TestCase):
 
 
 class BudgetAndCompareTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_the_spending_limit_is_off_until_a_test_round_starts(self):
         # S14.16 (chính sách tiền 04/10): the trial's amounts now WARN (warn_*) — check_* refuse only a service out of credit
         from core import budget, cost

@@ -201,6 +201,8 @@ def step2(p: Pipeline, pid: int):
                 st.markdown(f"- **Lỗi:** {bug}  \n  **Hướng sửa:** {fix}")
             if st_["fixed"]:
                 st.caption("Đã sửa: " + "; ".join(st_["fixed"]))
+    from dashboard import stage_view_ui                  # C-STAGE-VIEW (cờ stage_view_ui, TẮT = không gọi gì): xem sân khấu 3D, chỉ đọc
+    stage_view_ui.render(p, pid, C.DATA)
     with (D_card("sb-gen") if v2 else st.container(border=True)):
         if v2:                                            # v2: hai nút; ước tính tiền một dòng; cảnh báo ưu tiên thấp vào ⓘ
             c1, c3 = st.columns([3, 2.4], vertical_alignment="center")
@@ -241,6 +243,8 @@ def step2(p: Pipeline, pid: int):
         if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + (f" · gửi {queued} ảnh đang chờ" if queued else "")   # 07/10: queued
                      + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",    # redraws waited
                      disabled=(not est_ok and not queued) or (bool(gates["block"]) and not forced)):
+            _step = {}
+
             def go():
                 r = batch.queue_images(p, pid, confirmed=forced, data_dir=C.DATA)
                 # lỗi B (08/10): one click = queue + send. The click waits for the turn (the page / background polling held it and the
@@ -248,12 +252,17 @@ def step2(p: Pipeline, pid: int):
                 sent = runner.submit_pending(pid, wait_s=SEND_TURN_WAIT_S) if runner is not None else 0
                 left = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'",
                                       (pid,)).fetchone()[0]
+                _step["left"] = left if runner else 0
                 st.toast(f"Xếp hàng {r['created']} ảnh mới, {r['redo']} ảnh làm lại" + (f" · đã gửi {sent}" if runner else "")
                          + (f" · {left} ảnh chờ điều kiện, sẽ tự gửi (xem lý do bên dưới)" if runner and left else "")
                          + (" · đang gen thử" if r["pilot"] else ""))
             _t0 = time.monotonic()
             _ok = act(go)
-            C.log_ui(p, "gen_anh", page="storyboard", project_id=pid, result=_ok, t0=_t0)   # 14/10 nhật ký thao tác
+            C.log_ui(p, "gen_anh", page="storyboard", project_id=pid, result=_ok, t0=_t0,   # 14/10 nhật ký thao tác
+                     step=("skip" if forced and gates["block"] else "hold" if _step.get("left") else None) if _ok else None,
+                     step_note=("vẫn gen dù cổng chặn: " + "; ".join(map(str, gates["block"]))[:200] if forced and gates["block"] else
+                                f"{_step['left']} ảnh chờ điều kiện" if _step.get("left") else None),
+                     error_code="gate_skipped" if _ok and forced and gates["block"] else None)   # C-DEVSYS-MAPS-FIX: bỏ qua cổng = ĐỎ kèm mã
             if _ok:
                 st.rerun()
         pending = [j["id"] for j in p.conn.execute(
@@ -489,7 +498,10 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                        "Đã xếp hàng gen lại"):
                     st.rerun()
             if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
-                if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
+                _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
+                _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh")
+                C.log_over_limit(p, "storyboard", pid, j, _ok, _ex)          # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
+                if _ok:
                     st.rerun()
             if st.button("🔍 Xem", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
@@ -573,7 +585,10 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
                          detail="câu sửa: " + ("có" if fix.strip() else "không"))
                 st.rerun()
         if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"drs_{jid}", type="primary"):
-            if act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh"):
+            _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
+            _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh")
+            C.log_over_limit(p, "storyboard", pid, j, _ok, _ex)              # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
+            if _ok:
                 st.rerun()
         if state == "approved":
             r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}")

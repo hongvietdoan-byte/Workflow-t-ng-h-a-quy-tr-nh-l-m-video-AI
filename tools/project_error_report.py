@@ -103,7 +103,7 @@ def build_report(db_path, project):
 
         for row in db.execute("SELECT * FROM diag_events WHERE project_id=? ORDER BY id", (project,)):
             r = dict(row)
-            if r.get("severity") == "info":
+            if r.get("severity") == "info" or r.get("stage") in ("ui_step", "cli_step"):   # bước bấm / lệnh CLI: quan sát, không phải lỗi
                 continue
             code = _code(r["code"], "unknown_diag")
             add("diag:" + code, code, "diagnostic", "diag_events", r["id"], r.get("job_id"), r.get("stage"),

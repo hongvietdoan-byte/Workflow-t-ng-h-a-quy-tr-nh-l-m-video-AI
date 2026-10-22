@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import json
 import os
 import shutil
@@ -300,6 +301,10 @@ class CrowdedSceneTests(unittest.TestCase):
 
 class ChoiceTests(ReferenceTests):
     """The person can change which asset / which picture is a character's reference; the choice wins over the automatic match."""
+    def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def asset_id(self, name):
         return next(a["id"] for a in assets.list_assets(self.conn, "FF", None, None, shared_only=True) if a["name"] == name)

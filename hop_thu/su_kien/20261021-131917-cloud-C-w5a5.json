@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T13:19:17.740113+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M2-TICHHOP",
+  "branch": "cloud/v31-m2-tichhop",
+  "commit": "9746a6ea",
+  "report": "docs/RA_CLOUD_M2_TICHHOP_2026-10-21.md",
+  "text": "Nhánh tích hợp M2 xong: merge m21, m25, m25b, m26, m29, dp9, dp10, golden2, m24 (xung đột JSON/features qua merge_union; shot_intent.validate sửa tay). 4 VỪA đã sửa, mỗi lỗi test đỏ→xanh: VỪA-1 (image_pregen + model_router đọc BYĐ qua shot_intent), VỪA-2 (nháp = v2, _p.draft/_p.from validate), M21-1 (byd_or_raw: cờ TẮT vỡ y main, BẬT BydTypeError REVIEW byd_sai_kieu), M25-1 (diag shadow giữ trong giao dịch, flush sau commit, discard khi rollback; lock không commit hộ). Agent rà khâu: 1 VỪA + 3 THẤP đã sửa. Bộ đủ 7103 xanh; 6 đỏ = 5 sẵn trên main + test_subjects chập chờn xdist; golden skip đúng → phiên chính nghiệm thu golden #24/#27 ở máy chính. HẠN MỨC: không đọc được."
+}

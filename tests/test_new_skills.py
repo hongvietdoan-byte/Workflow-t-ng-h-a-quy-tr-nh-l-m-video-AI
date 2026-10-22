@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import os
 import shutil
 import subprocess
@@ -120,6 +121,7 @@ class OldDatabaseTests(Setup):
 
 class PanelTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         os.environ["DASHBOARD_EXPERT"] = "1"      # these tests use the advanced panels (kế hoạch V4 5.3)
         self.addCleanup(os.environ.pop, "DASHBOARD_EXPERT", None)
 

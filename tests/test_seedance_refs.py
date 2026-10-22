@@ -1,6 +1,7 @@
 """Flag seedance_ref_groups (người dùng chốt 2026-09-27, docs/PHAN_TICH_GOP_SHOT_2026-09-27.md mục 6): consecutive shots of a continuity
 group are made in ONE Seedance generation from their own marked storyboard pictures (reference only, no start frame); a refusal moves
 the shots to Seedance per shot, then to Kling — each step changes the input once (luật 6)."""
+from tests._flags import pin_off
 import json
 import os
 import subprocess
@@ -19,6 +20,7 @@ def real_png(path, color=(40, 90, 40)):
 
 class SeedanceRefTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "seedance_ref_groups", "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         os.environ["FEATURE_SEEDANCE_REF_GROUPS"] = "1"
         self.addCleanup(os.environ.pop, "FEATURE_SEEDANCE_REF_GROUPS", None)
         self.p, self.pid = kenta_project(shot_mode="per_shot")

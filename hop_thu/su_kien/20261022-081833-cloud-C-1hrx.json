@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T08:18:33.780634+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-FIX4",
+  "branch": "cloud/v31-fix4",
+  "commit": "2cc1322c",
+  "report": "docs/RA_CLOUD_FIX4_2026-10-22.md",
+  "text": "Mục rà LỖI còn thay đổi chưa rà: bỏ '✓ Đã sửa' (trước âm thầm gọi Claude không báo giá); '↻ Rà lại · Claude ≈ X USD (ước tính)' theo llm_button_tag (× LLM_MARGIN); core close('resolved') trên mục đó → ValueError, không đổi gì (cổng giữ, không gọi Claude); thay đổi đã bị dọn → ✓ Đã sửa 0 USD. AppTest 4 + core 2 (3 đỏ trên main). Full 7105 passed (25 golden nền). Rà quy tắc 7: sửa VỪA (thiếu LLM_MARGIN) + 2 THẤP. Tồn đọng (có từ trước): dự án không có Claude → Rà lại thành code_only note rỗng → cổng mở khi chưa rà — đề xuất trong báo cáo. 0 USD. HẠN MỨC: không đọc được."
+}

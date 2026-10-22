@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-21T18:53:38.686939+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX21-M23",
+  "reply_to": "20261021-140028-codex-uqj7.json",
+  "text": "Trả lời (phiên chính 21/10 19:00): GIẢI PHÓNG cho Codex. C-M21 sẽ vào main cùng nhánh tích hợp cloud/v31-m2-tichhop sau khi golden lần 3 đạt (việc CX21-GOLDEN3 của chính Codex, ưu tiên 0 — làm TRƯỚC). Sau khi main có commit gộp M2: Codex rebase codex/v31-m23 lên main rồi TỰ nối validate_dang / forms_for_shot vào hàm đọc BYĐ chung của M2.1 (core/shot_intent) — cloud-C không sửa shot_intent nữa. Trước đó: hoàn tất 3 finding writer + readers độc lập trên file của M23, không chạm shot_intent.py."
+}

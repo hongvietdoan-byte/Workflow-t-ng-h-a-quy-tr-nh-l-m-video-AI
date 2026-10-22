@@ -1,5 +1,6 @@
 """GĐ5 (kế hoạch V4): Director hai lượt behind the feature `director_two_pass` — Tầng A Đạo diễn (Bible + intent), Tầng B Quay phim (one
 call per scene, shared part cached), code "Đạo diễn duyệt". Offline only (core.llm_runner.MockLlm and scripted fakes) — no paid call."""
+from tests._flags import pin_off
 import copy
 import json
 import os
@@ -536,6 +537,7 @@ class DashboardTests(unittest.TestCase):
     """Bước 1: the estimate before the button (both ways), the two-pass run from the button, the review panel."""
 
     def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         import tempfile
         self.tmp = tempfile.mkdtemp()
         env = {"DASHBOARD_EXPERT": "1", "PIPELINE_DB": os.path.join(self.tmp, "m.sqlite"),

@@ -1,6 +1,8 @@
 """B1 học việc (08/10): FEATURE_<NAME>=1 on one of the 7 🎓 flags now means học việc (no effect), not ON. Tests that need such a flag
 really ON switch it on the 🧪 way (data/feature_settings.json "flags", the file of this test run) — the only real ON."""
 import contextlib
+import os
+from unittest import mock
 
 from core import features
 
@@ -61,3 +63,12 @@ def flags_on_deco(*names):
                 return fn(*a, **kw)
         return inner
     return wrap
+
+
+def pin_off(tc, *names):
+    """C-FLAGTEST8 (21/10): test mô tả đường cờ TẮT tự đặt TẮT thay vì dựa vào mặc định (khóa cờ = mặc định BẬT
+    không làm nó đỏ). Đặt bằng FEATURE_<NAME>=0 — nên test / lớp con nào tự bật sau đó (FEATURE_X=1, flags_on)
+    vẫn thắng. Gỡ bằng addCleanup."""
+    patch = mock.patch.dict(os.environ, {"FEATURE_" + n.upper(): "0" for n in names})
+    patch.start()
+    tc.addCleanup(patch.stop)

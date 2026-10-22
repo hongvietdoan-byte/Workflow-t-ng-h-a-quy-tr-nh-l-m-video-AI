@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T04:28:11.420782+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M63-FIX2",
+  "branch": "cloud/v31-m63-fix2",
+  "commit": "26ba0395",
+  "report": "docs/RA_CLOUD_M63_FIX2_2026-10-22.md",
+  "text": "1 VỪA attempts/_repair_budget đọc job dự án MỘT lần (project_jobs + attempts_in, memo cả lượt gửi) — số câu SQL không tăng theo số shot (bảng không chỉ mục; đã đính chính báo cáo M63-FIX); 2 end_frames chỉ hỏi model khi cờ bật (test qua tick thật); 3 quality_samples lỗi shadow không kẹt 'sending'; 4 xếp lượt đầu/làm lại theo shot GỬI (nhóm gửi lại = làm lại, lượt đầu của người gửi = lượt đầu); 5 _busy thấy clip nhóm đang chạy; 6 test dọn autoqc + đường end_frames thật. Rà 0 CAO/TB. Suite 7077 passed, đỏ chỉ golden 3.14 nền. Gộp sau/cùng C-M71-FIX (ref_padded). HẠN MỨC: không đọc được."
+}

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T02:46:24.220636+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-GOLDEN7",
+  "branch": "cloud/v31-golden5",
+  "commit": "621661a8",
+  "report": "docs/RA_CLOUD_GOLDEN5_2026-10-21.md",
+  "text": "Gốc 158/158 BOTH_FAIL: build_from_database kiểm cờ theo catalog CÂY CÔNG CỤ (153) trong khi file cờ phủ A∪B (155, main có gen_auth_shadow) → ValueError mọi ca, run_ab gộp thành BOTH_FAIL. Sửa: --ab kiểm theo _catalog(code_root) của cây đang dựng, experimental ∈ catalog cây ∪ A∪B và TẮT; mọi lỗi cấu hình cả lượt (cờ, experimental list, public_config, ref-root, trường nhạy cảm) ở _preflight → ABError mã 2, không chạy ca nào; CLI không ép tắt lặng lẽ cờ experimental đang BẬT; --db hỏng mã 2. 6 test mới đỏ→xanh (có native: cây A thêm cờ mới → SAME cả hai bên). Native 3.14: 171 xanh / 3 đỏ chỉ-Windows; 3.13: 78 xanh. Codex chạy lại CX21-GOLDEN7 (cần phiên chính chốt SHA A/B). HẠN MỨC: không đọc được."
+}

@@ -160,7 +160,13 @@
       "image_pregen": false,
       "router_first_frame": false,
       "insert_inherit": false,
-      "stage_props_byd": false
+      "stage_props_byd": false,
+      "gen_auth_shadow": false,
+      "director_rewrite_respect_lock": false,
+      "ui_step_log": false,
+      "stage_view_ui": false,
+      "crew_registry": false,
+      "continuity_validator": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -330,7 +336,13 @@
       "image_pregen": false,
       "router_first_frame": false,
       "insert_inherit": false,
-      "stage_props_byd": false
+      "stage_props_byd": false,
+      "gen_auth_shadow": false,
+      "director_rewrite_respect_lock": false,
+      "ui_step_log": false,
+      "stage_view_ui": false,
+      "crew_registry": false,
+      "continuity_validator": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"

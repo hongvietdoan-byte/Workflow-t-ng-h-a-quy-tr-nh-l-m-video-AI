@@ -341,9 +341,11 @@ def op_source() -> str:
     return st.session_state.get("op_source") or "nguoi"
 
 def log_ui(p, action: str, *, page: str = "", project_id=None, scene_id=None, job_id=None, result="ok", detail=None,
-           t0: float = None) -> None:
+           t0: float = None, step: str = None, step_note: str = None, error_code: str = None) -> None:
     """Ghi một thao tác vào `ui_actions` (core/ui_log.py): email người đăng nhập + nguồn người/Claude. `result` True/False được
-    hiểu là ok/error (giá trị trả về của act()). `t0` = time.monotonic() lúc bấm → ms xử lý. Không bao giờ ném lỗi."""
+    hiểu là ok/error (giá trị trả về của act()). `t0` = time.monotonic() lúc bấm → ms xử lý. Không bao giờ ném lỗi.
+    C-DEVSYS-MAPS (cờ ui_step_log): cùng lần ghi thêm một sự kiện ui_step cho sơ đồ dây chuyền — `step` thay kết quả khi nút biết rõ
+    hơn ok / error (hold = cổng giữ, skip = bỏ qua cổng, warn), `step_note` câu ngắn, `error_code` mã sổ lỗi."""
     try:
         from core import ui_log
         res = ("ok" if result else "error") if isinstance(result, bool) else result
@@ -353,12 +355,53 @@ def log_ui(p, action: str, *, page: str = "", project_id=None, scene_id=None, jo
         try:
             ok = ui_log.record(conn, action, email=me().get("email"), source=op_source(), page=page, project_id=project_id,
                                scene_id=scene_id, job_id=job_id, result=res, detail=detail, ms=ms)
+            from core import ui_step                  # kết nối riêng này: không commit giữa giao dịch của trang
+            ui_step.record(conn, project_id, page, action, step or res, step_note if step_note is not None else (str(detail) if detail else ""),
+                           error_code)
         finally:
             conn.close()
         if not ok:
             print(f"[ui_log] không ghi được thao tác {action}", file=sys.stderr)
     except Exception as e:  # noqa: BLE001 - nhật ký không được chặn thao tác; nói ra log, không nuốt im lặng
         print(f"[ui_log] lỗi ghi thao tác {action}: {type(e).__name__}: {e}", file=sys.stderr)
+
+def log_step(action: str, *, page: str = "", project_id=None, result="ok", note: str = "", error_code: str = None) -> None:
+    """C-DEVSYS-MAPS: CHỈ sự kiện ui_step (cờ ui_step_log) cho nút chưa có nhật ký thao tác — cờ tắt = không mở kết nối, không ghi gì."""
+    try:
+        from core import ui_step
+        if not ui_step.enabled():
+            return
+        res = ("ok" if result else "error") if isinstance(result, bool) else result
+        conn = connect(DB)                         # kết nối riêng: không commit giữa giao dịch của trang
+        try:
+            ui_step.record(conn, project_id, page, action, res, note, error_code)
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001 - quan sát, không chặn nút
+        print(f"[ui_step] lỗi ghi bước {action}: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def retries_exhausted(p, job):
+    """Job đã hết lượt gen lại tự động chưa (chỉ để ghi bước); không đọc được → None (log_over_limit coi như vượt trần)."""
+    try:
+        return p._retries_exhausted(job)
+    except Exception:  # noqa: BLE001 - nhật ký không chặn nút
+        return None
+
+
+def log_over_limit(p, page: str, project_id, job, ok: bool, exhausted=None) -> None:
+    """C-DEVSYS-MAPS-FIX (đề mục 6): người bấm "↺ Làm lại từ đầu" job đã dừng tự động (escalated) = bỏ qua giới hạn → bước ĐỎ kèm mã:
+    vượt trần gen lại tự động (`regen_over_limit`) hoặc dừng vì gen lại y nguyên (`regen_same_input`). `exhausted` tính TRƯỚC khi
+    bấm (restart_job đổi job). Key theo màn: lam_lai_anh (sb.card) / lam_lai_video (vd.gen). Cờ ui_step_log tắt = không làm gì."""
+    from core import ui_step
+    if not ui_step.enabled():
+        return
+    if exhausted is None:
+        exhausted = True
+    log_step("lam_lai_video" if page == "video" else "lam_lai_anh", page=page, project_id=project_id, result="skip" if ok else "error",
+             note=f"job {job['id']} " + ("đã hết lượt thử tự động" if exhausted else "dừng vì gen lại y nguyên"),
+             error_code=ui_step.REGEN_OVER_LIMIT if exhausted else ui_step.REGEN_SAME_INPUT)
+
 
 def allowed(permission: str) -> bool:
     return auth.can(me(), permission)
