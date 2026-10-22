@@ -125,7 +125,8 @@ def test_virtual_environment_is_fail_closed(database):
 def test_missing_dependency_appearing_is_data_changed(database):
     result=build(database,1)
     assert result['status']=='BUILT',result
-    missing=next(name for name,value in result['manifest']['files'].items() if value is None)
+    # rà 22/10: hỏi tồn tại lần 2 nay giữ {stat: None} (trước rơi xuống nhánh băm → None) — cả hai dạng là 'tệp chưa có'
+    missing=next(name for name,value in result['manifest']['files'].items() if value in (None, {'stat': None}))
     path=database[2]/missing
     path.parent.mkdir(parents=True,exist_ok=True)
     path.write_text('{}',encoding='utf-8')
