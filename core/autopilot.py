@@ -457,7 +457,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _cap_warn(p, pid, "image_gen", "images")
     ctx.image_runner.submit_pending(pid)
     _review_wait(p, pid, "image_gen", ctx.data_dir if ctx else None)   # gửi xong phần không bị giữ; còn job bị giữ → chờ người
-    _desk_wait(p, pid, "image_gen", ctx.data_dir if ctx else None)
+    _desk_wait(p, pid, "image_gen", ctx.data_dir if ctx else None, ctx.image_runner if ctx else None)
     _budget_stop(p, pid, "image_gen")
     ctx.image_runner.poll_once(pid)
     _retry_or_hold(p, pid, "image_gen")
@@ -586,11 +586,11 @@ def _review_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str] = Non
             raise _Wait("change_review", why)
 
 
-def _desk_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str]) -> None:
+def _desk_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str], runner=None) -> None:
     """C-FIX6 (S-C): runner đã GIỮ job trả phí vì plate 3D bắt buộc chưa đạt (core.stage_desk.paid_hold — cùng hàm) → CHỜ người (EP
     duyệt sân khấu / render nền / xác nhận ngoại lệ) thay vì 'Gen ảnh…' mãi. Phần không bị giữ đã gửi. Chưa đánh dấu → không đọc gì."""
     from . import stage_desk
-    from .runner import wait_reason
+    from .runner import WAIT_REASONS, wait_reason
     if not data_dir or not os.path.isfile(stage_desk._gate_path(data_dir, pid)):
         return
     for job in p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type=? AND state='queued' AND scene_id IS NOT NULL ORDER BY id",
@@ -598,6 +598,15 @@ def _desk_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str]) -> Non
         why = wait_reason(job["id"])                 # rà C-FIX6: đúng lý do runner vừa giữ (gồm cả shot cùng nhóm gửi) — không tính lại
         if not (why or "").startswith(stage_desk.HOLD_PREFIX):
             why = None
+        if why:
+            # rà kỹ C-FIX6 A2: lý do cũ còn hiệu lực 300 s mà _submit_pending có thể break sớm (hết slot / THROTTLE / ngân sách) trước khi
+            # tới job này → EP vừa duyệt / thêm ngoại lệ vẫn bị "CHỜ người" tới 5 phút. Tính lại bằng ĐÚNG hàm runner (_desk_hold, gồm
+            # shot cùng nhóm gửi); không có runner (gọi lẻ) → giữ lý do runner đã ghi.
+            hold = getattr(runner, "_desk_hold", None)
+            if hold is not None:
+                why = hold(job)
+                if not why:
+                    WAIT_REASONS.pop(job["id"], None)
         if why:
             idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
             raise _Wait("stage_desk", (f"S{idx[0]:02d}: " if idx else "") + why + " — xử lý ở Bàn đạo diễn 3D (Executive Producer) rồi "
@@ -1218,7 +1227,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _cap_warn(p, pid, "video_gen", "videos")
     ctx.video_runner.submit_pending(pid)
     _review_wait(p, pid, "video_gen", ctx.data_dir if ctx else None)
-    _desk_wait(p, pid, "video_gen", ctx.data_dir if ctx else None)
+    _desk_wait(p, pid, "video_gen", ctx.data_dir if ctx else None, ctx.video_runner if ctx else None)
     _gate_wait(p, pid, ctx.data_dir if ctx else None)
     _budget_stop(p, pid, "video_gen")
     ctx.video_runner.poll_once(pid)

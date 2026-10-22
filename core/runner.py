@@ -282,6 +282,8 @@ class _Runner:
         if not job["scene_id"]:
             return None
         from . import stage_desk
+        if not self.data_dir or not os.path.isfile(stage_desk._gate_path(self.data_dir, job["project_id"])):
+            return None                          # rà kỹ C-FIX6 A5: chưa đánh dấu → không tính nhóm gửi (_sends_group đọc CSDL)
         group = getattr(self, "_sends_group", lambda j: None)(job) or []
         sids = [job["scene_id"]] + [g["id"] for g in group if g["id"] != job["scene_id"]]
         return stage_desk.paid_hold(self.p.conn, job["project_id"], self.data_dir, sids)

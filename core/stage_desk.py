@@ -718,12 +718,20 @@ def approve(conn, pid: int, data_dir: str, scene, who: Optional[Dict], user, con
         return {"ok": False, "errors": [str(e)]}
     if not stage_crew.user_approves():
         return {"ok": False, "errors": ["duyệt chốt do Đạo diễn (cờ stage_crew_user_approve TẮT) — không có bước người duyệt"]}
-    drawn = drawn_shots(conn, seg)
-    if drawn and not confirm_drawn:
-        return {"ok": False, "needs_confirm": drawn,
-                "errors": [f"shot {', '.join(map(str, drawn))} đã vẽ ảnh — ảnh sẽ lệch nền 3D mới; xác nhận để vẫn đổi máy"]}
+    def need_confirm():
+        drawn = drawn_shots(conn, seg)
+        if drawn and not confirm_drawn:
+            return {"ok": False, "needs_confirm": drawn,
+                    "errors": [f"shot {', '.join(map(str, drawn))} đã vẽ ảnh — ảnh sẽ lệch nền 3D mới; xác nhận để vẫn đổi máy"]}
+        return None
+    early = need_confirm()                          # hỏi sớm, không chờ khóa
+    if early:
+        return early
 
     def fn():
+        late = need_confirm()                       # rà kỹ C-FIX6 A3: kiểm lại TRONG khóa S — ảnh vẽ xong lúc chờ khóa không lọt
+        if late:
+            return late
         if expected_marks is not None:              # C-FIX6 mục 4: kiểm-và-ghi trong CÙNG khóa S (không khe giữa kiểm và ghi)
             now = _marks(conn, seg)
             moved = sorted(i for i in now if (expected_marks.get(i, expected_marks.get(str(i))) != now[i]))

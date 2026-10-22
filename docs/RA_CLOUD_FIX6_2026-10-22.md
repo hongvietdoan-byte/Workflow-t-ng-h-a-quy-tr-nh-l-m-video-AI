@@ -48,3 +48,23 @@ Ghi lý do, không sửa:
 - `_close_reset` chỉ chạy ở N6. Đạo diễn tự chốt và CLI `--crew-approve` chưa đóng dấu làm lại; lần EP duyệt sau vẫn so đúng với `marks_before`.
 - Khóa S của N11 không phủ lúc render ở luồng `place_refs`. Máy ghi xen giữa lúc đó do `runner._stale_plates` bắt.
 - Phần B (C-M83-TOOL) chưa làm.
+
+## Vòng sửa sau rà kỹ (22/10)
+Test mới: `tests/test_v31_fix6_desk.py` lớp `DeepReviewTests` + `EndFrameHoldFirstTests`. Chạy trên code cũ (9afc2922): 6 đỏ / 1 xanh (test "không đánh dấu → gửi như cũ", đúng ý). Sau sửa: 338 qua (11 file liên quan: fix6_desk, m48_desk_core, autopilot, end_frames, runner, spend_gate(+scan), grader_fixes_0926, access, stage_auto, stage_crew).
+- **A1 VỪA** `experiments.kling_multishot` (nút thử Kling multi-shot, Bước 4) — đường video trả phí theo nhóm shot ngoài runner nay gọi `stage_desk.paid_hold` cho các shot thật sự gửi (sau `_plan` cắt 15 s), TRƯỚC `spend_gate.spend`; bị giữ → `ValueError` có câu (nút hiện lỗi). Test `test_a1_kling_multishot_is_held_…` (đỏ→xanh), `test_a1_…without_marks_sends_as_before` (xanh cả hai: không đánh dấu y hệt trước).
+- **A2 VỪA** `autopilot._desk_wait` nhận runner (ctx.image_runner / ctx.video_runner) và tính lại bằng `runner._desk_hold(job)` khi lý do cũ là của S-C; hết giữ → xóa `WAIT_REASONS[job]`. Gọi lẻ không có runner → giữ lý do runner đã ghi. Chỉ chạy khi dự án đã có tệp đánh dấu. Test `test_a2_autopilot_does_not_wait_on_a_stale_reason_after_the_ep_exception`, `test_a2_still_waits_while_the_shot_is_held`.
+- **A3 VỪA** `stage_desk.approve`: kiểm `drawn_shots` / `confirm_drawn` lần nữa TRONG `fn()` của `_sync` (khóa S); lần ngoài khóa giữ để hỏi sớm. Test `test_a3_shot_drawn_while_waiting_for_the_lock_needs_confirm`.
+- **A4 THẤP** `end_frames._tick`: cổng S-C lên đầu nhánh `queued` (sau `skip_reason`), trước dựng refs/prompt/`_side_guard`/diag tham chiếu. Test `test_a4_held_end_frame_builds_no_prompt`.
+- **A5 THẤP** `runner._desk_hold`: kiểm `isfile` tệp đánh dấu trước `_sends_group`. Test `test_a5_no_marks_reads_no_send_group`.
+- **A6 (chấp nhận, không sửa):** khe `os.replace` → `os.link` trong `_remove_if_same` — cửa sổ rất hẹp, hậu quả tối đa là khóa S thừa một lần (nhả theo hạn), không mất dữ liệu.
+
+### Đường gọi trả phí ngoài runner (grep `spend_gate.spend(` / `provider.submit` trong core)
+| Đường | Qua S-C? | Lý do |
+|---|---|---|
+| `end_frames._tick` | có | C-FIX6 |
+| `quality_samples.send` | có | C-FIX6 |
+| `experiments.kling_multishot` | có | vòng này (A1) |
+| `costume` (bộ ảnh nhân vật) | không | ảnh nhân vật, không theo shot / không có plate |
+| `lipsync` | không | hậu kỳ trên clip đã gen; ghi ở docstring |
+| `scene_establish` | không | ảnh toàn cảnh theo cảnh truyện, không theo shot; ghi ở docstring |
+| `core/adapters/trial.py`, `tools/experiments/*`, `tools/asset_polish.py`, `tools/h5_setup_test.py` | không | công cụ CLI thử nghiệm tay, không qua Dashboard/autopilot |

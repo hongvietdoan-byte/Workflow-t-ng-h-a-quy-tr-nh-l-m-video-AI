@@ -85,6 +85,13 @@ def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_
     first = os.path.join(data_dir, str(project_id), "images", f"job_{scenes[0]['jid']}.png")
     aspect = formats.project_aspect(p.project(project_id))
     kwargs = {"multi_prompt": shots}
+    # C-FIX6 vòng rà kỹ A1: đường video trả phí theo NHÓM shot không qua runner → tự gọi cổng S-C (EP đánh dấu plate 3D bắt buộc).
+    # Không đánh dấu = None ngay (một os.path.isfile) → y hệt trước.
+    from . import stage_desk
+    sent_ids = [s["id"] for s in scenes[:len(shots)] if s.get("id")]
+    hold = stage_desk.paid_hold(p.conn, project_id, data_dir, sent_ids)
+    if hold:
+        raise ValueError(f"Không gửi thử nghiệm multi-shot — {hold}")
     if aspect:
         kwargs["aspect_ratio"] = formats.spec(aspect)["clip"]
     # check + submission + ledger entry as one step (S14.1 / S14.16: a paused project and 'out_of_credit' stop; the caps warn)

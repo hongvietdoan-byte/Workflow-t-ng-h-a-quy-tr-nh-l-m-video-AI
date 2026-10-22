@@ -325,3 +325,91 @@ class EndFrameHoldTests(__import__("unittest").TestCase):
         self.assertFalse([t for t, pr in prov.prompts.items() if "lies on the ground" in pr])
         row = p.conn.execute("SELECT state, note FROM end_frames WHERE scene_id=? ORDER BY id DESC", (sid,)).fetchone()
         self.assertIn("plate 3D", row["note"] or "")
+
+
+# ---- vòng sửa sau rà kỹ C-FIX6 (A1–A5) --------------------------------------------------------------------------------------
+class _MultiProvider:
+    name = "clipai"
+
+    def __init__(self):
+        self.sent = []
+
+    def submit(self, *a, **k):
+        self.sent.append((a, k))
+        return "clipai:video:1"
+
+
+class DeepReviewTests(FixBase):
+    def _plan(self):
+        scenes = [{"id": self.sid(1), "idx": 1, "jid": 1}, {"id": self.sid(2), "idx": 2, "jid": 2}]
+        return mock.patch("core.experiments._plan", return_value=(scenes, [{"prompt": "a", "duration": 5},
+                                                                          {"prompt": "b", "duration": 5}], 10))
+
+    def test_a1_kling_multishot_is_held_when_a_sent_shot_needs_an_approved_plate(self):
+        from core import experiments
+        self.mark(1)
+        prov = _MultiProvider()
+        with self._plan(), self.assertRaises(ValueError) as e:
+            experiments.kling_multishot(self.p, self.pid, 1, prov, self.data)
+        self.assertIn("plate 3D bắt buộc", str(e.exception))
+        self.assertEqual(prov.sent, [])
+
+    def test_a1_kling_multishot_without_marks_sends_as_before(self):
+        from core import experiments
+        prov = _MultiProvider()
+        with self._plan():
+            experiments.kling_multishot(self.p, self.pid, 1, prov, self.data)
+        self.assertEqual(len(prov.sent), 1)
+
+    def test_a2_autopilot_does_not_wait_on_a_stale_reason_after_the_ep_exception(self):
+        self.mark(1)
+        jid = self.p.create_job(self.sid(1), "video_gen")
+        R.WAIT_REASONS[jid] = ("sân khấu 3D — shot 1: plate 3D bắt buộc chưa đạt", __import__("time").time())
+        D.allow_exception(self.p.conn, self.pid, self.data, self.sid(1), "gấp", HUMAN, EP)
+        run = R.VideoRunner(self.p, _CountingVideo(), self.data)        # lượt gửi break sớm (slot đầy) → lý do cũ chưa bị xóa
+        autopilot._desk_wait(self.p, self.pid, "video_gen", self.data, run)        # không _Wait
+        self.assertIsNone(R.wait_reason(jid))
+
+    def test_a2_still_waits_while_the_shot_is_held(self):
+        self.mark(1)
+        jid = self.p.create_job(self.sid(1), "video_gen")
+        R.WAIT_REASONS[jid] = ("sân khấu 3D — shot 1: plate 3D bắt buộc chưa đạt", __import__("time").time())
+        with self.assertRaises(autopilot._Wait):
+            autopilot._desk_wait(self.p, self.pid, "video_gen", self.data, R.VideoRunner(self.p, _CountingVideo(), self.data))
+
+    def test_a3_shot_drawn_while_waiting_for_the_lock_needs_confirm(self):
+        self.to_duyet()
+        with mock.patch("core.camera_plan.drawn_shots", side_effect=[[], [1]]):
+            r = D.approve(self.p.conn, self.pid, self.data, "1", HUMAN, EP)
+        self.assertFalse(r["ok"], r)
+        self.assertEqual(r.get("needs_confirm"), [1])
+        self.assertEqual(self.crew_state()["phase"], "duyet")
+
+    def test_a5_no_marks_reads_no_send_group(self):
+        jid = self.p.create_job(self.sid(1), "video_gen")
+        run = R.VideoRunner(self.p, _CountingVideo(), self.data)
+        with mock.patch.object(R.VideoRunner, "_sends_group", side_effect=AssertionError("không được đọc nhóm gửi")):
+            self.assertIsNone(run._desk_hold(self.p.job(jid)))
+
+
+class EndFrameHoldFirstTests(__import__("unittest").TestCase):
+    def test_a4_held_end_frame_builds_no_prompt(self):
+        import tempfile
+        from core import end_frames, llm_runner
+        from tests._flags import pin_off
+        from tests.test_end_frames import _shot_with_end_state
+        from tests.test_v3 import _approve_all_images, kenta_project
+        pin_off(self, "seedance_ref_groups")
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        sid = _shot_with_end_state(p, pid)
+        data = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data)
+        end_frames.queue(p, pid)
+        real = end_frames.prompt_for
+        seen = []
+        with mock.patch.object(D, "paid_hold", side_effect=lambda c, i, d, s: "sân khấu 3D — plate 3D bắt buộc chưa đạt" if sid in s
+                               else None), \
+                mock.patch.object(end_frames, "prompt_for", side_effect=lambda pp, i, s, fix=None: seen.append(s) or real(pp, i, s, fix)):
+            end_frames.tick(p, pid, MockImageProvider(), data)
+        self.assertNotIn(sid, seen)
