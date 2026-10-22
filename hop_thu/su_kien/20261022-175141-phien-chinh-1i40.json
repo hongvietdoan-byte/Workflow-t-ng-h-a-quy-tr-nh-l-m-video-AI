@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T17:51:41.328670+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-CLONE-INTENT",
+  "to": "cloud-E",
+  "title": "clone_project chạy lại Đạo diễn bỏ director_intent_raw + render_settings dự án cũ (Cấp 1, 0 USD)",
+  "spec": "docs/CLOUD_TASKS.md#### C-CLONE-INTENT",
+  "priority": 1
+}
