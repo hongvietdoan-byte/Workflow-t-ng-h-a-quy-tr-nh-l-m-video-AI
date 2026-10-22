@@ -697,7 +697,7 @@ def reset_preview(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = No
     st = _read(os.path.join(d, sa.CREW_DIR, "state.json"))
     mine = scene_status(conn, pid, data_dir, scene, seg=seg)["cams_this_stage"]
     import re
-    # = world_map.path (KHÔNG import world_map: luật G2-4 — map không nằm trên đường gen, autopilot import module này)
+    # cùng đường tệp với hàm path của module bản đồ thế giới — KHÔNG import nó (luật G2-4: map không nằm trên đường gen; autopilot import module này)
     world = os.path.join(data_dir, str(pid), "world", "scene_" + (re.sub(r"[^0-9A-Za-z]+", "_", str(seg["scene"])).strip("_") or "x")
                          + ".json")
     return {"seg": seg["id"], "archive": os.path.join(d, sa.CREW_DIR) if os.path.isdir(os.path.join(d, sa.CREW_DIR)) else None,
