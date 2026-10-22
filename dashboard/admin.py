@@ -417,10 +417,17 @@ def _save_profile_from_identity(p, asset_id, data, approved, profile):
             return False
         kwargs={'actor':{'kind':'human','who':email},'expected_revision':profile.get('revision',0)}
     try:
-        assets.set_profile(p.conn,asset_id,data,approved=approved,**kwargs)
+        saved=assets.set_profile(p.conn,asset_id,data,approved=approved,**kwargs)
     except (assets.AssetError,kho_profile.ProfileError) as exc:
         st.error(str(exc))
         return False
+    if approved and isinstance(saved,dict) and saved.get('schema_version')==2 and not saved.get('approved'):
+        # Không im lặng lưu "chưa duyệt" khi người dùng đã tích Duyệt (rà 23/10); UI duyệt từng đề xuất làm ở M2.3b.
+        pend=kho_profile.pending_review(saved)
+        msg=(f"Đã lưu nhưng CHƯA duyệt được: còn {len(pend)} mục chờ duyệt ({', '.join(pend[:6])}"
+             f"{'…' if len(pend)>6 else ''}) — mục do AI soạn cần người xác nhận trước.")
+        st.session_state[f'prof_msg_{asset_id}']=msg
+        st.warning(msg)
     return True
 
 
@@ -430,6 +437,9 @@ def profile_form(p: Pipeline, a: dict) -> None:
     label = "📋 Hồ sơ chuẩn" + (" · ✔ đã duyệt" if prof.get("approved") else " · chưa có" if not prof else " · nháp")
     if not st.checkbox(label, key=f"prof_open_{a['id']}"):
         return
+    note = st.session_state.pop(f"prof_msg_{a['id']}", None)        # cảnh báo "còn N mục chờ duyệt" sống qua st.rerun
+    if isinstance(note, str):
+        st.warning(note)
     locks = p.conn.execute("SELECT pr.name AS project, c.lock_rules, c.description FROM characters c JOIN projects pr ON pr.id=c.project_id"
                            " WHERE c.lock_rules IS NOT NULL AND (c.ref_asset_id=? OR lower(c.name)=lower(?)) ORDER BY c.id DESC LIMIT 5",
                            (a["id"], a["name"])).fetchall()

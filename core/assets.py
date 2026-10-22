@@ -805,6 +805,8 @@ def set_size(conn, asset_id: int, height_m: Optional[float], width_m: Optional[f
             prof[key] = round(v, 2)
         else:
             prof.pop(key, None)
+    if prof.get("schema_version") == 2:                  # hồ sơ v2: mọi lần ghi tăng revision để CAS/gói đã dựng thấy đổi
+        prof["revision"] = int(prof.get("revision") or 0) + 1
     conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False) if prof else None, asset_id))
     conn.commit()
     return _size_of({"kind": row["kind"], "profile": json.dumps(prof)}) if prof else None
@@ -1187,7 +1189,7 @@ def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None, n
     - location: the widest, biggest establishing shot (an environment, not a portrait).
     - everything else (weapon, prop): its first picture."""
     from . import kho_profile
-    selected = kho_profile.selected_images(asset, scene)
+    selected = kho_profile.selected_images(asset, scene, name)
     if selected:
         return selected[:max(limit, 1)]
     images = asset["images"]
@@ -1230,7 +1232,7 @@ def view_picture(asset: Dict, role: str) -> Optional[Dict]:
     from . import kho_profile
     selected = kho_profile.selected_images(asset)
     if selected:
-        return next((i for i in selected if i.get('role') == role), selected[0])
+        return next((i for i in selected if i.get('role') == role), None)   # không có ảnh đúng mặt → None, không đưa mặt khác cho QC so
     pics = [i for i in asset.get("images") or [] if i.get("role") == role and not is_skin(i)]
     return max(pics, key=lambda i: (lambda s: s[0] * s[1] if s else 0)(_shape(i["path"])), default=None)
 
@@ -1425,7 +1427,7 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
     if old.get('schema_version') == 2:
         if actor is None or expected_revision is None:
             raise AssetError('Hồ sơ v2 cần actor và expected_revision; tải lại trước khi lưu')
-        return kho_profile.save(conn, asset_id, data, actor, expected_revision, approved=approved)
+        return kho_profile.save(conn, asset_id, data, actor, expected_revision, approved=approved, reason=reason)
     # K0b phần 2 (A20): ô `khai_bao_chu` (khóa nhận diện bằng chữ, core/identity_declare) sống trong cùng JSON hồ sơ — không phải cột
     # mới. Lưu hồ sơ không gửi ô này → GIỮ ô cũ (không mất dữ liệu); gửi ô sai dạng → báo lỗi, không ghi gì.
     kbc = old.get("khai_bao_chu")

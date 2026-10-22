@@ -64,11 +64,12 @@ def test_byd_checks_declared_forms_with_project_context(adapter,byd_conn,dang):
     assert [i.get('ma') for i in issues] == (['dang_chua_chon_duoc'] if isinstance(dang,dict) else [])
 
 
-def test_byd_unknown_form_warns_at_exact_beat(adapter,byd_conn):
+def test_byd_unknown_form_reviews_at_exact_beat(adapter,byd_conn):
+    # Rà 23/10: dạng ngoài forms Kho giữ REVIEW (trước đây WARN — hạ mức là lỗi VỪA 4).
     from core import shot_intent as s
     byd=s.empty(1);byd.update(byd_v=2,thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':{'bat_dau':'ghost_form','ket_thuc':['absent']}}])
     issues=[i for i in s.assess(byd,byd_conn,project_id=1) if i.get('ma')=='dang_khong_trong_kho']
-    assert [(i['truong'],i['muc'],i['level']) for i in issues]==[('thanh_phan[0].dang.ket_thuc[0]','vang','WARN')]
+    assert [(i['truong'],i['muc'],i['level']) for i in issues]==[('thanh_phan[0].dang.ket_thuc[0]','vang','REVIEW')]
 
 
 def test_byd_missing_project_context_does_not_guess(adapter):
@@ -319,3 +320,74 @@ def test_v1_package_does_not_add_empty_provenance(live_flow,tmp_path):
     package,warnings=image._build_package(job,args,{}, {},'fixture')
     assert not warnings
     assert 'kho_profiles' not in json.loads(package)
+
+
+# ---- CX21-M23 vòng sửa sau rà kỹ 23/10 ----
+
+def test_m23fix1_broken_v2_profile_falls_back_to_old_selector(adapter, caplog):
+    k, a = adapter
+    from core import assets
+    p = profile(); p['forms'][0]['ma'] = 'Bad!'
+    a['profile'] = json.dumps(p)
+    front = {'id': 7, 'path': 'front.png', 'status': 'approved', 'role': 'front_standard'}
+    a['images'].append(front)
+    with patch.object(assets, '_shape', return_value=None), caplog.at_level('WARNING'):
+        assert k.selected_images(a) is None
+        assert assets.best_references(a, 1, {'characters': ['KELLY']}, 'KELLY')[0]['id'] == 7
+        assert assets.view_picture(a, 'front_standard')['id'] == 7
+        assert assets.standard_set(a, False) == [(front, 'character')]
+    assert 'hồ sơ v2 hỏng' in caplog.text
+
+
+def test_m23fix2_view_picture_never_returns_other_role(adapter):
+    k, a = adapter
+    from core import assets
+    p = profile(); p['face']['ref_image_ids'] = [9]
+    a['profile'] = json.dumps(p)
+    assert k.selected_images(a)[0]['id'] == 9
+    assert assets.view_picture(a, 'back') is None
+    assert assets.view_picture(a, 'character_form')['id'] == 9
+
+
+def test_m23fix3_selected_images_follows_byd_like_forms_for_shot(adapter):
+    k, a = adapter
+    text = 'Kelly in normal suit then turns ghost form'
+    multi = {'characters': ['KELLY'], 'text': text, 'byd': {'thanh_phan': [{'vat': 'KELLY', 'dang': ['normal_suit', 'ghost_form']}]}}
+    assert not k.forms_for_shot(None, 1, multi)
+    assert k.selected_images(a, multi, 'KELLY') is None
+    normal = {'characters': ['KELLY'], 'text': text, 'byd': {'thanh_phan': [{'vat': 'KELLY', 'dang': 'normal_suit'}]}}
+    assert not k.forms_for_shot(None, 1, normal)
+    assert k.selected_images(a, normal, 'KELLY') is None
+    # BYĐ chốt dạng mà chữ không nhắc: cả hai đường cùng lấy dạng đó.
+    byd = {'characters': ['KELLY'], 'text': 'Kelly runs', 'byd': {'thanh_phan': [{'vat': 'KELLY', 'dang': 'ghost_form'}]}}
+    assert k.forms_for_shot(None, 1, byd)['KELLY']['ma'] == 'ghost_form'
+    assert [i['id'] for i in k.selected_images(a, byd, 'KELLY')] == [9]
+
+
+def test_m23fix3_two_forms_named_in_text_are_not_auto_picked(adapter):
+    k, a = adapter
+    p = profile()
+    p['forms'].append(dict(p['forms'][0], ma='normal_suit', ten_en='normal suit', image_ids=[8]))
+    a['profile'] = json.dumps(p)
+    scene = {'characters': ['KELLY'], 'text': 'Kelly in normal suit then turns ghost form'}
+    with patch.object(k.assets, 'get_profile', return_value=p):
+        assert not k.forms_for_shot(None, 1, scene)
+    assert k.selected_images(a, scene, 'KELLY') is None
+
+
+def test_m23fix4_unchecked_and_out_of_enum_forms_stay_review(adapter, byd_conn):
+    from core import shot_intent as s
+    byd = s.empty(1); byd.update(byd_v=2, thanh_phan=[{'vat': 'KELLY', 'vai': 'chinh', 'vung': 'giua', 'dang': 'ghost_form'}])
+    unchecked = [i for i in s.assess(byd) if i.get('ma') == 'dang_khong_kiem_duoc']
+    assert unchecked and all(i['level'] == 'REVIEW' for i in unchecked)
+    byd['thanh_phan'][0]['dang'] = 'absent'
+    outside = [i for i in s.assess(byd, byd_conn, project_id=1) if i.get('ma') == 'dang_khong_trong_kho']
+    assert outside and all(i['level'] == 'REVIEW' for i in outside)
+
+
+def test_m23fix4_flag_off_keeps_m21_review_without_kho_check():
+    with patch.object(os, 'environ', {}):
+        from core import shot_intent as s
+        byd = s.empty(1); byd.update(byd_v=2, thanh_phan=[{'vat': 'KELLY', 'vai': 'chinh', 'vung': 'giua', 'dang': 'ghost_form'}])
+        issues = [i for i in s.assess(byd) if '.dang' in i.get('truong', '')]
+        assert [(i.get('ma'), i['level']) for i in issues] == [(None, 'REVIEW')]

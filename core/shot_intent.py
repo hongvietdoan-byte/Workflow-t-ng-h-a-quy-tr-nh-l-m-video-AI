@@ -396,11 +396,12 @@ def _check_kho_dang(byd, conn, project_id, out):
                         "loi":"Đã khai nhiều dạng hoặc dạng theo nhịp; chưa có quy tắc chọn ảnh dạng, cần người duyệt"})
         for path, dang in leaves(item.get("dang"), f"thanh_phan[{i}].dang"):
             if conn is None or type(project_id) is not int or project_id <= 0:
-                issues = [{"muc": "vang", "ma": "dang_khong_kiem_duoc",
+                issues = [{"muc": "vang", "ma": "dang_khong_kiem_duoc", "level": "REVIEW",
                            "loi": "chưa kiểm dạng Kho (thiếu kết nối CSDL hoặc mã dự án)"}]
             else:
                 issues = kho_profile.validate_dang(conn, project_id, item["vat"], dang, asset_id=item.get("kho_id"))
-            out.extend(dict(issue, truong=path) for issue in issues)
+            # "không kiểm được" / "ngoài forms Kho" là chỗ người phải xem: giữ REVIEW như M2.1, không hạ WARN.
+            out.extend(dict(issue, truong=path, level=issue.get("level", "REVIEW")) for issue in issues)
 
 
 def validate(byd: Dict, conn=None, *, project_id=None) -> List[Dict]:

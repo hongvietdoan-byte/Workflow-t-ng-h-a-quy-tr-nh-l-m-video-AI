@@ -384,3 +384,76 @@ def test_profile_form_attributes_actor_to_authenticated_identity(db):
         scope['profile_form'](SimpleNamespace(conn=FormConnection()),{'id':1,'name':'Kelly'})
         assert save.call_args.kwargs['actor']=={'kind':'human','who':'owner.fixture'}
         assert save.call_args.kwargs['expected_revision']==4
+
+
+# ---- CX21-M23 vòng sửa sau rà kỹ 23/10 ----
+
+def test_m23fix5_human_approve_with_ai_fields_reports_pending_count(db):
+    from core import kho_profile as k
+    ai={'kind':'ai','who':'fixture-ai','model':'fixture','from_text':'fixture'}
+    k.save(db,1,{'hair':{'text_en':'blonde'}},ai,0)
+    saved=k.save(db,1,{'identity':'fixture'},{'kind':'human','who':'fixture'},1,approved=True)
+    assert saved['approved'] is False
+    assert k.pending_review(saved)==['hair']
+
+
+def test_m23fix5_profile_ui_warns_when_approval_is_not_possible(db):
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from core import assets, kho_profile as k
+    db.execute('CREATE TABLE users(email TEXT,active INTEGER)')
+    db.execute("INSERT INTO users VALUES('owner.fixture',1)")
+    tree=ast.parse(Path('dashboard/admin.py').read_text(encoding='utf-8-sig'))
+    node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_save_profile_from_identity')
+    ui=Mock();ui.session_state={}
+    scope={'C':SimpleNamespace(me=lambda:{'email':'owner.fixture'}),'kho_profile':k,'assets':assets,'st':ui}
+    exec(compile(ast.Module(body=[node],type_ignores=[]),'<fixture-profile-ui>','exec'),scope)
+    pending={'schema_version':2,'revision':5,'approved':False,'hair':{'text_en':'blonde','_p':{'source':'ai','state':'REVIEW_REQUIRED'}},
+             'forms':[{'ma':'ghost','_p':{'source':'ai','state':'REVIEW_REQUIRED'}}]}
+    with patch.object(assets,'set_profile',return_value=pending):
+        scope['_save_profile_from_identity'](SimpleNamespace(conn=db),1,{'identity':'fixture'},True,{'schema_version':2,'revision':4})
+    assert ui.warning.called and 'còn 2 mục chờ duyệt' in ui.warning.call_args.args[0]
+    assert 'còn 2 mục chờ duyệt' in ui.session_state['prof_msg_1']
+    ui.warning.reset_mock()
+    with patch.object(assets,'set_profile',return_value=dict(pending,approved=True)):
+        scope['_save_profile_from_identity'](SimpleNamespace(conn=db),1,{'identity':'fixture'},True,{'schema_version':2,'revision':4})
+    assert not ui.warning.called
+
+
+def test_m23low_outfit_image_missing_from_db_is_profile_error(db):
+    from core import assets, kho_profile as k
+    with patch.object(assets,'link_characters',return_value={'Kelly':{'id':1}}), patch.object(assets,'outfit_images',return_value=[{'id':404}]), patch.object(assets,'outfit_label',return_value='fixture'):
+        with pytest.raises(k.ProfileError):
+            k.save_outfit_to_kho(db,9,'Kelly',{'kind':'human','who':'fixture'})
+    assert db.execute('SELECT profile FROM assets WHERE id=1').fetchone()[0]=='{}'
+
+
+def test_m23low_set_profile_v2_keeps_reason_history(db):
+    from core import assets, kho_profile as k
+    k.save(db,1,{'identity':'fixture'},{'kind':'human','who':'fixture'},0)
+    saved=assets.set_profile(db,1,{'identity':'fixture 2'},approved=False,reason='đổi theo ảnh mới',actor={'kind':'human','who':'fixture'},expected_revision=1)
+    assert saved['history'][-1]['why']=='đổi theo ảnh mới'
+    assert assets.get_profile(db,1)['history'][-1]['why']=='đổi theo ảnh mới'
+
+
+def test_m23low_set_size_bumps_v2_revision_only(db):
+    from core import assets, kho_profile as k
+    db.execute('ALTER TABLE assets ADD COLUMN kind TEXT')
+    db.execute("INSERT INTO assets(id,name,profile,kind) VALUES(2,'Box',NULL,'prop')")
+    k.save(db,1,{'identity':'fixture'},{'kind':'human','who':'fixture'},0)
+    assets.set_size(db,1,1.7)
+    assert assets.get_profile(db,1)['revision']==2
+    assets.set_size(db,2,0.9)
+    assert 'revision' not in assets.get_profile(db,2)
+
+
+def test_m23low_forms_for_shot_reads_each_asset_once(db):
+    import json
+    from core import kho_profile as k
+    asset={'id':1,'name':'Kelly','images':[]}
+    v2={'schema_version':2,'revision':1,'forms':[],'kho_id':1}
+    with patch.object(os,'environ',{'FEATURE_KHO_FORMS_V2':'1'}),patch.object(k.character_forms,'for_shot',return_value={}),patch.object(k,'read',return_value=v2) as read:
+        k.forms_for_shot(db,9,{'characters':['Kelly']},[asset])
+    assert read.call_count==1

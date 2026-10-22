@@ -137,7 +137,13 @@ def draft(conn, entries: List[Dict], client) -> List[Dict]:
         images = [(f"{c['name']} — ảnh {i + 1}", assets.thumbnail(r["path"], 900)) for i, r in enumerate(refs)]
         with llm_runner.tagged("profile_draft"):
             obj = llm_runner.ask_json(client, draft_prompt(c), _check, images)[0]
-        saved = assets.set_profile(conn, c["id"], obj, approved=False, actor={"kind":"ai", "who":"draft_profiles", "model":getattr(client,"model", "unknown"), "from_text":"draft_profiles"}, expected_revision=before.get("revision",0))              # a draft: never approved here
+        try:
+            saved = assets.set_profile(conn, c["id"], obj, approved=False, actor={"kind":"ai", "who":"draft_profiles", "model":getattr(client,"model", "unknown"), "from_text":"draft_profiles"}, expected_revision=before.get("revision",0))              # a draft: never approved here
+        except (assets.AssetError, kho_profile.ProfileError) as e:
+            # một mục bị writer từ chối (khóa / CAS / hồ sơ hỏng) không dừng cả lô — nói rõ mục nào, các mục sau vẫn soạn
+            print(f"  ✗ {c['name']}: chưa lưu nháp — {e}")
+            out.append({"entry": c["name"], "profile": {}, "error": str(e)})
+            continue
         out.append({"entry": c["name"], "profile": saved})
     return out
 
@@ -195,7 +201,7 @@ def main():
         if client is None:
             sys.exit("Chưa có Claude: " + llm_runner.missing_hint())
         for r in draft(conn, todo, client):
-            print(f"  nháp: {r['entry']} — {r['profile'].get('identity', '')[:120]}")
+            print(f"  nháp: {r['entry']} — " + (f"✗ {r['error']}" if r.get("error") else r['profile'].get('identity', '')[:120]))
 
 
 if __name__ == "__main__":

@@ -8,7 +8,10 @@ import json
 import re
 import sqlite3
 from datetime import datetime, timezone
+import logging
 from . import assets, features, character_forms
+
+_log = logging.getLogger(__name__)
 
 class ProfileError(ValueError):
     pass
@@ -169,39 +172,65 @@ def scalar_form(value):
     return None
 
 
+def _requested(scene):
+    """BYĐ `thanh_phan[]`: {tên HOA: dạng}, {tên HOA: kho_id}."""
+    from . import shot_intent
+    participants, _, _ = shot_intent.read(scene or {}, 'thanh_phan', [])
+    if not isinstance(participants, list):
+        return {}, {}
+    rows = [(str(t.get('vat') or t.get('ten') or t.get('name') or '').strip().upper(), t) for t in participants if isinstance(t, dict)]
+    return {n: t.get('dang') for n, t in rows}, {n: t.get('kho_id') for n, t in rows}
+
+
+def _shot_forms(p, asset_id, scene, cast, own=None):
+    """Một quy tắc chọn dạng cho cả forms_for_shot và selected_images: {tên: dạng}.
+    BYĐ chốt một dạng → dạng đó; BYĐ khai nhiều dạng/theo nhịp hoặc dạng khác → không chọn; không BYĐ mà chữ cảnh nhắc
+    từ 2 dạng trở lên cho cùng một tên → không tự chọn (cần người duyệt). Dạng không `applies_to` (vật) chỉ gán cho `own`."""
+    scene = scene or {}
+    text = ' '.join(str(scene.get(k) or '') for k in ('text','image_prompt','location')).lower()
+    requested, requested_ids = _requested(scene)
+    found = {}
+    for f in p.get('forms', []):
+        if f.get('_p',{}).get('state') != 'USER_LOCKED':
+            continue
+        applies = {str(n).strip().upper() for n in f.get('applies_to', [])}
+        targets = applies & cast if applies else ({own} if own else set())
+        targets = {n for n in targets if (requested_ids.get(n) is None or type(requested_ids[n]) is int and requested_ids[n] == asset_id)
+                   and (not requested.get(n) or scalar_form(requested[n]) == f['ma'])}
+        matched = any(_mentions_form(text,f[k]) for k in ('ma','ten_en','ten_vi') if f.get(k))
+        for n in targets:
+            explicit = scalar_form(requested.get(n)) == f['ma']
+            if explicit or matched:
+                found.setdefault(n, []).append((f, explicit))
+    out, review = {}, []
+    for n, cands in found.items():
+        pick = [f for f, explicit in cands if explicit] or [f for f, _ in cands]
+        if len(pick) == 1:
+            out[n] = pick[0]
+        else:
+            review.append(n)
+    if review:
+        _log.warning('Kho dạng: chữ cảnh nhắc nhiều dạng cho %s (Kho %s), không tự chọn — cần BYĐ chốt một dạng', ', '.join(sorted(review)), asset_id)
+    return out, review
+
+
 def forms_for_shot(conn, project_id, scene, chosen=None):
     if not enabled():
         return character_forms.for_shot(conn, project_id, scene, chosen)
     chosen = assets.project_assets(conn, project_id) if chosen is None else chosen
-    legacy = [a for a in chosen if read(conn,a['id']).get('schema_version',1) != 2]
+    profiles = {a['id']: read(conn, a['id']) for a in chosen}
+    legacy = [a for a in chosen if profiles[a['id']].get('schema_version',1) != 2]
     out = character_forms.for_shot(conn, project_id, scene, legacy)
     scene = scene or {}
     cast = {str(n).strip().upper() for n in scene.get('characters', [])}
-    text = ' '.join(str(scene.get(k) or '') for k in ('text','image_prompt','location')).lower()
-    from . import shot_intent
-    participants, _, _ = shot_intent.read(scene, 'thanh_phan', [])
-    requested = {str(t.get('vat') or t.get('ten') or t.get('name') or '').strip().upper():t.get('dang') for t in participants if isinstance(t,dict)} if isinstance(participants,list) else {}
-    requested_ids = {str(t.get('vat') or t.get('ten') or t.get('name') or '').strip().upper():t.get('kho_id') for t in participants if isinstance(t,dict)} if isinstance(participants,list) else {}
     for a in chosen:
-        p = read(conn,a['id'])
+        p = profiles[a['id']]
         if p.get('schema_version') != 2:
             continue
-        for f in p['forms']:
-            if f.get('_p',{}).get('state') != 'USER_LOCKED':
-                continue
-            targets = {str(n).strip().upper() for n in f.get('applies_to', [])} & cast
-            targets = {n for n in targets if (requested_ids.get(n) is None or type(requested_ids[n]) is int and requested_ids[n] == a['id'])
-                       and (not requested.get(n) or scalar_form(requested[n]) == f['ma'])}
-            if not targets:
-                continue
-            explicit = any(scalar_form(requested.get(n)) == f['ma'] for n in targets)
-            matched = any(_mentions_form(text,f[k]) for k in ('ma','ten_en','ten_vi') if f.get(k))
-            if not explicit and not matched:
-                continue
+        for n, f in _shot_forms(p, a['id'], scene, cast)[0].items():
             image = next((i for iid in f.get('image_ids',[]) for i in a.get('images',[]) if i['id']==iid and i.get('status')=='approved'),None)
             value = dict(f, form=f.get('ten_en') or f['ma'], label=f.get('ten_vi') or f.get('ten_en') or f['ma'], words=f.get('words_en') or '', asset_id=a['id'], image=image, kho_id=a['id'], revision=p['revision'])
-            for n in targets:
-                out.setdefault(n,value)
+            out.setdefault(n,value)
     return out
 
 def forms_for_rows(conn, project_id, rows):
@@ -265,7 +294,20 @@ def validate_dang(conn, project_id, name, dang, *, asset_id=None):
         return [{'muc':'vang','ma':'dang_khong_trong_kho','loi':'Dạng không thuộc forms Kho'}]
     return []
 
-def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
+def pending_review(profile):
+    """Các trường chưa USER_LOCKED làm hồ sơ v2 chưa duyệt được (cùng luật `approved` của save)."""
+    out = []
+    for key in ('face', 'hair'):
+        f = profile.get(key)
+        if isinstance(f, dict) and f.get('_p', {}).get('state') != 'USER_LOCKED':
+            out.append(key)
+    out += [f"forms:{f.get('ma')}" for f in profile.get('forms') or [] if isinstance(f, dict) and f.get('_p', {}).get('state') != 'USER_LOCKED']
+    out += [f"outfit:{s.get('id')}" for s in (profile.get('outfit') or {}).get('sets') or [] if isinstance(s, dict) and s.get('_p', {}).get('state') != 'USER_LOCKED']
+    out += [key for key, m in (profile.get('_p') or {}).items() if key != 'profile' and isinstance(m, dict) and m.get('state') != 'USER_LOCKED']
+    return out
+
+
+def save(conn, asset_id, changes, actor, expected_revision, *, approved=None, reason=None):
     """Ghi có actor, giữ trường khóa, lưu đề xuất và CAS nguyên JSON (không migration)."""
     if not isinstance(actor,dict) or actor.get('kind') not in ('human','ai','auto','tool') or not isinstance(actor.get('who'),str) or not actor['who'].strip():
         raise ProfileError('Cần actor hợp lệ')
@@ -321,7 +363,10 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
         p[key]=value
     p.update(schema_version=2,revision=expected_revision+1)
     fields = [p[k] for k in ('face','hair') if p.get(k)] + p.get('forms',[]) + p.get('outfit',{}).get('sets',[])
-    p['approved'] = bool(fields) and all(f.get('_p',{}).get('state')=='USER_LOCKED' for f in fields) and all(m.get('state')=='USER_LOCKED' for key,m in p.get('_p',{}).items() if key != 'profile' and isinstance(m,dict))
+    p['approved'] = bool(fields) and not pending_review(p)
+    if reason and str(reason).strip():
+        # Kế hoạch V4 4.4: đổi hồ sơ ghi lý do — writer v2 giữ `history` như writer v1.
+        p['history'] = list(old.get('history') or []) + [{'date': datetime.now(timezone.utc).date().isoformat(), 'why': str(reason).strip(), 'by': actor['who']}]
     if approved is not None:
         p['approved'] = bool(approved) and p['approved']
     validate(p,conn,asset_id)
@@ -347,19 +392,31 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
         raise
     return p
 
-def selected_images(asset, scene=None):
-    """Ảnh v2 theo dạng vật (thứ tự khai) rồi mặt/tóc; None = dùng selector cũ."""
+def selected_images(asset, scene=None, name=None):
+    """Ảnh v2 theo dạng (cùng quy tắc forms_for_shot: BYĐ trước, chữ cảnh sau) rồi mặt/tóc; None = dùng selector cũ.
+    Hồ sơ v2 hỏng → None + cảnh báo (không chặn dựng gói)."""
     if not enabled():
         return None
     raw = asset.get('profile') or {}
-    p = json.loads(raw) if isinstance(raw,str) else raw
-    if p.get('schema_version') != 2:
+    try:
+        p = json.loads(raw) if isinstance(raw,str) else raw
+        if not isinstance(p, dict) or p.get('schema_version') != 2:
+            return None
+        validate(p)
+    except (ProfileError, ValueError, TypeError, KeyError, AttributeError) as exc:
+        _log.warning('Kho %s: hồ sơ v2 hỏng (%s) — dùng cách chọn ảnh cũ; sửa hồ sơ ở ⚙ → 📁 Kho', asset.get('id'), exc)
         return None
-    validate(p)
     forms = [f for f in p.get('forms',[]) if f.get('_p',{}).get('state')=='USER_LOCKED']
-    text = ' '.join(str((scene or {}).get(k) or '') for k in ('text','image_prompt','location')).lower()
-    explicit = [f for f in forms if any(_mentions_form(text,f[k]) for k in ('ma','ten_en','ten_vi') if f.get(k))]
-    chosen = explicit[:1] or ([forms[0]] if forms and not forms[0].get('applies_to') else [])
+    scene = scene or {}
+    own = str(name or asset.get('name') or '').strip().upper()
+    cast = {own} if name else ({str(n).strip().upper() for n in scene.get('characters', [])} | {own})
+    picked, review = _shot_forms(p, asset.get('id'), scene, cast, own)
+    requested, _ = _requested(scene)
+    chosen = list({f['ma']: f for f in picked.values()}.values())
+    if len(chosen) > 1:
+        chosen = []                      # hai tên cùng mục Kho nhưng khác dạng: không tự chọn
+    elif not chosen and not review and not requested.get(own) and forms and not forms[0].get('applies_to'):
+        chosen = [forms[0]]              # dạng mặc định của vật khi cảnh không nhắc/không chốt dạng nào
     ids = [i for f in chosen for i in f.get('image_ids',[])]
     ids += [i for key in ('face','hair') for i in (p.get(key) or {}).get('ref_image_ids',[])]
     images = {i['id']:i for i in asset.get('images',[]) if i.get('status')=='approved'}
@@ -381,7 +438,10 @@ def save_outfit_to_kho(conn, project_id, name, actor):
         raise ProfileError('Dự án chưa chọn ảnh trang phục')
     # Không tự chuyển quyền sở hữu ảnh của một mục Kho khác.
     ids = [i['id'] for i in pics]
-    if any(conn.execute('SELECT asset_id FROM asset_images WHERE id=?',(i,)).fetchone()['asset_id'] != a['id'] for i in ids):
+    owners = [conn.execute('SELECT asset_id FROM asset_images WHERE id=?',(i,)).fetchone() for i in ids]
+    if any(row is None for row in owners):
+        raise ProfileError('Ảnh trang phục không còn trong Kho; chọn lại ảnh trước khi lưu')
+    if any(row['asset_id'] != a['id'] for row in owners):
         raise ProfileError('Ảnh trang phục thuộc mục Kho khác; cần chọn đúng mục trước khi lưu')
     outfit = copy.deepcopy(p.get('outfit') or {'sets':[]})
     set_id = f'project_{project_id}'
