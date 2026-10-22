@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T18:42:04.918812+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-R1-REL",
+  "branch": "cloud/v31-r1-rel",
+  "commit": "140e2484",
+  "report": "docs/RA_CLOUD_R1_REL_2026-10-22.md",
+  "text": "R1-SIDE tách bên khung tuyệt đối / tương đối (so góc 2 thực thể theo máy shot; |Δ|<5° = KHÔNG RÕ kèm số đo). Agent rà quy ước 7: 4 VỪA đã sửa (of-X chỉ tương đối khi X là tên trên map, danh từ khung TV, valid_from str, thiếu máy → 1 KHÔNG RÕ). Test 305 passed. Shot 34 thật: chữ 'frame-right' của địch vẫn mâu thuẫn map (cả 4 ở nửa trái; địch chỉ phải hơn Kelly 14–21°); cụm 'three enemies' chưa nối thực thể map → còn mở. THẤP mở: M3.3 review chưa kiểm tương đối, nhãn tuyet_doi trên map tương đối, 'looks to the right of X'."
+}
