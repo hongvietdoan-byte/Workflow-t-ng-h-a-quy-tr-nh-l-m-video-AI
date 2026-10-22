@@ -84,6 +84,10 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 | C-M48-DESK-UI | cloud-D (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M48-DESK-UI | bàn đạo diễn 3D Đợt 1 giao diện + cờ `stage_desk_ui` TẮT |
 | C-M83-TOOL | cloud-E (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M83-TOOL | công cụ đo tải 10 người (Playwright + provider giả); lượt đo thật M8.3 = máy chính |
 
+- **22/10 09:24 (giờ VN) — C-QC-BOCUC → cloud-E** (người dùng duyệt "làm đi"): Tổ QC thêm mệnh đề bố cục / chỗ đứng (tối đa flag, D07), đo lại offline,
+  tìm vì sao `trainee_log` qc_team 120 dòng mà 0 dòng được chấm. **Máy chính khi gộp:** chạy `tools/trainee_score_report.py` (công cụ mới, đọc bản
+  sao CSDL, 0 USD) + lệnh đo trong `docs/RA_CLOUD_QC_BOCUC_*.md` → báo người dùng số khớp; ≥ 75 % mới xin bật `qc_team` (người dùng duyệt).
+
 ## D. Ghi chú lượt 22/10 02:58
 - C-GOLDEN7 (cloud-C) XONG @ cloud/v31-golden5 621661a8 — CHƯA gộp (công cụ golden gộp cùng tích hợp M2 khi CX21-GOLDEN7 ĐẠT). Máy chính: không cần làm gì
   tới khi codex báo kết quả; ĐẠT → phiên điều phối gộp cloud/v31-m2-tichhop + m24 + golden5 (+ m73, m210, golden4 dựng trên nền đó) một lần.

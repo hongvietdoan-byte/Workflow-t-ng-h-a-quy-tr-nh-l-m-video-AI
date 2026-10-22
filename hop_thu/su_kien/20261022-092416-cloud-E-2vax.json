@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T09:24:16.022294+07:00",
+  "lane": "cloud-E",
+  "kind": "giao",
+  "task": "C-QC-BOCUC",
+  "to": "cloud-E",
+  "title": "Tổ QC: thêm lỗi bố cục / chỗ đứng (tối đa flag) + đo lại offline + tìm vì sao trainee_log 0 dòng được chấm (0 USD, không cờ mới)",
+  "spec": "docs/CLOUD_TASKS.md#### C-QC-BOCUC",
+  "priority": 1
+}

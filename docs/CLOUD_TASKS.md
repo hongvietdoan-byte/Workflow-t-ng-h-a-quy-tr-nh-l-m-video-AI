@@ -1078,3 +1078,27 @@ THẤP (M7.4): autoqc._codes không bao giờ xóa (clear_error autoqc.py:83 kh�
   kẹt sau báo nhầm "Claude không dùng được" → xóa khi lượt chạy xong không lỗi / hết hạn theo RETRY_AFTER; test.
 Nhánh cloud/v31-m63-fix từ origin/main. XONG hộp thư.
 ```
+
+#### C-QC-BOCUC (cloud-E — ưu tiên 1; Cấp 2 trong phạm vi quyết định qc-team-off-2026-10-14 + D07; người dùng 22/10 "làm đi"; cloud-claude giao) — Tổ QC: lỗi bố cục / chỗ đứng + đo lại offline
+```
+Mục tiêu: đủ ĐIỀU KIỆN 1 của qc-team-off-2026-10-14 ("checklist có lỗi bố cục / chỗ đứng") và có số đo offline để biết đã gần 75 % chưa. 0 USD, KHÔNG
+thêm cờ mới (luật tạm 22/10: khóa catalog 159 tới khi CX21-GOLDEN7 xong), qc_team giữ 🎓 học việc, KHÔNG chặn / tự gen lại (D07: lỗi bố cục/góc máy
+không chắc → REVIEW). Nhánh cloud/v31-qc-bocuc từ origin/main.
+1. core/qc_spec.compile_frame: thêm mệnh đề loại "layout" (nguồn: plate_spot của shot + shot cùng chỗ / ảnh neo theo scene_storyboard.group_of +
+   spot_mates, camera_plan G0 nếu có, stage_camera nếu có): (a) chỗ đứng: nhân vật ở đúng bên trái/phải khung như ảnh neo cùng chỗ; (b) mốc nền
+   (tường keo / tháp / cửa…) cùng bên như ảnh neo; (c) chân trời / độ cao máy khớp render nền 3D — lấy SỐ từ core/plate_layout_qc (0 USD, code)
+   làm tầng 0, chỉ hỏi C1 khi code không chắc. Không có dữ liệu chỗ đứng → KHÔNG sinh mệnh đề (ghi lý do vào spec, không im lặng — CHUAN_XAY_DUNG).
+2. core/qc_rules: kết luận cho "layout" — code chắc (plate_layout_qc vượt ngưỡng) → flag; model 'false' + confidence high → flag; còn lại → unclear
+   (REVIEW). Mức nặng tối đa = flag (KHÔNG block) theo D07.
+3. Đo offline: tools/experiments/qc_team_eval.py (ReplayClient, bản ghi calls.jsonl cũ) + khung benchmark DP7 trên bộ độc lập data/qc_golden/
+   independent.json — chạy được ở cloud thì chạy, KHÔNG có dữ liệu thì viết lệnh sẵn cho máy chính trong báo cáo. Báo khớp TRƯỚC/SAU, tách nhóm lỗi
+   (bố cục / nhân vật / khác). Mệnh đề mới chưa có câu trả lời ghi âm → đếm riêng "cần gọi model" + ước tính USD bằng qc_team.estimate_usd (KHÔNG gọi).
+4. Vòng chấm học việc: docs/DANH_GIA_HIEU_QUA_CO_2026-10-21.md mục 1.2 điểm 4 — trainee_log qc_team 120 dòng, 0 dòng được chấm. Rà
+   core/trainee.score_project + nơi ghi (qc_scene/qc_team record job_id) tìm vì sao match NULL (job_id ghi là job khung khác job người duyệt? người duyệt
+   trước vai → human_first? chưa xuất bản nên không chạy?). Viết test tái hiện từng giả thuyết; sửa cái chứng minh được bằng test. Thêm
+   tools/trainee_score_report.py: đọc BẢN SAO CSDL (như tools/scene_layout_audit.py), in mỗi vai: số dòng, đã chấm, chờ, human_first, lý do chưa chấm
+   — để máy chính chạy (0 USD, chỉ đọc).
+5. Test: mệnh đề layout có/không dữ liệu, kết luận không vượt flag, replay offline không gọi mạng, tool đọc bản sao không ghi CSDL thật.
+   Quy ước 7: py tools/related_areas.py → Agent rà trước commit. Báo cáo docs/RA_CLOUD_QC_BOCUC_2026-10-2x.md (số đo trước/sau, giả thuyết vòng chấm,
+   lệnh cho máy chính). XONG hộp thư mã C-QC-BOCUC. KHÔNG bật qc_team; bật lại = người dùng duyệt khi máy chính đo ≥ 75 %.
+```
