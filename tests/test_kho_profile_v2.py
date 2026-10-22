@@ -46,6 +46,52 @@ def test_unknown_dang_is_warning(adapter):
     assert k.validate_dang(None,1,'KELLY','absent')[0]['muc']=='vang'
 
 
+@pytest.fixture
+def byd_conn():
+    import sqlite3
+    conn=sqlite3.connect(':memory:');conn.row_factory=sqlite3.Row
+    conn.execute('CREATE TABLE asset_images(id INTEGER, asset_id INTEGER, status TEXT)')
+    conn.executemany('INSERT INTO asset_images VALUES (?,1,?)',[(8,'approved'),(9,'approved')])
+    yield conn
+    conn.close()
+
+
+@pytest.mark.parametrize('dang',['ghost_form',['ghost_form'],{'bat_dau':'ghost_form','ket_thuc':['ghost_form']}])
+def test_byd_checks_declared_forms_with_project_context(adapter,byd_conn,dang):
+    from core import shot_intent as s
+    byd=s.empty(1);byd.update(byd_v=2,thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':dang}])
+    assert not [i for i in s.assess(byd,byd_conn,project_id=1) if '.dang' in i['truong']]
+
+
+def test_byd_unknown_form_warns_at_exact_beat(adapter,byd_conn):
+    from core import shot_intent as s
+    byd=s.empty(1);byd.update(byd_v=2,thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':{'bat_dau':'ghost_form','ket_thuc':['absent']}}])
+    issues=[i for i in s.assess(byd,byd_conn,project_id=1) if i.get('ma')=='dang_khong_trong_kho']
+    assert [(i['truong'],i['muc'],i['level']) for i in issues]==[('thanh_phan[0].dang.ket_thuc[0]','vang','WARN')]
+
+
+def test_byd_missing_project_context_does_not_guess(adapter):
+    from core import shot_intent as s
+    byd=s.empty(1);byd.update(byd_v=2,thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':'ghost_form'}])
+    issues=s.validate(byd)
+    assert any(i.get('ma')=='dang_khong_kiem_duoc' for i in issues)
+
+
+def test_director_threads_project_to_form_validation(adapter):
+    from core import director_byd as d
+    byd={'thanh_phan':[]}
+    with patch.object(d.shot_intent,'validate',return_value=[]) as validate:
+        assert d.problems({'byd':byd},None,project_id=17)==([],[])
+    assert validate.call_args.kwargs=={'project_id':17}
+
+
+def test_router_first_frame_uses_the_same_v2_form(adapter):
+    from core import model_router
+    _,asset=adapter
+    scene={'characters':['KELLY'],'byd':{'thanh_phan':[{'vat':'KELLY','dang':'ghost_form'}]}}
+    assert 'KELLY' in model_router.needs_first_frame(None,1,scene,chosen=[asset])
+
+
 @pytest.mark.parametrize('source',['human','ai'])
 def test_profile_level_provenance_does_not_require_field_state(adapter,source):
     k,_=adapter

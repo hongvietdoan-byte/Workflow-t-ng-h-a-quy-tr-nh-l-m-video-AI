@@ -169,7 +169,9 @@ def forms_for_shot(conn, project_id, scene, chosen=None):
     scene = scene or {}
     cast = {str(n).strip().upper() for n in scene.get('characters', [])}
     text = ' '.join(str(scene.get(k) or '') for k in ('text','image_prompt','location')).lower()
-    requested = {str(t.get('vat') or t.get('ten') or t.get('name') or '').strip().upper():t.get('dang') for t in (scene.get('byd') or {}).get('thanh_phan', []) if isinstance(t,dict)}
+    from . import shot_intent
+    participants, _, _ = shot_intent.read(scene, 'thanh_phan', [])
+    requested = {str(t.get('vat') or t.get('ten') or t.get('name') or '').strip().upper():t.get('dang') for t in participants if isinstance(t,dict)} if isinstance(participants,list) else {}
     for a in chosen:
         p = read(conn,a['id'])
         if p.get('schema_version') != 2:

@@ -48,3 +48,10 @@ Quota cuối: 5h ĐÃ DÙNG89%, còn11%; tuần57%, còn43%. Reset tự nhiên 2
 - Chấp nhận `_p.profile` không state đúng M0.9, giữ guard state ở mọi field; matcher v2 không khớp chuỗi con ice/Alice, BYĐ exact vẫn được chọn.
 - ĐỎ actor1; root profile/matcher3. XANH cuối 125/125 (13.38s). Root đọc diff commit trước push.
 - Chưa XONG: BYĐ cloud-C/shot_intent không tự sửa; máy chính full suite/acceptance/production vẫn chưa chạy. Không còn mở rộng phạm vi trong lượt này.
+
+## Nối BYĐ sau M2 main (22/10)
+- Merge main 0fcedc73 đã chốt; giữ union cờ golden OFF, không đổi version areas.
+- validate/assess thêm context project_id; Director/byd_fill truyền project; ON kiểm scalar/list/beat bằng adapter, thiếu/ngoài enum chỉ WARN, OFF giữ mức M21 cũ.
+- forms_for_shot chuyển raw BYĐ sang shot_intent.read. Code và test mới chưa kết thúc rà độc lập; root thực hiện trước push.
+- Không triển khai R5 vat[].bien_the/stage_shape hoặc quyết định chọn dạng ảnh theo nhiều nhịp ngoài đề M23. Không test production/golden thật/full suite.
+- Test cuối XANH103/103 (636,06s) v2/readers/router/golden. Nhóm Director/byd_fill/shot_intent/M21 trước đó qua; AST caller mới đã sửa. Chờ root rà độc lập rồi push/trạng thái; M23 chưa được tự đánh dấu XONG toàn bộ khi còn scopes nêu trên.
