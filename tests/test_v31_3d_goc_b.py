@@ -290,3 +290,54 @@ def test_map_positions_are_not_fed_into_gen_or_qc():
     users = [str(p.relative_to(root)).replace("\\", "/") for d in ("core", "dashboard") for p in (root / d).rglob("*.py")
              if use.search(p.read_text(encoding="utf-8", errors="replace"))]
     assert [u for u in users if u not in allowed] == []
+
+
+# ---- 22/10: R1-SIDE báo nhầm #31 shot 18 / 34 (câu thật: tests/fixtures/r1side_p31_shot18_34.json) -------------------------------
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "r1side_p31_shot18_34.json"), encoding="utf-8") as _fh:
+    P31 = json.load(_fh)["shots"]
+
+
+def _p31(shot):
+    s = P31[str(shot)]
+    m = world_map._base(s["story_scene"], s["map_kind"], None, {}, ["fixture"], "code")
+    if s["map_kind"] == "3d":
+        m["origin"] = {"stage": "kho263", "xyz": [0.0, 0.0, 0.0], "model_xyz": s["origin_model_xyz"]}
+        m["entities"] = [{"entity_id": e["entity_id"], "label": e["label"], "kho_id": None, "kind": e["kind"],
+                          "transform": {"xyz": e["xyz"], "yaw_deg": None}, "dimensions": None, "valid_from": None, "valid_to": None,
+                          "state": None, "source": "stage_blocking", "confidence": "do"} for e in s["entities"]]
+    else:
+        m["relations"] = s["relations"]
+    c = s["stage_camera"]
+    assert world_map.position_sentence(m, shot, c)[1]["placed"] == s["placed"]          # map đặt y như lúc báo nhầm
+    return m, s, c
+
+
+@pytest.mark.parametrize("shot", [18, 34])
+def test_p31_body_parts_and_other_peoples_places_are_not_side_claims(shot):
+    """18: "behind Kelly's right shoulder" (bộ phận cơ thể); 34: "toward frame-right where three enemies stand" (chỗ của người KHÁC,
+    gán nhầm cho tên trong vế). Trước sửa: 3 R1-SIDE; sau: 0."""
+    m, s, c = _p31(shot)
+    assert pi.check_text_sides(m, shot, {"image_prompt": s["image_prompt"], "blocking": s["blocking"]}, c) == []
+
+
+def test_p31_real_side_contradictions_are_still_found():
+    m18, _, c18 = _p31(18)                                                     # map: Kelly trái, Sứ giả bóng đêm phải
+    got = pi.check_text_sides(m18, 18, {"blocking": "Kelly stands frame-right in the corridor"}, c18)
+    assert [f["numbers"]["entity"] for f in got] == ["Kelly"]
+    got = pi.check_text_sides(m18, 18, {"blocking": "Sứ giả bóng đêm stands frame-left behind Kelly's right shoulder"}, c18)
+    assert [f["numbers"]["entity"] for f in got] == ["Sứ giả bóng đêm"]        # chữ của Sứ giả vẫn bị bắt; vai Kelly không tính
+    m34, _, c34 = _p31(34)                                                     # map 3D: mọi người ở nửa trái khung
+    got = pi.check_text_sides(m34, 34, {"image_prompt": "Kelly turns toward frame-right where Yêu nữ tà linh dạng 2 stands alone"}, c34)
+    assert [f["numbers"]["entity"] for f in got] == ["Yêu nữ tà linh dạng 2"]   # mệnh đề where → gán đúng X, không gán Kelly
+    assert pi.check_text_sides(m34, 34, {"image_prompt": "Kelly raises her right hand; the right end of the wall glows"}, c34) == []
+
+
+def test_side_claims_subject_rules():
+    claims = world_map._side_claims
+    assert claims("KELLY stands on the right", ["KELLY"]) == {"KELLY": {"right"}}
+    assert claims("on the left KELLY crouches", ["KELLY"]) == {"KELLY": {"left"}}             # không có tên trước → tên đầu sau
+    assert claims("KELLY faces BARREL on the right", ["KELLY", "BARREL"]) == {"BARREL": {"right"}}
+    assert claims("KELLY grips it in her left hand", ["KELLY"]) == {}
+    assert claims("the right side of KELLY's face is lit", ["KELLY"]) == {}
+    assert claims("KELLY at the right side of the frame", ["KELLY"]) == {"KELLY": {"right"}}   # phía của KHUNG vẫn là chỗ đứng
+    assert claims("KELLY looks toward frame-right where enemies stand", ["KELLY"]) == {}

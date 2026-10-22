@@ -1,0 +1,131 @@
+{
+ "_nguon": "#31 (data/manifest.sqlite, chỉ đọc, 22/10) + data/projects/31/world/scene_4.json, scene_8.json; R1-SIDE báo nhầm shot 18 / 34",
+ "shots": {
+  "18": {
+   "story_scene": 4,
+   "image_prompt": "Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus. Third-person gameplay camera behind Kelly's right shoulder at about head height, inside the narrow hedge corridor at night, cold purple-red moonlight, thin ground fog. The maze hedges are tall walls exactly like in the game: a dark stone base about 1 m high topped by trimmed dark-green hedge, about 3 m tall in total — clearly higher than every person's head, so nobody can see over them. Kelly, in her translucent purple-blue ghost form with a red outline, sprints away from the camera, crouched low, her glowing SKORP raised in both hands, heading for the narrow gap between the RIGHT end of the curved glue wall with the Free Fire skin Gloowall (elevator-door design: grey metal panels with a row of small warm lights along the top and small red door signs; never white foam), ONE continuous curved panel about 2 m tall and 3 m wide, its hollow concave side and both bent ends facing Kelly who threw it (standing across the corridor ahead on the LEFT, the same wall as in the previous shot) and the tall hedge on the right. Through that gap, a few metres beyond the wall, the figure in a cracked grey mask and pale trench coat is visible, still standing, holding a plain dark-metal assault rifle (no glow) and turning it toward her, small at true human scale — nobody stands inside the wall or passes through it. The SKORP glows with a crackling red aura along the entire gun. Parallel world at Cổng Trời, matching the in-game look: thick dark purple-grey storm clouds fill the sky above a deep navy-blue horizon, with an occasional thin white lightning bolt; inside the clouds looms ONE giant dark shadow ghost figure — a dark head with two small glowing white eyes and two huge hands raised as if pressed against glass — faint and smoky, part of the sky (no vortex, no red lightning). The maze: tall trimmed dark-green hedges standing on dark stone base walls, grey paved stone paths, tall dark trees beyond; the villa behind the hedges is a two-storey building with pale blue-grey walls, columns and an orange-red clay-tile roof with three dormer windows. Everything stays clearly readable — a dim, desaturated blue-grey night, never pitch black. Kelly's ghost form is translucent blue-white glowing, leaving a red light trail behind her when she moves.",
+   "blocking": "Camera behind Kelly's right shoulder; Kelly sprinting toward the 1 m gap between the Gloowall's right end and the hedge; the wall across the corridor on the left; the grey-mask enemy visible through the gap beyond the wall, still standing",
+   "stage_camera": {
+    "location": [
+     -620.0,
+     -60.6,
+     69.9
+    ],
+    "look_at": [
+     -629.5,
+     -59.6,
+     69.4
+    ]
+   },
+   "map_kind": "relative",
+   "relations": [
+    {
+     "a": "Kelly",
+     "rel": "trai_cua",
+     "b": "Sứ giả bóng đêm",
+     "frame": "may_shot",
+     "valid_from": 18,
+     "valid_to": 18,
+     "source": "byd"
+    }
+   ],
+   "placed": {
+    "Kelly": "left",
+    "Sứ giả bóng đêm": "right"
+   }
+  },
+  "34": {
+   "story_scene": 8,
+   "image_prompt": "Wide shot, eye-level camera slowly pushing in. Kelly (yellow track jacket with grey star-print stripes, white crop top, black choker, dark bob haircut, SKORP submachine gun slung on her back glowing with a faint red aura) stands on the open stone plaza near the clock tower, turning her head toward frame-right where three enemies stand in a row at the far corner: one is Yêu nữ tà linh dạng 2 (comic-style black face with one round red eye, very long white hair with red tips, black off-the-shoulder dress torn to shreds), one in a red Red Slicker raincoat with a hood hiding the face, and one in a cracked grey Hollow Man mask, black fedora and white long coat (the coat's dark stains only faintly hinted, soft and out of focus, not a visible wound). The clock tower stands tall between the plaza and the horizon. Clear daylight, stone plaza floor, low retaining walls and palm trees at the edge. Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus except the hinted coat stains.",
+   "blocking": "Kelly center-frame, facing slightly away, in the middle of the stone plaza; three enemies stand small in a row at the far frame-right corner of the plaza, clock tower rising behind them.",
+   "stage_camera": {
+    "location": [
+     -217.727,
+     114.292,
+     11.111
+    ],
+    "look_at": [
+     -217.369,
+     115.222,
+     11.029
+    ]
+   },
+   "map_kind": "3d",
+   "origin_model_xyz": [
+    -217.07,
+    116.0,
+    9.830034017562866
+   ],
+   "entities": [
+    {
+     "entity_id": "moc",
+     "label": "mốc bản đồ (CLK_OUT_Tower001_LOD0_plan)",
+     "kind": "moc",
+     "xyz": [
+      0.0,
+      16.04,
+      -0.34
+     ]
+    },
+    {
+     "entity_id": "xacdenbietbay",
+     "label": "XÁC ĐEN BIẾT BAY",
+     "kind": "vat",
+     "xyz": [
+      -3.531,
+      6.231,
+      0.0
+     ]
+    },
+    {
+     "entity_id": "kelly",
+     "label": "Kelly",
+     "kind": "nguoi",
+     "xyz": [
+      -2.6,
+      5.0,
+      0.0
+     ]
+    },
+    {
+     "entity_id": "yeunutalinhdang2",
+     "label": "Yêu nữ tà linh dạng 2",
+     "kind": "nguoi",
+     "xyz": [
+      -0.6,
+      5.8,
+      0.0
+     ]
+    },
+    {
+     "entity_id": "xuctudo",
+     "label": "Xúc tu đỏ",
+     "kind": "nguoi",
+     "xyz": [
+      -0.2,
+      4.2,
+      0.0
+     ]
+    },
+    {
+     "entity_id": "sugiabongdem",
+     "label": "Sứ giả bóng đêm",
+     "kind": "nguoi",
+     "xyz": [
+      -0.8,
+      2.8,
+      0.0
+     ]
+    }
+   ],
+   "placed": {
+    "moc": "left",
+    "xacdenbietbay": "left",
+    "kelly": "left",
+    "yeunutalinhdang2": "left",
+    "xuctudo": "left",
+    "sugiabongdem": "left"
+   }
+  }
+ }
+}
