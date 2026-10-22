@@ -36,16 +36,20 @@ def _page():
 class Desk:
     """Mock toàn bộ API lõi core.stage_desk + danh tính phiên (common.access_user / me / op_source)."""
 
-    def __init__(self, status=None, ep=True, source="nguoi", email="ep@x.vn"):
+    def __init__(self, status=None, ep=True, source="nguoi", email="ep@x.vn", user="mac_dinh", env=None):
         from core import stage_desk
         self.sd = stage_desk
         self.status = status or _status()
-        self.patches = [mock.patch.dict(os.environ, ON),
+        self.op = mock.MagicMock(return_value=source)
+        ep_patch = (mock.patch.object(stage_desk, "is_executive_producer", side_effect=ep) if callable(ep)
+                    else mock.patch.object(stage_desk, "is_executive_producer", return_value=ep))
+        self.patches = [mock.patch.dict(os.environ, dict(ON, **(env or {}))),
                         mock.patch.object(stage_desk, "scene_status", return_value=self.status),
-                        mock.patch.object(stage_desk, "is_executive_producer", return_value=ep),
-                        mock.patch("dashboard.common.access_user", return_value={"email": email, "role": "member"}),
+                        ep_patch,
+                        mock.patch("dashboard.common.access_user",
+                                   return_value={"email": email, "role": "member"} if user == "mac_dinh" else user),
                         mock.patch("dashboard.common.me", return_value={"email": email}),
-                        mock.patch("dashboard.common.op_source", return_value=source)]
+                        mock.patch("dashboard.common.op_source", self.op)]
         self.calls = {}
         for name in ("check_inputs", "estimate", "write_prompt", "load_answer", "build_sheet", "approve", "return_", "reset", "rerender",
                      "score", "render_plates"):
@@ -289,3 +293,198 @@ def test_source_has_no_env_flag_writes_no_api_no_sql():
     for word in ("os.environ", "FEATURE_", "anthropic", "llm_runner", "claude_cli", "UPDATE ", "INSERT ", "DELETE ", ".commit("):
         assert word not in src, word
     assert "core.stage_desk" in src or "from core import stage_desk" in src
+
+
+# ---- rà kỹ 22/10 (vòng sửa): mỗi lỗi một test ---------------------------------------------------------------------------------
+def test_ra1_confirmation_is_unticked_after_each_data_change():
+    """Mục 1: ô xác nhận bỏ tích sau khi bấm — lần bấm sau phải xác nhận lại (không chạy lại N9 / N11 / N6 lặng lẽ)."""
+    st_ = _status(phase="xong", buttons=["N2", "N1", "N5", "N8", "N9", "N10", "N11"], label="đã chốt")
+    with Desk(st_) as d:
+        at = d.app()
+        at.checkbox(key=f"desk_{PID}_{SCENE}_N9_ok").check().run()
+        _btn(at, "N9").click().run()
+        assert d.calls["rerender"].call_count == 1
+        assert at.checkbox(key=f"desk_{PID}_{SCENE}_N9_ok").value is False
+        _btn(at, "N9").click().run()
+        assert d.calls["rerender"].call_count == 1                     # chưa xác nhận lại → không gọi lần 2
+        at.checkbox(key=f"desk_{PID}_{SCENE}_N11_ok").check().run()
+        _btn(at, "N11").click().run()
+        _btn(at, "N11").click().run()
+        assert d.calls["render_plates"].call_count == 1
+    with Desk() as d:
+        at = d.app()
+        at.checkbox(key=f"desk_{PID}_{SCENE}_N6_ok").check().run()
+        _btn(at, "N6").click().run()
+        assert at.checkbox(key=f"desk_{PID}_{SCENE}_N6_ok").value is False
+        _btn(at, "N6").click().run()
+        assert d.calls["approve"].call_count == 1
+
+
+def test_ra2_core_exception_is_said_not_crashing_step2():
+    """Mục 2: lõi ném (segment / sqlite …) → câu lỗi trên bàn, trang không sập."""
+    with Desk() as d:
+        d.calls["build_sheet"].side_effect = RuntimeError("database is locked")
+        at = d.app()
+        _btn(at, "N5").click().run()
+        assert not at.exception
+        assert any("database is locked" in e.value for e in at.error)
+
+
+def test_ra3_claude_session_latch_is_one_way():
+    """Mục 3: đã là `?op=claude` thì đổi `?op=nguoi` không hiện lại Duyệt / Trả lại (chốt op_claude_seen)."""
+    with Desk(source="claude") as d:
+        at = d.app()
+        assert _btn(at, "N6") is None
+        d.op.return_value = "nguoi"
+        at.run()
+        assert _btn(at, "N6") is None and _btn(at, "N7") is None
+        _btn(at, "N1").click().run()
+        assert d.calls["check_inputs"].call_args.args[4]["kind"] == "ai"
+    with Desk(source="nguoi") as d:                                    # phiên người từ đầu: vẫn thấy
+        assert _btn(d.app(), "N6") is not None
+
+
+def test_ra4_write_buttons_pass_the_signed_in_user_to_core():
+    """Mục 4 (UI): N4 / N8 / N9 / N11 truyền user = common.access_user() để lõi kiểm quyền SỬA."""
+    u = {"email": "ep@x.vn", "role": "member"}
+    st_ = _status(phase="xong", buttons=["N2", "N1", "N5", "N8", "N9", "N10", "N11"], label="đã chốt")
+    with Desk(st_) as d:
+        d.calls["reset"].side_effect = lambda *a, **k: ({"ok": True} if k.get("confirm") else
+                                                        {"ok": False, "needs_confirm": True, "preview": {"say": "x"}})
+        at = d.app()
+        at.checkbox(key=f"desk_{PID}_{SCENE}_N9_ok").check().run()
+        _btn(at, "N9").click().run()
+        assert d.calls["rerender"].call_args.kwargs["user"] == u
+        at.checkbox(key=f"desk_{PID}_{SCENE}_N11_ok").check().run()
+        _btn(at, "N11").click().run()
+        assert d.calls["render_plates"].call_args.kwargs["user"] == u
+        _btn(at, "N8").click().run()
+        assert d.calls["reset"].call_args.kwargs["user"] == u
+        next(b for b in at.button if b.key == f"desk_{PID}_{SCENE}_N8_go").click().run()
+        assert d.calls["reset"].call_args.kwargs == {"confirm": True, "user": u}
+    st_ = _status(phase="quay_phim", buttons=["N2", "N1", "N3", "N4", "N8"])
+    with Desk(st_) as d:
+        at = d.app()
+        at.text_area(key=f"desk_{PID}_{SCENE}_N4_json").set_value('{"shots": []}').run()
+        at.checkbox(key=f"desk_{PID}_{SCENE}_N4_ok").check().run()
+        _btn(at, "N4").click().run()
+        assert d.calls["load_answer"].call_args.kwargs["user"] == u
+
+
+def test_ra4_core_write_buttons_need_edit_right():
+    """Mục 4 (lõi): có user mà chỉ XEM → N4 / N8 / N9 / N11 từ chối trước khi chạm đoạn; user None (CLI / autopilot / đăng nhập TẮT)
+    hoặc người được SỬA → chạy như cũ."""
+    from core import stage_desk as D
+    from tests.test_decisions import _desk_project
+    p, pid, _sids, _seg, data = _desk_project()
+    conn = p.conn
+    conn.execute("UPDATE projects SET created_by='tao@x' WHERE id=?", (pid,))
+    for em, lv in (("xem@x", "view"), ("sua@x", "edit")):
+        conn.execute("INSERT INTO project_watchers(project_id, email, level, added_at) VALUES (?,?,?,?)", (pid, em, lv, "2026-10-22"))
+    who = {"kind": "human", "who": "xem@x"}
+    calls = {"N4": lambda u: D.load_answer(conn, pid, data, "1", {}, who, user=u),
+             "N8": lambda u: D.reset(conn, pid, data, "1", who, confirm=True, user=u),
+             "N9": lambda u: D.rerender(conn, pid, data, "1", who, user=u),
+             "N11": lambda u: D.render_plates(conn, pid, data, "1", who, user=u)}
+    with mock.patch.dict(os.environ, {"DASHBOARD_AUTH": "on"}), \
+            mock.patch.object(D, "segment", side_effect=RuntimeError("tới segment")):
+        for code, fn in calls.items():
+            r = fn({"email": "xem@x", "role": "member"})
+            assert r["ok"] is False and "XEM" in r["errors"][0], code
+            for u in (None, {"email": "sua@x", "role": "member"}):
+                with pytest.raises(RuntimeError, match="tới segment"):
+                    fn(u)
+
+
+def test_ra5_desk_flag_is_opt_in_only_so_experimental_preset_keeps_it_off():
+    from core import features
+    assert "stage_desk_ui" in features.OPT_IN_ONLY
+    with mock.patch.dict(os.environ, {"FEATURE_STAGE_DESK_UI": "", "FEATURE_STAGE_VIEW_UI": ""}):
+        assert features._state("stage_desk_ui", {"preset": "experimental", "flags": {}, "modes": {}}) == "off"
+        assert features._state("stage_desk_ui", {"preset": "experimental", "flags": {"stage_desk_ui": True}, "modes": {}}) == "on"
+
+
+def test_ra6_result_shows_once_and_status_is_redrawn_after_action():
+    """Mục 6: sau bấm vẽ lại theo trạng thái lõi MỚI (st.rerun) và câu kết quả không nằm mãi."""
+    with Desk() as d:
+        at = d.app()
+        n = d.sd.scene_status.call_count
+        d.calls["build_sheet"].return_value = {"ok": True, "path": "beats/x.png"}
+        _btn(at, "N5").click().run()
+        assert d.sd.scene_status.call_count >= n + 2                  # lượt bấm + lượt vẽ lại
+        assert any("beats/x.png" in m.value for m in at.success)
+        at.run()
+        assert not any("beats/x.png" in m.value for m in at.success)
+
+
+def test_ra7_answer_file_message_uses_absolute_path():
+    from core import stage_desk
+    from dashboard import stage_desk_ui as U
+    rel = os.path.join("data", "projects", "7", "doan_3")
+    with mock.patch.object(stage_desk, "segment", return_value={"id": "S3"}), \
+            mock.patch.object(stage_desk, "seg_dir", return_value=rel):
+        obj, err = U._answer_obj("CONN", PID, "data/projects", SCENE, "quay_phim", "")
+    assert obj is None and os.path.abspath(rel) in err
+
+
+def test_ra8_view_header_drops_read_only_wording_when_desk_on(tmp_path):
+    from dashboard import stage_desk_ui as U, stage_view_ui as V
+    sc = {"scene": "1", "shots": [], "warnings": [], "missing": [], "files": {"blockout": [], "top_cut": [], "clay": []}, "world": None,
+          "dummies": None}
+    for env, want in ((OFF, "chỉ xem"), (ON, "Bàn đạo diễn 3D")):
+        with mock.patch.dict(os.environ, env), mock.patch.object(V, "collect", return_value=[sc]), mock.patch.object(V, "st") as st, \
+                mock.patch.object(U, "render_scene"):
+            V.render(mock.Mock(), PID, str(tmp_path))
+        head = st.markdown.call_args_list[0].args[0]
+        assert want in head, head
+
+
+def test_ra9_real_need_ep_path_auth_on_off_and_claude(tmp_path):
+    """Mục 9: is_executive_producer + _need_ep THẬT (CSDL tệp tạm) qua giao diện — danh tính UI truyền đúng cái lõi kiểm."""
+    from core import stage_desk as D
+    from core.db import connect
+    from core.pipeline import Pipeline
+    p = Pipeline(connect(str(tmp_path / "desk.db")))
+    pid = p.create_project("desk")
+    conn = p.conn
+    conn.execute("UPDATE projects SET created_by='tao@x' WHERE id=?", (pid,))
+    conn.execute("INSERT INTO project_watchers(project_id, email, level, added_at) VALUES (?,?,?,?)", (pid, "sua@x", "edit", "2026-10-22"))
+    conn.commit()
+    db = conn.execute("PRAGMA database_list").fetchone()[2]
+    assert db, "cần CSDL tệp (AppTest chạy kịch bản ở luồng khác)"
+
+    def fresh():                                                       # sqlite: mỗi luồng một kết nối (AppTest chạy ở luồng khác)
+        return connect(db)
+
+    real_ep, real_need = D.is_executive_producer, D._need_ep
+    seen = []
+
+    def approve(_c, _pid, _d, _s, who, user=None, **_k):
+        try:
+            real_need(fresh(), pid, who, user, "Duyệt")
+            seen.append(("ok", who))
+            return {"ok": True}
+        except D.DeskError as e:
+            seen.append(("tu_choi", str(e)))
+            return {"ok": False, "errors": [str(e)]}
+
+    def ep(_c, _p, user):
+        return real_ep(fresh(), pid, user)
+
+    cases = (({"DASHBOARD_AUTH": "on"}, "tao@x", "mac_dinh", "nguoi", True),       # chủ dự án đăng nhập = EP
+             ({"DASHBOARD_AUTH": "on"}, "sua@x", "mac_dinh", "nguoi", False),      # chỉ được sửa → không thấy Duyệt
+             ({"DASHBOARD_AUTH": "off"}, "local", None, "nguoi", True),             # đăng nhập TẮT: chủ máy
+             ({"DASHBOARD_AUTH": "on"}, "tao@x", "mac_dinh", "claude", False))      # phiên Claude dùng đăng nhập EP
+    for env, email, user, src, sees in cases:
+        seen.clear()
+        with Desk(ep=ep, email=email, user=user, source=src, env=env) as d:
+            d.calls["approve"].side_effect = approve
+            at = d.app()
+            assert (_btn(at, "N6") is not None) is sees, (email, src)
+            if sees:
+                at.checkbox(key=f"desk_{PID}_{SCENE}_N6_ok").check().run()
+                _btn(at, "N6").click().run()
+                assert seen and seen[0][0] == "ok", seen
+                assert seen[0][1] == {"kind": "human", "who": email}
+    with mock.patch.dict(os.environ, {"DASHBOARD_AUTH": "on"}), pytest.raises(D.DeskError):
+        real_need(conn, pid, {"kind": "ai", "who": "phien_claude_dashboard"}, {"email": "tao@x", "role": "member"}, "Duyệt")

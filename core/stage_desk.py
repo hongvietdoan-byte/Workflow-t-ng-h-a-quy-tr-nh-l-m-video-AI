@@ -21,13 +21,14 @@ API CÔNG KHAI (dashboard/stage_desk_ui.py — C-M48-DESK-UI — chỉ gọi cá
     N1 check_inputs(conn, pid, data_dir, scene, who)        nền: K1 (Blender nếu chưa có) + đầu vào + cổng 0 USD
     N2 estimate(conn, pid, data_dir, scene)                 đồng bộ: ước tính Claude của cảnh (chỉ để XEM — Đợt 1 không có nút API)
     N3 write_prompt(conn, pid, data_dir, scene, who)        đồng bộ, khóa S: đề bài vai đang tới lượt → doan_<S>/crew/de_bai_<phase>.md
-    N4 load_answer(conn, pid, data_dir, scene, obj, who)    nền: câu trả lời vai (source cố định "claude_code" — KHÔNG nhận người dùng)
+    N4 load_answer(conn, pid, data_dir, scene, obj, who, user=None)  nền: câu trả lời vai (source cố định "claude_code" — KHÔNG nhận người dùng)
     N5 build_sheet(conn, pid, data_dir, scene, who)         nền: tấm ghép → doan_<S>/beats/san_khau_canh<S>.png (không ghi CSDL)
     N6 approve(conn, pid, data_dir, scene, who, user, confirm_drawn=False, expected_revs=None, expected_marks=None)
                                                             S-B: chỉ EP; `user` = common.access_user() BẮT BUỘC (None chỉ khi đăng
                                                             nhập TẮT); expected_marks = scene_status()["marks"] lúc MỞ màn duyệt
                                                             (máy đổi xen giữa → từ chối); máy ghi qua write guard
     N7 return_(conn, pid, data_dir, scene, tra_lai, who, user)                                   S-B: chỉ EP; không ghi CSDL
+    N4 / N8 / N9 / N11 nhận thêm user=common.access_user() (rà kỹ mục 4): có user mà không có quyền SỬA dự án → từ chối; None = như cũ
     N8 reset(conn, pid, data_dir, scene, who, confirm=False)  S-D: confirm=False → chỉ XEM TRƯỚC (preview) thay đổi + phụ thuộc
     N9 rerender(conn, pid, data_dir, scene, who, confirm_drawn=False)   nền: K3 + K4 từ câu trả lời đã lưu; ghi máy qua guard
     N10 score(conn, pid, data_dir, scene)                   đồng bộ, khóa S: chấm lại các lượt đã lưu (không ghi CSDL)
@@ -481,6 +482,20 @@ def _need_ep(conn, pid: int, who: Optional[Dict], user, what: str) -> None:
         raise DeskError(f"{what} chỉ Executive Producer (Owner / chủ dự án) được bấm (S-B)")
 
 
+def _need_edit(conn, pid: int, user, what: str) -> Optional[Dict]:
+    """Rà kỹ C-M48-DESK-UI mục 4: nút GHI (N4 / N8 / N9 / N11) cần quyền SỬA dự án (core/access.py — lõi là chỗ chặn thật, giao diện
+    "Chỉ xem" chỉ khóa widget). `user` = common.access_user(); None = hệ thống / CLI / autopilot / đăng nhập TẮT → như cũ (không kiểm).
+    Trả dict lỗi {"ok": False, "errors"} hoặc None (được làm)."""
+    if user is None:
+        return None
+    from . import access
+    try:
+        access.require(conn, pid, user, "edit", what)
+    except access.AccessDenied as e:
+        return {"ok": False, "errors": [str(e)]}
+    return None
+
+
 # ---- trạng thái -------------------------------------------------------------------------------------------------------------
 def cam_mark(cam) -> Optional[str]:
     """Dấu ngắn của `stage_camera` một shot (None = không có máy) — UI giữ dấu lúc MỞ màn duyệt rồi đưa lại cho approve (rà 4: _rev chưa
@@ -645,9 +660,12 @@ def write_prompt(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> D
     return _sync(data_dir, pid, seg, "N3", who, conn, fn)
 
 
-def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[Dict]) -> Dict:
+def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[Dict], user=None) -> Dict:
     """N4 (nền, 0 USD; đo K3 + K4 khi phase cần): câu trả lời vai → crew_answer(source="claude_code"). Nguồn CỐ ĐỊNH — nút này không
     nhận câu trả lời "người dùng" (duyệt chốt chỉ qua N6 / N7, S-B); phase `duyet` → crew_answer tự từ chối."""
+    denied = _need_edit(conn, pid, user, "nạp câu trả lời vai sân khấu")
+    if denied:
+        return denied
     sa = _sa()
     seg = segment(conn, pid, scene)
     if not isinstance(obj, dict):
@@ -837,10 +855,13 @@ def _close_reset(conn, pid: int, data_dir: str, seg: Dict, who: Optional[Dict]) 
     return rec
 
 
-def reset(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm: bool = False) -> Dict:
+def reset(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm: bool = False, user=None) -> Dict:
     """N8 (0 USD) — S-D: chia vai lại. confirm=False → chỉ trả `preview` (hỏi xác nhận + xem trước); confirm=True → cất crew/ →
     crew_cu_<giờ>/ (không gỡ stage_camera — giữ tới khi duyệt lượt mới) + ghi doan_<S>/desk_reset.json đánh dấu tài nguyên phụ thuộc
     sẽ cũ (shot có máy, ảnh đã vẽ, world map) để màn XEM / lượt duyệt sau nói rõ."""
+    denied = _need_edit(conn, pid, user, "làm lại sân khấu")
+    if denied:
+        return denied
     sa = _sa()
     seg = segment(conn, pid, scene)
     preview = reset_preview(conn, pid, data_dir, scene, seg=seg)
@@ -857,10 +878,13 @@ def reset(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm: bo
     return _sync(data_dir, pid, seg, "N8", who, conn, fn)
 
 
-def rerender(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm_drawn: bool = False) -> Dict:
+def rerender(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm_drawn: bool = False, user=None) -> Dict:
     """N9 (nền, 0 USD; K3 + K4 ≈ 60 s mỗi 4 shot): dựng lại từ câu trả lời đã lưu (stage_auto.rerender — từ chối khi đầu vào đổi);
     máy ghi qua write guard (actor công cụ). Shot đã vẽ ảnh → cần `confirm_drawn` (như CLI --force)."""
     from .camera_plan import drawn_shots
+    denied = _need_edit(conn, pid, user, "render lại sân khấu")
+    if denied:
+        return denied
     sa = _sa()
     seg = segment(conn, pid, scene)
     drawn = drawn_shots(conn, seg)
@@ -881,10 +905,13 @@ def score(conn, pid: int, data_dir: str, scene, who: Optional[Dict] = None) -> D
     return _sync(data_dir, pid, seg, "N10", who, conn, lambda: dict(sa.score_saved(conn, pid, seg, data_dir), ok=True))
 
 
-def render_plates(conn, pid: int, data_dir: str, scene, who: Optional[Dict] = None) -> Dict:
+def render_plates(conn, pid: int, data_dir: str, scene, who: Optional[Dict] = None, user=None) -> Dict:
     """N11 (0 USD): quên render nền 3D HỎNG của từng shot cảnh (location_pack.forget_shot) rồi place_refs.ensure_async render các nền
     thiếu / cũ của dự án (luồng riêng của place_refs; Blender xếp hàng trong plates3d.render)."""
     from . import location_pack, place_refs
+    denied = _need_edit(conn, pid, user, "render lại nền 3D")
+    if denied:
+        return denied
     seg = segment(conn, pid, scene)
 
     # C-FIX6 mục 6: giữ khóa S — không quên render khi autopilot / CLI đang ghi máy đoạn này. Giới hạn: render thật chạy ở luồng

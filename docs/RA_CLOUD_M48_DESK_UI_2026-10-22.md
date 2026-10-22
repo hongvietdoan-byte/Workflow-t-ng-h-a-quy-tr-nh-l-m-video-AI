@@ -55,3 +55,23 @@ Chạy cùng: `test_v31_stage_view.py`, `test_v31_m48_desk_core.py`, `test_featu
 3. Chưa có N14 / N15 / N16 / bảng đối chiếu "đã khai ↔ đo được" / ảnh `top_beats.png` (Đợt 2 hoặc việc sau).
 4. Chế độ CHỈ XEM của `access_ui` khóa luôn nút 💲 Ước tính / 🔄 (thận trọng, không sai).
 5. `stage_view_ui` thêm 2 dòng (import + gọi), không phải 1.
+
+## Rà kỹ + vòng sửa (22/10 tối, agent rà độc lập → một vòng sửa)
+Rà kỹ báo 9 mục (0 CAO, 5 VỪA, 4 THẤP). Đã sửa, mỗi mục một test `test_ra*` trong `tests/test_v31_m48_desk_ui.py` (chạy trên mã CŨ:
+10/10 đỏ; mã mới: xanh):
+1. Ô xác nhận N4 / N6 / N9 / N11 không bỏ tích sau khi bấm → bấm lần sau chạy lại thao tác ghi không hỏi. Sửa: `run()` ghi danh sách ô
+   cần bỏ tích, đầu lượt vẽ kế (trước widget) đặt False (`test_ra1`).
+2. Lõi ném ngoại lệ làm sập Bước 2 → `run()` bắt, nói "lõi lỗi …" (`test_ra2`).
+3. Chặn phiên Claude dựa vào `?op=` tự khai, hạ được bằng `?op=nguoi` → chốt MỘT CHIỀU `common.op_claude_seen()` (đặt ở
+   `capture_op_source` + lúc đọc). Giới hạn còn lại: phiên Claude không bao giờ mở `?op=claude` thì không phân biệt được (`test_ra3`).
+4. Lõi N4 / N8 / N9 / N11 không kiểm quyền dự án → `stage_desk._need_edit` (`access.require(conn, pid, user, "edit")`), tham số mới
+   `user=None` (None = CLI / autopilot / đăng nhập TẮT: như cũ); UI truyền `common.access_user()` (`test_ra4_*`).
+   **Câu hỏi EP (chưa tự quyết):** N9 "Render lại từ câu trả lời đã lưu" sau phase `xong` ghi lại máy đã được EP duyệt — có phải chỉ EP
+   được bấm không? Hiện: ai có quyền SỬA (kể cả phiên `?op=claude`, actor "ai") đều bấm được, có xác nhận.
+5. Cờ `stage_desk_ui` vào `OPT_IN_ONLY` — preset Thử nghiệm không tự bật nút ghi máy / nền 3D (`test_ra5`).
+6. Sau bấm `st.rerun()` → trạng thái / nút vẽ lại theo lõi; câu kết quả hiện một lần (`test_ra6`).
+7. Docstring "không theo cwd" sai (common.DATA tương đối) → sửa câu, câu báo in đường tuyệt đối (`test_ra7`).
+8. Tiêu đề màn XEM bỏ chữ "(chỉ xem) … dùng CLI" khi bàn bật (`test_ra8`). **Tồn đọng:** `scene_status` vẫn chạy cho mọi cảnh mỗi
+   lần vẽ lại (expander Streamlit không báo đóng / mở; muốn lười phải thêm công tắc mở bàn — đổi thao tác) → đo thời gian trên #31 trước.
+9. Test đường THẬT `is_executive_producer` + `_need_ep` qua giao diện (CSDL tệp tạm): đăng nhập BẬT chủ dự án / người chỉ sửa, đăng nhập
+   TẮT, phiên `?op=claude` dùng đăng nhập EP (`test_ra9`).

@@ -1018,7 +1018,8 @@ HARMFUL: tuple = ()
 OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
                       "stage_handheld_props",
                       "whitebox_height_dummy",   # C-3D-GOC-A: đổi máy nền 3D gửi model (slightly_high, high giữ % khung) — chọn riêng
-                      "ui_step_log")           # C-DEVSYS-MAPS: ghi CSDL mỗi bước bấm — chỉ bật khi chọn riêng (preset Thử nghiệm không bật)
+                      "ui_step_log",           # C-DEVSYS-MAPS: ghi CSDL mỗi bước bấm — chỉ bật khi chọn riêng (preset Thử nghiệm không bật)
+                      "stage_desk_ui")         # rà kỹ C-M48-DESK-UI: nút ghi máy sân khấu / nền 3D gửi model trên đường sản xuất — chọn riêng
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

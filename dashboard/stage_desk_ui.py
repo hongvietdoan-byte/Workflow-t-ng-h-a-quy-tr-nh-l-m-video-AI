@@ -11,7 +11,10 @@ Danh sách nút = scene_status()["buttons"] (hợp phase). Đang chạy / khóa 
 (desk_progress.json qua scene_status()["progress"]). Thao tác đổi dữ liệu (N4 nạp trả lời, N6 duyệt, N8 làm lại, N9 dựng lại, N11 render
 nền) phải tích xác nhận; N8 xem trước (S-D) rồi mới xác nhận; shot đã vẽ ảnh → xác nhận riêng (Q-D).
 Quyền (S-B): ✅ Duyệt / ↩ Trả lại chỉ hiện cho Executive Producer (stage_desk.is_executive_producer với common.access_user()) và chỉ khi
-người bấm là NGƯỜI — phiên Claude thao tác Dashboard (`?op=claude`) bấm các nút khác với actor "ai", không thấy Duyệt / Trả lại."""
+người bấm là NGƯỜI — phiên Claude thao tác Dashboard (`?op=claude`, CHỐT MỘT CHIỀU common.op_claude_seen — đổi `?op=nguoi` không hạ xuống) bấm các nút khác
+với actor "ai", không thấy Duyệt / Trả lại. Nút GHI (N4 / N8 / N9 / N11) truyền user = common.access_user() để lõi kiểm quyền SỬA dự án.
+Rà kỹ 22/10: mọi lời gọi lõi qua run() — bắt ngoại lệ thành câu lỗi (không làm sập Bước 2), BỎ TÍCH các ô xác nhận đã dùng (bấm lần
+sau phải xác nhận lại) rồi st.rerun() để trạng thái / nút vẽ lại theo lõi; kết quả hiện MỘT lần."""
 import json
 import os
 from typing import Dict, Optional
@@ -43,7 +46,7 @@ def _identity():
     from core import write_guard
     from dashboard import common
     user = common.access_user()
-    if common.op_source() == "claude":
+    if common.op_claude_seen():
         return write_guard.actor("ai", "phien_claude_dashboard"), user, True
     email = (user or {}).get("email") or (common.me() or {}).get("email") or "chu_may"
     return write_guard.actor("human", email), user, False
@@ -100,11 +103,13 @@ def _show_result(code: str, res: Dict) -> None:
 
 
 def _answer_obj(conn, pid: int, data_dir: str, scene, phase: Optional[str], text: str):
-    """(obj | None, lỗi | None). Ô trống → đọc crew/tra_loi_<phase>.json trong thư mục đoạn (đường của data_dir, không theo cwd)."""
+    """(obj | None, lỗi | None). Ô trống → đọc crew/tra_loi_<phase>.json trong thư mục đoạn. data_dir của Dashboard là đường TƯƠNG ĐỐI
+    (common.DATA = data/projects, theo thư mục chạy Streamlit) → câu báo in đường tuyệt đối để người đọc tìm đúng tệp."""
     from core import stage_desk
     if not (text or "").strip():
         try:
-            path = os.path.join(stage_desk.seg_dir(data_dir, pid, stage_desk.segment(conn, pid, scene)), "crew", f"tra_loi_{phase}.json")
+            path = os.path.abspath(os.path.join(stage_desk.seg_dir(data_dir, pid, stage_desk.segment(conn, pid, scene)), "crew",
+                                                f"tra_loi_{phase}.json"))
         except Exception as e:  # noqa: BLE001 - nói lý do, không ném
             return None, f"không tìm được thư mục đoạn ({type(e).__name__}: {e})"
         if not os.path.isfile(path):
@@ -127,6 +132,8 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
     from core import stage_desk
     conn = p.conn
     key = f"desk_{pid}_{scene}"
+    for k in st.session_state.pop(f"{key}_clear", None) or []:     # rà kỹ mục 1: bỏ tích ô xác nhận TRƯỚC khi vẽ widget (lượt sau bấm)
+        st.session_state[k] = False
     try:
         s = stage_desk.scene_status(conn, pid, data_dir, scene)
     except stage_desk.DeskError as e:
@@ -173,8 +180,17 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
     res_key = f"{key}_res"
     clicked = None
 
-    def run(code: str, fn):
-        st.session_state[res_key] = (code, fn() or {})
+    def run(code: str, fn, clear=(), after=None):
+        """Gọi lõi: ngoại lệ → câu lỗi (rà kỹ mục 2); bỏ tích ô xác nhận `clear` (mục 1); vẽ lại theo trạng thái mới (mục 6)."""
+        try:
+            res = fn() or {}
+        except Exception as e:  # noqa: BLE001 - lõi ném (sqlite / segment / luồng nền): nói lý do, không làm sập Bước 2
+            res = {"ok": False, "errors": [f"lõi lỗi {type(e).__name__}: {e}"]}
+        st.session_state[res_key] = (code, res)
+        if after:
+            after(res)
+        st.session_state[f"{key}_clear"] = [f"{key}_{c}" for c in clear]
+        st.rerun()
 
     simple = [c for c in codes if c in SIMPLE]
     if simple:
@@ -203,7 +219,7 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
                 if err:
                     st.session_state[res_key] = ("N4", {"ok": False, "errors": [err]})
                 else:
-                    run("N4", lambda: stage_desk.load_answer(conn, pid, data_dir, scene, obj, who))
+                    run("N4", lambda: stage_desk.load_answer(conn, pid, data_dir, scene, obj, who, user=user), clear=("N4_ok",))
 
     if "N6" in codes:
         marks_key = f"{key}_marks"
@@ -220,11 +236,12 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
                 st.session_state[res_key] = ("N6", {"ok": False, "errors": [f"shot {', '.join(map(str, drawn))} đã vẽ ảnh — tích ô xác "
                                                                             "nhận riêng để vẫn đổi máy"]})
             else:
+                def forget_marks(res):
+                    if res.get("ok") or res.get("stale"):
+                        st.session_state.pop(marks_key, None)
                 run("N6", lambda: stage_desk.approve(conn, pid, data_dir, scene, who, user=user, confirm_drawn=bool(drawn_ok),
-                                                     expected_marks=st.session_state[marks_key]))
-                res = st.session_state[res_key][1]
-                if res.get("ok") or res.get("stale"):
-                    st.session_state.pop(marks_key, None)
+                                                     expected_marks=st.session_state[marks_key]),
+                    clear=("N6_ok", "N6_drawn"), after=forget_marks)
 
     if "N7" in codes:
         st.caption("↩ Trả lại: mỗi shot một câu ý đồ (vd \"Kelly lùi 1 m\", \"xe nôi phải đọc được\") — Quay phim chọn số đo")
@@ -241,7 +258,10 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
     if "N8" in codes:
         prev_key = f"{key}_N8_preview"
         if st.button(_label("N8"), key=f"{key}_N8", disabled=busy):
-            r = stage_desk.reset(conn, pid, data_dir, scene, who, confirm=False)
+            try:
+                r = stage_desk.reset(conn, pid, data_dir, scene, who, confirm=False, user=user)
+            except Exception as e:  # noqa: BLE001 - xem trước lỗi: nói lý do
+                r = {"ok": False, "errors": [f"lõi lỗi {type(e).__name__}: {e}"]}
             if r.get("needs_confirm") and r.get("preview"):
                 st.session_state[prev_key] = r["preview"]
             else:
@@ -254,7 +274,7 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
             with c1:
                 if st.button("Xác nhận làm lại", key=f"{key}_N8_go", disabled=busy):
                     st.session_state.pop(prev_key, None)
-                    run("N8", lambda: stage_desk.reset(conn, pid, data_dir, scene, who, confirm=True))
+                    run("N8", lambda: stage_desk.reset(conn, pid, data_dir, scene, who, confirm=True, user=user))
             with c2:
                 if st.button("Hủy", key=f"{key}_N8_cancel"):
                     st.session_state.pop(prev_key, None)
@@ -268,7 +288,8 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
             if not ok or (drawn and not drawn_ok):
                 st.session_state[res_key] = ("N9", {"ok": False, "errors": ["tích ô xác nhận trước khi dựng lại"]})
             else:
-                run("N9", lambda: stage_desk.rerender(conn, pid, data_dir, scene, who, confirm_drawn=bool(drawn_ok)))
+                run("N9", lambda: stage_desk.rerender(conn, pid, data_dir, scene, who, confirm_drawn=bool(drawn_ok), user=user),
+                    clear=("N9_ok", "N9_drawn"))
 
     if "N11" in codes:
         ok = st.checkbox(CONFIRM["N11"], key=f"{key}_N11_ok", disabled=busy)
@@ -276,10 +297,10 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
             if not ok:
                 st.session_state[res_key] = ("N11", {"ok": False, "errors": ["tích ô xác nhận trước khi render lại nền 3D"]})
             else:
-                run("N11", lambda: stage_desk.render_plates(conn, pid, data_dir, scene, who))
+                run("N11", lambda: stage_desk.render_plates(conn, pid, data_dir, scene, who, user=user), clear=("N11_ok",))
 
     if busy or (pr or {}).get("state") == "running":
         st.button("🔄 Xem tiến độ", key=f"{key}_refresh")
-    got = st.session_state.get(res_key)
+    got = st.session_state.pop(res_key, None)                       # rà kỹ mục 6: kết quả hiện một lần (tiến độ nền ở khối trên)
     if got:
         _show_result(*got)

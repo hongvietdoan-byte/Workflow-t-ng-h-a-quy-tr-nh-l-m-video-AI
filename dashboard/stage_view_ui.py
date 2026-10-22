@@ -240,7 +240,10 @@ def render(p, pid: int, data_dir: str) -> None:
     except Exception as e:  # noqa: BLE001 - màn xem không làm hỏng Bước 2: nói lý do
         st.warning(f"🧊 Xem sân khấu 3D: không đọc được dữ liệu ({type(e).__name__}: {e})")
         return
-    st.markdown("**🧊 Sân khấu 3D (chỉ xem)** — dữ liệu đã render; muốn render / sửa dùng CLI ghi bên dưới")
+    if stage_desk_ui.enabled():                            # rà kỹ C-M48-DESK-UI mục 8: bàn bật thì không còn "chỉ xem / dùng CLI"
+        st.markdown("**🧊 Sân khấu 3D** — dữ liệu đã render; thao tác ở 🎬 Bàn đạo diễn 3D trong từng cảnh (0 USD)")
+    else:
+        st.markdown("**🧊 Sân khấu 3D (chỉ xem)** — dữ liệu đã render; muốn render / sửa dùng CLI ghi bên dưới")
     for sc in scenes:
         bad = len(sc["warnings"]) + len(sc["missing"])
         with st.expander(f"Cảnh {sc['scene']} · {len(sc['shots'])} shot" + (f" · ⚠ {bad}" if bad else ""), expanded=False):
