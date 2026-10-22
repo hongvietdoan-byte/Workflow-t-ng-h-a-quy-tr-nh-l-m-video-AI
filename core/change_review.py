@@ -73,8 +73,9 @@ def _loads(s) -> Dict:
 
 def _field(d: Dict, k: str):
     if k.startswith("byd."):                       # BYD_WATCH: một nhóm trong byd
-        b = d.get("byd")
-        return b.get(k[4:]) if isinstance(b, dict) else None
+        from . import shot_intent
+        b = shot_intent.byd_of(d)
+        return b.get(k[4:]) if b is not None else None
     return d.get(k)
 
 
