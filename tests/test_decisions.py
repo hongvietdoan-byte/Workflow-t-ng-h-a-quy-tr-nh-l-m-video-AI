@@ -209,6 +209,17 @@ def check_subject_cleanup_dry_run():
     assert library.mock_calls == []
 
 
+def check_crew_profiles_linked():
+    """Người dùng 22/10: mỗi vai có hồ sơ 9 mục; sản phẩm ↔ người nhận ↔ KPI liên kết hai chiều, không thiếu / thừa."""
+    from core import crew
+    bad = crew.link_problems()
+    assert not bad, "liên kết vai lỗi: " + "; ".join(bad[:5])
+    prof = crew.load_profiles()
+    for r in crew.roles():
+        p = prof["profiles"][r["id"]]
+        assert all(p.get(k) for k in ("ban_la_ai", "vai_tro", "viec_lam", "chiu_trach_nhiem")), r["id"]
+
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 
@@ -383,3 +394,4 @@ def test_v31_m6_architecture_recorded_as_direction_not_implementation():
     assert items["v31-d01b-money-policy-product-job-cap-2026-10-20"]["status"] == "active"
     from core.pipeline import AUTO_REGEN_LIMIT                 # chưa triển khai M6.3: code giữ trần cũ
     assert AUTO_REGEN_LIMIT == {"image_gen": 3, "video_gen": 2}
+

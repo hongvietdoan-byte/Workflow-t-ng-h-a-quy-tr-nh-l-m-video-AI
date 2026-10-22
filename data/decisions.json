@@ -782,6 +782,22 @@
    "replaces": null,
    "enforced_by": [],
    "status": "active"
+  },
+  {
+   "id": "crew-role-profiles-linked-2026-10-22",
+   "date": "2026-10-22",
+   "by": "người dùng (chat 22/10, phiên cloud)",
+   "text": "Mỗi vai có hồ sơ riêng: bạn là ai, vai trò, làm gì, chịu trách nhiệm gì, dưới quyền quản lý / giám sát của ai, đầu vào cần gì, đầu ra gồm gì + chất lượng phải đạt (KPI), đầu ra cho ai, người nhận đòi hỏi gì và đáp ứng ra sao — đặt liên kết có hệ quả giữa toàn bộ các vai để không thiếu / thừa khâu hay thông tin.",
+   "keeps": "Quyền đọc/ghi, bảng sở hữu trường, owns_errors của data/crew_roles.json (M6.1) giữ nguyên; cờ crew_registry vẫn TẮT.",
+   "changes": "data/crew_profiles.json (hồ sơ 9 mục + danh mục sản phẩm: vai làm ra, KPI ngưỡng + cách đo, người nhận + yêu cầu + KPI đáp ứng); core/crew.link_problems kiểm hai chiều trong `py -m core.crew check`; KPI chưa đo được khai 'chua_co:' và liệt kê ở `py -m core.crew hoso`.",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_crew_profiles_linked"
+    }
+   ],
+   "status": "active"
   }
  ]
 }

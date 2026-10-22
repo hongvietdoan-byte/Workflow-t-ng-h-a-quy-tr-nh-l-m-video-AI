@@ -355,16 +355,198 @@ def problems(reg: Optional[Dict] = None, root: str = ROOT, errors=None) -> List[
     return out
 
 
+# ---- Hồ sơ vai + danh mục sản phẩm (người dùng 22/10) — data/crew_profiles.json --------------------------------------------------
+PROFILES_PATH = os.path.join(ROOT, "data", "crew_profiles.json")
+PROFILE_KEYS = ("ban_la_ai", "vai_tro", "viec_lam", "chiu_trach_nhiem", "giam_sat", "dau_vao", "dau_ra")
+MEASURE_KINDS = ("code", "tool", "doc", "test", "chua_co")
+
+
+def load_profiles(path: Optional[str] = None) -> Dict:
+    with open(path or PROFILES_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _measure_real(cach_do: str, root: str) -> Optional[str]:
+    """Lý do khi `cach_do` trỏ tới thứ không có (None = có / 'chua_co:' đã khai là chưa đo được)."""
+    kind, _, ref = str(cach_do or "").partition(":")
+    if kind not in MEASURE_KINDS or not ref:
+        return f"cách đo {cach_do!r} phải là {'/'.join(MEASURE_KINDS)}:<chỗ>"
+    if kind == "chua_co":
+        return None
+    path, _, name = ref.partition(":")
+    if kind == "code" and not path.endswith(".py"):
+        path += ".py"
+    full = os.path.join(root, path)
+    if not os.path.exists(full):
+        return f"cách đo {cach_do!r}: {path} không có"
+    if name and (not os.path.isfile(full) or name not in _read(path, root)):
+        return f"cách đo {cach_do!r}: không thấy {name!r} trong {path}"
+    return None
+
+
+def link_problems(reg: Optional[Dict] = None, prof: Optional[Dict] = None, root: str = ROOT) -> List[str]:
+    """Liên kết có hệ quả giữa các vai ([] = đạt) — không thiếu, không thừa:
+      - mỗi vai có hồ sơ đủ mục; giam_sat là vai có thật; chuỗi quản lý (reports_to) về tới EP, không vòng;
+      - mỗi sản phẩm đúng MỘT vai làm ra, vai đó khai trong outputs (crew_roles) và dau_ra (hồ sơ) — hai nơi trùng nhau;
+      - mỗi sản phẩm có ≥ 1 người nhận (không thừa); người nhận là vai có thật (hoặc ngoài: external_consumers) và khai nó trong dau_vao;
+      - mỗi đầu vào của vai là sản phẩm có thật CÓ ghi vai đó là người nhận (không thiếu);
+      - mỗi yêu cầu của người nhận chỉ ra KPI nào của sản phẩm đáp ứng (dap_ung ∈ kpi.id);
+      - mỗi KPI có ngưỡng + cách đo trỏ tới thứ có thật (code/tool/doc/test) hoặc khai 'chua_co:';
+      - acceptance của vai (crew_roles) là id KPI của sản phẩm vai đó làm ra;
+      - trường sản phẩm (fields) thuộc vai làm ra (bảng sở hữu trường) khi trường có vai chủ."""
+    reg = reg if reg is not None else load()
+    try:
+        prof = prof if prof is not None else load_profiles()
+    except (OSError, ValueError) as e:
+        return [f"không đọc được data/crew_profiles.json: {e}"]
+    out: List[str] = []
+    rs = {r.get("id"): r for r in roles(reg)}
+    profiles = prof.get("profiles") or {}
+    products = prof.get("products") or {}
+    external = set(prof.get("external_consumers") or [])
+    fields = reg.get("fields") or {}
+    for rid in rs:
+        if rid not in profiles:
+            out.append(f"vai {rid}: chưa có hồ sơ")
+    for rid, p in profiles.items():
+        if rid not in rs:
+            out.append(f"hồ sơ {rid}: không phải vai có thật trong crew_roles.json")
+            continue
+        miss = [k for k in PROFILE_KEYS if k not in p or (k not in ("giam_sat", "dau_vao", "dau_ra") and not p[k])]
+        if miss:
+            out.append(f"vai {rid}: hồ sơ thiếu {miss}")
+        for g in p.get("giam_sat") or []:
+            if g not in rs:
+                out.append(f"vai {rid}: giam_sat {g!r} không phải vai có thật")
+        seen, cur = set(), rid
+        while cur is not None and cur not in seen:
+            seen.add(cur)
+            cur = (rs.get(cur) or {}).get("reports_to")
+        if cur is not None:
+            out.append(f"vai {rid}: chuỗi quản lý có vòng ({cur})")
+        elif "executive_producer" not in seen:
+            out.append(f"vai {rid}: chuỗi quản lý không về tới executive_producer")
+        mine = sorted(k for k, v in products.items() if v.get("producer") == rid)
+        if sorted(p.get("dau_ra") or []) != mine:
+            out.append(f"vai {rid}: dau_ra {sorted(p.get('dau_ra') or [])} ≠ sản phẩm vai làm ra {mine}")
+        if sorted(rs[rid].get("outputs") or []) != mine:
+            out.append(f"vai {rid}: outputs (crew_roles) {sorted(rs[rid].get('outputs') or [])} ≠ sản phẩm vai làm ra {mine}")
+        for i in p.get("dau_vao") or []:
+            if i not in products:
+                out.append(f"vai {rid}: đầu vào {i!r} không phải sản phẩm có thật (THIẾU nguồn)")
+            elif rid not in (products[i].get("consumers") or {}):
+                out.append(f"vai {rid}: đầu vào {i!r} nhưng sản phẩm không ghi {rid} là người nhận")
+        kpi_ids = {k["id"] for o in mine for k in products[o].get("kpi") or [] if isinstance(k, dict) and k.get("id")}
+        for a in rs[rid].get("acceptance") or []:
+            if a not in kpi_ids:
+                out.append(f"vai {rid}: acceptance {a!r} không là KPI nào của sản phẩm vai làm ra")
+    for pid, v in products.items():
+        prod = v.get("producer")
+        if prod not in rs:
+            out.append(f"sản phẩm {pid}: vai làm ra {prod!r} không có thật")
+        kpis = [k for k in v.get("kpi") or [] if isinstance(k, dict)]
+        if len(kpis) != len(v.get("kpi") or []):
+            out.append(f"sản phẩm {pid}: KPI phải là {{id, ten, nguong, cach_do}}")
+        if not kpis:
+            out.append(f"sản phẩm {pid}: không có KPI")
+        ids = [k.get("id") for k in kpis]
+        if len(ids) != len(set(ids)):
+            out.append(f"sản phẩm {pid}: id KPI trùng")
+        for k in kpis:
+            if not k.get("nguong") or not k.get("ten"):
+                out.append(f"sản phẩm {pid}: KPI {k.get('id')!r} thiếu tên / ngưỡng")
+            why = _measure_real(k.get("cach_do"), root)
+            if why:
+                out.append(f"sản phẩm {pid}: KPI {k.get('id')!r} — {why}")
+        cons = v.get("consumers") or {}
+        if not cons:
+            out.append(f"sản phẩm {pid}: không ai nhận (THỪA)")
+        for c, reqs in cons.items():
+            if c not in rs and c not in external:
+                out.append(f"sản phẩm {pid}: người nhận {c!r} không có thật")
+                continue
+            if c == prod:
+                out.append(f"sản phẩm {pid}: vai làm ra tự nhận sản phẩm của mình")
+            if c in profiles and pid not in (profiles[c].get("dau_vao") or []):
+                out.append(f"sản phẩm {pid}: người nhận {c} không khai trong dau_vao")
+            if not reqs:
+                out.append(f"sản phẩm {pid}: người nhận {c} chưa ghi đòi hỏi gì")
+            for r in reqs or []:
+                if not isinstance(r, dict):
+                    out.append(f"sản phẩm {pid}: yêu cầu của {c} phải là {{yeu_cau, dap_ung}}")
+                    continue
+                if not r.get("yeu_cau"):
+                    out.append(f"sản phẩm {pid}: người nhận {c} có yêu cầu trống")
+                if r.get("dap_ung") not in ids:
+                    out.append(f"sản phẩm {pid}: yêu cầu của {c} ({r.get('yeu_cau')!r}) không chỉ ra KPI đáp ứng có thật")
+        for f in v.get("fields") or []:
+            owner = (fields.get(f) or {}).get("owner")
+            if owner is not None and owner != prod:
+                out.append(f"sản phẩm {pid}: trường {f!r} thuộc vai {owner}, không phải vai làm ra {prod}")
+    return out
+
+
+def profile_gaps(prof: Optional[Dict] = None, reg: Optional[Dict] = None) -> List[str]:
+    """Việc CÒN THIẾU (không phải lỗi hợp đồng): KPI chưa đo được tự động, vai sản xuất không đứng tên khâu nào."""
+    prof = prof if prof is not None else load_profiles()
+    reg = reg if reg is not None else load()
+    out = [f"KPI {pid}.{k['id']} ({k['ten']}) chưa đo tự động — {k['cach_do'][len('chua_co:'):]}"
+           for pid, v in (prof.get("products") or {}).items() for k in v.get("kpi") or [] if str(k.get("cach_do")).startswith("chua_co:")]
+    for r in roles(reg):
+        if r["id"] in ("executive_producer", "engineer", "continuity_validator"):
+            continue
+        if not (r.get("owns_errors") or {}).get("stages"):
+            out.append(f"vai {r['id']} không đứng tên khâu nào (devsys/stages.json) — lỗi của vai rơi về khâu vai khác")
+    return out
+
+
+def hoso_text(prof: Optional[Dict] = None, reg: Optional[Dict] = None) -> str:
+    """Hồ sơ từng vai dạng chữ (cho người đọc / tài liệu)."""
+    prof = prof if prof is not None else load_profiles()
+    reg = reg if reg is not None else load()
+    products = prof.get("products") or {}
+    lines = []
+    for r in roles(reg):
+        p = (prof.get("profiles") or {}).get(r["id"]) or {}
+        lines += [f"## {r['name']} (`{r['id']}`)", "",
+                  f"- **Bạn là ai:** {p.get('ban_la_ai', '')}", f"- **Vai trò:** {p.get('vai_tro', '')}",
+                  "- **Làm gì:** " + "; ".join(p.get("viec_lam") or []),
+                  "- **Chịu trách nhiệm:** " + "; ".join(p.get("chiu_trach_nhiem") or []),
+                  f"- **Dưới quyền:** {r.get('reports_to') or '— (cao nhất)'} · **giám sát:** " + (", ".join(p.get("giam_sat") or []) or "—"),
+                  "- **Đầu vào:** " + ("; ".join(f"{products[i]['ten']} ← {products[i]['producer']}" for i in p.get("dau_vao") or []
+                                                 if i in products) or "—"),
+                  "- **Đầu ra:**"]
+        for o in p.get("dau_ra") or []:
+            v = products.get(o) or {}
+            lines.append(f"  - **{v.get('ten', o)}** (`{o}`)")
+            for k in v.get("kpi") or []:
+                lines.append(f"    - KPI `{k['id']}`: {k['ten']} — ngưỡng {k['nguong']} — đo: {k['cach_do']}")
+            for c, reqs in (v.get("consumers") or {}).items():
+                for q in reqs:
+                    lines.append(f"    - → **{c}** cần: {q['yeu_cau']} (đáp ứng bằng `{q['dap_ung']}`)")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
-    """py -m core.crew check | owner <trường> | write <đường ghi> | route <mã QC hoặc id sổ lỗi>…  — chỉ đọc."""
+    """py -m core.crew check | hoso | owner <trường> | write <đường ghi> | route <mã QC hoặc id sổ lỗi>…  — chỉ đọc."""
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = argv[0] if argv else "check"
     if cmd == "check":
-        bad = problems()
+        bad = problems() + link_problems()
         for b in bad:
             print("✖", b)
-        print(f"Role Registry: {len(roles())} vai, {len(load().get('fields') or {})} trường — {len(bad)} lỗi")
+        try:
+            n_products = len(load_profiles().get("products") or {})
+        except (OSError, ValueError):
+            n_products = 0
+        print(f"Role Registry: {len(roles())} vai, {len(load().get('fields') or {})} trường, {n_products} sản phẩm — {len(bad)} lỗi")
         return 1 if bad else 0
+    if cmd == "hoso":
+        print(hoso_text())
+        gaps = profile_gaps()
+        print(f"## Còn thiếu ({len(gaps)})\n" + "\n".join("- " + g for g in gaps))
+        return 0
     if cmd == "owner" and len(argv) > 1:
         print(owner_of(argv[1]))
         return 0
