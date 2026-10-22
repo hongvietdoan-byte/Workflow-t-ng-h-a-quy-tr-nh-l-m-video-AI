@@ -56,6 +56,8 @@ def test_copy_db_neutralizes_paths_to_real_files_and_real_claude(tmp_path):
         CREATE TABLE asset_images(id INTEGER PRIMARY KEY, path TEXT, status TEXT);
         CREATE TABLE asset_sources(id INTEGER PRIMARY KEY, auto INTEGER);
         CREATE TABLE sound_sources(id INTEGER PRIMARY KEY, auto INTEGER);
+        CREATE TABLE sounds(id INTEGER PRIMARY KEY, tags TEXT, heard TEXT);
+        INSERT INTO sounds(tags, heard) VALUES (NULL, NULL), ('rain', '[]');
         INSERT INTO projects(name, llm_provider) VALUES ('A', 'claude_cli');
         INSERT INTO jobs(llm_provider) VALUES ('anthropic'), (NULL);
         INSERT INTO asset_images(path, status) VALUES ('/real/x.png', 'removed'), ('/real/y.png', 'active');
@@ -71,6 +73,8 @@ def test_copy_db_neutralizes_paths_to_real_files_and_real_claude(tmp_path):
     assert [r[0] for r in d.execute("SELECT status FROM asset_images")] == ["active"]    # dọn rác Kho không xóa file thật
     assert d.execute("SELECT auto FROM asset_sources").fetchone()[0] == 0
     assert d.execute("SELECT auto FROM sound_sources").fetchone()[0] == 0
+    assert not d.execute("SELECT 1 FROM sounds WHERE tags IS NULL OR heard IS NULL").fetchone()   # không phân tích / nghe lại N lần
+    assert d.execute("SELECT tags FROM sounds WHERE id=2").fetchone()[0] == "rain"
     d.close()
     assert src.read_bytes() == before
 
@@ -111,6 +115,8 @@ def test_app_env_is_mock_only_and_drops_api_keys(tmp_path, monkeypatch):
     db = str(tmp_path / "data" / "manifest.sqlite")
     env = L.app_env(db, "data", str(tmp_path), 0.1, "probe")
     assert env["ASSET_DIR"].startswith(str(tmp_path)) and env["SOUND_MODEL_DIR"].startswith(str(tmp_path))
+    assert env["FF_SITE_AUTO"] == "0" and env["PLATES3D_LOCK"].startswith(str(tmp_path))
+    assert env["BLENDER_PATH"].startswith(str(tmp_path)) and not os.path.exists(env["BLENDER_PATH"])
 
 
 def test_probe_counts_sqlite_lock_waits_and_threads(tmp_path):
@@ -150,6 +156,16 @@ def test_probe_hides_its_output_from_child_processes_and_chains_the_original_sit
     assert r.stdout.split() == ["None", "True"]
 
 
+def test_probe_chains_once_even_with_two_probe_folders(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    L.write_probe(str(a))
+    L.write_probe(str(b))
+    env = dict(os.environ, LOAD_PROBE_OUT=str(tmp_path / "p.json"), PYTHONPATH=os.pathsep.join([str(a), str(b)]))
+    r = subprocess.run([sys.executable, "-c", "import sys; print(getattr(sys, '_load_probe_chained', False))"], env=env,
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and r.stdout.strip() == "True" and "Recursion" not in r.stderr
+
+
 def test_probe_keeps_the_signature_of_slowed_mock_methods(tmp_path):
     probe = tmp_path / "probe"
     L.write_probe(str(probe))
@@ -176,15 +192,20 @@ def test_refuses_production_and_busy_ports(tmp_path):
             L.run_level(1, tpl, args, print)
 
 
+def test_port_free_trusts_a_listener_on_any_address(monkeypatch):
+    monkeypatch.setattr(L, "_listening", lambda port: True)                # vd. Dashboard chỉ nghe IPv6 / máy Windows: psutil quyết
+    assert not L.port_free(45678)
+
+
 class FakePage:
     """Trang giả cho settle(): `states` = trạng thái mỗi lần hỏi; bộ đếm lượt chạy lại tăng khi chuyển sang bận."""
 
-    def __init__(self, states):
-        self.states, self.k, self.count, self.prev = list(states), 0, 0, "notRunning"
+    def __init__(self, states, origin=1.0):
+        self.states, self.k, self.count, self.prev, self.origin = list(states), 0, 0, "notRunning", origin
 
     async def evaluate(self, js):
         if "__ltRuns" in js:
-            return self.count
+            return [self.origin, self.count]
         st = self.states[min(self.k, len(self.states) - 1)]
         self.k += 1
         if st in L.BUSY_STATES and self.prev not in L.BUSY_STATES:
@@ -199,6 +220,25 @@ def test_settle_waits_for_the_rerun_requested_after_a_click():
     pg = FakePage(["notRunning"] * 5 + ["rerunRequested"] * 3 + ["running"] * 4 + ["notRunning"] * 5)
     assert asyncio.run(L.settle(pg, 0)) is True
     assert pg.k >= 15
+
+
+def test_settle_ignores_a_fragment_rerun_until_the_step_is_really_done(monkeypatch):
+    import asyncio
+    # rà lần 2: ô hỏi job (st.fragment run_every) chạy lại ngay sau cú bấm → bộ đếm tăng nhưng màn đích chưa vẽ; chỉ xong khi điều kiện hậu đúng
+    pg = FakePage(["running"] * 2 + ["notRunning"] * 6 + ["running"] * 3 + ["notRunning"] * 5)
+    state = {"asked": 0}
+
+    async def done():
+        state["asked"] += 1
+        return pg.k >= 12                                                 # màn đích chỉ có sau lượt chạy lại thứ hai
+    assert asyncio.run(L.settle(pg, (1.0, 0), done)) is True
+    assert pg.k >= 14 and state["asked"] >= 2
+
+
+def test_settle_treats_a_reloaded_page_as_a_fresh_counter():
+    import asyncio
+    pg = FakePage(["running"] * 2 + ["notRunning"] * 4, origin=2.0)      # trang tải lại: mốc đổi, bộ đếm mới = 1 < before cũ (5)
+    assert asyncio.run(L.settle(pg, (1.0, 5))) is True
 
 
 def test_settle_reports_a_click_without_rerun(monkeypatch):

@@ -78,6 +78,10 @@ def neutralize(db: str) -> List[str]:
                 run(f"{t} auto→0", f"UPDATE {t} SET auto=0 WHERE auto<>0")
         if "llm_provider" in cols("projects"):
             run("projects.llm_provider→NULL", "UPDATE projects SET llm_provider=NULL WHERE llm_provider IS NOT NULL")
+        if "tags" in cols("sounds"):                # mỗi phiên trình duyệt phân tích / nghe 150 tệp âm thanh THẬT → CPU phồng N lần
+            run("sounds tags/heard đánh dấu đã xử lý", "UPDATE sounds SET tags=COALESCE(tags, '')"
+                + (", heard=COALESCE(heard, '')" if "heard" in cols("sounds") else "") + " WHERE tags IS NULL"
+                + (" OR heard IS NULL" if "heard" in cols("sounds") else ""))
         if "llm_provider" in cols("jobs"):
             run("jobs.llm_provider→mock", "UPDATE jobs SET llm_provider='mock' WHERE llm_provider IS NOT NULL")
         conn.commit()
@@ -217,8 +221,18 @@ if _OUT:
 # Nạp tiếp sitecustomize gốc của hệ thống / venv (đầu dò đứng đầu PYTHONPATH nên che nó)
 def _chain():
     import importlib.machinery, importlib.util
+    if getattr(sys, "_load_probe_chained", False):    # hai thư mục đầu dò trên sys.path: chỉ nối MỘT lần (không đệ quy)
+        return
+    sys._load_probe_chained = True
     here = os.path.dirname(os.path.abspath(__file__))
-    rest = [p for p in sys.path if os.path.abspath(p or ".") != here]
+
+    def probe_dir(p):
+        try:
+            with open(os.path.join(p or ".", "sitecustomize.py"), encoding="utf-8") as f:
+                return "Đầu dò đo tải" in f.read(400)
+        except OSError:
+            return False
+    rest = [p for p in sys.path if os.path.abspath(p or ".") != here and not probe_dir(p)]
     spec = importlib.machinery.PathFinder.find_spec("sitecustomize", rest)
     if spec and spec.loader and os.path.abspath(spec.origin or "") != os.path.abspath(__file__):
         mod = importlib.util.module_from_spec(spec)
@@ -261,6 +275,11 @@ def app_env(db: str, data: str, work: str, latency: float, probe_dir: str) -> Di
                FEATURE_SETTINGS_FILE=os.path.join(work, "feature_settings.json"), FEATURE_BASELINE="0",
                ASSET_DIR=os.path.join(home, "assets"), SOUND_MODEL_DIR=os.path.join(home, "models"),
                PYTHONUTF8="1", PYTHONIOENCODING="utf-8",
+               # rà lần 2: không kéo website hằng tháng; khóa Blender riêng (không giữ lượt Blender của máy thật) + Blender không có → render
+               # nền 3D báo lỗi ngay. Meshy (core/meshy.api_key) đọc khóa cả từ registry Windows nên lọc môi trường KHÔNG chặn được —
+               # chỉ chạy khi người bấm trong trang quản trị; luồng đo không đi qua
+               FF_SITE_AUTO="0", PLATES3D_LOCK=os.path.join(work, "blender.lock"),
+               BLENDER_PATH=os.path.join(work, "khong_co_blender", "blender.exe"),
                LOAD_PROBE_OUT=os.path.join(work, "probe.json"), LOAD_PROBE_LOCK_WAIT=str(LOCK_WAIT_S), LOAD_MOCK_LATENCY=str(latency),
                PYTHONPATH=os.pathsep.join([probe_dir] + [x for x in [os.environ.get("PYTHONPATH")] if x]))
     env.pop("DASHBOARD_SYNC_BACKGROUND", None)
@@ -342,6 +361,10 @@ def markdown(summary: Dict, meta: Dict) -> str:
             if c.get("skipped") and c["p50"] is None and not c["errors"]:
                 cells.append("đã hiện sẵn sau bước trước")
                 continue
+            if c.get("skipped"):
+                cells.append(f"{_f(c['p50'])} / {_f(c['p95'])} ·{c['skipped']} đã hiện sẵn"
+                             + (f" ⚠{c['errors']} lỗi" if c["errors"] else "") + (" 🐢" if step in r["slow"] else ""))
+                continue
             cells.append(f"{_f(c['p50'])} / {_f(c['p95'])}" + (f" ⚠{c['errors']} lỗi" if c["errors"] else "")
                          + (f" ·{c['no_rerun']} không rerun" if c.get("no_rerun") else "")
                          + (" 🐢" if step in r["slow"] else ""))
@@ -382,35 +405,46 @@ JS_BUSY = ("() => !!document.querySelector('[data-testid=\"stStatusWidget\"]') |
 # rồi yên — không trả sớm khi server tải nặng chưa kịp nhận cú bấm (thăm dò 0.1 s có thể lỡ một lượt ngắn; bộ đếm thì không)
 JS_COUNT_RUNS = """(() => {
   window.__ltRuns = 0;
+  window.__ltOrigin = performance.timeOrigin;
   const busy = v => %s.includes(v);
-  const hook = () => {
+  let last = null;
+  const look = () => {
     const el = document.querySelector('.stApp');
-    if (!el) return setTimeout(hook, 30);
-    let last = el.getAttribute('data-test-script-state');
-    if (busy(last)) window.__ltRuns++;
-    new MutationObserver(() => {
-      const v = el.getAttribute('data-test-script-state');
-      if (busy(v) && !busy(last)) window.__ltRuns++;
-      last = v;
-    }).observe(el, {attributes: true, attributeFilter: ['data-test-script-state']});
+    const v = el ? el.getAttribute('data-test-script-state') : null;
+    if (busy(v) && !busy(last)) window.__ltRuns++;
+    last = v;
   };
-  hook();
+  // theo dõi cả cây (rà lần 2: .stApp bị thay thì bộ đếm không đứng yên)
+  const start = () => {
+    look();
+    new MutationObserver(look).observe(document.documentElement,
+      {subtree: true, childList: true, attributes: true, attributeFilter: ['data-test-script-state']});
+  };
+  if (document.documentElement) start(); else document.addEventListener('DOMContentLoaded', start);
 })()""" % json.dumps(list(BUSY_STATES))
 NO_RERUN_S = 10.0                                # bấm xong mà trong ngần này giây không có lượt chạy lại nào → ghi "không rerun"
 
 
-async def runs(pg) -> int:
-    return int(await pg.evaluate("() => window.__ltRuns || 0") or 0)
+async def runs(pg):
+    """(mốc trang, số lượt chạy lại) — trang tải lại thì mốc đổi, bộ đếm về 0."""
+    got = await pg.evaluate("() => [window.__ltOrigin || 0, window.__ltRuns || 0]")
+    return float(got[0] or 0), int(got[1] or 0)
 
 
-async def settle(pg, before: int = 0, timeout: float = 120.0) -> bool:
-    """Chờ tới khi màn ổn định SAU một lượt chạy lại mới (bộ đếm > `before`) và không bận 3 lần liền cách 0.1 s. Trả True; không thấy lượt
-    chạy lại nào trong NO_RERUN_S (cú bấm không gây rerun) → False khi đã yên; quá hạn → TimeoutError."""
+async def settle(pg, before=(0.0, 0), done=None, timeout: float = 120.0) -> bool:
+    """Chờ tới khi màn ổn định SAU một lượt chạy lại mới (bộ đếm > `before`), không bận 3 lần liền cách 0.1 s VÀ điều kiện hậu của bước
+    (`done`, coroutine → bool) đã đúng — lượt chạy lại của fragment (`run_every`, vd. ô hỏi job đang chạy) cũng bật trạng thái chạy nên
+    một mình bộ đếm không đủ (rà lần 2). Trả True; không có lượt nào / điều kiện hậu chưa đúng trong NO_RERUN_S → False khi đã yên;
+    quá hạn → TimeoutError."""
+    if isinstance(before, int):
+        before = (None, before)
     t0, quiet = time.perf_counter(), 0
     while time.perf_counter() - t0 < timeout:
         quiet = 0 if await pg.evaluate(JS_BUSY) else quiet + 1
         if quiet >= 3:
-            if await runs(pg) > before:
+            origin, n = await runs(pg)
+            fresh = n > (before[1] if before[0] in (None, origin) else 0)
+            if fresh and (done is None or await done()):
                 return True
             if time.perf_counter() - t0 > NO_RERUN_S:
                 return False
@@ -421,12 +455,27 @@ async def settle(pg, before: int = 0, timeout: float = 120.0) -> bool:
 SKIP = "skip"
 
 
+def _opt(pg, label: str):
+    return pg.locator('.st-key-step label[data-testid="stRadioOption"]', has_text=label).first
+
+
+async def _checked(pg, label: str) -> bool:
+    try:
+        return bool(await _opt(pg, label).evaluate("e => !!e.querySelector('input')?.checked", timeout=5000))
+    except Exception:  # noqa: BLE001 - thanh bước đang vẽ lại
+        return False
+
+
 async def _radio(pg, label: str):
-    """Bấm màn trên thanh bước; màn ĐÃ đang chọn (vd. "Mở →" vào thẳng Storyboard) → không bấm (bấm lại không gây rerun), trả SKIP."""
-    opt = pg.locator('.st-key-step label[data-testid="stRadioOption"]', has_text=label).first
-    if await opt.evaluate("e => !!e.querySelector('input')?.checked"):
+    """Bấm màn trên thanh bước; màn ĐÃ đang chọn (vd. "Mở →" vào thẳng Storyboard) → không bấm (bấm lại không gây rerun), trả SKIP.
+    Trả điều kiện hậu: màn đích đã được chọn."""
+    if await _checked(pg, label):
         return SKIP
-    await opt.click()
+    await _opt(pg, label).click()
+
+    async def done():
+        return await _checked(pg, label)
+    return done
 
 
 async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Optional[str] = None) -> Dict:
@@ -438,12 +487,13 @@ async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Op
     async def step(name, act):
         t0 = time.perf_counter()
         try:
-            before = 0 if name == "home" else await runs(pg)
-            if await act() == SKIP:
+            before = (None, 0) if name == "home" else await runs(pg)
+            done = await act()
+            if done == SKIP:
                 steps[name] = None
                 skipped.append(name)            # màn đã hiện sẵn: thời gian vẽ nằm ở bước trước
                 return
-            if not await settle(pg, before):
+            if not await settle(pg, before, done if callable(done) else None):
                 no_rerun.append(name)           # số đo của bước này gồm NO_RERUN_S chờ — ghi rõ, không coi là màn nhanh
             steps[name] = round(time.perf_counter() - t0, 3)
         except Exception as e:  # noqa: BLE001 - một bước lỗi không dừng phiên: ghi lại, đo tiếp
@@ -459,24 +509,43 @@ async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Op
     async def home():
         await pg.goto(url)
         await pg.wait_for_selector(".st-key-step", timeout=120000)
-        await settle(pg, 0)                      # lượt vẽ đầu (mở mặc định dự án #1) xong rồi mới bấm Trang chủ
+        await settle(pg, (None, 0))              # lượt vẽ đầu (mở mặc định dự án #1) xong rồi mới bấm Trang chủ
         before = await runs(pg)
-        await _radio(pg, "Tất cả dự án")
-        await settle(pg, before)
+        done = await _radio(pg, "Tất cả dự án")
+        if done != SKIP:                         # rà lần 2: SKIP mà vẫn chờ rerun → phồng 10 s âm thầm
+            await settle(pg, before, done)
 
     async def open_():
-        opens = pg.locator("button", has_text="Mở →")
+        # chỉ nút "Mở →" của THẺ dự án (key home_open_<id>) — hộp thư / tổng quan có nút cùng chữ
+        opens = pg.locator('[class*="st-key-home_open_"] button')
         await opens.nth(i % max(1, min(n_projects, await opens.count()))).click()
 
-    async def click_first(text: str, exact: bool, why: str, wait: float = 20.0):
-        """Bấm nút đầu tiên khớp + bấm được; màn có thể còn đang vẽ phần sau (tải nặng) → thử lại tới `wait` giây (tính vào bước)."""
+        async def done():                        # đã rời Trang chủ (vào màn đang chờ của dự án)
+            return not await _checked(pg, "Tất cả dự án")
+        return done
+
+    async def labels(text: str, exact: bool) -> List[str]:
+        out = []
+        for b in await pg.locator("button", has_text=text).all():
+            try:
+                t = (await b.inner_text()).strip()
+                if (not exact or t == text) and await b.is_enabled():
+                    out.append(t)
+            except Exception:  # noqa: BLE001 - nút bị vẽ lại giữa chừng
+                continue
+        return out
+
+    async def click_first(text: str, exact: bool, why: str, wait: float = 20.0) -> str:
+        """Bấm nút đầu tiên khớp + bấm được; màn có thể còn đang vẽ phần sau (tải nặng) → thử lại tới `wait` giây (tính vào bước).
+        Trả chữ của nút đã bấm."""
         t0 = time.perf_counter()
         while True:
             for b in await pg.locator("button", has_text=text).all():
                 try:
-                    if (not exact or (await b.inner_text()).strip() == text) and await b.is_enabled():
+                    t = (await b.inner_text()).strip()
+                    if (not exact or t == text) and await b.is_enabled():
                         await b.click(timeout=5000)
-                        return
+                        return t
                 except Exception:  # noqa: BLE001 - nút bị vẽ lại giữa chừng: tìm lại
                     continue
             if time.perf_counter() - t0 > wait:
@@ -484,10 +553,19 @@ async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Op
             await asyncio.sleep(0.25)
 
     async def approve():
+        n0 = len(await labels("✔ Duyệt", True))
         await click_first("✔ Duyệt", True, "không có ảnh nào chờ duyệt")
 
+        async def done():                        # ảnh đã duyệt: bớt một nút "✔ Duyệt" (phiên khác cùng dự án có thể bớt thêm)
+            return len(await labels("✔ Duyệt", True)) < n0
+        return done
+
     async def gen():
-        await click_first("▶ Gen video", False, "nút Gen video không bấm được")
+        was = await click_first("▶ Gen video", False, "nút Gen video không bấm được")
+
+        async def done():                        # đã gửi: chữ nút đổi (số cảnh mới / đang chờ gửi) hoặc nút không còn bấm được
+            return was not in await labels("▶ Gen video", False)
+        return done
 
     await step("home", home)
     await step("open", open_)
@@ -573,15 +651,36 @@ def find_chrome(arg: Optional[str]) -> Optional[str]:
         return None
 
 
+def _listening(port: int) -> bool:
+    """Có tiến trình nào đang LISTEN cổng này (mọi địa chỉ, IPv4 / IPv6) — psutil; không đọc được thì coi như không biết (False)."""
+    try:
+        import psutil
+        return any(c.laddr and c.laddr.port == port and c.status == psutil.CONN_LISTEN for c in psutil.net_connections(kind="tcp"))
+    except Exception:  # noqa: BLE001 - quyền / nền tảng: dựa vào phép bind
+        return False
+
+
 def port_free(port: int) -> bool:
+    """Cổng dùng được: không ai LISTEN (psutil — điều kiện chính) và bind được. Bind như tornado: SO_REUSEADDR chỉ ngoài Windows (cổng
+    TIME_WAIT của mức trước vẫn dùng được); Windows dùng SO_EXCLUSIVEADDRUSE — ở đó SO_REUSEADDR cho bind trùng cả cổng đang nghe."""
     import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
-        sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)   # như tornado: cổng TIME_WAIT của mức trước vẫn dùng được
+    if _listening(port):
+        return False
+    for fam, host in ((socket.AF_INET, "0.0.0.0"), (socket.AF_INET6, "::")):
         try:
-            sk.bind(("127.0.0.1", port))
-            return True
+            sk = socket.socket(fam, socket.SOCK_STREAM)
         except OSError:
-            return False
+            continue                              # máy không có IPv6
+        with sk:
+            if os.name == "nt":
+                sk.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_EXCLUSIVEADDRUSE", socket.SO_REUSEADDR), 1)
+            else:
+                sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sk.bind((host, port))
+            except OSError:
+                return False
+    return True
 
 
 def listens(pid: int, port: int) -> bool:
@@ -616,6 +715,8 @@ def run_level(n: int, template: Dict, args, log) -> Dict:
     write_probe(probe_dir)
     env = app_env(db, data, work, args.latency, probe_dir)
     port = args.port
+    if port in PROD_PORTS:
+        raise RuntimeError(f"Cổng {port} là cổng Dashboard thật — chọn --port khác")
     for _ in range(30):                          # Streamlit của mức trước có thể còn đang nhả cổng
         if port_free(port):
             break
