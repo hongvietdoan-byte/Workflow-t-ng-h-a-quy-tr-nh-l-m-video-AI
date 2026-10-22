@@ -281,13 +281,14 @@ def _known_names(m: Optional[Dict], shot, data: Dict) -> List[str]:
     if m and not m.get("invalidated"):
         for e in world_map.entities_at(m, shot):
             names += [e.get("entity_id") or "", e.get("label") or ""]
-    byd = data.get("byd") if isinstance(data.get("byd"), dict) else {}
+    from . import shot_intent                            # BYĐ v1 / v2 qua MỘT bộ đọc (M2.1) — `vat` v1 = chuỗi, v2 = {vat, kho_id…}
+    byd = shot_intent.byd_of(data) or {}
     for c in byd.get("thanh_phan") or []:
         if isinstance(c, dict) and c.get("vat"):
             names.append(str(c["vat"]))
-    for v in byd.get("vat") or []:
-        if isinstance(v, dict) and v.get("ten"):
-            names.append(str(v["ten"]))
+    for v in shot_intent.vat_items(byd):
+        if isinstance(v, dict) and v.get("vat"):
+            names.append(str(v["vat"]))
     return [n for n in names if n]
 
 

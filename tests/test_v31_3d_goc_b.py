@@ -181,8 +181,9 @@ def test_layout_facts_positions_come_from_the_map(tmp_path):
 def test_tool_reads_a_copy_reports_and_exit_code(tmp_path, capsys):
     from tools import position_invariants as tool
     m = map3d([ent("KELLY", (-2.0, 0.0), kind="nguoi")])
-    _, pid, _, db, data = _project(tmp_path, [{"stage_camera": cam((0, -8), (0, 0)), "image_prompt": "KELLY on the right"},
+    p, pid, _, db, data = _project(tmp_path, [{"stage_camera": cam((0, -8), (0, 0)), "image_prompt": "KELLY on the right"},
                                               {"stage_camera": cam((0, -8), (0, 0)), "image_prompt": "KELLY on the left"}], m)
+    p.conn.close()            # gộp 22/10: kết nối ghi để GC đóng giữa chừng → WAL checkpoint đổi mtime/size (lỗi test theo thứ tự chạy)
     before = os.path.getmtime(db), os.path.getsize(db)
     assert tool.main(["--project", str(pid), "--db", db, "--data", data]) == 1
     out = capsys.readouterr().out
@@ -261,6 +262,15 @@ def test_shots_without_story_scene_are_said_not_skipped(tmp_path):
     got = rep["scenes"][pi.NO_SCENE_KEY]
     assert [(f["code"], f["level"]) for f in got] == [("R1-MAP", "khong_ro")] and got[0]["numbers"]["shots"] == [2, 3]
     assert rep["n"] == 0
+
+
+@pytest.mark.parametrize("vat", [["CORPSE"], [{"vat": "CORPSE", "kho_id": None, "nguoi": None, "cach": "", "bien_the": None}]])
+def test_byd_vat_v1_and_v2_count_as_known(vat):
+    """BYĐ `vat` đọc qua shot_intent.vat_items (v1 = chuỗi, v2 = bảng {vat…}) — trước đọc `ten` (không có ở cả hai) → xác có ở cảnh này
+    vẫn bị báo R1-PROP-SCENE."""
+    sc = {"location": [0, -6, 1.6], "look_at": [0, 0, 1.6], "lens": 35, "props": [{"label": "corpse", "source": "Sân khấu 3D cảnh 6"}]}
+    names = pi._known_names(None, 1, {"byd": {"vat": vat}, "characters": []})
+    assert pi.check_props_scene(sc, 8, names) == []
 
 
 def test_move_verb_must_start_a_word():

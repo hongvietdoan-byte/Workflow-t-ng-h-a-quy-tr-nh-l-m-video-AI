@@ -422,8 +422,9 @@ def _byd_move(byd: Dict) -> Optional[str]:
 def byd_vs_fields(data: Dict) -> List[Dict]:
     """G18: BYĐ của shot mâu thuẫn trường khác của CHÍNH shot (một chỗ kiểm): may.co ↔ size, may.do_cao / goc ↔ angle,
     may.chuyen_dong ↔ camera_move, thanh_phan (vai chinh / phu) ↔ characters. Shot thiếu BYĐ → [] (byd_coverage nói cho cả dự án)."""
-    byd = (data or {}).get("byd")
-    if not isinstance(byd, dict):
+    from .shot_intent import byd_of                    # BYĐ qua MỘT bộ đọc (M2.1, test_v31_m21_byd_v2)
+    byd = byd_of(data or {})
+    if byd is None:
         return []
     out = []
     may = byd.get("may") if isinstance(byd.get("may"), dict) else {}
@@ -469,7 +470,8 @@ def byd_vs_fields(data: Dict) -> List[Dict]:
 
 def byd_coverage(shots: Sequence[Dict]) -> List[Dict]:
     """P33-A12: dự án thiếu BYĐ → MỘT phát hiện cho cả dự án (số shot thiếu + kiểm bị bỏ), không lặp 22 dòng."""
-    missing = [s.get("shot", i + 1) for i, s in enumerate(shots) if not isinstance((s or {}).get("byd"), dict)]
+    from .shot_intent import byd_of
+    missing = [s.get("shot", i + 1) for i, s in enumerate(shots) if byd_of(s or {}) is None]
     if not missing:
         return []
     return [_f("R4-NO-BYD", ("P33-A12",), f"{len(missing)}/{len(shots)} shot chưa có BYĐ (shot {', '.join(map(str, missing[:12]))}"
