@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T19:50:59.146413+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX22-M83-LOAD",
+  "to": "codex",
+  "title": "M8.3 đo tải 10 người (bản sao, provider giả, 0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX22-M83-LOAD",
+  "priority": 5
+}
