@@ -73,12 +73,15 @@ _END = re.compile(r"\bends?\b|\bending\b|\bholds?\b|\buntil\b|\bfinal\b|\bfinish
                   r"\blast frame\b|\bkết\b|\bdừng\b|\bgiữ\b", I)
 
 # ---- (b) khung ↔ tư thế -------------------------------------------------------------------------------------------------------
+# C-3D-GOC-A (G9, #31 shot 17): "aura along ITS whole body" tả cây súng, không phải người — "its whole/full body" (đồ vật / con vật) không
+# phải tư thế thấy chân của nhân vật; "her / his / their / the whole body" vẫn tính
 _CLOSE = re.compile(r"\bmedium close[- ]up\b|\b(?:extreme )?close[- ]up\b|\bno legs\b|\bmid[- ]chest up\b|\bfrom the (?:chest|waist|shoulders?) up\b|"
                     r"\bhead and shoulders\b|\bcận mặt\b|\btrung cận\b|không thấy chân", I)
 _CLOSE_CS = re.compile(r"\b(?:MCU|ECU|CU)\b")
 _LEGS = re.compile(r"\bsprawl\w*\b|\bseated on the (?:ground|floor)\b|\bsit(?:s|ting)? on the (?:ground|floor)\b|"
                    r"\blegs? (?:stretched|spread|outstretched|splayed|sprawled)\b|\bstretched[- ]out legs\b|\bkneeling,? full[- ]body\b|"
-                   r"\bfull[- ]bod(?:y|ies)\b(?! (?:reference|sheet|picture|image|turnaround|character sheet)\b)|\bfeet (?:are )?visible\b|\b(?:whole|entire) body\b|\bhead to toe\b|ngồi bệt|thấy chân|"
+                   r"(?<!\bits )\bfull[- ]bod(?:y|ies)\b(?! (?:reference|sheet|picture|image|turnaround|character sheet)\b)|\bfeet (?:are )?visible\b|"
+                   r"(?<!\bits )\b(?:whole|entire) body\b|\bhead to toe\b|ngồi bệt|thấy chân|"
                    r"duỗi chân|sõng soài|\bcả người\b", I)
 
 # ---- (c) chi tiết ghê — luật tầng 1 cho mọi dự án Free Fire (người dùng chốt 09/10) ----------------------------------------

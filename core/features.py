@@ -444,7 +444,8 @@ FEATURES: Dict[str, Dict] = {
     },
     "whitebox_height_dummy": {
         "label": "Người nộm whitebox đúng chiều cao hồ sơ Kho (height_m) + máy ở tầm mắt 0,93 × height_m, pitch eye (≤ 5°) / slightly_high "
-                 "(cúi ~10°); thiếu chiều cao → báo, không im lặng (V3.1 M3.2, offline — không gửi gì thêm cho model)",
+                 "(cúi ~10°); thiếu chiều cao → báo, không im lặng (V3.1 M3.2). C-3D-GOC-A: máy nền 3D (plate_camera) có mức "
+                 "slightly_high (cúi 10°) và máy high / slightly_high giữ đúng % khung theo hình chiếu — ĐỔI ảnh nền gửi model khi bật",
         "verified": False,
         "why": "G2 (người sai tỉ lệ so nền), G3 (#31 shot 28 khai eye mà pitch +17,3°), A10. Whitebox cũ cố định mắt 1,6 m, khối 1,8 m. "
                "Chưa render thử trên máy chính",
