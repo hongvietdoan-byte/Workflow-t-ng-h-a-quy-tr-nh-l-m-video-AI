@@ -16,6 +16,9 @@ TOOL_ROOT = ROOT          # C-GOLDEN5: cây chứa CÔNG CỤ này; ROOT = cây 
 PUBLIC = {"LLM_PROVIDER", "image_model", "video_model"}
 
 
+_WORKER_STATE = {}      # tiến trình worker một lần: `loaded` (--ab) để nhánh except vẫn trả bằng chứng nạp cây
+
+
 class SandboxDenied(ValueError):
     def __init__(self, kind, path=None):
         super().__init__("INSUFFICIENT_INPUT: sandbox chặn")
@@ -369,9 +372,19 @@ def _worker(request):
     original_listdir, original_scandir = os.listdir, os.scandir
     project = None
     asset_paths = set()
+    fresh_dirs = set()        # rà 22/10 (--ab): thư mục ra của mark() — chỉ nhìn scratch, ảnh đánh dấu/sạch dựng lại bằng code cây đang so
+    original_mkdir = os.mkdir
+    _WORKER_STATE.clear()
     def forbidden(*args, **kwargs):
         last = denied[-1] if denied else {"kind": "operation", "path": "<outside-root>"}
         raise SandboxDenied(last["kind"], last["path"])
+    def refuse(kind):
+        """Rà 22/10 (10 BOTH_FAIL 'operation' GOLDEN7): thao tác bị cấm KHÔNG đi qua block() (provider / Kho chủ thể / subprocess / socket)
+        nói rõ LOẠI thao tác thay cho 'operation' chung — trước đây không biết ca hỏng vì gọi provider, Kho chủ thể hay tiến trình ngoài."""
+        def deny(*args, **kwargs):
+            denied.append({"kind": kind, "path": "<call>"})
+            raise SandboxDenied(kind, "<call>")
+        return deny
     def relpath(path):
         p = Path(os.path.abspath(os.fspath(path)))
         for home in (scratch, source, ROOT):
@@ -389,6 +402,23 @@ def _worker(request):
         if read_denied(name):
             return False
         return name.startswith(("data/", "knowledge/", "prompts/")) or name in asset_paths
+    def _scratch_parents(absolute):
+        """Ghi = lớp phủ trong scratch; đọc / hỏi tồn tại = scratch trước rồi ref-root (locate). Thư mục cha chỉ có ở ref-root (vd.
+        data/projects/31/refs_clean) → os.makedirs thấy 'đã có' (qua locate) nên không tạo trong scratch → lần ghi FileNotFoundError.
+        Rà 22/10: tạo thư mục cha TRONG scratch ngay trước lần ghi (dò bằng os.stat GỐC, không qua locate). Chỉ trong scratch."""
+        missing, parent = [], absolute.parent
+        while parent != scratch and parent.is_relative_to(scratch):
+            try:
+                original_stat(parent)
+                break
+            except OSError:
+                missing.append(parent)
+                parent = parent.parent
+        for folder in reversed(missing):
+            if not Path(os.path.realpath(folder)).is_relative_to(scratch_real):   # junction/symlink trong scratch trỏ ra ngoài
+                block("write", folder)
+                forbidden()
+            original_mkdir(folder)
     def locate(path, write=False, light=False):
         """light=True (os.stat / exists / getsize): chỉ ghi tồn tại + kích thước, không băm nội dung (C-GOLDEN4: tránh DATA_CHANGED giả và băm lại
         tệp lớn mỗi lần hỏi tồn tại); lần MỞ tệp ghi sha đầy đủ. Lúc replay theo đúng dạng đã ghi lúc capture."""
@@ -400,6 +430,7 @@ def _worker(request):
             if not absolute.is_relative_to(scratch):
                 block("write", path)
                 forbidden()
+            _scratch_parents(absolute)
             return absolute
         if name and allowed(name):
             local = scratch / name
@@ -408,6 +439,8 @@ def _worker(request):
                 return local
             except OSError:
                 pass
+            if any(name == d or name.startswith(d + "/") for d in fresh_dirs):
+                return local                    # --ab: thư mục ra của seedance_refs.mark — KHÔNG dùng bản cache ở ref-root (xem canonical_mark)
             # C-GOLDEN5 --ab: prompts/ + knowledge/ là CỦA CÂY CODE đang so (M2 sửa prompt phải thấy); data/ vẫn từ nguồn (ref-root)
             target = _plain(name, ROOT if request.get("code_root") and name.startswith(("prompts/", "knowledge/")) else source)
             expected_files = request["expected_files"]
@@ -417,7 +450,9 @@ def _worker(request):
             if expected_files is not None:
                 want_stat = isinstance(expected_files[name], dict) and "stat" in expected_files[name]
             else:
-                want_stat = light and name not in files
+                if light and name in files:      # rà 22/10: hỏi tồn tại LẦN 2 cùng tệp → giữ bản đã ghi (trước: rơi xuống nhánh băm sha)
+                    return target
+                want_stat = light
             if want_stat:
                 files[name] = {"stat": _stat_value(target, original_stat)}
                 if expected_files is not None and files[name] != expected_files[name]:
@@ -449,22 +484,33 @@ def _worker(request):
         return original_open(locate(path, any(c in str(mode) for c in "wax+")), mode, *args, **kwargs)
     def wrapped_io(path, mode="r", *args, **kwargs):
         return original_io(locate(path, any(c in str(mode) for c in "wax+")), mode, *args, **kwargs)
-    def _nt_path_probes():
-        """Gộp M2 22/10: trên Windows (3.12+) os.path.exists / isfile / isdir là hàm C của nt, KHÔNG qua os.stat → hỏi tồn tại
-        thoát khỏi locate (không ghi manifest, đọc thẳng nguồn). Đổi về bản genericpath (gọi os.stat đã bọc) như trên Linux."""
+    def _stat_path_probes():
+        """Hỏi tồn tại (os.path.exists / isfile / isdir — cả Path.exists / is_file / is_dir, pathlib gọi os.path.* lúc chạy) PHẢI đi qua
+        os.stat đã bọc (locate): ghi {stat} vào manifest + chuyển 'data/…' tương đối (cwd = scratch) sang ref-root như lần open.
+        Windows 3.12+: ba hàm này là hàm C của nt (_path_exists…), KHÔNG gọi os.stat → trước bản vá 79cfb019 hỏi tồn tại 'data/…'
+        tương đối nhìn vào scratch (luôn False) và không vào manifest — GOLDEN7 máy chính chạy trong tình trạng đó. Linux: posixpath
+        dùng chính genericpath → đặt lại là không đổi gì; đặt VÔ ĐIỀU KIỆN để một đường code cho mọi OS (rà 22/10)."""
         import contextlib
         import genericpath
-        if os.name != "nt":
-            return contextlib.nullcontext()
         stack = contextlib.ExitStack()
         for name in ("exists", "isfile", "isdir"):
             stack.enter_context(patch.object(os.path, name, getattr(genericpath, name)))
+        stack.enter_context(patch.object(os, "mkdir", wrapped_mkdir))   # cùng ngăn xếp: một câu `with` tối đa 20 khối lồng
         return stack
+    def wrapped_mkdir(path, mode=0o777, *, dir_fd=None):
+        """Rà 22/10: os.makedirs('data/projects/N/refs_clean') khi thư mục cha chỉ có ở ref-root — exists(cha) đúng (locate) nên makedirs
+        chỉ mkdir lá trong scratch → FileNotFoundError. Tạo cha trong scratch trước; ngoài scratch: audit hook vẫn chặn."""
+        if dir_fd is not None:
+            refuse("dir_fd")()
+        absolute = Path(os.path.abspath(os.fspath(path)))
+        if absolute.is_relative_to(scratch):
+            _scratch_parents(absolute)
+        return original_mkdir(path, mode)
     def wrapped_stat(path, *args, **kwargs):
         return original_stat(locate(path, light=True), *args, **kwargs)
     def wrapped_os_open(path, flags, mode=0o777, *, dir_fd=None):
         if dir_fd is not None:
-            forbidden()
+            refuse("dir_fd")()
         writing = bool(flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND))
         return original_os_open(locate(path, writing), flags, mode)
     def wrapped_listdir(path="."):
@@ -535,7 +581,7 @@ def _worker(request):
                     p = p.relative_to(source)
                 # Registry ảnh không được mở rộng allowlist sang config/văn bản tùy ý.
                 if p.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".avif"}:
-                    forbidden()
+                    refuse("asset_registry_suffix")()
                 asset_paths.add(p.as_posix())
         # Không cho builder đọc baseline từ DB làm đầu vào.
         conn.execute("UPDATE jobs SET sent_package=NULL")
@@ -553,21 +599,21 @@ def _worker(request):
         class Provider:
             name = request["envelope"]["provider"]
             supports_aspect = True
-            submit_final_from_sample = staticmethod(forbidden)
-            upload_image = staticmethod(forbidden)
+            submit_final_from_sample = staticmethod(refuse("provider_submit_final_from_sample"))
+            upload_image = staticmethod(refuse("provider_upload_image"))
         class ImageProvider(Provider):
             supports_model = supports_storyboard = True
             def submit(self, prompt, references=None, size=None, model=None, storyboard=None):
-                forbidden()
+                refuse("provider_submit")()
         class VideoProvider(Provider):
             supports_subjects = request["envelope"]["provider"] == "clipai"
             def submit(self, image_path, prompt, negative_prompt, duration_sec, model=None, with_audio=False, subjects=None,
                        image_references=None, reference_video=None, aspect_ratio=None, resolution=None, multi_prompt=None,
                        last_frame=None, kling_mode=None, kling_image_refs=False, reference_audio=None, reference_only=None,
                        draft=False, high_res_sample=False):
-                forbidden()
+                refuse("provider_submit")()
         sys.addaudithook(audit)
-        with patch.object(os, "environ", fake_env), patch.object(socket, "socket", forbidden), patch.object(socket, "create_connection", forbidden), patch.object(subprocess, "Popen", forbidden), patch.object(builtins, "open", wrapped_open), patch.object(io, "open", wrapped_io), patch.object(os, "open", wrapped_os_open), patch.object(os, "stat", wrapped_stat), patch.object(os, "listdir", wrapped_listdir), patch.object(os, "scandir", wrapped_scandir), _nt_path_probes():
+        with patch.object(os, "environ", fake_env), patch.object(socket, "socket", refuse("socket")), patch.object(socket, "create_connection", refuse("socket")), patch.object(subprocess, "Popen", refuse("subprocess")), patch.object(builtins, "open", wrapped_open), patch.object(io, "open", wrapped_io), patch.object(os, "open", wrapped_os_open), patch.object(os, "stat", wrapped_stat), patch.object(os, "listdir", wrapped_listdir), patch.object(os, "scandir", wrapped_scandir), _stat_path_probes():
             stale = sorted(m for m, mod in list(sys.modules.items()) if (m == "core" or m.startswith("core."))
                            and getattr(mod, "__file__", None)
                            and not Path(os.path.realpath(mod.__file__)).is_relative_to(Path(os.path.realpath(ROOT))))
@@ -580,30 +626,42 @@ def _worker(request):
             loaded = ({"core.runner": os.path.realpath(runner.__file__), "core.sent_package": os.path.realpath(sent_package.__file__)}
                       if request.get("code_root") else None)
             extra = {"loaded": loaded} if loaded else {}
+            _WORKER_STATE.update(extra)            # rà 22/10: ngoại lệ sau chỗ này vẫn mang bằng chứng nạp đúng cây (nhánh except __main__)
             cls = runner.ImageRunner if job["type"] == "image_gen" else runner.VideoRunner
             instance = cls(Pipeline(conn), ImageProvider() if job["type"] == "image_gen" else VideoProvider(), "data/projects")
             if job["type"] == "video_gen":         # C-GOLDEN2 (c): model như lúc gửi = jobs.model của job
                 plain_choice = instance._choice
                 instance._choice = lambda j, _c=plain_choice: pinned_choice(_c(j), job)
-            registry_used = []
+            registry_used, simulated_uploads = [], []
             class CachedLibrary:
                 def get(self,asset_id):
                     try:
                         rows=conn.execute("SELECT sha,asset_id,asset_uri,status FROM seedance_subject_pictures WHERE asset_id=?",(asset_id,)).fetchall()
                     except sqlite3.Error:
-                        forbidden()
+                        refuse("subject_library_schema")()
                     if len(rows) != 1:
-                        forbidden()
+                        refuse("subject_library_missing" if not rows else "subject_library_ambiguous")()
                     row = rows[0]
                     if row['status']!='active' or not str(row['asset_uri'] or '').startswith('asset://'):
-                        forbidden()
+                        refuse("subject_library_inactive")()
                     public={k:row[k] for k in ('sha','asset_id','asset_uri','status')}
                     registry_used.append(public)
                     return {'asset_id':row['asset_id'],'asset_uri':row['asset_uri'],'provider_status':'active'}
                 def list_assets(self):
                     # Không tìm/nghĩ ra mapping thiếu asset_id từ tên hay qua mạng.
-                    forbidden()
-                upload = staticmethod(forbidden)
+                    refuse("subject_library_list")()
+                def upload(self, path, name, wait=True):
+                    # Rà 22/10 (10 BOTH_FAIL 'operation' GOLDEN7 = ảnh CHƯA có trong Kho chủ thể → code thật sẽ tải lên ClipAI): chỉ ở --ab
+                    # (so HAI cây code, không so lịch sử) giả một asset TẤT ĐỊNH theo sha nội dung tệp — cùng ảnh → cùng asset ở A và B, ảnh
+                    # khác → asset khác → DIFF vẫn bắt được. Ghi `simulated_uploads` để báo cáo đếm riêng. Capture / replay thường: vẫn cấm.
+                    if not request.get("code_root"):
+                        refuse("subject_library_upload")()
+                    with open(path, "rb") as stream:          # qua locate: tệp vào manifest như mọi lần đọc
+                        sha = hashlib.sha256(stream.read()).hexdigest()
+                    asset_id = "golden-ab-" + sha[:16]
+                    simulated_uploads.append({"sha": sha[:16], "name": name})
+                    return {"asset_id": asset_id, "asset_uri": "asset://" + asset_id, "name": name, "provider_status": "active",
+                            "asset_type": "image"}
             instance.subject_library=CachedLibrary()
             flags = request["flags"]
             original_rel_path = sent_package.rel_path
@@ -611,6 +669,13 @@ def _worker(request):
             def canonical_mark(path,out_dir,style="eye_plus"):
                 name=relpath(path)
                 canonical=str(source/name) if name and allowed(name) else path
+                if request.get("code_root"):
+                    # Rà 22/10: mark() dùng lại tệp cũ khi exists(out) và mtime(out) ≥ mtime(ảnh) — ở ref-root đó là ảnh do code LỊCH SỬ
+                    # dựng → A và B cùng trả tệp cũ, B sửa mark/clean vẫn SAME (che DIFF). --ab: thư mục ra chỉ nhìn scratch → mỗi cây
+                    # dựng lại ảnh bằng code của mình (cùng tên tệp như sản xuất; nội dung đọc từ scratch nếu đã dựng trong lượt này).
+                    out_name = relpath(out_dir)
+                    if out_name:
+                        fresh_dirs.add(out_name)
                 return original_mark(canonical,out_dir,style)
             def relative_input(path):
                 p=Path(str(path))
@@ -639,7 +704,33 @@ def _worker(request):
                 if not raw or warnings or denied:
                     return {"status": "INSUFFICIENT_INPUT", "reason": "dependency thiếu hoặc sandbox chặn", "diagnostic": denied or [{"kind": "dependency", "path": "<unavailable>"}]}
                 _tool_capture()._safe(json.loads(raw))
-                return {"status": "BUILT", "raw": raw, "files": files, "registry":registry_used, **extra}
+                return {"status": "BUILT", "raw": raw, "files": files, "registry":registry_used, **extra,
+                        **({"simulated_uploads": simulated_uploads} if simulated_uploads else {})}
+
+
+def _failure_answer(exc):
+    """Ngoại lệ trong worker → câu trả lời INSUFFICIENT_INPUT / DATA_CHANGED. Rà 22/10 (10 BOTH_FAIL 'operation' GOLDEN7): trước đây
+    SandboxDenied (có `diagnostic`) mất vị trí lỗi + `loaded` → không biết ca hỏng ở đâu, có nạp đúng cây không. Nay luôn kèm
+    positions[-8:] (tên tệp:dòng, không nội dung) + `loaded` nếu worker đã nạp core."""
+    if isinstance(exc, DataChanged):
+        return {"status": "DATA_CHANGED", "reason": "input thay đổi trong lúc worker đọc"}
+    trace, positions = exc.__traceback__, []
+    while trace is not None:
+        positions.append(f"{Path(trace.tb_frame.f_code.co_filename).name}:{trace.tb_lineno}")
+        trace = trace.tb_next
+    diagnostic = getattr(exc, "diagnostic", None)
+    if not isinstance(diagnostic, dict):           # C-GOLDEN8-FIN: thuộc tính `diagnostic` lạ của code lõi → không TypeError trong except
+        diagnostic = {"kind": type(exc).__name__}
+    return {"status": "INSUFFICIENT_INPUT", "reason": "worker thiếu dependency hoặc schema",
+            "diagnostic": {**diagnostic, "positions": positions[-8:]}, **_WORKER_STATE}
+
+
+def worker_answer(request):
+    """_worker + gói ngoại lệ thành câu trả lời (tiến trình worker gọi; test gọi thẳng)."""
+    try:
+        return _worker(request)
+    except Exception as exc:
+        return _failure_answer(exc)
 
 
 # ---- C-GOLDEN5 (sổ v31-ep-golden-ab-acceptance-2026-10-21): so A/B HAI cây code trên CÙNG snapshot + CÙNG cờ ------------------------
@@ -681,6 +772,11 @@ def compare_ab(res_a, res_b):
     if built_a != built_b:
         return {"status": "ONE_FAIL", "failed": "a" if not built_a else "b", "reason": _fail_view(res_a if not built_a else res_b)}
     if res_a["raw"] == res_b["raw"]:
+        # rà 22/10: Kho chủ thể giả (--ab) — gói giống nhưng ảnh/nhãn tải lên khác → vẫn là lệch
+        if res_a.get("simulated_uploads") != res_b.get("simulated_uploads"):
+            # C-GOLDEN8-FIN: chỉ ra mục + trường lệch (sha16 / nhãn — không phải nội dung ảnh), không chỉ hai độ dài
+            return {"status": "DIFF", "first_diff": first_diff(res_a.get("simulated_uploads") or [], res_b.get("simulated_uploads") or [],
+                                                               "simulated_uploads")}
         return {"status": "SAME"}
     try:
         diff = first_diff(json.loads(res_a["raw"]), json.loads(res_b["raw"]))
@@ -824,7 +920,8 @@ def run_ab(*, db, ref_root, flags, experimental, code_a, code_b, projects, publi
                 res[side] = {"status": "INSUFFICIENT_INPUT", "reason": str(e)[:200]}
         rows.append({k: job[k] for k in ("job_id", "project_id", "scene_id", "type", "state")} | compare_ab(res["a"], res["b"])
                     | {"history_a": _history(job["sent_package_raw"], res["a"]), "history_b": _history(job["sent_package_raw"], res["b"])}
-                    | {"loaded_a": res["a"].get("loaded"), "loaded_b": res["b"].get("loaded")})   # C-GOLDEN6: module thật đã nạp mỗi bên
+                    | {"loaded_a": res["a"].get("loaded"), "loaded_b": res["b"].get("loaded")}   # C-GOLDEN6: module thật đã nạp mỗi bên
+                    | {f"simulated_uploads_{s}": len(res[s]["simulated_uploads"]) for s in ("a", "b") if res[s].get("simulated_uploads")})
     projects_out = {}
     for pid in sorted({r["project_id"] for r in rows}):
         sel = [r for r in rows if r["project_id"] == pid]
@@ -832,7 +929,8 @@ def run_ab(*, db, ref_root, flags, experimental, code_a, code_b, projects, publi
     total = {s: sum(r["status"] == s for r in rows) for s in AB_STATUSES}
     # ĐẠT = 0 DIFF + 0 ONE_FAIL VÀ mỗi dự án có ≥ 1 ca SAME (toàn BOTH_FAIL = không so được gì → không phải đạt)
     no_same = sorted(p for p, c in projects_out.items() if c["SAME"] == 0)
-    return {"rows": rows, "projects": projects_out, "total": total, "no_same_projects": no_same,
+    simulated = sum(1 for r in rows if r.get("simulated_uploads_a") or r.get("simulated_uploads_b"))   # rà 22/10: ca cần Kho chủ thể giả
+    return {"rows": rows, "projects": projects_out, "total": total, "no_same_projects": no_same, "simulated_upload_cases": simulated,
             "pass": bool(rows) and total["DIFF"] == 0 and total["ONE_FAIL"] == 0 and not no_same,
             "code_a": str(code_a), "code_b": str(code_b)}
 
@@ -919,16 +1017,9 @@ if __name__ == "__main__" and len(sys.argv) == 2 and not sys.argv[1].startswith(
             ROOT = Path(request["code_root"]).resolve()
             sys.pycache_prefix = str(Path.cwd() / "_pyc")   # C-GOLDEN6 (chỉ --ab): KHÔNG đọc .pyc trong cây code (cũ / của cây khác) — luôn dịch từ nguồn
         sys.path.insert(0, str(ROOT))
-        answer = _worker(request)
-    except DataChanged:
-        answer = {"status":"DATA_CHANGED", "reason":"input thay đổi trong lúc worker đọc"}
-    except Exception as exc:
-        trace = exc.__traceback__
-        positions = []
-        while trace is not None:
-            positions.append(f"{Path(trace.tb_frame.f_code.co_filename).name}:{trace.tb_lineno}")
-            trace = trace.tb_next
-        answer = {"status": "INSUFFICIENT_INPUT", "reason": "worker thiếu dependency hoặc schema", "diagnostic": getattr(exc, "diagnostic", {"kind": type(exc).__name__, "positions": positions[-8:]})}
+        answer = worker_answer(request)
+    except Exception as exc:                      # đọc request / đổi cây lỗi (trước _worker)
+        answer = _failure_answer(exc)
     Path("response.json").write_text(json.dumps(answer, ensure_ascii=False), encoding="utf-8")
 elif __name__ == "__main__":
     sys.path.insert(0,str(ROOT))
