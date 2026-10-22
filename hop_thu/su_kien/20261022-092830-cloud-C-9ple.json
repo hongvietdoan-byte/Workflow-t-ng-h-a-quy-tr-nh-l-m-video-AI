@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T09:28:30.346576+07:00",
+  "lane": "cloud-C",
+  "kind": "giao",
+  "task": "C-3D-GOC-A",
+  "to": "cloud-C",
+  "title": "Khâu 3D sửa GỐC (A): owner+gốc 23 lỗi; R2 hình học máy-người-sàn đo thay hằng số; R3 chữ sinh từ tầm nhìn máy; R4 BYĐ nhất quán — test biến thể, 0 USD, không cờ mới",
+  "spec": "docs/CLOUD_TASKS.md#### C-3D-GOC-A / C-3D-GOC-B",
+  "priority": 2
+}

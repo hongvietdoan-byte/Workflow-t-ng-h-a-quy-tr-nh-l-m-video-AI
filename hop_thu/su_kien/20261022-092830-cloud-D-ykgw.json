@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T09:28:30.412155+07:00",
+  "lane": "cloud-D",
+  "kind": "giao",
+  "task": "C-3D-GOC-B",
+  "to": "cloud-D",
+  "title": "Khâu 3D sửa GỐC (B): R1 world_map nguồn vị trí duy nhất xuyên shot (G46 + 7 lỗi con) + thiết kế R5 Kho nhiều dạng — test biến thể, 0 USD, không cờ mới",
+  "spec": "docs/CLOUD_TASKS.md#### C-3D-GOC-A / C-3D-GOC-B",
+  "priority": 1
+}

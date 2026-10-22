@@ -1102,3 +1102,31 @@ không chắc → REVIEW). Nhánh cloud/v31-qc-bocuc từ origin/main.
    Quy ước 7: py tools/related_areas.py → Agent rà trước commit. Báo cáo docs/RA_CLOUD_QC_BOCUC_2026-10-2x.md (số đo trước/sau, giả thuyết vòng chấm,
    lệnh cho máy chính). XONG hộp thư mã C-QC-BOCUC. KHÔNG bật qc_team; bật lại = người dùng duyệt khi máy chính đo ≥ 75 %.
 ```
+
+#### C-3D-GOC-A / C-3D-GOC-B (người dùng 22/10: "không chỉ sửa lỗi cố định cụ thể — sửa GỐC để đặt chỗ khác / cách khác không lặp lại"; cloud-claude giao) — Khâu 3D sửa theo GỐC
+```
+Sổ devsys/errors.json: 23 lỗi nhóm 3D / vị trí / máy (L3, L6, L11) — 17 OPEN, 5 IN_PROGRESS, 1 FIXED_UNVERIFIED, owner TRỐNG cả 23. Không vá từng shot.
+Gom theo 5 GỐC; mỗi gốc = MỘT bất biến (invariant) chạy cho MỌI shot + test BIẾN THỂ (đổi chỗ đứng, hướng máy, ống kính, đạo cụ, bối cảnh: mê cung #31,
+tháp #33, phòng kín, ngoài trời, sàn có bậc) sinh bằng code (tham số hóa/ngẫu nhiên có seed), không chỉ ca #31. Một lỗi chỉ được FIXED khi: root_cause_id
+gán + bất biến có test + test biến thể xanh + replay ca gốc #31/#33 (0 USD) xanh. Ghi owner theo data/crew_roles.json. 0 USD; KHÔNG thêm cờ mới (khóa
+catalog tới khi CX21-GOLDEN7 xong) — dùng cờ sẵn có (whitebox_height_dummy, world_map, world_map_sentences, plate_view_sentence…) hoặc kiểm chỉ ghi
+diag/báo cáo (không đổi gói gửi). Blender giả trong test; nghiệm thu Blender thật = máy chính (viết lệnh sẵn trong báo cáo).
+
+GỐC R1 — vị trí không có MỘT nguồn sự thật xuyên shot (G46 + G1, G41, G43, G44, G45, G47, G50) → world_map (M3.1, đã ở main sau cờ TẮT) là nguồn
+  duy nhất: blocking / plate_spot / câu vị trí / khối giữ chỗ đều ĐỌC từ đó; bất biến: cùng vật cùng cảnh ⇒ cùng toạ độ ở mọi shot trừ khi BYĐ khai di
+  chuyển; hướng chạy so trục máy (G41). Owner: artist_3d (phát hiện: continuity_validator).
+GỐC R2 — hình học máy ↔ người ↔ sàn bằng hằng số / chữ thay vì đo (G2, G3, G49, P33-A10, P33-B5) → mọi số máy tính từ hình học Blender: người nộm
+  height_m Kho; raycast sàn dưới chân + dưới máy (bậc/ô cỏ); khoảng cách tối thiểu theo ống kính × cỡ cảnh; pitch theo góc khai (eye/high/low) có dải, bỏ
+  hằng HIGH_TILT_DEG cứng; % khung trong prompt SINH từ hình chiếu (feedback_geometry_single_truth). Owner: cinematographer (+ artist_3d dựng).
+GỐC R3 — chữ viết tự do không khớp cái máy thấy (G26, G11, P33-B3, P33-B10, G9, P33-B7) → câu tả nền / mốc / bên trái-phải SINH từ tầm nhìn máy 3D
+  (mốc nào nằm trong khung, ở bên nào, bị che không); lint chữ ↔ hình: câu nhắc mốc không trong khung → VÀNG + câu thay; motion phải khớp khung đầu đã
+  duyệt. Owner: storyboard_artist / video_prompt_artist (nguồn: cinematographer).
+GỐC R4 — BYĐ mâu thuẫn trường khác / thiếu BYĐ (G18, P33-A12) → bộ kiểm nhất quán BYĐ ↔ trường shot một chỗ. Owner: director.
+GỐC R5 — Kho: loại vật một dạng (bom keo #367 kind=weapon nên không dựng tường keo), tỉ lệ mô hình (G8), nền ghép (P33-B4) → CHỜ CX21-M23 (Kho forms):
+  vật có nhiều dạng (cầm tay / triển khai); chỉ ghi thiết kế + test đỏ chờ, không code trước M23.
+
+C-3D-GOC-A (cloud-C, sau C-M48-DESK-CORE): bước 0 điền owner + root_cause_id 23 lỗi (devsys/errors.json); R2 + R3 + R4. Nhánh cloud/v31-3d-goc-a.
+C-3D-GOC-B (cloud-D): R1 (+ thiết kế R5). Nhánh cloud/v31-3d-goc-b. Hai gói không chồng file (A: camera/plate/prompt lint; B: world_map/stage blocking) —
+  chồng thì báo hộp thư trước. Quy ước 7 (related_areas → Agent rà). Báo cáo docs/RA_CLOUD_3D_GOC_A|B_2026-10-2x.md: bảng lỗi → gốc → bất biến → test
+  biến thể → trạng thái. XONG hộp thư.
+```

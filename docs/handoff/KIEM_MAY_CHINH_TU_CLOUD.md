@@ -88,6 +88,10 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
   tìm vì sao `trainee_log` qc_team 120 dòng mà 0 dòng được chấm. **Máy chính khi gộp:** chạy `tools/trainee_score_report.py` (công cụ mới, đọc bản
   sao CSDL, 0 USD) + lệnh đo trong `docs/RA_CLOUD_QC_BOCUC_*.md` → báo người dùng số khớp; ≥ 75 % mới xin bật `qc_team` (người dùng duyệt).
 
+- **22/10 09:28 — C-3D-GOC-A → cloud-C (sau CORE), C-3D-GOC-B → cloud-D** (người dùng: sửa GỐC, không vá ca): 23 lỗi 3D/vị trí/máy gom 5 gốc
+  (R1 vị trí một nguồn world_map · R2 hình học đo thay hằng số · R3 chữ sinh từ tầm nhìn máy · R4 BYĐ nhất quán · R5 Kho nhiều dạng — chờ CX21-M23), mỗi gốc
+  một bất biến + test biến thể; owner 23 lỗi đang TRỐNG → điền theo crew_roles. **Máy chính khi gộp:** chạy lệnh Blender thật trong báo cáo RA_CLOUD_3D_GOC_*.
+
 ## D. Ghi chú lượt 22/10 02:58
 - C-GOLDEN7 (cloud-C) XONG @ cloud/v31-golden5 621661a8 — CHƯA gộp (công cụ golden gộp cùng tích hợp M2 khi CX21-GOLDEN7 ĐẠT). Máy chính: không cần làm gì
   tới khi codex báo kết quả; ĐẠT → phiên điều phối gộp cloud/v31-m2-tichhop + m24 + golden5 (+ m73, m210, golden4 dựng trên nền đó) một lần.
