@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T08:06:03.205787+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M83-TOOL",
+  "branch": "cloud/v31-m83-tool",
+  "commit": "059a5dae",
+  "report": "docs/RA_CLOUD_M83_TOOL_2026-10-22.md",
+  "text": "tools/load_test_ui.py: N phiên Chromium (Playwright) trên Dashboard thật, provider GIẢ 0 USD; đo từng màn tới lượt vẽ lại thật (bộ đếm rerun + điều kiện hậu), CPU/RAM/luồng (psutil), chờ khóa SQLite (đầu dò sitecustomize, không sửa dashboard/core); --db sao mode=ro + làm trơ (ảnh Kho removed, nguồn auto, Claude theo dự án, âm thanh); từ chối cổng 8501/8502/bận. Số cloud (≠ máy chính, máy đo bão hòa từ N=2): Trang chủ 3,4 s / Mở dự án 3,9 s ngay ở N=1; SQLite gần như không chờ. ⚠️ PHÁT HIỆN LỖI THẬT: nhiều phiên mở cùng lúc → core/db.py _migrate executescript(CHANGE_TRIGGERS) đua DROP/CREATE → màn đỏ 'trigger … already exists' (1/5 phiên N=5, 3/10 N=10; tái hiện 208/800); đề xuất bọc BEGIN IMMEDIATE…COMMIT (thử 0/800) — CHƯA sửa (đề bài chỉ đo), xin phiên chính giao việc. Lệnh máy chính trong báo cáo. 24 test (1 Chromium slow) xanh, full 7111 passed (25 golden nền). 2 lượt agent rà, sửa hết CAO/VỪA. HẠN MỨC: không đọc được."
+}
