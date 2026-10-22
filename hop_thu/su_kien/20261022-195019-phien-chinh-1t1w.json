@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-22T19:50:19.049379+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX22-R1-AXIS",
+  "to": "codex",
+  "title": "#31 R1-AXIS-JUMP shot 17→18 thật hay nhầm — chỉ đọc, 0 USD",
+  "spec": "docs/CODEX_TASKS.md### CX22-R1-AXIS",
+  "depends": [
+    "C-R1-REL"
+  ],
+  "priority": 4
+}
