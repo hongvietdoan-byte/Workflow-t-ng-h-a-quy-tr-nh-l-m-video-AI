@@ -1755,7 +1755,7 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         people.append((label, own[:1] + [(img["path"], "outfit") for img in outfit[:1]] + own[1:]))
     place = scene_location(conn, project_id, scene)
     from .plate_choice import landmark_off_frame
-    away = landmark_off_frame(scene)               # 08/10 (#24 shot 4): camera turned away from the landmark → no picture of it
+    away = landmark_off_frame(scene, conn, project_id)   # 08/10 (#24 shot 4): camera turned away from the landmark → no picture of it
     loc = location_plate(conn, place, scene) if place and not away else None
     mark = location_landmark(conn, place, scene) if place and loc is None and not away else None
     if mark is not None:

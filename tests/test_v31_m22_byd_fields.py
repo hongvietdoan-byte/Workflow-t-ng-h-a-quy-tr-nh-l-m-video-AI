@@ -302,3 +302,49 @@ def test_a2b_storyboard_uses_held_reads_vat(kho):
         assert sb._uses_held(c, pid, {"image_prompt": "Kelly đứng", "byd": v2_scene(vat=held)["byd"]}) is True
         assert sb._uses_held(c, pid, fires) is True                                        # chưa BYĐ → regex + cảnh báo
     assert any("cầm" in m for m in kho["diags"](byd_fields.FALLBACK))
+
+
+
+# ---- A2d: mốc nền theo khung.moc_nen.y_do (G26, G40) ------------------------------------------------------------------------
+ENTRY = {"anchor": [0.0, 10.0, 30.0], "landmark": "the Clock Tower", "spots": {"plaza": {"at": [0.0, 0.0], "facing": 0}}}
+SPOT = {"name": "plaza", "at": [0.0, 0.0], "facing": 0}
+
+
+def _a2d_scene(view="landmark", y_do=None, v1=False):
+    s = {"text": "Kelly đứng ở quảng trường", "characters": ["KELLY"], "plate_view": {"background": view, "why": "theo kịch bản"}}
+    if v1:
+        s["byd"] = {"shot": 1, "thanh_phan": [{"vat": "KELLY", "vai": "chinh"}]}
+    elif y_do is not None:
+        s["byd"] = v2_scene(khung={"moc_nen": {"kho_id": 88, "y_do": y_do, "ly_do": ""}})["byd"]
+    return s
+
+
+def test_a2d_off_is_old_plate_view_word(kho):
+    from core import plate_choice as pc
+    for flags in ((), ("a2d",), ("mother",)):
+        with env(*flags):
+            assert pc.landmark_off_frame(_a2d_scene("landmark", "ngoai_khung"), kho["conn"], kho["pid"]) is False
+            assert pc.landmark_off_frame(_a2d_scene("away", "trong_khung"), kho["conn"], kho["pid"]) is True
+            v = pc.view_of(ENTRY, SPOT, _a2d_scene("landmark", "ngoai_khung"))
+            assert v["problem"] is None and v["needs"] is None and v["background_deg"] == 0.0
+    assert kho["diags"](byd_fields.FALLBACK) == [] and kho["diags"](byd_fields.MISMATCH) == []
+
+
+def test_a2d_on_v2_y_do_decides_and_mismatch_is_review(kho):
+    from core import plate_choice as pc
+    with env("mother", "a2d"):
+        assert pc.landmark_off_frame(_a2d_scene("landmark", "ngoai_khung"), kho["conn"], kho["pid"]) is True
+        assert pc.landmark_off_frame(_a2d_scene("away", "trong_khung"), kho["conn"], kho["pid"]) is False
+        v = pc.view_of(ENTRY, SPOT, _a2d_scene("landmark", "ngoai_khung"))
+        assert v["background_deg"] == 0.0 and v["needs"] is None                 # không đổi nền / không chặn render — chỉ nói ra
+        assert "khung.moc_nen" in (v["problem"] or "")
+        assert pc.view_of(ENTRY, SPOT, _a2d_scene("landmark", "trong_khung"))["problem"] is None
+    assert len(kho["diags"](byd_fields.MISMATCH)) == 2
+
+
+def test_a2d_on_v1_falls_back_with_warning(kho):
+    from core import plate_choice as pc
+    with env("mother", "a2d"):
+        assert pc.landmark_off_frame(_a2d_scene("away", v1=True), kho["conn"], kho["pid"]) is True
+        assert pc.landmark_off_frame(_a2d_scene("landmark"), kho["conn"], kho["pid"]) is False
+    assert len(kho["diags"](byd_fields.FALLBACK)) == 2
