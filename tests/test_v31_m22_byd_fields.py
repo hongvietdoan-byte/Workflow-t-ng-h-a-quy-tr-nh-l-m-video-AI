@@ -121,7 +121,8 @@ def kho(tmp_path):
 
     ids = {"glue": add("prop", "Bom keo", "Gloowall", "glue.png"),
            "grenade": add("prop", "Lựu đạn", "bom", "grenade.png"),     # bí danh chung "bom" — G4: khớp nhầm vào "bom keo"
-           "outside": add("prop", "Thùng thính", "airdrop", "drop.png", link=False)}
+           "outside": add("prop", "Thùng thính", "airdrop", "drop.png", link=False),
+           "ghost": add("style", "Bóng mờ", "ghost form", "ghost.png", desc="Dạng của nhân vật: KELLY\nA glowing translucent ghost.")}
     c.commit()
 
     def refs(scene, *flags):
@@ -132,7 +133,17 @@ def kho(tmp_path):
     def diags(code):
         return [r["message"] for r in c.execute("SELECT message FROM diag_events WHERE code=? ORDER BY id", (code,))]
 
-    return {"conn": c, "pid": pid, "ids": ids, "refs": refs, "diags": diags}
+    def forms(scene, *flags):
+        from core import kho_profile
+        with env(*flags):
+            return {k: v["form"] for k, v in kho_profile.forms_for_shot(c, pid, dict(scene)).items()}
+
+    def form_rows(scenes, *flags):
+        from core import kho_profile
+        with env(*flags):
+            return {k: v["shots"] for k, v in kho_profile.forms_for_rows(c, pid, [{"data": d} for d in scenes]).items()}
+
+    return {"conn": c, "pid": pid, "ids": ids, "refs": refs, "diags": diags, "forms": forms, "form_rows": form_rows}
 
 
 def _a2e_scene(kho, vat_ids=None, v1=False):
@@ -170,3 +181,51 @@ def test_a2e_declared_id_not_in_project_is_review_not_substituted(kho):
     got = kho["refs"](_a2e_scene(kho, [kho["ids"]["outside"]]), "mother", "a2e")
     assert "Thùng thính" not in got and "Lựu đạn" not in got and "Bom keo" not in got
     assert any(str(kho["ids"]["outside"]) in m for m in kho["diags"](byd_fields.MISMATCH))
+
+
+
+# ---- A2a: dạng nhân vật theo thanh_phan[].dang (G37) -------------------------------------------------------------------------
+def _a2a_scene(dang=None, v1=False, text="Kelly ghost form bước ra khỏi cổng"):
+    s = {"text": text, "image_prompt": "", "characters": ["KELLY"]}
+    if v1:
+        s["byd"] = {"shot": 3, "thanh_phan": [{"vat": "KELLY", "vai": "chinh", "dang": "thuong"}]}
+    elif dang is not None:
+        tp = {"vat": "KELLY", "kho_id": 12, "vai": "chinh"}
+        if dang != "-":
+            tp["dang"] = dang
+        s["byd"] = v2_scene(thanh_phan=[tp])["byd"]
+    return s
+
+
+def test_a2a_off_is_old_text_path(kho):
+    old = kho["forms"](_a2a_scene())
+    assert old == {"KELLY": "ghost form"}
+    for flags in ((), ("a2a",), ("mother",)):
+        assert kho["forms"](_a2a_scene("thuong"), *flags) == old
+        assert kho["form_rows"]([_a2a_scene("thuong"), _a2a_scene()], *flags) == {"KELLY": [1, 2]}
+    assert kho["diags"](byd_fields.FALLBACK) == []
+
+
+def test_a2a_on_v2_dang_decides_not_the_text(kho):
+    on = ("mother", "a2a")
+    assert kho["forms"](_a2a_scene("thuong"), *on) == {}                                   # G37: BYĐ nói dạng thường, chữ nói ghost
+    assert kho["forms"](_a2a_scene("ghost_form", text="Kelly bước ra"), *on) == {"KELLY": "ghost form"}   # BYĐ chốt, chữ không nhắc
+    assert kho["form_rows"]([_a2a_scene("thuong"), _a2a_scene()], *on) == {"KELLY": [2]}   # theo từng shot, đi qua cùng adapter
+
+
+def test_a2a_many_forms_or_unknown_never_guessed(kho):
+    on = ("mother", "a2a")
+    assert kho["forms"](_a2a_scene(["ghost_form", "thuong"]), *on) == {}
+    assert kho["forms"](_a2a_scene({"bat_dau": "thuong", "ket_thuc": "ghost_form"}), *on) == {}
+    assert kho["forms"](_a2a_scene("ghost"), *on) == {}                                     # "ghost" ≠ "ghost form": không khớp nửa tên
+    assert kho["forms"](_a2a_scene("lua"), *on) == {}
+    msgs = kho["diags"](byd_fields.MISMATCH)
+    assert any("nhiều dạng" in m for m in msgs) and any("lua" in m for m in msgs) and any("'ghost'" in m for m in msgs)
+
+
+def test_a2a_on_v1_or_no_dang_falls_back_with_warning(kho):
+    on = ("mother", "a2a")
+    old = kho["forms"](_a2a_scene())
+    assert kho["forms"](_a2a_scene(v1=True), *on) == old
+    assert kho["forms"](_a2a_scene("-"), *on) == old                                        # v2 không khai dang cho KELLY
+    assert len(kho["diags"](byd_fields.FALLBACK)) >= 2

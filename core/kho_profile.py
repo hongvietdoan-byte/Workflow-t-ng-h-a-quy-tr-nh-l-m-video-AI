@@ -215,6 +215,67 @@ def _shot_forms(p, asset_id, scene, cast, own=None):
 
 
 def forms_for_shot(conn, project_id, scene, chosen=None):
+    from . import byd_fields
+    out = _forms_for_shot(conn, project_id, scene, chosen)
+    if byd_fields.enabled('a2a'):                       # V3.1 M2.2 A2a: BYĐ thanh_phan[].dang quyết dạng (cờ tắt: không đọc gì)
+        out = _byd_dang(conn, project_id, scene, chosen, out)
+    return out
+
+
+NORMAL_FORMS = ('thuong', 'binh thuong', 'normal', 'default')
+"""A2a: `dang` nghĩa là dạng thường (prompt 31 ví dụ "thuong") — người KHÔNG ở dạng đặc biệt nào, kể cả khi chữ shot nhắc tên dạng."""
+
+
+def _byd_dang(conn, project_id, scene, chosen, out):
+    """A2a (G37): v2 + `dang` một giá trị → dạng đó (mục Kho style khai cho người đó, tên / bí danh trùng nguyên; hồ sơ v2 theo `ma`)
+    hoặc dạng thường; nhiều dạng / theo nhịp → KHÔNG tự chọn (byd_field_mismatch, cần người chốt); dạng không có trong Kho → bỏ + nói.
+    v1 / v2 không khai `dang` → giữ kết quả đường cũ (chữ cảnh) + byd_fallback khi đường cũ có chọn dạng."""
+    from . import byd_fields, shot_intent
+    scene = scene or {}
+    cast = [str(n).strip().upper() for n in scene.get('characters') or []]
+    if not byd_fields.is_v2(scene):
+        if out:
+            byd_fields.note(conn, 'a2a', scene, 'dạng của ' + ', '.join(sorted(out)) + ' đoán theo chữ cảnh (shot chưa có BYĐ v2 `dang`)',
+                            project_id=project_id)
+        return out
+    parts, _, _ = shot_intent.read(scene, 'thanh_phan', [])
+    said = {str(t.get('vat') or '').strip().upper(): t for t in parts if isinstance(t, dict)} if isinstance(parts, list) else {}
+    res = dict(out)
+    pool = None
+    for name in dict.fromkeys(cast):
+        t = said.get(name)
+        dang = t.get('dang') if t else None
+        if dang in (None, '', [], {}):
+            if name in out:
+                byd_fields.note(conn, 'a2a', scene, f'BYĐ v2 không khai `dang` cho {name} — dạng đoán theo chữ cảnh', project_id=project_id)
+            continue
+        one = scalar_form(dang)
+        if one is None:
+            res.pop(name, None)
+            byd_fields.note(conn, 'a2a', scene, f'{name} khai nhiều dạng / dạng theo nhịp — không tự chọn dạng, cần người chốt',
+                            kind=byd_fields.MISMATCH, project_id=project_id)
+            continue
+        cur = out.get(name)
+        if cur is not None and cur.get('ma') == one:
+            continue                                     # hồ sơ v2 (M2.3) đã chọn đúng dạng BYĐ khai
+        if assets.fold(one.replace('_', ' ')) in NORMAL_FORMS:
+            res.pop(name, None)
+            continue
+        if pool is None:
+            pool = [a for a in (assets.project_assets(conn, project_id) if chosen is None else chosen)
+                    if a.get('kind') == 'style' and name in character_forms.declared(a.get('description'))]
+        hit = [a for a in pool if character_forms.names_match(a, one)]
+        if len(hit) == 1:
+            res[name] = character_forms.entry(hit[0])
+        else:
+            res.pop(name, None)
+            byd_fields.note(conn, 'a2a', scene, f"BYĐ khai dạng '{one}' cho {name} nhưng Kho " +
+                            ('có nhiều mục trùng tên' if hit else 'không có mục dạng trùng tên') + ' — không gửi dạng, cần người xem',
+                            kind=byd_fields.MISMATCH, project_id=project_id)
+    return res
+
+
+def _forms_for_shot(conn, project_id, scene, chosen=None):
     if not enabled():
         return character_forms.for_shot(conn, project_id, scene, chosen)
     chosen = assets.project_assets(conn, project_id) if chosen is None else chosen
@@ -234,12 +295,13 @@ def forms_for_shot(conn, project_id, scene, chosen=None):
     return out
 
 def forms_for_rows(conn, project_id, rows):
-    if not enabled():
+    from . import byd_fields
+    if not enabled() and not byd_fields.enabled('a2a'):
         return character_forms.for_rows(conn,project_id,rows)
     out, present = {}, {}
     for i,r in enumerate(rows or [],1):
         d = r['data'] or {}
-        for n in d.get('characters',[]):
+        for n in d.get('characters') or []:
             present.setdefault(str(n).strip().upper(),[]).append(i)
         for n,f in forms_for_shot(conn,project_id,d).items():
             out.setdefault(n,dict(f,shots=[]))['shots'].append(i)
