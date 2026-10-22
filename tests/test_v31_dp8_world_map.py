@@ -149,7 +149,9 @@ def test_nothing_in_the_gen_path_reads_the_map():
     users = [str(p.relative_to(root)) for d in ("core", "dashboard") for p in (root / d).rglob("*.py")
              if p.name != "world_map.py" and use.search(p.read_text(encoding="utf-8", errors="replace"))]
     # C-STAGE-VIEW (21/10): màn XEM sân khấu 3D (cờ stage_view_ui) chỉ đọc map để hiện — không thuộc đường gen; cấm ghi / dựng map
-    read_only_views = {"dashboard/stage_view_ui.py"}
+    # C-3D-GOC-B (22/10): nguồn bố cục chung core/layout_facts (positions) + bất biến R1 core/position_invariants chỉ ĐỌC map để báo —
+    # không đưa vào gói gửi / mệnh đề QC, không ghi / dựng map
+    read_only_views = {"dashboard/stage_view_ui.py", "core/layout_facts.py", "core/position_invariants.py"}
     assert [u for u in users if u.replace("\\", "/") not in read_only_views] == []
     for view in read_only_views:
         src = (root / view).read_text(encoding="utf-8")

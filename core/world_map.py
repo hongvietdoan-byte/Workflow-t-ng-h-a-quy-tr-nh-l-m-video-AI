@@ -371,8 +371,9 @@ def _cam_rel(m: Dict, camera: Optional[Dict]) -> Optional[Tuple[List[float], Lis
     return sub(camera["location"]), sub(camera["look_at"])
 
 
-def _place(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tuple[str, float]]:
-    """(trái | giữa | phải khung, độ sâu m) của điểm xy nhìn từ máy; sau lưng máy → None."""
+def frame_xy(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tuple[float, float]]:
+    """(ngang m — dương = phải khung, sâu m — dương = trước máy) của điểm xy trong hệ của máy; máy không có hướng → None.
+    Một phép chiếu cho câu vị trí (M3.3) và bất biến R1 (core/position_invariants)."""
     import math
     fx, fy = look[0] - loc[0], look[1] - loc[1]
     n = math.hypot(fx, fy)
@@ -380,7 +381,16 @@ def _place(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tup
         return None
     fx, fy = fx / n, fy / n
     dx, dy = xy[0] - loc[0], xy[1] - loc[1]
-    depth, lateral = dx * fx + dy * fy, dx * fy - dy * fx          # phải của hướng nhìn (x Đông, y Bắc, z lên)
+    return dx * fy - dy * fx, dx * fx + dy * fy          # phải của hướng nhìn (x Đông, y Bắc, z lên)
+
+
+def _place(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tuple[str, float]]:
+    """(trái | giữa | phải khung, độ sâu m) của điểm xy nhìn từ máy; sau lưng máy → None."""
+    import math
+    got = frame_xy(loc, look, xy)
+    if got is None:
+        return None
+    lateral, depth = got
     if depth <= 0.05:
         return None
     ang = math.degrees(math.atan2(lateral, depth))
@@ -446,6 +456,12 @@ def review(m: Optional[Dict], shot, current_text: str, camera: Optional[Dict] = 
     trái/phải NGƯỢC map cho cùng tên. Không sửa prompt, không chặn gen."""
     if not sentences_enabled():
         return None
+    return side_review(m, shot, current_text, camera)
+
+
+def side_review(m: Optional[Dict], shot, current_text: str, camera: Optional[Dict] = None) -> Dict:
+    """Phần thuần của review (không đọc cờ): câu đề xuất + vế chữ nói trái/phải NGƯỢC map. Bất biến R1 (core/position_invariants) gọi
+    trực tiếp — một cách đọc trái/phải cho cả REVIEW M3.3 và kiểm offline."""
     suggested, prov = position_sentence(m, shot, camera)
     out = {"level": "REVIEW", "shot": shot, "suggested": suggested, "provenance": prov, "mismatches": []}
     text = current_text or ""
