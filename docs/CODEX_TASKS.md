@@ -1507,3 +1507,26 @@ evidence đủ cho mọi ca dựng được. Báo cáo docs/RA_CX21_GOLDEN7_CODE
 Như CX21-GOLDEN5 nhưng công cụ từ nhánh cloud/v31-golden5 MỚI NHẤT (có sửa C-GOLDEN6). TRƯỚC KHI chạy 158 ca: chạy negative control native (sửa 1 dòng builder
 cây B → phải ra DIFF/ONE_FAIL ≥ 1) — đỏ thì dừng, báo lỗi, không chạy tiếp. Kết quả mỗi ca in đường dẫn module core thật đã nạp cho A và B. ĐẠT = negative
 control xanh + 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥ 1 SAME. Báo cáo docs/RA_CX21_GOLDEN6_CODEX_2026-10-2x.md (nhánh codex/v31-golden6). XONG hộp thư.
+
+### CX22-FLAG20 — đo từng cờ: vì sao bật verified 20 cờ làm hỏng 362 test (ưu tiên 3; Cấp 1 CHỈ ĐO + tài liệu, 0 USD)
+Giao lại từ cloud-E (dừng theo người dùng 22/10). Đề bài gốc đầy đủ: `docs/CLOUD_TASKS.md` mục "#### C-FLAG20-TRIAGE" — làm đúng như đó nhưng trên
+máy chính Windows (`PYTHONUTF8=1 py -m pytest …`). KHÔNG sửa code sản xuất, KHÔNG bật cờ thật trong `data/` (chỉ bật trong tiến trình test / bản sao).
+Kết quả: bảng từng cờ → số test hỏng, nhóm nguyên nhân (test giả định cờ TẮT / lỗi thật / phụ thuộc cờ khác), đề xuất xử lý từng nhóm.
+Nhánh `codex/v31-flag20`. Báo cáo `docs/RA_CX22_FLAG20_CODEX_2026-10-2x.md`. XONG hộp thư (nhánh đã push).
+
+### CX22-R1-AXIS — #31: R1-AXIS-JUMP shot 17→18 là thật hay báo nhầm (ưu tiên 4; Cấp 1 chỉ đọc dữ liệu thật, 0 USD)
+BẮT ĐẦU KHI: main đã gộp C-R1-REL (phiên chính đang gộp nhánh claude/gop-cloud-e-2210 — đụng `core/position_invariants.py`).
+Bối cảnh: phiên chính 22/10 dựng world map #31 (data/projects/31/world/, 7/8 cảnh), `tools/position_invariants.py --project 31` ra 1 R1-AXIS-JUMP MỚI
+shot 17→18 (linhdichaochoang phải→trái, nhưng cùng phía trục — chưa ai xem thật). Làm: chạy lại công cụ trên main mới (CHỈ ĐỌC data thật ở
+D:\AI-Video-Pipeline, không ghi CSDL; nếu cần ghi thì dùng bản sao theo cách "safe copy" — CSDL lưu đường dẫn tương đối); xem ảnh khung/plate
+shot 17, 18 + world map + blocking cảnh; kết luận THẬT (nhân vật nhảy trục — ghi shot/vai cần sửa) hay NHẦM (luật/đo sai — chỉ ra file:dòng,
+sửa công cụ chỉ-đọc kèm test đỏ→xanh). Kèm: cảnh 3 thiếu blocking.json (lượt crew/final) — vì sao; cảnh 4 K1 chỗ đứng chính chưa đo.
+Nhánh `codex/v31-r1-axis`. Báo cáo `docs/RA_CX22_R1_AXIS_CODEX_2026-10-2x.md` (ảnh minh họa đặt ngoài git). XONG hộp thư.
+
+### CX22-M83-LOAD — M8.3 đo tải 10 người cùng lúc (ưu tiên 5; Cấp 1 đo, 0 USD, provider giả, BẢN SAO dữ liệu, máy chính)
+Theo `docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md` dòng M8.3 + `docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md` (phần M8.3). Dựng một Dashboard
+RIÊNG trên cổng khác (không đụng 8501/8502) trỏ vào BẢN SAO data (thư mục tạm ngoài repo), provider giả (không gọi ClipAI/Claude API/TTS thật).
+10 phiên trình duyệt tự động (Playwright/Selenium headless): mở dự án, xem, duyệt, bấm gen (giả). Đo thời gian vẽ từng màn, CPU/RAM tiến trình
+Streamlit, chờ khóa SQLite, luồng nền nhân bản theo phiên, khóa Blender, hàng đợi Claude CLI. Kết quả: bảng giới hạn (bao nhiêu người thì chậm/khóa,
+khâu nào nghẽn) + đề xuất cho M8.4. Script đo đặt `tools/load_test_dashboard.py` (khai `devsys/areas.json`, không tăng version) + test nhỏ cho phần
+không cần trình duyệt. Tắt hết tiến trình phụ sau khi đo. Nhánh `codex/v31-m83-load`. Báo cáo `docs/RA_CX22_M83_LOAD_CODEX_2026-10-2x.md`. XONG hộp thư.
