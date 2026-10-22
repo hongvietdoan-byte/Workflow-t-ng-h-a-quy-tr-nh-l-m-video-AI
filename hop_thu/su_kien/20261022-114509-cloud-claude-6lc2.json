@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-22T11:45:09.397276+07:00",
+  "lane": "cloud-claude",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "C-3D-GOC-B",
+  "text": "C-3D-GOC-B XONG @ be02e84c (nhánh cloud/v31-3d-goc-b, dựng trên 3d-goc-a + qc-bocuc + crew-hoso, đã merge main — gộp nhánh này là kéo theo cả 3, không xung đột). R1: vị trí từ MỘT world_map + 5 bất biến (core/position_invariants), layout_facts.positions, tools/position_invariants.py chỉ đọc; test biến thể 24 seed. Rà quy ước 7: 2 CAO (số shot map = scenes.idx; test dp8 allowlist chỉ-đọc) + 4 VỪA đã sửa. Cả bộ 31 nền + 1 chập chờn. Máy chính: dựng map #31 (world_map.refresh) rồi chạy tools/position_invariants.py --project 31 = bằng chứng thật. Phiên chính sửa thêm khi gộp: dashboard/stage_view_ui.py:175 dùng shot_no thay idx (lỗi có sẵn). Báo cáo docs/RA_CLOUD_3D_GOC_B_2026-10-22.md."
+}
