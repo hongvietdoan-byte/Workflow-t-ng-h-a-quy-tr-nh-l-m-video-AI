@@ -164,14 +164,14 @@ kiểm giá trị; không đổi `STATUSES`.
 |---|---|---|---|---|---|---|
 | M0 Đóng băng và thiết kế (0 USD) | 12 | 12 | 0 | 0 | 0 | 100 % |
 | M1 Nền tin cậy (0 USD, provider giả) | 9 | 9 | 0 | 0 | 0 | 100 % |
-| M2 Hợp đồng sản xuất có cấu trúc | 10 | 0 | 8 | 0 | 0 | 39,1 % |
+| M2 Hợp đồng sản xuất có cấu trúc | 10 | 1 | 8 | 0 | 0 | 47,8 % |
 | M3 Thế giới và liên tục | 5 | 5 | 0 | 0 | 0 | 100 % |
 | M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 5 | 1 | 0 | 0 | 75 % |
 | M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **75** | **42** | **13** | **0** | **0** | **62,3 %** |
+| **Tổng** | **75** | **43** | **13** | **0** | **0** | **63,5 %** |
 
 Đợt hiện tại: **M2** · việc kế: **M2.2** Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22)
 <!-- /tien-do -->
@@ -206,7 +206,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 ### M2 — Hợp đồng sản xuất có cấu trúc
 - [ ] M2.1 · BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN · nặng:3 · 🔄 · cloud/v31-m2-tichhop 9746a6ea — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
 - [ ] M2.2 · Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22) · nặng:3 · ⬜
-- [ ] M2.3 · Triển khai Kho forms/outfit/hair/face (G38) theo thiết kế M0.9 — code Cấp 2, backfill/migration Cấp 3 · nặng:2 · ⬜ · G2-3 duyệt có ĐK (sau M0.9, M0.10, M1.9); backfill = C3-5 chỉ khảo sát + nháp
+- [x] M2.3 · Triển khai Kho forms/outfit/hair/face (G38) theo thiết kế M0.9 — code Cấp 2, backfill/migration Cấp 3 · nặng:2 · ✅ · 23/10 gộp CX21-M23 (Codex 35d76879 + vòng sửa phiên chính 575d0288; cờ kho_forms_v2 TẮT; rà kỹ 2 vòng, test đỏ khi bỏ sửa 13 ca; cả bộ 8103 passed; docs/RA_CX21_M23_FIX_2026-10-23.md) · CÒN M2.3b: biến thể vật R5, chọn dạng nhiều dạng/theo nhịp + mục VÀNG 'chưa chốt dạng' khi _shot_forms review, standard_set vai/trần ảnh, location_pack/stage_auto tăng revision + guard M0.10, UI duyệt proposals, tools/profile_finalize.py:115 bắt lỗi từng mục · G2-3 duyệt có ĐK (sau M0.9, M0.10, M1.9); backfill = C3-5 chỉ khảo sát + nháp
 - [ ] M2.4 · insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; chỉ mang đạo cụ có trong BYĐ (G6, G21, G1) · nặng:2 · 🔄 · cloud/v31-m24 1971d85f (đã nằm trong m2-tichhop) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
 - [ ] M2.5 · Triển khai AUTO/USER_LOCKED/REVIEW_REQUIRED mọi đường ghi theo đặc tả M0.10 (A4), shadow trước — Cấp 2 · nặng:2 · 🔄 · m2-tichhop 9746a6ea (M25+M25B) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật) · G2-3 duyệt có ĐK (shadow); enforce = C3-6 để sau
 - [ ] M2.6 · sent_package nhãn theo rel_path/asset_id (G5) · nặng:1 · 🔄 · m2-tichhop 9746a6ea (M26) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
@@ -279,6 +279,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 
 ## 6. Nhật ký
 
+- 23/10 (rạng sáng): Codex im (không có lịch tự kiểm hộp thư) → phiên chính nhận lại CX21-M23, sửa 5 VỪA + 5 thấp, gộp main; phần dở ghi M2.3b.
 - 22/10 21:30: EP giải 3 xung đột — Q-D hard stop chỉ luồng tự động; G1 duyệt gói vai EP theo dự án (Codex CX22-G1-EP-ROLE); định nghĩa upscale = nháp 480p → 1080p provider. Sổ ep-2210-qd2 / g1b / upscale-definition.
 - 22/10 (tối): EP trả lời 21 mục docs/DANH_SACH_CAN_DUYET_2026-10-22.md → sổ `ep-2210-*-2026-10-22` (trường `phase`: APPROVED_IN_PRINCIPLE / PENDING_VERIFICATION / PENDING_EP_CONFLICT). Thêm M8.0 an toàn tiền (Q-F). Xung đột trình EP: Q-D hard stop ↔ D01b chỉ cảnh báo; G1 EP theo dự án ↔ code coi chủ dự án là EP; Q-C/E4 'upscale' cần tách ffmpeg (0 USD) ↔ provider 1080p (trả phí). R1 báo cáo dự án → Codex CX22-REPORT.
 - 21/10 (sau): EP trả lời M6 — Q1 nâng nháp 480p→1080p KHÔNG tính lượt; Q2 EP tự bấm gen lại CÓ trừ lượt; Q4 CÓ cho lùi model tự động trong danh sách duyệt; Q5 M6.11 tốc độ chưa làm, chờ M1–M5 xong; Q6 thứ tự ưu tiên 1–13 + Gói M6-A (M6.1, M6.3, M6.9) / M6-B (sau golden + M2) / M6-C. Q3 (ngân sách tự sửa) đã giải thích bằng số #27/#31, chờ EP chọn. Sổ: `v31-m6-generation-limits-policy-b-2026-10-21` thay bản đầu.

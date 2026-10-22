@@ -1,12 +1,3 @@
-# HANDOFF — CX21-M23 vòng sửa (nhánh claude/v31-m23-fix, 23/10, làm thay Codex)
-
-- XONG: 5 lỗi VỪA + 5 lỗi thấp, test đỏ→xanh; báo cáo docs/RA_CX21_M23_FIX_2026-10-23.md. Chưa push, chưa hộp thư/TODO (phiên chính làm).
-- OPEN → M2.3b: revision ở location_pack/stage_auto (guard M0.10), vai/trần ảnh standard_set v2, R5, chính sách nhiều dạng, UI proposals.
-- Kiểm lại: `PYTHONUTF8=1 py -m pytest -q -p no:cacheprovider tests/test_kho_profile_v2.py tests/test_kho_profile_provenance.py tests/test_draft_profiles.py`
-- Bước kế: phiên chính rà diff 1e8cb990.., gộp main, hop_thu xong CX21-M23.
-
----
-
 # HANDOFF — C-M48-DESK-UI (nhánh claude/v31-m48-desk-ui, 22/10)
 
 - XONG code + test; chưa gộp main, chưa ghi hộp thư/TODO (phiên chính làm). Báo cáo: docs/RA_CLOUD_M48_DESK_UI_2026-10-22.md.
