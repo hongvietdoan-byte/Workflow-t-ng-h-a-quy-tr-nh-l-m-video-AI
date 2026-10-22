@@ -90,48 +90,110 @@ def neutralize(db: str) -> List[str]:
     return done
 
 
-_REL_DATA = re.compile(r"(?<![\w/\\.:~-])data(?:/|\\\\|\\)")      # 'data/…' / 'data\\…' (JSON) / 'data\…' TƯƠNG ĐỐI (cwd = repo)
+# 'data/…' TƯƠNG ĐỐI (giải theo cwd = repo / máy thật): đứng đầu / sau dấu nháy / khoảng trắng, theo sau là một ký tự tên tệp (không đổi
+# chữ "data/ " trong câu văn, "metadata/", "https://x/data/")
+_REL_DATA = re.compile(r"(?<![\w/\\.:~-])data(?:/|\\\\|\\)(?=[\w.-])")
+_BOUNDARY = r"(?=[/\\\"'\s]|$)"                 # sau tiền tố thư mục phải là ranh giới đường (không đổi '/x/data2', '/x/database')
+# thư viện Kho / âm thanh: CHỈ ĐỌC khi đo (dọn rác + đồng bộ đã làm trơ ở neutralize); lineage băm đường ảnh Kho → đổi đường làm mọi ảnh
+# đã duyệt thành "cũ" (số đo lệch máy thật). Lịch sử ticket: trigger chặn UPDATE + chuỗi hash
+SKIP_TABLES = ("assets", "asset_images", "asset_sources", "sounds", "sound_sources", "ticket_events", "support_tickets")
 
 
 def _variants(path: str) -> List[str]:
-    """Các dạng một đường tuyệt đối có thể nằm trong CSDL: dấu xuôi, dấu ngược, và dấu ngược đã thoát trong JSON."""
-    a = os.path.abspath(path).rstrip("/\\")
-    out = {a, a.replace("\\", "/"), a.replace("/", "\\"), a.replace("\\", "\\\\"), a.replace("/", "\\\\")}
+    """Các dạng một thư mục tuyệt đối có thể nằm trong CSDL: abspath + realpath, dấu xuôi, dấu ngược, dấu ngược đã thoát trong JSON.
+    Thư mục GỐC (/ hoặc gốc ổ đĩa) bị bỏ — thay nó là thay mọi đường."""
+    out = set()
+    for a in {os.path.abspath(path), os.path.realpath(path)}:
+        a = a.rstrip("/\\")
+        if not a or os.path.dirname(a) == a or re.fullmatch(r"[A-Za-z]:", a):
+            continue
+        out |= {a, a.replace("\\", "/"), a.replace("/", "\\"), a.replace("\\", "\\\\"), a.replace("/", "\\\\")}
     return sorted(out, key=len, reverse=True)
 
 
-def relocate(db: str, real_homes: Sequence[str], new_home: str) -> Dict[str, int]:
-    """C-FIX5 (rà VỪA, C-M83-TOOL): bản sao CSDL thật còn ĐƯỜNG tới tệp thật — jobs.result_path, sent_package, ảnh Kho, plates… dạng
-    tuyệt đối (thư mục data thật) hoặc tương đối 'data/…' (giải theo cwd = repo / máy thật). Luồng duyệt ảnh / Gen video giả / dọn rác có
-    thể thay hoặc dời tệp theo đường đó. Đổi MỌI cột chữ của MỌI bảng (cả JSON): tiền tố thư mục data thật → `new_home` (thư mục data của
-    bản sao), 'data/…' tương đối → `new_home`/…. Trả {bảng.cột: số hàng đổi}."""
+def real_homes_of(src_db: str, data: Optional[str]) -> List[tuple]:
+    """[(thư mục thật, đích tương đối trong bản sao)]: thư mục chứa CSDL → data/, `--data` → data/projects/, cùng data/ của repo,
+    PIPELINE_DATA → data/projects/ và ASSET_DIR → data/assets/ của máy (rà C-FIX5 VỪA-4: bản sao CSDL nằm ngoài data/ vẫn trỏ về repo)."""
+    out = [(os.path.dirname(os.path.abspath(src_db)), ""), (os.path.join(ROOT, "data"), "")]
+    if data:
+        out += [(os.path.abspath(data), "projects")]
+    if os.environ.get("PIPELINE_DATA"):
+        out += [(os.path.abspath(os.environ["PIPELINE_DATA"]), "projects")]
+    if os.environ.get("ASSET_DIR"):
+        out += [(os.path.abspath(os.environ["ASSET_DIR"]), "assets")]
+    return out
+
+
+def relocate(db: str, real_homes: Sequence, new_home: str) -> Dict[str, int]:
+    """C-FIX5 (rà VỪA, C-M83-TOOL): bản sao CSDL thật còn ĐƯỜNG tới tệp thật — jobs.result_path, sent_package, plates… dạng tuyệt đối
+    hoặc tương đối 'data/…' (giải theo cwd = repo / máy thật). Luồng duyệt ảnh / Gen video giả / dọn rác có thể thay hoặc dời tệp theo đường
+    đó. Đổi mọi giá trị CHỮ của mọi bảng (cả JSON) trừ SKIP_TABLES: tiền tố thư mục thật → thư mục tương ứng trong `new_home` (bản sao), có
+    ranh giới đường; Windows không phân biệt hoa / thường. Trigger của bản sao được GỠ trong lúc đổi rồi tạo lại đúng câu cũ (rà VỪA-1/2:
+    không sinh change_events / đồng bộ ngầm, bảng chỉ thêm không sập). `real_homes` = [(thư mục, đích)] hoặc [thư mục] (đích = gốc).
+    Trả {bảng.cột: số hàng đổi} + "_skipped" (hàng không ghi được) + "_leaks" (đường tuyệt đối còn tồn tại ngoài bản sao — báo, không im)."""
     new = os.path.abspath(new_home).replace("\\", "/").rstrip("/")
-    pairs = [(v, new) for h in real_homes if h for v in _variants(h)]
+    flags = re.I if os.name == "nt" else 0
+    pairs = []
+    for item in real_homes:
+        home, sub = (item, "") if isinstance(item, str) else item
+        if not home:
+            continue
+        to = f"{new}/{sub}" if sub else new
+        pairs += [(v, to) for v in _variants(home)]
+    pairs.sort(key=lambda kv: len(kv[0]), reverse=True)             # thư mục sâu nhất trước (data/projects trước data)
+    # MỘT lượt thay (regex gộp): bản sao có thể nằm TRONG một thư mục thật — thay nhiều lượt sẽ thay lại chính kết quả
+    to_of = {}
+    for old, to in pairs:
+        to_of.setdefault(old.lower() if flags else old, to)
+    pat = re.compile("(?:" + "|".join(re.escape(old) for old, _ in pairs) + ")" + _BOUNDARY, flags) if pairs else None
 
     def fix(text: str) -> str:
-        for old, to in pairs:
-            text = text.replace(old, to)
-        return _REL_DATA.sub(new + "/", text)
+        if pat is not None:
+            text = pat.sub(lambda m: to_of[m.group(0).lower() if flags else m.group(0)], text)
+        return _REL_DATA.sub(lambda m: new + "/", text)
 
     out: Dict[str, int] = {}
+    skipped = 0
     conn = sqlite3.connect(db)
     try:
+        triggers = conn.execute("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL").fetchall()
+        for name, _sql in triggers:
+            conn.execute(f'DROP TRIGGER "{name}"')
         tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
         for t in tables:
-            cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{t}")') if (r[2] or "").upper() in ("TEXT", "", "JSON")
-                    or "CHAR" in (r[2] or "").upper()]
-            for c in cols:
+            if t in SKIP_TABLES:
+                continue
+            for c in [r[1] for r in conn.execute(f'PRAGMA table_info("{t}")')]:
                 n = 0
                 for rowid, val in conn.execute(f'SELECT rowid, "{c}" FROM "{t}" WHERE typeof("{c}")=\'text\'').fetchall():
                     new_val = fix(val)
-                    if new_val != val:
+                    if new_val == val:
+                        continue
+                    try:
                         conn.execute(f'UPDATE "{t}" SET "{c}"=? WHERE rowid=?', (new_val, rowid))
                         n += 1
+                    except sqlite3.DatabaseError:
+                        skipped += 1                                       # CHECK / ràng buộc: nói ở "_skipped", không sập lượt đo
                 if n:
                     out[f"{t}.{c}"] = n
+        for _name, sql in triggers:
+            conn.execute(sql)
         conn.commit()
+        leaks = 0
+        roots = [old for old, _ in pairs]
+        for t in tables:
+            if t in SKIP_TABLES:
+                continue
+            for c in [r[1] for r in conn.execute(f'PRAGMA table_info("{t}")')]:
+                for (val,) in conn.execute(f'SELECT "{c}" FROM "{t}" WHERE typeof("{c}")=\'text\''):
+                    if any((old.lower() in val.lower()) if flags else (old in val) for old in roots):
+                        leaks += 1
     finally:
         conn.close()
+    if skipped:
+        out["_skipped"] = skipped
+    if leaks:
+        out["_leaks"] = leaks
     return out
 
 
@@ -162,9 +224,7 @@ def copy_db(src: str, out_dir: str, data: Optional[str] = None) -> Dict:
         made = [(r[0], r[1], "copy") for r in conn.execute("SELECT id, name FROM projects ORDER BY id")]
     finally:
         conn.close()
-    # thư mục data THẬT (để relocate ở từng mức đo): thư mục chứa CSDL + thư mục dự án truyền vào (và cha của nó)
-    real = [os.path.dirname(os.path.abspath(src))] + ([os.path.abspath(data), os.path.dirname(os.path.abspath(data))] if data else [])
-    return {"db": dst, "data": out_data, "projects": made, "neutralized": notes, "real_homes": real}
+    return {"db": dst, "data": out_data, "projects": made, "neutralized": notes, "real_homes": real_homes_of(src, data)}
 
 
 # ---------------------------------------------------------------- đầu dò trong tiến trình Streamlit
@@ -766,7 +826,11 @@ def run_level(n: int, template: Dict, args, log) -> Dict:
     data = os.path.join(home, "projects")
     shutil.copytree(template["data"], data)
     if template.get("real_homes"):                # C-FIX5: mọi đường tới tệp thật → thư mục của mức đo này
-        log(f"  đổi đường tệp thật → bản sao: {relocate(db, template['real_homes'], home)}")
+        moved = relocate(db, template["real_homes"], home)
+        log(f"  đổi đường tệp thật → bản sao: {moved}")
+        if moved.get("_leaks"):
+            log(f"  ⚠ còn {moved['_leaks']} giá trị nhắc thư mục THẬT trong bản sao (bảng thư viện Kho chỉ đọc không tính) — xem lại "
+                "trước khi tin số đo")
     probe_dir = os.path.join(work, "probe")
     write_probe(probe_dir)
     env = app_env(db, data, work, args.latency, probe_dir)

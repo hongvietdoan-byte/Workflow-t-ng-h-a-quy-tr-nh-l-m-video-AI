@@ -152,4 +152,17 @@ Lệnh: `py tools/load_test_ui.py --levels 1,2,5,10 --shots 30` (dữ liệu gi�
   - `test_relocate_moves_every_real_path_into_the_copy`: tuyệt đối dấu xuôi + dấu ngược, JSON, tương đối; giữ đường khác.
   - `test_copy_db_names_the_real_homes`.
   - `test_a_measured_run_on_a_real_copy_never_touches_the_real_files` (slow, Chromium thật, `--db` + `--data` với `result_path` TUYỆT ĐỐI tới tệp thật): sau lượt đo, danh sách + mtime tệp thật không đổi, và CSDL của mức không còn đường tới data thật. Tắt `relocate` thì test này ĐỎ (CSDL mức đo còn đường thật).
-- `tests/test_load_test_ui.py`: 27 xanh (gồm 2 test slow chạy Chromium).
+- **Rà quy tắc 7 (C-FIX5), đã sửa:**
+
+  | Mức | Lỗi | Sửa |
+  |---|---|---|
+  | VỪA | UPDATE kích trigger sản xuất (`trg_change_scene` → thay đổi chờ rà giả, đồng bộ `noi_chon`) | Gỡ trigger của BẢN SAO trong lúc đổi, tạo lại đúng câu cũ |
+  | VỪA | Bảng chỉ-thêm (`ticket_events` ABORT) / lỗi CHECK làm sập lượt đo | Bỏ qua bảng lịch sử ticket; lỗi từng hàng đếm `_skipped` |
+  | VỪA | Windows hoa / thường, realpath; thư mục thật chỉ gồm thư mục CSDL | Thay không phân biệt hoa / thường khi `nt`; thêm realpath; luôn thêm `data/` của repo, `PIPELINE_DATA`, `ASSET_DIR`; quét lại và báo `_leaks` |
+  | THẤP | `--data` ánh xạ sai; thư mục gốc / rỗng thay mọi chuỗi; không ranh giới (`data2`); "data/ trong câu"; lọc kiểu cột sót | `--data` → `projects/`; bỏ gốc / rỗng; ranh giới đường; `data/` phải theo sau là ký tự tên tệp; mọi giá trị chữ |
+  | THẤP (phát hiện khi test) | Bản sao nằm TRONG một thư mục thật → thay nhiều lượt thay lại chính kết quả | Một lượt thay bằng regex gộp |
+
+- **Không đổi bảng thư viện Kho / âm thanh** (`SKIP_TABLES`):
+  - Lý do: lúc đo các bảng này chỉ được đọc (dọn rác và đồng bộ đã làm trơ); lineage băm đường ảnh Kho, nên đổi đường sẽ làm mọi ảnh đã duyệt thành "cũ", số đo lệch máy thật.
+  - Đường của chúng không tính vào `_leaks`.
+- `tests/test_load_test_ui.py`: 30 xanh, gồm 2 test slow chạy Chromium. 4 test mới của lượt rà ĐỎ trên bản trước sửa.

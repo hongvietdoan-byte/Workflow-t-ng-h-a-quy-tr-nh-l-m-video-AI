@@ -380,7 +380,73 @@ def test_copy_db_names_the_real_homes(tmp_path):
     c.commit()
     c.close()
     made = L.copy_db(str(src), str(tmp_path / "out"), str(tmp_path / "data" / "projects"))
-    assert os.path.abspath(str(tmp_path / "data")) in made["real_homes"]
+    homes = dict(made["real_homes"])
+    assert homes[os.path.abspath(str(tmp_path / "data"))] == ""
+    assert homes[os.path.abspath(str(tmp_path / "data" / "projects"))] == "projects"
+    assert homes[os.path.join(L.ROOT, "data")] == ""                                          # data/ của repo luôn tính (rà VỪA-4)
+
+
+def test_relocate_on_the_real_schema_fires_no_trigger_and_survives_append_only_tables(tmp_path):
+    # rà C-FIX5 VỪA-1 / VỪA-2: UPDATE scenes.data kích trg_change_scene (thay đổi chờ rà giả), ticket_events chặn UPDATE (ABORT)
+    from core.db import connect
+    real = tmp_path / "real" / "data"
+    db = str(tmp_path / "copy.sqlite")
+    from core.pipeline import Pipeline
+    pp = Pipeline(connect(db))
+    c = pp.conn
+    pid = pp.create_project("p")
+    sid = pp.create_scene(pid, 1, "s")
+    c.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"ref": str(real / "projects" / "1" / "a.png")}), sid))
+    c.commit()
+    c.execute("UPDATE change_events SET state='skipped'")
+    tick = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ticket_events'")]
+    c.commit()
+    triggers = sorted(r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='trigger'"))
+    before = c.execute("SELECT COUNT(*) FROM change_events").fetchone()[0]
+    c.close()
+    out = L.relocate(db, [(str(real), "")], str(tmp_path / "work" / "data"))
+    assert out.get("scenes.data") == 1 and not out.get("_leaks")
+    c = sqlite3.connect(db)
+    assert c.execute("SELECT COUNT(*) FROM change_events").fetchone()[0] == before                 # không sinh thay đổi chờ rà
+    assert sorted(r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='trigger'")) == triggers   # trigger tạo lại đủ
+    c.close()
+    assert tick                                                                               # bảng chỉ-thêm có thật trong schema
+
+
+def test_relocate_respects_path_boundaries_roots_and_prose(tmp_path):
+    real = str(tmp_path / "x" / "data")
+    db = str(tmp_path / "c.sqlite")
+    c = sqlite3.connect(db)
+    c.execute("CREATE TABLE t(v TEXT, n INTEGER)")
+    for v in (real + "2/a.png", real + "base/b", "xem data/ trong câu", real + "/ok.png", real.upper() + "/hoa.png"):
+        c.execute("INSERT INTO t(v) VALUES (?)", (v,))
+    c.execute("INSERT INTO t(n) VALUES ('" + real + "/so.png')")                              # chữ trong cột INTEGER
+    c.commit()
+    c.close()
+    L.relocate(db, [(real, ""), ("/", ""), ("", "")], str(tmp_path / "w"))                  # gốc / và rỗng bị bỏ
+    c = sqlite3.connect(db)
+    vals = [r[0] for r in c.execute("SELECT v FROM t WHERE v IS NOT NULL ORDER BY rowid")]
+    num = c.execute("SELECT n FROM t WHERE n IS NOT NULL").fetchone()[0]
+    c.close()
+    w = str(tmp_path / "w").replace("\\", "/")
+    assert vals[0] == real + "2/a.png" and vals[1] == real + "base/b" and vals[2] == "xem data/ trong câu"
+    assert vals[3] == w + "/ok.png"
+    assert (vals[4] == w + "/hoa.png") == (os.name == "nt")                                  # Windows: không phân biệt hoa / thường
+    assert num == w + "/so.png"
+
+
+def test_relocate_maps_the_projects_folder_onto_the_copy_projects(tmp_path):
+    db = str(tmp_path / "c.sqlite")
+    c = sqlite3.connect(db)
+    c.execute("CREATE TABLE jobs(result_path TEXT)")
+    c.execute("INSERT INTO jobs VALUES (?)", (str(tmp_path / "proj" / "1" / "images" / "a.png"),))
+    c.commit()
+    c.close()
+    L.relocate(db, [(str(tmp_path), ""), (str(tmp_path / "proj"), "projects")], str(tmp_path / "w" / "data"))
+    c = sqlite3.connect(db)
+    got = c.execute("SELECT result_path FROM jobs").fetchone()[0]
+    c.close()
+    assert got == str(tmp_path / "w" / "data" / "projects" / "1" / "images" / "a.png").replace("\\", "/")
 
 
 @pytest.mark.slow
