@@ -903,7 +903,8 @@ def _dialog_clone(p: Pipeline, pid: int) -> None:
     mode = st.selectbox("Cách chia cảnh của bản sao", modes, index=modes.index(shots.mode(proj)), format_func=lambda m: shots.MODES[m],
                         key="clone_mode")
     rows = st.checkbox("Giữ nguyên các cảnh/shot hiện tại (cùng kế hoạch của Director)", True, key="clone_rows",
-                       help="Bỏ chọn để chạy lại Director ở bản sao (ví dụ đổi từ 'một clip mỗi cảnh' sang 'chia shot').")
+                       help="Bỏ chọn để chạy lại Director ở bản sao (ví dụ đổi từ 'một clip mỗi cảnh' sang 'chia shot'). Khi đó bản sao "
+                            "không mang ý đồ Đạo diễn cũ và mốc dựng của phim cũ (mốc nhạc, popup, chữ card cuối) — chỉ giữ cách dựng.")
     if st.button("🧬 Tạo bản sao", key="clone_go", type="primary", disabled=not name.strip()):
         from core import person_limits
         try:

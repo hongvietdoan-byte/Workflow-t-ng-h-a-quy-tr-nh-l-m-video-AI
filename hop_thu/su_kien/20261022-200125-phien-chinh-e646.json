@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-22T20:01:25.097023+07:00",
+  "lane": "phien-chinh",
+  "kind": "xong",
+  "task": "C-GOLDEN8-FIN",
+  "branch": "cloud/v31-golden8-fin",
+  "commit": "ae41b584",
+  "report": "docs/RA_GOLDEN_REPLAY_WINDOWS_2026-10-22.md"
+}

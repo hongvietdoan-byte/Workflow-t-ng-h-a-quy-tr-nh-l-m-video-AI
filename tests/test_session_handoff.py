@@ -58,8 +58,10 @@ def test_hook_event_reads_source_from_stdin_json():
     assert sh.hook_event("") == "startup" and sh.hook_event("không phải json") == "startup"
 
 
-def test_settings_compact_at_70_and_hook_runs_after_compaction():
+def test_settings_compact_window_350k_and_hook_runs_after_compaction():
     import json, os
     cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", ".claude", "settings.json"), encoding="utf-8"))
-    assert cfg["env"]["CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"] == "70"
+    # 22/10: % override chỉ là % của cửa sổ 1M (≈ 677k) → dùng cửa sổ tuyệt đối 350k
+    assert cfg["env"]["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "350000"
+    assert "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE" not in cfg["env"]
     assert "compact" in cfg["hooks"]["SessionStart"][0]["matcher"].split("|")

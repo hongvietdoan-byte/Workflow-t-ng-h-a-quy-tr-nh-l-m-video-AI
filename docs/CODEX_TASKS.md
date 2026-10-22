@@ -1476,6 +1476,19 @@ Lỗi công cụ còn lại → ghi gốc, không tự sửa. Gỡ worktree tạ
 
 ### CX21-M23 (tiếp) — hoàn tất theo HANDOFF_M23.md trên codex/v31-m23: sửa 1 P1 + 2 P2 đường ghi mà lượt rà hẹp đã thấy (test ĐỎ→XANH), rồi báo XONG.
 
+#### CX21-M23 vòng sửa sau RÀ KỸ phiên chính 23/10 (@35d76879, merge main sạch, 192 test liên quan xanh)
+Kết luận rà: (B) sửa nhỏ rồi GỘP; phần lớn còn dở ghi thành việc sau (M2.3b), không làm trong vòng này. Cờ `kho_forms_v2` TẮT giữ hành vi cũ — đã xác nhận.
+Mỗi mục một test ĐỎ→XANH trên `codex/v31-m23`, commit + PUSH sau mỗi commit:
+1. `core/kho_profile.py:358` `selected_images` gọi `validate(p)` không bắt lỗi → hồ sơ v2 hỏng (mã `Bad!`) làm `assets.best_references` / `view_picture` / `standard_set` nổ ProfileError, chặn dựng gói. Sửa: bắt lỗi → `None` (rơi về selector cũ) + ghi chẩn đoán. Test: `best_references` với profile hỏng, cờ BẬT.
+2. `core/assets.py:1233` `view_picture` không có ảnh đúng `role` lại trả `selected[0]` (trước: None) → QC so mặt sau với ảnh mặt trước. Sửa: chỉ ảnh đúng role, không có → None.
+3. `core/kho_profile.py:362-363` `selected_images` chọn dạng theo chữ trong cảnh (`explicit[:1]`), bỏ qua BYĐ `thanh_phan[].dang`/`kho_id`; lệch với `forms_for_shot`. Ca: "normal suit then turns ghost" vẫn tự lấy ghost. Sửa: dùng kết quả `forms_for_shot`; nhiều dạng → không tự chọn (REVIEW).
+4. `core/shot_intent.py:150` + `:399`: cờ BẬT mà thiếu conn/project_id → mục dạng chưa kiểm hạ REVIEW→WARN; `dang_khong_trong_kho` chỉ WARN. Sửa: "không kiểm được" và "ngoài enum" giữ `level: REVIEW`.
+5. `core/kho_profile.py:324`: AI đã ghi trường REVIEW_REQUIRED → `approved` luôn False, người dùng tích Duyệt mà lưu False im lặng. Sửa tối thiểu: báo rõ "còn N mục chờ duyệt" (UI duyệt `proposals` để M2.3b).
+Thấp (sửa nếu ≤ vài dòng, không thì ghi OPEN): `kho_profile.py:384` ảnh mất khỏi DB → `fetchone()['asset_id']` TypeError; `assets.py:1252` `standard_set` gắn mọi ảnh vai 'character', không giới hạn; `set_size`(`assets.py:808`)/`location_pack`/`stage_auto` ghi hồ sơ v2 không tăng revision; `set_profile` v2 bỏ `reason`/history; `draft_profiles` gặp khóa hệ thống dừng cả lô; `forms_for_shot` gọi `read()` 2 lần/asset.
+Ghi nhận: nhánh có sửa `core/shot_intent.py` (đề gốc ghi "chỉ đọc") — chấp nhận vì làm sau C-M21; nêu trong báo cáo.
+Còn dở → M2.3b (KHÔNG làm vòng này): biến thể vật R5 (`vat[].bien_the`/`stage_shape`), chính sách nhiều dạng / dạng theo nhịp, guard ghi chung M0.10, UI duyệt `proposals`.
+Xong: báo cáo `docs/RA_CX21_M23_CODEX_2026-10-23.md` (đã sửa gì, test, OPEN) → `hop_thu.py xong CX21-M23 --lane codex --branch codex/v31-m23 --commit <sha> --report … --push`. Phiên chính chạy cả bộ test khi gộp.
+
 ### CX21-GOLDEN4 — chạy nghiệm thu golden lần 4 (ưu tiên 0 khi cloud-E báo XONG C-GOLDEN4)
 Như CX21-GOLDEN3 nhưng trên nhánh `cloud/v31-golden4` (allowlist đọc data/ có fingerprint) và snapshot MỚI golden-snapshot-4; cờ theo sổ
 v31-ep-g1-golden-compat-production-baseline-2026-10-21 (baseline sản xuất thực tế + chỉ cờ mới V3.1 TẮT; ghi rõ "baseline tái dựng"). Báo cáo
@@ -1507,3 +1520,99 @@ evidence đủ cho mọi ca dựng được. Báo cáo docs/RA_CX21_GOLDEN7_CODE
 Như CX21-GOLDEN5 nhưng công cụ từ nhánh cloud/v31-golden5 MỚI NHẤT (có sửa C-GOLDEN6). TRƯỚC KHI chạy 158 ca: chạy negative control native (sửa 1 dòng builder
 cây B → phải ra DIFF/ONE_FAIL ≥ 1) — đỏ thì dừng, báo lỗi, không chạy tiếp. Kết quả mỗi ca in đường dẫn module core thật đã nạp cho A và B. ĐẠT = negative
 control xanh + 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥ 1 SAME. Báo cáo docs/RA_CX21_GOLDEN6_CODEX_2026-10-2x.md (nhánh codex/v31-golden6). XONG hộp thư.
+
+### CX22-FLAG20 — đo từng cờ: vì sao bật verified 20 cờ làm hỏng 362 test (ưu tiên 3; Cấp 1 CHỈ ĐO + tài liệu, 0 USD)
+Giao lại từ cloud-E (dừng theo người dùng 22/10). Đề bài gốc đầy đủ: `docs/CLOUD_TASKS.md` mục "#### C-FLAG20-TRIAGE" — làm đúng như đó nhưng trên
+máy chính Windows (`PYTHONUTF8=1 py -m pytest …`). KHÔNG sửa code sản xuất, KHÔNG bật cờ thật trong `data/` (chỉ bật trong tiến trình test / bản sao).
+Kết quả: bảng từng cờ → số test hỏng, nhóm nguyên nhân (test giả định cờ TẮT / lỗi thật / phụ thuộc cờ khác), đề xuất xử lý từng nhóm.
+Nhánh `codex/v31-flag20`. Báo cáo `docs/RA_CX22_FLAG20_CODEX_2026-10-2x.md`. XONG hộp thư (nhánh đã push).
+
+### CX22-R1-AXIS — #31: R1-AXIS-JUMP shot 17→18 là thật hay báo nhầm (ưu tiên 4; Cấp 1 chỉ đọc dữ liệu thật, 0 USD)
+BẮT ĐẦU KHI: main đã gộp C-R1-REL (phiên chính đang gộp nhánh claude/gop-cloud-e-2210 — đụng `core/position_invariants.py`).
+Bối cảnh: phiên chính 22/10 dựng world map #31 (data/projects/31/world/, 7/8 cảnh), `tools/position_invariants.py --project 31` ra 1 R1-AXIS-JUMP MỚI
+shot 17→18 (linhdichaochoang phải→trái, nhưng cùng phía trục — chưa ai xem thật). Làm: chạy lại công cụ trên main mới (CHỈ ĐỌC data thật ở
+D:\AI-Video-Pipeline, không ghi CSDL; nếu cần ghi thì dùng bản sao theo cách "safe copy" — CSDL lưu đường dẫn tương đối); xem ảnh khung/plate
+shot 17, 18 + world map + blocking cảnh; kết luận THẬT (nhân vật nhảy trục — ghi shot/vai cần sửa) hay NHẦM (luật/đo sai — chỉ ra file:dòng,
+sửa công cụ chỉ-đọc kèm test đỏ→xanh). Kèm: cảnh 3 thiếu blocking.json (lượt crew/final) — vì sao; cảnh 4 K1 chỗ đứng chính chưa đo.
+Nhánh `codex/v31-r1-axis`. Báo cáo `docs/RA_CX22_R1_AXIS_CODEX_2026-10-2x.md` (ảnh minh họa đặt ngoài git). XONG hộp thư.
+
+### CX22-M83-LOAD — M8.3 đo tải 10 người cùng lúc (ưu tiên 5; Cấp 1 đo, 0 USD, provider giả, BẢN SAO dữ liệu, máy chính)
+Theo `docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md` dòng M8.3 + `docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md` (phần M8.3). Dựng một Dashboard
+RIÊNG trên cổng khác (không đụng 8501/8502) trỏ vào BẢN SAO data (thư mục tạm ngoài repo), provider giả (không gọi ClipAI/Claude API/TTS thật).
+10 phiên trình duyệt tự động (Playwright/Selenium headless): mở dự án, xem, duyệt, bấm gen (giả). Đo thời gian vẽ từng màn, CPU/RAM tiến trình
+Streamlit, chờ khóa SQLite, luồng nền nhân bản theo phiên, khóa Blender, hàng đợi Claude CLI. Kết quả: bảng giới hạn (bao nhiêu người thì chậm/khóa,
+khâu nào nghẽn) + đề xuất cho M8.4. Script đo đặt `tools/load_test_dashboard.py` (khai `devsys/areas.json`, không tăng version) + test nhỏ cho phần
+không cần trình duyệt. Tắt hết tiến trình phụ sau khi đo. Nhánh `codex/v31-m83-load`. Báo cáo `docs/RA_CX22_M83_LOAD_CODEX_2026-10-2x.md`. XONG hộp thư.
+
+### CX22-DON-RAC — dọn lưu trữ máy chính nhóm 3 → 1 → 2 (ưu tiên 2; người dùng ĐÃ DUYỆT 22/10 trong chat phiên chính; 0 USD, chỉ shell)
+Bối cảnh: agent dọn rác phiên chính 22/10 đã gỡ 176 worktree + 372 nhánh local đã vào main (nhật ký
+`C:/Users/hongviet.doan/AppData/Local/Temp/claude/don_rac_2026-10-22.log`). Còn 3 nhóm, làm ĐÚNG thứ tự, mọi thao tác ghi nhật ký
+`D:\AI-Video-Output\_luu_tru\NHAT_KY_DON_RAC_2026-10-2x.log` (đường dẫn cũ → mới, sha, lý do) để khôi phục được:
+1. **Nhóm 3 — CHUYỂN, KHÔNG XÓA** sang `D:\AI-Video-Output\_luu_tru\backup_cu\`: trong `D:\AI-Video-Pipeline\data\`, mỗi loại
+   `manifest.backup_*.sqlite`, `feature_settings.backup_*`, `backup_dashboard.env.before_*` giữ 3 bản MỚI NHẤT, phần còn lại chuyển; `*.lock` cũ
+   chỉ chuyển khi không tiến trình nào giữ. `_plates3d/` ở GỐC repo (188 MB): `grep` code — không ai trỏ tới thì chuyển sang `_luu_tru\plates3d_goc\`.
+   Xóa thư mục rỗng `22` ở gốc. KHÔNG đụng: `.codex-runtime/`, `data/_plates3d`, `data/projects`, `data/models3d`, `data/manifest.sqlite`,
+   `dashboard.env`, thư mục tiếng Việt untracked (`KHO TÀI NGUYÊN/`, `model 3D/`, `sơ đồ/`). Dashboard 8501 đang chạy — không dừng.
+2. **Nhóm 1 — worktree Codex `D:/AI-Video-Pipeline/.codex-wt/*`**: `git worktree remove` cái nào HEAD đã trong origin/main + chỉ còn `HANDOFF.md`
+   chưa theo dõi (không thay đổi khác) + không sửa trong 3 ngày; nhánh local đã vào main thì `git branch -d`. GIỮ: `ban-dao-dien-hieu-nang`,
+   `d12-viec5-dong-thanh`, `d12-viec6-phat-am`, `d9-viec2-trang-phieu`, `v31-m23`, `d4-viec2-test-byd`, `d16-viec1`, `d17-viec1` và mọi worktree
+   Codex đang làm (CX21-*, CX22-*). Báo số gỡ / giữ.
+3. **Nhóm 2 — CHỈ RÀ, CHƯA XÓA**: 17 worktree/nhánh agent cũ có commit chưa vào main, chưa có trên remote (`agent-a1f9c158e92874dd8`,
+   `agent-a21e8e6c6f350168b` fix/qc-draft-context, `agent-a22f9d77aeac76d1c` fix/end-popup-style, `agent-a28f8005b758fb117`,
+   `agent-a3d6ca9826e340219`, `agent-a6ecbad54a44d5a42`, `agent-a81a6618e5d0855d4`, `agent-a892053a168efb677`, `agent-aa563756b861fc046`
+   fix/group-cut, `agent-ab11f1962cf159198`, `agent-ac058a6946d44e5c1` fix/use-older-take, `agent-acbfbd4e7bab59f04`,
+   `agent-adaa9190b79af629f`, `agent-ae3ea475370d740d3` fix/scene-anchor-away-shots, `agent-ae94d3ee9f9c854f5`, `agent-afa4a52159e17769d`,
+   `gop-cuoi-goc-b`; trong `D:/AI-Video-Pipeline/.claude/worktrees/`). Mỗi cái: so NỘI DUNG thay đổi (`git diff main...<nhánh>`, tìm hàm/đoạn
+   tương đương trên main — không so sha) → xếp **ĐÃ CÓ trên main** / **CÒN GIÁ TRỊ** (tóm tắt 1 dòng: sửa gì, file nào) / **BỎ** (lý do). KHÔNG
+   xóa nhóm này — phiên chính quyết sau. BỎ QUA `agent-a58a3cb071487e5ef` (cloud/v31-golden8-fin) và `agent-a621cb12b97522c41`.
+Báo cáo `docs/RA_CX22_DON_RAC_CODEX_2026-10-2x.md` (≤ 60 dòng: dung lượng trước/sau `D:` + `.codex-wt` + `.claude/worktrees`, bảng nhóm 2).
+Commit báo cáo trên nhánh `codex/v31-don-rac`, push nhánh, XONG hộp thư.
+
+### CX22-DON-RAC-TOOL — công cụ tự dọn: tools/don_rac.py + xoay vòng sao lưu + tự gỡ worktree khi gộp (ưu tiên 3; người dùng DUYỆT 22/10; Cấp 1 tooling, 0 USD)
+BẮT ĐẦU KHI: CX22-DON-RAC đã XONG (dùng chính nhật ký/luật nhóm 1–3 làm ca thử). Mục tiêu: rác không tích lại nữa và dọn không tốn token agent
+(lần 22/10 agent tốn ~121k token, 54 phút; 310 worktree / 519 nhánh tích từ 09/10). Luật chung: `docs/CHUAN_XAY_DUNG.md`; mọi lệnh có `--dry-run`
+mặc định khi xóa/chuyển (phải `--lam-that` mới làm), ghi nhật ký JSONL khôi phục được ở `D:\AI-Video-Output\_luu_tru\nhat_ky_don_rac.jsonl`
+(đường dẫn gốc cấu hình được, test dùng tmp_path). KHÔNG bao giờ đụng: `data/manifest.sqlite`, `dashboard.env`, `data/projects`, `data/models3d`,
+`data/_plates3d`, `.codex-runtime/`, cổng 8501/8502, worktree có thay đổi chưa commit / sửa < 24 giờ / HEAD chưa ở origin/main hay nhánh remote.
+1. **`tools/don_rac.py`** (khai `devsys/areas.json`, không tăng version), lệnh con:
+   - `nhanh` — dùng cho MỖI lượt điều phối, in đúng 1 dòng: số server Streamlit thừa (cổng 8503–8510, không kết nối ESTABLISHED) đã tắt, pytest
+     mồ côi (cha đã chết) đã tắt, số worktree/nhánh dọn được; mặc định làm thật cho server/pytest (an toàn), worktree chỉ đếm.
+   - `worktree [--lam-that]` — luật như agent 22/10: `.claude/worktrees/*` + `.codex-wt/*` sạch, > 24 giờ (Codex: > 3 ngày, chỉ còn HANDOFF.md
+     chưa theo dõi được), HEAD trong origin/main hoặc nhánh remote → `git worktree remove` + `git branch -d`; worktree bị app khóa → bỏ qua, báo.
+   - `sao-luu <file> [--loai TEN]` — tạo bản sao lưu chuẩn tên `<loai>.backup_<YYYYmmdd-HHMMSS>` cạnh file rồi xoay vòng ngay; thay cho
+     copy tay (các bản `manifest.backup_*`, `feature_settings.backup_*`, `backup_dashboard.env.before_*` trước nay agent tạo bằng shell).
+   - `xoay [--giu 3] [--lam-that]` — mỗi loại sao lưu trong `data/` giữ N bản mới nhất, cũ hơn CHUYỂN (không xóa) sang `_luu_tru\backup_cu\<ngày>\`.
+   - `bao-cao` — 15 thư mục lớn nhất trong repo + `D:\AI-Video-Output`, số worktree/nhánh, đổi so lần trước (đọc nhật ký).
+   - `khoi-phuc <id>` — trả lại một mục đã chuyển; nhánh đã xóa → in lệnh `git branch <tên> <sha>`.
+2. **Tự gỡ khi gộp**: `tools/hop_thu.py gop <mã> --commit …` — sau khi ghi sự kiện, nếu sự kiện `xong` của mã có `branch` và nhánh đó đã nằm trong
+   origin/main: gỡ worktree đang checkout nhánh đó (nếu sạch) + `git branch -d` local; in 1 dòng kết quả; lỗi/khóa thì chỉ cảnh báo, KHÔNG làm hỏng
+   lệnh gop. Cờ `--giu-worktree` để tắt. Không xóa nhánh remote.
+3. **Test** `tests/test_don_rac.py` (+ bổ sung `tests/test_hop_thu*.py`): repo git giả trong tmp_path — worktree sạch đã gộp bị gỡ; worktree bẩn /
+   mới / chưa gộp / bị khóa được giữ; `xoay` giữ đúng 3 bản, chuyển chứ không xóa, `khoi-phuc` trả lại; `nhanh` in đúng 1 dòng; `gop` gỡ worktree
+   nhánh đã gộp và vẫn thành công khi gỡ lỗi. Test đỏ trước, xanh sau. Chạy thật `don_rac.py bao-cao` + `worktree` (dry-run) trên máy chính, dán số vào báo cáo.
+Nhánh `codex/v31-don-rac-tool`. Báo cáo `docs/RA_CX22_DON_RAC_TOOL_CODEX_2026-10-2x.md`. XONG hộp thư (phiên chính rà kỹ vì đụng xóa/chuyển file).
+
+### CX22-REPORT — báo cáo dự án khung 7 mục + script báo cáo tuần (ưu tiên 4; EP DUYỆT 22/10 sổ ep-2210-r1-project-report; Cấp 1 CHỈ ĐỌC, 0 USD)
+Script `tools/project_report.py` (khai `devsys/areas.json`, không tăng version) sinh `docs/reports/BAO_CAO_DU_AN_<YYYY-MM-DD>.md` (+ `--pdf` nếu sẵn
+`tools/build_docs.sh`-kiểu pandoc/Chrome). CHỈ ĐỌC: git, `data/manifest.sqlite` (mở `mode=ro` URI), sổ chi, `devsys/plans.json`, `data/decisions.json`,
+hộp thư, nhật ký phiên `~/.claude/projects/*AI-Video-Pipeline*/**/*.jsonl` (dedupe theo message.id, chỉ dự án này). Không ghi CSDL / data/, không gọi mạng.
+7 mục, mỗi số ghi NGUỒN + NGÀY ĐO, có cột "so kỳ trước" (đọc báo cáo tuần trước nếu có):
+1. Tóm tắt 1 phút (trạng thái xanh/vàng/đỏ, 3 điểm chính, việc cần EP quyết). 2. Tiến độ V3.1 theo mốc M0–M8 (`tools/plan_progress.py`).
+3. Khối lượng: commit, file/dòng code theo thư mục, số test, số phiên/ngày làm. 4. Chi phí, TÁCH 4 loại (EP 22/10): **token** (theo model, theo
+tháng, phiên chính / agent), **USD dự toán**, **chi thực tế** (sổ chi), **chi đang giữ chỗ** (job chưa đối soát); tách chi phí xây công cụ vs chi mỗi
+video/dự án (#24, #27, #31, #33…). 5. Chất lượng: video đã ra, tỉ lệ shot đạt ngay / gen lại, lỗi hay gặp (sổ lỗi), test xanh/đỏ. 6. Rủi ro mở.
+7. Việc cần EP quyết (mục `phase` ≠ APPROVED trong `data/decisions.json` + HỎI trong hộp thư) + kế hoạch 2 tuần.
+Thiếu nguồn → ghi "không có dữ liệu: <lý do>", không đoán (CHUAN_XAY_DUNG: không im lặng khi thiếu đầu vào). Test `tests/test_project_report.py` trên dữ
+liệu giả (tmp_path): đủ 7 mục, tách 4 loại chi phí, thiếu nguồn ghi rõ, không ghi file ngoài thư mục ra. Chạy thật một bản trên máy chính, commit
+bản đầu `docs/reports/BAO_CAO_DU_AN_2026-10-2x.md`. Nhánh `codex/v31-report`. XONG hộp thư.
+
+### CX22-G1-EP-ROLE — vai Executive Producer theo dự án (ưu tiên 3; EP DUYỆT 22/10 sổ ep-2210-g1b-ep-role-package-approved; Cấp 2, 0 USD)
+Hiện `core/stage_desk.py` `is_executive_producer` coi EP = Owner (users.role) hoặc chủ dự án (`core/access.py` mức `own`/`admin`); đăng nhập TẮT =
+chủ máy. Cần: Owner / chủ dự án CẤP vai EP cho người khác trong dự án (tái dùng bảng `project_watchers` + `core/access.py` add/remove — mức mới
+`ep` xếp giữa `edit` và `own`, hoặc trường riêng nếu bảng có CHECK), `is_executive_producer` nhận người được cấp; người `edit`/`view` vẫn KHÔNG phải EP;
+Director / Claude / công cụ không bao giờ là EP (`_need_ep` giữ nguyên kiểm actor NGƯỜI + trùng email đăng nhập). Không hardcode một tài khoản Owner.
+Giao diện: ô cấp/thu vai EP ở chỗ quản lý người theo dõi dự án (chỉ Owner/chủ dự án thấy). Ghi nhật ký ai cấp/thu (added_by, added_at).
+Nếu phải đổi schema/CHECK CSDL thật → DỪNG, báo HỎI hộp thư (migration = Cấp 3). Test đỏ→xanh: mở rộng `check_stage_desk_ep_only`
+(`tests/test_decisions.py`) + `tests/test_access*.py`: người được cấp EP duyệt được; bị thu thì không; edit không; ai/tool không; đăng nhập TẮT
+giữ hành vi cũ. Ghi `enforced_by` của sổ ep-2210-g1b vào check. Khai file mới ở `devsys/areas.json` (không tăng version). Nhánh `codex/v31-g1-ep-role`.
+Không đụng file của CX21-M23 / CX22-FLAG20. XONG hộp thư; phiên chính RÀ KỸ (quyền).

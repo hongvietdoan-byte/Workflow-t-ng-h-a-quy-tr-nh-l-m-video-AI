@@ -21,6 +21,8 @@ from typing import Dict, List, Optional, Tuple
 
 import streamlit as st
 
+from dashboard import stage_desk_ui
+
 FLAG = "stage_view_ui"
 THUMB_PX = 480
 MAX_BYTES = 25 * 1024 * 1024
@@ -238,7 +240,10 @@ def render(p, pid: int, data_dir: str) -> None:
     except Exception as e:  # noqa: BLE001 - màn xem không làm hỏng Bước 2: nói lý do
         st.warning(f"🧊 Xem sân khấu 3D: không đọc được dữ liệu ({type(e).__name__}: {e})")
         return
-    st.markdown("**🧊 Sân khấu 3D (chỉ xem)** — dữ liệu đã render; muốn render / sửa dùng CLI ghi bên dưới")
+    if stage_desk_ui.enabled():                            # rà kỹ C-M48-DESK-UI mục 8: bàn bật thì không còn "chỉ xem / dùng CLI"
+        st.markdown("**🧊 Sân khấu 3D** — dữ liệu đã render; thao tác ở 🎬 Bàn đạo diễn 3D trong từng cảnh (0 USD)")
+    else:
+        st.markdown("**🧊 Sân khấu 3D (chỉ xem)** — dữ liệu đã render; muốn render / sửa dùng CLI ghi bên dưới")
     for sc in scenes:
         bad = len(sc["warnings"]) + len(sc["missing"])
         with st.expander(f"Cảnh {sc['scene']} · {len(sc['shots'])} shot" + (f" · ⚠ {bad}" if bad else ""), expanded=False):
@@ -274,3 +279,4 @@ def render(p, pid: int, data_dir: str) -> None:
                                       + (f" · máy {cam.get('location')}" if cam.get("location") else ""))
                         if s.get("sentence"):
                             st.caption(f"Câu vị trí gợi ý (chỉ xem): {s['sentence']}")
+            stage_desk_ui.render_scene(p, pid, data_dir, sc["scene"])   # C-M48-DESK-UI: cờ stage_desk_ui TẮT → trả ngay, không vẽ gì
