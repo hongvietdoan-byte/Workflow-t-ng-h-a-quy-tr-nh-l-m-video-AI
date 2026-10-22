@@ -32,8 +32,10 @@ API CÔNG KHAI (dashboard/stage_desk_ui.py — C-M48-DESK-UI — chỉ gọi cá
     N9 rerender(conn, pid, data_dir, scene, who, confirm_drawn=False)   nền: K3 + K4 từ câu trả lời đã lưu; ghi máy qua guard
     N10 score(conn, pid, data_dir, scene)                   đồng bộ, khóa S: chấm lại các lượt đã lưu (không ghi CSDL)
     N11 render_plates(conn, pid, data_dir, scene, who)      quên render nền hỏng của các shot cảnh + place_refs.ensure_async
-  S-C (cổng trước gen trả phí — đã nối vào core/batch.image_gates = nút Gen ảnh + tools/pregen_check; gen VIDEO trả phí và autopilot
-  `_director_phase` CHƯA nối — việc tiếp, ghi ở báo cáo):
+  S-C (cổng trước gen trả phí — C-FIX6: MỘT hàm paid_hold ở core.runner._submit_pending cho mọi đường gửi trả phí ảnh + video: nút
+  Gen ảnh, autopilot, gen video, gửi lại; batch.image_gates / tools/pregen_check báo trước bằng paid_gate. Chỉ chạy khi EP đã đánh dấu
+  bắt buộc — chưa đánh dấu thì không VÀNG / không giữ, y hệt trước):
+    paid_hold(conn, pid, data_dir, scene_ids) -> str|None             lý do GIỮ job trả phí (runner), None = gửi được
     require_plate(conn, pid, data_dir, scene_id, on, who, user)       EP đánh dấu shot BẮT BUỘC có plate 3D đã duyệt làm reference
     allow_exception(conn, pid, data_dir, scene_id, why, who, user)    EP xác nhận ngoại lệ (gen trả phí khi sân khấu chưa duyệt)
 
@@ -58,6 +60,7 @@ CODE = "stage_desk"
 LOCK_FILE = ".desk.lock"
 PROGRESS_FILE = "desk_progress.json"
 RESET_FILE = "desk_reset.json"
+RESET_STALE_FILE = "desk_reset_stale.json"      # S-D (C-FIX6 mục 5): shot đổi máy / ảnh / world map đã cũ sau lượt duyệt kế một lần làm lại
 GATE_FILE = "desk_gate.json"                    # <data>/<pid>/stage/desk_gate.json — S-C: shot bắt buộc plate đã duyệt + ngoại lệ
 LOCK_STALE_SEC = 3 * 3600                       # một thao tác sân khấu (đo K3 + K4 nhiều shot) không quá chừng này
 LOG_KEEP = 50
@@ -164,6 +167,41 @@ def _stale_why(path: str, h: Optional[Dict]) -> Optional[str]:
     return None
 
 
+def _remove_if_same(path: str, judged: Optional[Dict]) -> Optional[bool]:
+    """C-FIX6 mục 6: gỡ khóa CŨ nguyên tử — đổi tên sang tệp riêng (os.replace) rồi mới so nội dung với bản đã xét là cũ; khác (tiến
+    trình khác vừa gỡ + giữ khóa mới trong khe đọc-xóa) → trả lại chỗ cũ bằng os.link (không đè khóa mới hơn nữa). True = đã gỡ,
+    False = tệp đã biến mất trước (người khác gỡ), None = không gỡ (khóa đã đổi / không đổi tên được)."""
+    import uuid
+    grave = f"{path}.{os.getpid()}.{uuid.uuid4().hex[:8]}.cu"
+    try:
+        os.replace(path, grave)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return None
+    if _read(grave) == judged:
+        try:
+            os.remove(grave)
+        except OSError:
+            pass
+        return True
+    try:
+        os.link(grave, path)                        # O_EXCL-like: không đè khóa mới hơn nếu đã có
+    except FileExistsError:
+        pass
+    except OSError:                                 # hệ tệp không có liên kết cứng: Windows rename cũng từ chối khi đã có tệp
+        try:
+            if not os.path.exists(path):
+                os.rename(grave, path)
+        except OSError:
+            pass
+    try:
+        os.remove(grave)
+    except OSError:
+        pass
+    return None
+
+
 def lock_holder(data_dir: str, pid: int, scene, conn=None, seg: Optional[Dict] = None, clean: bool = True) -> Optional[Dict]:
     """Khóa S đang giữ đoạn (dict {pid, owner, action, since, since_ts, token}) hoặc None. Khóa CŨ (tiến trình chết, luồng của chính
     Dashboard đã dừng, tệp hỏng, quá hạn): `clean` → gỡ + báo ⚙ Chẩn đoán; clean=False (vẽ trạng thái — rà 7: không ghi khi vẽ) → trả
@@ -178,10 +216,12 @@ def lock_holder(data_dir: str, pid: int, scene, conn=None, seg: Optional[Dict] =
         return h or {"owner": "?", "action": "?", "since": "?"}
     if not clean:
         return dict(h or {}, stale=why)
-    try:
-        os.remove(path)
-    except OSError:
-        pass
+    gone = _remove_if_same(path, h)
+    if gone is None:                                # tệp khóa đã đổi giữa lúc đọc và gỡ (người khác vừa giữ) → không gỡ, coi là đang giữ
+        now = _read(path)
+        return now or dict(h or {"owner": "?", "action": "?", "since": "?"}, stale=why)
+    if not gone:                                    # người khác đã gỡ trước: không báo lần hai
+        return None
     if conn is not None:
         _say(conn, pid, "warn", f"Bàn đạo diễn: gỡ khóa thao tác sân khấu {seg['id']} ({(h or {}).get('action')}, "
                                 f"{(h or {}).get('owner')}) — {why}; state chia vai giữ nguyên (crew_answer không lưu nửa vời)")
@@ -224,14 +264,23 @@ class _Hold:
         except FileExistsError:
             raise DeskError(lock_line(seg["id"], _read(self.path) or {})) from None
         import uuid
-        self.token = uuid.uuid4().hex
-        _HELD.add(self.token)
+        token = uuid.uuid4().hex
+        _HELD.add(token)
         try:
-            os.write(fd, json.dumps({"pid": os.getpid(), "token": self.token, "owner": _who_text(who), "action": action,
-                                     "since_ts": time.time(), "since": time.strftime("%Y-%m-%d %H:%M:%S")},
-                                    ensure_ascii=False).encode("utf-8"))
-        finally:
-            os.close(fd)
+            try:
+                os.write(fd, json.dumps({"pid": os.getpid(), "token": token, "owner": _who_text(who), "action": action,
+                                         "since_ts": time.time(), "since": time.strftime("%Y-%m-%d %H:%M:%S")},
+                                        ensure_ascii=False).encode("utf-8"))
+            finally:
+                os.close(fd)
+        except BaseException:                           # C-FIX6 mục 6: ghi khóa lỗi → không để tệp khóa rỗng / thẻ treo
+            _HELD.discard(token)
+            try:
+                os.remove(self.path)
+            except OSError:
+                pass
+            raise
+        self.token = token
         return self
 
     def release(self) -> None:
@@ -271,7 +320,7 @@ class hold_segments:
         try:
             for h in self.holds:
                 got.append(h.acquire())
-        except DeskError:
+        except BaseException:                           # C-FIX6 mục 6: mọi lỗi (cả OSError khi ghi khóa) nhả các đoạn đã khóa
             for h in got:
                 h.release()
             raise
@@ -336,7 +385,11 @@ def _start(conn, pid: int, data_dir: str, seg: Dict, action: str, who: Optional[
         path = _progress_path(data_dir, pid, seg)
         pr = {"action": action, "label": ACTIONS.get(action, action), "seg": seg["id"], "who": _who_text(who), "started": _now(),
               "updated": _now(), "step": "chờ bắt đầu", "log": [], "state": "running", "process": os.getpid(), "thread": name}
-        _write(path, pr)
+        try:
+            _write(path, pr)
+        except OSError as e:                         # C-FIX6 mục 6: khóa đã giữ → nhả, nói lỗi (không để khóa treo tới khi quá hạn)
+            hold.release()
+            return {"ok": False, "errors": [f"không ghi được tiến độ ({type(e).__name__}: {e}) — chưa chạy"]}
 
         def log(msg: str) -> None:
             pr["log"] = (pr["log"] + [str(msg)[:400]])[-LOG_KEEP:]
@@ -396,9 +449,17 @@ def _sync(data_dir: str, pid: int, seg: Dict, action: str, who: Optional[Dict], 
 # ---- quyền (S-B) ------------------------------------------------------------------------------------------------------------
 def is_executive_producer(conn, pid: int, user) -> bool:
     """S-B: chỉ Executive Producer duyệt / trả lại sân khấu. EP = người dùng làm chủ: Owner (users.role 'owner') hoặc chủ dự án
-    (access level 'admin' / 'own'); đăng nhập TẮT (máy một người, access_user None) = chủ máy. Người chỉ sửa / xem → không."""
+    (access level 'admin' / 'own'); đăng nhập TẮT (máy một người, access_user None) = chủ máy. Người chỉ sửa / xem → không.
+    C-FIX6 mục 6: user None khi đăng nhập BẬT (nơi gọi quên truyền danh tính) KHÔNG phải chủ máy → không phải EP."""
     from . import access
+    if user is None and login_on():
+        return False
     return access.RANK.get(access.level(conn, pid, user), 0) >= access.RANK["own"]
+
+
+def login_on() -> bool:
+    """Đăng nhập Dashboard BẬT — cùng luật dashboard/common.auth_on (DASHBOARD_AUTH, mặc định bật)."""
+    return os.environ.get("DASHBOARD_AUTH", "on").strip().lower() not in ("off", "0", "false", "no")
 
 
 def _need_ep(conn, pid: int, who: Optional[Dict], user, what: str) -> None:
@@ -408,6 +469,8 @@ def _need_ep(conn, pid: int, who: Optional[Dict], user, what: str) -> None:
         raise DeskError(f"{what} chỉ do NGƯỜI (Executive Producer) bấm — Director / phiên Claude / công cụ đề xuất, không tự duyệt "
                         "(S-B, sổ v31-ep-stage-desk-actions-2026-10-21)")
     from . import access
+    if user is None and login_on():
+        raise DeskError(f"{what}: không có danh tính đăng nhập (đăng nhập đang BẬT) — Dashboard phải truyền common.access_user() (S-B)")
     u = access.user_of(user)
     if u is not None and str((who or {}).get("who") or "").strip().lower() != (u.get("email") or ""):
         raise DeskError(f"{what}: người bấm ({(who or {}).get('who')}) khác người đăng nhập ({u.get('email')}) (S-B)")
@@ -423,6 +486,18 @@ def cam_mark(cam) -> Optional[str]:
         return None
     import hashlib
     return hashlib.sha1(json.dumps(cam, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
+
+
+def _marks(conn, seg: Dict) -> Dict[int, Optional[str]]:
+    """{idx: cam_mark(stage_camera)} hiện tại của các shot đoạn (đọc CSDL, không ghi)."""
+    out = {}
+    for s in seg["shots"]:
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (s["id"],)).fetchone()
+        try:
+            out[s["idx"]] = cam_mark(json.loads((row["data"] if row else None) or "{}").get(_sa().FIELD))
+        except ValueError:
+            out[s["idx"]] = None
+    return out
 
 
 def _revs(conn, seg: Dict) -> Dict[int, int]:
@@ -501,7 +576,7 @@ def scene_status(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = Non
             "bad": {str(k): v for k, v in ((result or {}).get("bad") or {}).items()}, "round": (result or {}).get("round"),
             "sheet": sheet if os.path.exists(sheet) else None, "drawn": drawn_shots(conn, seg), "revs": _revs(conn, seg),
             "lock": h, "progress": pr, "running": running(pid), "user_approves": user_ok, "buttons": btn,
-            "reset": _read(os.path.join(d, RESET_FILE))}
+            "reset": _read(os.path.join(d, RESET_FILE)), "reset_stale": _read(os.path.join(d, RESET_STALE_FILE))}
 
 
 def status(conn, pid: int, data_dir: str) -> List[Dict]:
@@ -645,21 +720,19 @@ def approve(conn, pid: int, data_dir: str, scene, who: Optional[Dict], user, con
         return {"ok": False, "needs_confirm": drawn,
                 "errors": [f"shot {', '.join(map(str, drawn))} đã vẽ ảnh — ảnh sẽ lệch nền 3D mới; xác nhận để vẫn đổi máy"]}
 
-    if expected_marks is not None:
-        now = scene_status(conn, pid, data_dir, scene, seg=seg)["marks"]
-        moved = sorted(i for i in now if (expected_marks.get(i, expected_marks.get(str(i))) != now[i]))
-        if moved:
-            return {"ok": False, "stale": moved, "errors": [f"máy shot {', '.join(map(str, moved))} đã đổi từ lúc mở màn duyệt (tác vụ khác "
-                                                            "vừa ghi) — xem lại rồi duyệt"]}
-
     def fn():
+        if expected_marks is not None:              # C-FIX6 mục 4: kiểm-và-ghi trong CÙNG khóa S (không khe giữa kiểm và ghi)
+            now = _marks(conn, seg)
+            moved = sorted(i for i in now if (expected_marks.get(i, expected_marks.get(str(i))) != now[i]))
+            if moved:
+                return {"ok": False, "stale": moved, "errors": [f"máy shot {', '.join(map(str, moved))} đã đổi từ lúc mở màn duyệt (tác vụ "
+                                                                "khác vừa ghi) — xem lại rồi duyệt"]}
         r = sa.crew_user_verdict(conn, pid, seg, data_dir, approve=True, who=who, expected_revs=expected_revs)
         out = {k: v for k, v in r.items() if k != "result"}
         if r.get("ok"):
-            try:
-                os.remove(os.path.join(seg_dir(data_dir, pid, seg), RESET_FILE))   # lượt mới đã duyệt: dấu "sẽ cũ" của lần làm lại hết ý
-            except OSError:
-                pass
+            done = _close_reset(conn, pid, data_dir, seg, who)   # S-D: ghi lại ảnh / nền / world map đã cũ TRƯỚC khi xóa dấu làm lại
+            if done is not None:
+                out["reset_stale"] = done
             bad = (r.get("result") or {}).get("bad") or {}
             out["bad"] = {str(k): v for k, v in bad.items()}
             _say(conn, pid, "info", f"Bàn đạo diễn: {_who_text(who)} DUYỆT sân khấu {seg['id']} — máy shot "
@@ -687,25 +760,69 @@ def return_(conn, pid: int, data_dir: str, scene, tra_lai: Sequence[Dict], who: 
     return _sync(data_dir, pid, seg, "N7", who, conn, fn)
 
 
+def _world_path(data_dir: str, pid: int, seg: Dict) -> str:
+    """Đường world map của cảnh — cùng đường tệp với hàm path của module bản đồ thế giới, KHÔNG import nó (luật G2-4: map không nằm
+    trên đường gen; autopilot import module này)."""
+    import re
+    return os.path.join(data_dir, str(pid), "world", "scene_" + (re.sub(r"[^0-9A-Za-z]+", "_", str(seg["scene"])).strip("_") or "x")
+                        + ".json")
+
+
 def reset_preview(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = None) -> Dict:
-    """S-D: xem trước "Làm lại từ Đạo diễn" — thư mục lượt sẽ cất, máy đã ghi (GIỮ tới khi duyệt lượt mới), tài nguyên phụ thuộc sẽ cũ
-    khi lượt mới ghi máy khác (nền 3D, ảnh đã vẽ, world map). Không ghi gì."""
+    """S-D: xem trước "Làm lại từ Đạo diễn" — thư mục lượt sẽ cất, máy đã ghi (GIỮ tới khi duyệt lượt mới). Không ghi gì.
+    C-FIX6 mục 5: chưa biết máy lượt mới → KHÔNG đánh dấu shot nào cũ ở đây (`plates_stale_after` / `images_stale_after` rỗng,
+    `world_map_stale_after` False); `may_go_stale` = cái CÓ THỂ cũ nếu máy đổi; danh sách thật (chỉ shot ĐỔI máy) tính ở lượt duyệt sau
+    so với `marks_before` và ghi vào doan_<S>/desk_reset_stale.json (scene_status["reset_stale"])."""
     from .camera_plan import drawn_shots
     sa = _sa()
     seg = seg or segment(conn, pid, scene)
     d = seg_dir(data_dir, pid, seg)
     st = _read(os.path.join(d, sa.CREW_DIR, "state.json"))
     mine = scene_status(conn, pid, data_dir, scene, seg=seg)["cams_this_stage"]
-    import re
-    # cùng đường tệp với hàm path của module bản đồ thế giới — KHÔNG import nó (luật G2-4: map không nằm trên đường gen; autopilot import module này)
-    world = os.path.join(data_dir, str(pid), "world", "scene_" + (re.sub(r"[^0-9A-Za-z]+", "_", str(seg["scene"])).strip("_") or "x")
-                         + ".json")
+    world = os.path.exists(_world_path(data_dir, pid, seg))
     return {"seg": seg["id"], "archive": os.path.join(d, sa.CREW_DIR) if os.path.isdir(os.path.join(d, sa.CREW_DIR)) else None,
             "phase": (st or {}).get("phase"), "n_answers": len((st or {}).get("history") or []),
-            "cams_kept": mine, "plates_stale_after": mine, "images_stale_after": [i for i in drawn_shots(conn, seg) if i in mine],
-            "world_map_stale_after": os.path.exists(world),
-            "say": ("máy cũ của shot " + ", ".join(map(str, mine)) + " giữ tới khi duyệt lượt mới; khi đó nền 3D (và ảnh đã vẽ) của các shot "
-                    "đổi máy thành cũ") if mine else "chưa có máy nào ghi từ sân khấu này"}
+            "cams_kept": mine, "plates_stale_after": [], "images_stale_after": [], "world_map_stale_after": False,
+            "may_go_stale": {"plates": mine, "images": [i for i in drawn_shots(conn, seg) if i in mine], "world_map": world},
+            "marks_before": {str(k): v for k, v in _marks(conn, seg).items()},
+            "say": ("máy cũ của shot " + ", ".join(map(str, mine)) + " giữ tới khi duyệt lượt mới; khi đó CHỈ shot đổi máy có nền 3D (và ảnh "
+                    "đã vẽ, world map) thành cũ — danh sách ghi lúc duyệt") if mine else "chưa có máy nào ghi từ sân khấu này"}
+
+
+def _close_reset(conn, pid: int, data_dir: str, seg: Dict, who: Optional[Dict]) -> Optional[Dict]:
+    """S-D, lượt duyệt sau một lần Làm lại (C-FIX6 mục 5): shot ĐỔI máy so với lúc làm lại (marks_before) → nền 3D cũ; ảnh đã vẽ của
+    các shot đó cũ; world map cũ khi có shot đổi. GHI danh sách vào desk_reset_stale.json RỒI mới xóa desk_reset.json (không ghi được
+    → giữ dấu, báo ⚙). Không có dấu làm lại → None."""
+    from .camera_plan import drawn_shots
+    d = seg_dir(data_dir, pid, seg)
+    path = os.path.join(d, RESET_FILE)
+    if not os.path.exists(path):
+        return None
+    mark = _read(path) or {}
+    now = _marks(conn, seg)
+    before = mark.get("marks_before")
+    if isinstance(before, dict):
+        changed = sorted(i for i in now if before.get(str(i)) != now[i])
+    else:                                           # dấu cũ (trước C-FIX6) không có dấu máy: như cũ — mọi shot có máy lúc làm lại
+        changed = sorted(int(i) for i in (mark.get("cams_kept") or []))
+    world = bool(changed) and os.path.exists(_world_path(data_dir, pid, seg))
+    rec = {"at": _now(), "by": _who_text(who), "reset_at": mark.get("at"), "reset_by": mark.get("by"), "plates_stale": changed,
+           "images_stale": [i for i in drawn_shots(conn, seg) if i in changed], "world_map_stale": world}
+    try:
+        _write(os.path.join(d, RESET_STALE_FILE), rec)
+    except OSError as e:
+        _say(conn, pid, "warn", f"Bàn đạo diễn: không ghi được danh sách tài nguyên cũ sau làm lại {seg['id']} ({type(e).__name__}: {e}) — "
+                                "giữ dấu làm lại")
+        return rec
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+    if changed:
+        _say(conn, pid, "warn", f"Bàn đạo diễn: sau làm lại {seg['id']}, máy đổi ở shot {', '.join(map(str, changed))} — nền 3D cũ"
+                                + (f"; ảnh đã vẽ cũ: shot {', '.join(map(str, rec['images_stale']))}" if rec["images_stale"] else "")
+                                + ("; world map cảnh cũ" if world else ""))
+    return rec
 
 
 def reset(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm: bool = False) -> Dict:
@@ -721,7 +838,7 @@ def reset(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm: bo
     def fn():
         ctx = {"crew": os.path.join(seg_dir(data_dir, pid, seg), sa.CREW_DIR), "out": seg_dir(data_dir, pid, seg)}
         sa._crew_reset(ctx)
-        mark = dict(preview, at=_now(), by=_who_text(who))
+        mark = dict(preview, marks_before={str(k): v for k, v in _marks(conn, seg).items()}, at=_now(), by=_who_text(who))   # trong khóa
         _write(os.path.join(seg_dir(data_dir, pid, seg), RESET_FILE), mark)
         _say(conn, pid, "info", f"Bàn đạo diễn: {_who_text(who)} làm lại sân khấu {seg['id']} từ Đạo diễn — {preview['say']}")
         return {"ok": True, "preview": preview}
@@ -757,15 +874,18 @@ def render_plates(conn, pid: int, data_dir: str, scene, who: Optional[Dict] = No
     thiếu / cũ của dự án (luồng riêng của place_refs; Blender xếp hàng trong plates3d.render)."""
     from . import location_pack, place_refs
     seg = segment(conn, pid, scene)
-    forgot = [s["idx"] for s in seg["shots"] if location_pack.forget_shot(data_dir, pid, s["id"])]
-    row = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
-    started = place_refs.ensure_async(conn, pid, data_dir, place_refs.resolution_of(row))
-    _say(conn, pid, "info", f"Bàn đạo diễn: {_who_text(who)} render lại nền 3D cảnh {seg['scene']}"
-                            + (f" (quên render hỏng shot {', '.join(map(str, forgot))})" if forgot else ""))
-    out = {"ok": started, "forgot": forgot, "started": started}
-    if not started:
-        out["errors"] = ["không chạy được luồng render nền (CSDL trong bộ nhớ)"]
-    return out
+
+    def fn():                                       # C-FIX6 mục 6: giữ khóa S — không quên render khi autopilot / CLI đang ghi máy đoạn này
+        forgot = [s["idx"] for s in seg["shots"] if location_pack.forget_shot(data_dir, pid, s["id"])]
+        row = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+        started = place_refs.ensure_async(conn, pid, data_dir, place_refs.resolution_of(row))
+        _say(conn, pid, "info", f"Bàn đạo diễn: {_who_text(who)} render lại nền 3D cảnh {seg['scene']}"
+                                + (f" (quên render hỏng shot {', '.join(map(str, forgot))})" if forgot else ""))
+        out = {"ok": started, "forgot": forgot, "started": started}
+        if not started:
+            out["errors"] = ["không chạy được luồng render nền (CSDL trong bộ nhớ)"]
+        return out
+    return _sync(data_dir, pid, seg, "N11", who, conn, fn)
 
 
 # ---- S-C: cổng trước generation trả phí -------------------------------------------------------------------------------------
@@ -835,11 +955,19 @@ def paid_gate(conn, pid: int, data_dir: str, scene_ids: Sequence[int]) -> List[D
     chốt (đang chia vai / chờ EP duyệt / đầu vào đổi / chưa biết). Shot Executive Producer đã đánh dấu BẮT BUỘC plate 3D đã duyệt làm
     reference chỉ qua khi ĐỦ: sân khấu chốt và do NGƯỜI duyệt (approved_by nguoi_dung — S-B; đường không chia vai / Đạo diễn tự chốt
     không có bước EP duyệt), shot có máy từ sân khấu đó, nền 3D theo máy đó đã render và không cũ; thiếu một điều và CHƯA có ngoại lệ
-    → 'hold' (giữ trước khi tốn tiền). Dự án không có thư mục sân khấu → [] (không đọc gì). Không chạy Blender; lỗi đọc → VÀNG có câu."""
+    → 'hold' (giữ trước khi tốn tiền). Không chạy Blender; lỗi đọc → VÀNG có câu.
+    C-FIX6 mục 3 (không thêm cờ — catalog khóa): cổng chỉ chạy khi dữ liệu rõ — EP ĐÃ đánh dấu ít nhất một shot bắt buộc trong dự án
+    (desk_gate.json `required`). Chưa đánh dấu (kể cả có thư mục sân khấu, crew/state.json dở) → [] và không đọc sân khấu: y hệt trước."""
     want = {int(x) for x in scene_ids}
-    if not want or not os.path.isdir(os.path.join(data_dir, str(pid), "stage")):
+    if not want or not os.path.isfile(_gate_path(data_dir, pid)):
         return []
+    if _read(_gate_path(data_dir, pid)) is None:    # tệp EP đánh dấu có mà hỏng: không đoán là "không bắt buộc" — giữ, có câu
+        return [{"scene_id": sid, "idx": None, "level": "hold",
+                 "why": f"không đọc được {GATE_FILE} (danh sách plate 3D bắt buộc của Executive Producer) — sửa / đánh dấu lại trước khi "
+                        "gen trả phí"} for sid in sorted(want)]
     g = _gate(data_dir, pid)
+    if not g["required"]:
+        return []
     out = []
     try:
         segs = _sa().segments(conn, pid)
@@ -879,3 +1007,17 @@ def paid_gate(conn, pid: int, data_dir: str, scene_ids: Sequence[int]) -> List[D
                             "why": f"shot {s['idx']}: sân khấu {seg['id']} chưa chốt ({st['label'] if st['inputs_known'] else 'chưa biết đầu vào'})"
                                    " — ảnh gen bây giờ có thể lệch máy sau khi duyệt"})
     return out
+
+
+def paid_hold(conn, pid: int, data_dir: Optional[str], scene_ids: Sequence[int]) -> Optional[str]:
+    """S-C — MỘT cổng cho MỌI đường gửi trả phí ảnh + video (C-FIX6 mục 1): core.runner._Runner._submit_pending gọi trước bước tốn tiền,
+    nên nút Gen ảnh, autopilot (_images_phase / _videos_phase), gen video, gửi lại / gen lại đều đi qua đây. Câu lý do khi có shot
+    'hold' (paid_gate), None = được gửi. Chưa có shot nào EP đánh dấu bắt buộc → None ngay (chỉ một os.path.isfile). Lỗi đọc → giữ có
+    câu (cổng EP đã bật thì không im lặng cho qua)."""
+    if not data_dir or not scene_ids or not os.path.isfile(_gate_path(data_dir, pid)):
+        return None
+    try:
+        held = [it["why"] for it in paid_gate(conn, pid, data_dir, scene_ids) if it["level"] == "hold"]
+    except Exception as e:  # noqa: BLE001 - EP đã đánh dấu bắt buộc: không kiểm được = giữ, có câu
+        return f"sân khấu 3D — không kiểm được cổng plate 3D bắt buộc (S-C): {type(e).__name__}: {e}"
+    return ("sân khấu 3D — " + "; ".join(held)) if held else None

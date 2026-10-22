@@ -457,6 +457,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _cap_warn(p, pid, "image_gen", "images")
     ctx.image_runner.submit_pending(pid)
     _review_wait(p, pid, "image_gen", ctx.data_dir if ctx else None)   # gửi xong phần không bị giữ; còn job bị giữ → chờ người
+    _desk_wait(p, pid, "image_gen", ctx.data_dir if ctx else None)
     _budget_stop(p, pid, "image_gen")
     ctx.image_runner.poll_once(pid)
     _retry_or_hold(p, pid, "image_gen")
@@ -583,6 +584,21 @@ def _review_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str] = Non
         why = change_review.blocking(p.conn, job["scene_id"], data_dir, since=draft_approved_at(p.conn, job))
         if why and not why.startswith(("Tổ rà soát tác động đang rà", change_review.READ_FAIL)):   # rà kỹ C-M71: đọc lỗi = chờ tạm
             raise _Wait("change_review", why)
+
+
+def _desk_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str]) -> None:
+    """C-FIX6 (S-C): runner đã GIỮ job trả phí vì plate 3D bắt buộc chưa đạt (core.stage_desk.paid_hold — cùng hàm) → CHỜ người (EP
+    duyệt sân khấu / render nền / xác nhận ngoại lệ) thay vì 'Gen ảnh…' mãi. Phần không bị giữ đã gửi. Chưa đánh dấu → không đọc gì."""
+    from . import stage_desk
+    if not data_dir or not os.path.isfile(stage_desk._gate_path(data_dir, pid)):
+        return
+    for job in p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type=? AND state='queued' AND scene_id IS NOT NULL ORDER BY id",
+                              (pid, kind)).fetchall():
+        why = stage_desk.paid_hold(p.conn, pid, data_dir, [job["scene_id"]])
+        if why:
+            idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            raise _Wait("stage_desk", (f"S{idx[0]:02d}: " if idx else "") + why + " — xử lý ở Bàn đạo diễn 3D (Executive Producer) rồi "
+                        "bấm Tiếp tục")
 
 
 def _gate_wait(p: Pipeline, pid: int, data_dir: Optional[str]) -> None:
@@ -1194,6 +1210,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _cap_warn(p, pid, "video_gen", "videos")
     ctx.video_runner.submit_pending(pid)
     _review_wait(p, pid, "video_gen", ctx.data_dir if ctx else None)
+    _desk_wait(p, pid, "video_gen", ctx.data_dir if ctx else None)
     _gate_wait(p, pid, ctx.data_dir if ctx else None)
     _budget_stop(p, pid, "video_gen")
     ctx.video_runner.poll_once(pid)

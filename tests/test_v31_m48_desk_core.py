@@ -436,7 +436,7 @@ class PolicyTests(DeskBase):
     def test_paid_gate_warns_by_default_and_holds_required_unapproved_plates(self):
         self.answer(blocking())
         g = D.paid_gate(self.p.conn, self.pid, self.data, [self.sid(1), self.sid(2)])
-        self.assertEqual({x["level"] for x in g}, {"warn"})                                    # mặc định VÀNG
+        self.assertEqual(g, [])                                  # C-FIX6 mục 3: EP chưa đánh dấu bắt buộc → không VÀNG (y hệt trước)
         self.assertFalse(D.require_plate(self.p.conn, self.pid, self.data, self.sid(1), True, write_guard.actor("ai", "d"), EP)["ok"])
         self.assertTrue(D.require_plate(self.p.conn, self.pid, self.data, self.sid(1), True, HUMAN, EP)["ok"])
         g = {x["idx"]: x for x in D.paid_gate(self.p.conn, self.pid, self.data, [self.sid(1), self.sid(2)])}
@@ -493,14 +493,16 @@ class PolicyTests(DeskBase):
         self.assertFalse(r["ok"])
         self.assertTrue(r["needs_confirm"])
         self.assertEqual(r["preview"]["cams_kept"], [1, 2, 3])
-        self.assertEqual(r["preview"]["plates_stale_after"], [1, 2, 3])
+        self.assertEqual(r["preview"]["plates_stale_after"], [])                # C-FIX6 mục 5: chỉ shot ĐỔI máy, tính lúc duyệt
+        self.assertEqual(r["preview"]["may_go_stale"]["plates"], [1, 2, 3])
         self.assertEqual(self.crew_state()["phase"], "xong")                                    # chưa xác nhận: không đổi gì
         r = D.reset(self.p.conn, self.pid, self.data, "1", HUMAN, confirm=True)
         self.assertTrue(r["ok"])
         self.assertIn("stage_camera", self.shot(self.pid, 1))                                   # máy cũ giữ tới lượt duyệt mới
         st = self.st()
         self.assertEqual(st["phase"], None)
-        self.assertEqual(st["reset"]["plates_stale_after"], [1, 2, 3])
+        self.assertEqual(st["reset"]["may_go_stale"]["plates"], [1, 2, 3])
+        self.assertEqual(sorted(st["reset"]["marks_before"]), ["1", "2", "3"])
         olds = [d for d in os.listdir(D.seg_dir(self.data, self.pid, self.seg)) if d.startswith("crew_cu_")]
         self.assertEqual(len(olds), 1)
 
