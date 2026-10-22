@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T18:48:47.600769+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-GOLDEN8-FIN",
+  "to": "cloud-E",
+  "title": "Rà kỹ + hoàn tất nhánh sửa golden_db_replay (claude/golden-replay-windows) — Cấp 1, 0 USD",
+  "spec": "docs/CLOUD_TASKS.md#### C-GOLDEN8-FIN",
+  "priority": 1
+}

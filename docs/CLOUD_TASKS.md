@@ -1201,3 +1201,35 @@ Việc trong core/position_invariants.py:
    VẪN mâu thuẫn bên khung tuyệt đối trong map → giữ báo nếu đúng là vậy; chỉ hết báo khi câu thật là quan hệ tương đối).
 Không đưa positions vào gen/QC (test_map_positions_are_not_fed_into_gen_or_qc phải xanh). Báo cáo docs/RA_CLOUD_R1_REL_2026-10-2x.md. XONG hộp thư.
 ```
+
+#### C-GOLDEN8-FIN (cloud-E — ưu tiên 1; Cấp 1 công cụ golden, 0 USD; phiên chính giao 22/10 tối) — rà kỹ + hoàn tất nhánh sửa golden_db_replay
+```
+Nền: nhánh claude/golden-replay-windows @ 302afef2 (agent máy chính, DỪNG giữa chừng theo lệnh người dùng; đọc HANDOFF.md ở gốc nhánh trước).
+Nội dung nhánh: thay bản vá 79cfb019 bằng _stat_path_probes() mọi OS; 4 lỗi gốc tools/golden_db_replay.py (hỏi tồn tại lần 2 thành sha,
+ghi dưới thư mục chỉ có ở ref-root → FileNotFoundError, --ab mark() lấy ảnh cache ref-root che DIFF, chặn junction ra ngoài scratch);
+ở --ab giả upload Kho chủ thể theo sha (golden-ab-<sha16>) + so simulated_uploads; tests/test_golden_replay_windows.py 7 test.
+Số đo thật máy chính (đã có, KHÔNG cần chạy lại): lượt chính 127 SAME / 0 DIFF / 0 ONE_FAIL / 31 BOTH_FAIL; lượt cờ pause_before_submit +
+poll_claim BẬT 127/0/0/31; GOLDEN7 cũ 117/0/0/41 (đo TRƯỚC bản vá Windows → tệp data/ tương đối luôn "không có").
+Việc trên nhánh mới cloud/v31-golden8-fin tách từ origin/claude/golden-replay-windows, merge origin/main:
+1. RÀ KỸ diff origin/main...HEAD (tools/golden_*, tests/): giả upload chỉ ở --ab (capture/replay thường vẫn cấm, có test); không che DIFF thật;
+   đối chứng âm test_golden5 vẫn bắt DIFF; không phụ thuộc cwd / dấu \ vs /. Ghi lỗi CAO/VỪA/THẤP + file:dòng; sửa CAO/VỪA một vòng kèm test đỏ→xanh.
+2. Việc mở trong HANDOFF: (a) nhánh except của tools/golden_capture.py dùng chung cách báo lỗi mới (loại thao tác, vị trí, cây `loaded`);
+   (b) refuse() làm ca code nuốt ngoại lệ chuyển BUILT → INSUFFICIENT_INPUT — xác định đúng/sai, sửa nếu sai (không đổi để số đẹp);
+   (c) sau khi ghi vào scratch, listdir chỉ thấy scratch không thấy ref-root — đánh giá có làm lệch so sánh không (hai bên như nhau thì ghi lý do).
+3. Cả bộ test Linux một lần (`python3 -m pytest -q -n 8 -p no:cacheprovider -rf`; ghi rõ các đỏ có sẵn trên main).
+4. Báo cáo docs/RA_GOLDEN_REPLAY_WINDOWS_2026-10-22.md (số đo trên + rà + sửa). Phiên chính chạy lại golden trên máy chính nếu bạn đổi hành vi
+   so sánh (ghi rõ CÓ/KHÔNG cần chạy lại). XONG hộp thư (nhánh thật đã push).
+```
+
+#### C-FLAG20-TRIAGE (cloud-E — ưu tiên 2; Cấp 1 CHỈ ĐO + tài liệu, 0 USD, không sửa code sản xuất) — vì sao bật verified 20 cờ làm hỏng 362 test
+```
+Nền: nhánh claude/co-verified-20 @ 9998b46b (13/10, TÁCH khỏi main): đặt verified: True cho 20 cờ đang BẬT ở 🧪 máy chính → 362 test hỏng
+(ví dụ test_throttle gửi 0/4 job, test_v3, test_workflow, test_video_references). Main giữ verified False (sản xuất không đổi vì 🧪 bật).
+Từ đó main đổi nhiều (M7.2 baseline cờ, M7.4 Gói B, M7.5 bảng Gói C, M7.7 đang mở) → làm trên main MỚI, không merge nhánh cũ.
+Việc (nhánh cloud/v31-flag20-triage từ main): lấy danh sách 20 cờ từ diff nhánh cũ; với TỪNG cờ đặt verified True RIÊNG (một cờ một lần, các cờ
+khác giữ nguyên main) rồi chạy cả bộ `-m "not slow"` → bảng: cờ · số test hỏng · 3 test tiêu biểu · loại gốc (test giả định cờ tắt / hành vi
+thật đổi khi bật / cờ phụ thuộc cờ khác) · đề xuất (sửa test cho đúng hành vi khi bật — KHÔNG nới assert; hoặc giữ verified False). Đối chiếu
+bảng quyết định Gói C (docs KE_HOACH_SUA_20_CO mục 6) và M7.7 trong docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md: cờ nào đã có quyết định.
+Nếu chạy 20 lượt cả bộ quá nặng: gom theo nhóm cờ cùng khu vực rồi tách nhóm hỏng nhiều. Chỉ commit báo cáo + script đo (tools/, không đụng core/).
+Báo cáo docs/RA_CLOUD_FLAG20_TRIAGE_2026-10-2x.md. XONG hộp thư.
+```
