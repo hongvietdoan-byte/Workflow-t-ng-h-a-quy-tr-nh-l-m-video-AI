@@ -31,3 +31,11 @@ Nhánh `claude/golden-replay-windows` (từ origin/main 85189242). Commit công 
 4. Việc mở: listdir/scandir sau khi ghi chỉ thấy scratch (che ref-root, hai bên như nhau); golden_capture.py:261-271 nhánh except chưa
    dùng _failure_answer; refuse() nay làm ca core nuốt ngoại lệ thành INSUFFICIENT (trước BUILT) — ghi trong báo cáo.
 5. Dọn worktree D:/golden8/a, D:/golden8/b sau khi xong.
+
+## Kết quả golden lại (xong 22/10, công cụ c21dac7b, mã thoát 0 cả hai, ~2 650 s mỗi lượt)
+| Lượt | SAME | DIFF | ONE_FAIL | BOTH_FAIL | Kho chủ thể giả | ĐẠT |
+|---|---:|---:|---:|---:|---:|---|
+| Chính (cấu hình cũ, pause_before_submit + poll_claim TẮT) | 127 | 0 | 0 | 31 | 21 ca | có |
+| Phụ (pause_before_submit + poll_claim BẬT) | 127 | 0 | 0 | 31 | 21 ca | có |
+So GOLDEN7 117/0/0/41: 10 ca 'operation' nay đều SAME (#27 +3, #31 +7 → #31 78/78). 31 BOTH_FAIL còn lại đều 'prepare giữ (_hold)'
+(như cũ). Theo dự án: #24 15/0/0/9, #27 28/0/0/16, #31 78/0/0/0, #33 6/0/0/6. Tệp: D:/AI-Video-Output/golden-snapshot-8mc/ab_main.json, ab_flags_on.json.
