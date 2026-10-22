@@ -276,7 +276,7 @@
      "id": "byd_khong_mau_thuan",
      "ten": "BYĐ không mâu thuẫn trường khác của chính shot (P31-G18)",
      "nguong": "0 mâu thuẫn",
-     "cach_do": "chua_co:bất biến R4 C-3D-GOC-A"
+     "cach_do": "code:core/camera_invariants:byd_vs_fields"
     }
    ],
    "consumers": {
@@ -421,19 +421,19 @@
      "id": "ti_le_dung_ho_so_kho",
      "ten": "Người nộm / vật đúng chiều cao Kho (P31-G2)",
      "nguong": "100 %",
-     "cach_do": "chua_co:bất biến R2 C-3D-GOC-A"
+     "cach_do": "chua_co:check_framing (C-3D-GOC-A) chỉ đo % khung theo cỡ cảnh — chưa so chiều cao người nộm / vật với hồ sơ Kho (whitebox_height_dummy + R5)"
     },
     {
      "id": "vi_tri_mot_nguon",
      "ten": "Cùng vật cùng cảnh cùng toạ độ ở mọi shot (P31-G46)",
      "nguong": "0 lệch không khai",
-     "cach_do": "chua_co:bất biến R1 C-3D-GOC-B"
+     "cach_do": "code:core/position_invariants:scene_report"
     },
     {
      "id": "may_hop_le",
      "ten": "Máy không xuyên vật / không sát người dưới khoảng cách tối thiểu (P31-G49)",
      "nguong": "0 vi phạm",
-     "cach_do": "chua_co:bất biến R2 C-3D-GOC-A"
+     "cach_do": "chua_co:check_floor (C-3D-GOC-A) đo sàn / bậc dưới máy + chân — chưa kiểm máy xuyên vật / khoảng cách tối thiểu tới người"
     }
    ],
    "consumers": {
@@ -517,7 +517,7 @@
      "id": "chu_khop_khung_dau",
      "ten": "Chữ không nhắc thứ không có trong khung đầu / máy không thấy (P31-G11/G26)",
      "nguong": "0 câu",
-     "cach_do": "chua_co:lint R3 C-3D-GOC-A"
+     "cach_do": "code:core/camera_invariants:text_vs_view"
     }
    ],
    "consumers": {

@@ -3014,13 +3014,13 @@
    "affected_flows": [],
    "owner": "artist_3d",
    "fix_commit": [],
-   "tests": [],
+   "tests": ["tests/test_v31_3d_goc_b.py"],
    "real_run_evidence": [],
    "plan_workstream": "WS3",
    "plan_task": "M3.1",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": "Gốc chung (người dùng 22/10: sửa GỐC, không vá từng shot); làm: C-3D-GOC-B (cloud-D)"
+   "status_reason": "Gốc chung R1 — C-3D-GOC-B (cloud-claude 22/10): một nguồn vị trí = bản đồ cảnh core/world_map; 4 bất biến mọi shot core/position_invariants (R1-SIDE trái/phải chữ ↔ map, R1-AXIS-JUMP nhảy trục 2 shot liền cùng phía, R1-TRAVEL hướng đi ↔ vị trí thứ được nhắc, R1-PROP-SCENE khối giữ chỗ cảnh khác) + R1-MAP thiếu map; layout_facts.positions đọc map; test biến thể xoay/tịnh tiến. CHƯA FIXED: chưa dựng map thật #31 + chạy tools/position_invariants.py trên máy chính; chưa nối vào đường gen (chỉ báo)"
   },
   {
    "id": "V31-GOC2",

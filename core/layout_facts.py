@@ -16,7 +16,7 @@ không viết hàm song song. Đổi khóa / kiểu = tăng VERSION + sửa test
 v1 (cloud-claude, 22/10) chỉ lấy từ dữ liệu sẵn có: nhóm / chỗ đứng (scene_storyboard), máy (stage_camera / camera_plan / plate_view),
 bên trái-phải của người theo chữ blocking (cùng cách đọc mệnh đề layout của Tổ QC trước đây), mốc trong khung (stage_facts, khi có máy
 3D), chân trời (stage_facts + plate_layout.json). Còn trống, có lý do trong `missing`: số đo người (R2), mốc theo tầm nhìn máy khi
-không có máy 3D (R3), toạ độ world_map (R1).
+không có máy 3D (R3). positions (R1, C-3D-GOC-B) đọc bản đồ cảnh core/world_map.
 """
 import json
 import math
@@ -116,6 +116,36 @@ def _horizon(conn, data_dir: str, pid: int, scene_id: int, data: Dict, prov: Dic
     return out
 
 
+def _positions(data_dir: str, pid: int, data: Dict, missing: List[str], prov: Dict, shot_idx=None) -> Dict:
+    """R1 (C-3D-GOC-B): toạ độ mặt sàn {thực thể: [x, y]} ở shot này từ bản đồ cảnh core/world_map — NGUỒN DUY NHẤT của vị trí xuyên shot
+    (cùng map mà câu vị trí M3.3 và bất biến core/position_invariants đọc). Không có map còn hiệu lực / map tương đối → {} + lý do."""
+    from . import world_map
+    sc = data.get("story_scene")
+    try:
+        m = world_map.load(data_dir, pid, sc) if sc is not None else None
+    except (OSError, ValueError, TypeError) as e:          # map hỏng: nói, không làm sập QC / kiểm bố cục
+        missing.append(f"không đọc được bản đồ cảnh ({type(e).__name__}) — vị trí xuyên shot chưa có (R1)")
+        return {}
+    if not m:
+        missing.append("cảnh chưa có bản đồ (world_map) — vị trí xuyên shot chỉ còn trong chữ (R1)")
+        return {}
+    if m.get("invalidated") or m.get("kind") not in ("3d", "2d"):
+        why = "đã cũ" if m.get("invalidated") else f"loại {m.get('kind')} (không có toạ độ)"
+        missing.append(f"bản đồ cảnh {why} — không có toạ độ vật / người (R1)")
+        return {}
+    # valid_from / valid_to của map theo shot_specs 'shot' = scenes.idx (số chung cả dự án, stage_auto), KHÔNG phải shot_no trong cảnh
+    out, bad = {}, 0
+    for e in world_map.entities_at(m, shot_idx):
+        try:
+            out[str(e["entity_id"])] = [round(float(v), 3) for v in e["transform"]["xyz"][:2]]
+        except (KeyError, TypeError, ValueError):
+            bad += 1
+    if bad:
+        missing.append(f"{bad} thực thể của bản đồ cảnh thiếu / sai toạ độ — bỏ qua (R1)")
+    prov["positions"] = f"world_map r{m.get('map_revision')} ({m.get('kind')})"
+    return out
+
+
 def facts_for_shot(conn, pid: int, scene_id: int, data_dir: str, data: Optional[Dict] = None) -> Dict:
     from . import scene_storyboard
     missing: List[str] = []
@@ -149,10 +179,10 @@ def facts_for_shot(conn, pid: int, scene_id: int, data_dir: str, data: Optional[
         missing.append("chưa có số đo người (cỡ % khung / khoảng cách tới máy) — R2 C-3D-GOC-A điền")
     camera = _camera(data, missing, prov)
     landmarks = _landmarks(data, missing, prov)
-    missing.append("chưa có toạ độ vật / người xuyên shot (world_map) — R1 C-3D-GOC-B điền")
+    positions = _positions(data_dir, pid, data, missing, prov, shot_idx=(row or {}).get("idx"))
     return {"version": VERSION, "scene_id": scene_id, "story_scene": data.get("story_scene"), "spot": spot, "mates": mates,
             "anchor_scene_id": anchor, "ref_scene_id": ref, "camera": camera, "people": people, "landmarks": landmarks,
-            "positions": {}, "horizon": _horizon(conn, data_dir, pid, scene_id, data, prov),
+            "positions": positions, "horizon": _horizon(conn, data_dir, pid, scene_id, data, prov),
             "missing": missing, "provenance": prov}
 
 
