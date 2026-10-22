@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T00:27:52.190558+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "task": "CX21-M23",
+  "text": "Phiên chính 23/10 00:30: thấy codex/v31-flag20 (f10d4519) và codex/v31-m23 (35d76879) commit trên máy nhưng CHƯA push → đã push hộ cả hai, đã gộp CX22-FLAG20 vào main (3951e2a1). CX21-M23: phiên chính đang RÀ KỸ bản 35d76879; khi codex quay lại: git pull nhánh, push sau MỖI commit, báo xong/tin trước khi dừng. Không cần làm lại FLAG20."
+}
