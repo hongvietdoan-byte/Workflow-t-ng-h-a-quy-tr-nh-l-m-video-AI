@@ -37,6 +37,11 @@ with patch.object(os,'environ',{}):
    seen.update(exists=os.path.exists(rel),isfile=os.path.isfile(rel),isdir=os.path.isdir('data/probe_only/qq'),
                p_exists=Path(rel).exists(),p_is_file=Path(rel).is_file(),p_is_dir=Path('data/probe_only/qq').is_dir(),
                missing=os.path.exists('data/probe_only/zz.json'))
+  elif mode=='swallow':
+   try:
+    self.subject_library.list_assets()
+   except Exception:
+    seen['swallowed']=True
   elif mode=='write':
    folder='data/projects/24/refs_clean'
    seen['isdir']=os.path.isdir(folder)
@@ -163,5 +168,62 @@ def test_simulated_uploads_that_differ_are_a_diff():
         G = importlib.import_module("tools.golden_db_replay")
     a = {"status": "BUILT", "raw": "{}", "simulated_uploads": [{"sha": "1", "name": "x"}]}
     b = {"status": "BUILT", "raw": "{}", "simulated_uploads": [{"sha": "2", "name": "x"}]}
-    assert G.compare_ab(a, b)["status"] == "DIFF" and G.compare_ab(a, b)["first_diff"]["path"] == "simulated_uploads"
+    assert G.compare_ab(a, b)["status"] == "DIFF" and G.compare_ab(a, b)["first_diff"]["path"].startswith("simulated_uploads")
     assert G.compare_ab(a, dict(a))["status"] == "SAME"
+
+
+# ---- C-GOLDEN8-FIN (rà 22/10 tối) -----------------------------------------------------------------------------------------------------
+from tests.test_golden_replay import golden  # noqa: E402,F401
+
+
+def _raise_denied(G, kind):
+    raise G.SandboxDenied(kind, "<call>")
+
+
+def test_capture_except_branch_uses_the_shared_failure_answer(golden):  # noqa: F811
+    """HANDOFF việc mở (a): nhánh except của golden_capture (lỗi phía tiến trình cha khi dựng ca) phải báo như worker — loại thao tác,
+    vị trí (tệp:dòng), không chỉ {kind: tên lớp}. Trước: {'kind': 'SandboxDenied'} mất loại + vị trí."""
+    module, db, flags, root, _ = golden
+    with patch.object(os, "environ", {}), patch.object(module, "head_sha", return_value="a" * 40):
+        import importlib
+        G = importlib.import_module("tools.golden_db_replay")
+        with patch.object(G, "capture_database_job", side_effect=lambda *a, **k: _raise_denied(G, "provider_submit")):
+            result = module.capture(db=db, project=24, shot=7, flags_file=flags, ref_root=root, purpose="compat", database_replay=True)
+    replay = result["jobs"][0]["database_replay"]
+    assert replay["status"] == "INSUFFICIENT_INPUT" and replay["matched_at_capture"] is False
+    assert replay["diagnostic"]["kind"] == "provider_submit", replay
+    assert any(p.startswith("test_golden_replay_windows.py:") for p in replay["diagnostic"]["positions"]), replay
+    assert "loaded" not in replay                                  # tiến trình cha: không mang trạng thái worker
+
+
+def test_failure_answer_tolerates_a_foreign_diagnostic_attribute():
+    """Ngoại lệ của code lõi có thuộc tính `diagnostic` KHÔNG phải dict → trước: TypeError trong nhánh except (worker không ghi response)."""
+    with patch.object(os, "environ", {}):
+        import importlib
+        G = importlib.import_module("tools.golden_db_replay")
+    exc = RuntimeError("x")
+    exc.diagnostic = "chuỗi"
+    answer = G._failure_answer(exc)
+    assert answer["status"] == "INSUFFICIENT_INPUT" and answer["diagnostic"]["kind"] == "RuntimeError"
+
+
+def test_simulated_uploads_diff_names_the_first_differing_entry():
+    """Cùng số lượt tải giả nhưng khác ảnh → first_diff chỉ ra mục + trường lệch (trước: a=1, b=1 — không đọc được)."""
+    with patch.object(os, "environ", {}):
+        import importlib
+        G = importlib.import_module("tools.golden_db_replay")
+    a = {"status": "BUILT", "raw": "{}", "simulated_uploads": [{"sha": "1", "name": "x"}]}
+    b = {"status": "BUILT", "raw": "{}", "simulated_uploads": [{"sha": "2", "name": "x"}]}
+    assert G.compare_ab(a, b)["first_diff"]["path"] == "simulated_uploads[0].sha"
+    c = {"status": "BUILT", "raw": "{}"}
+    assert G.compare_ab(a, c)["status"] == "DIFF"                  # một bên không tải giả gì
+
+
+@needs_native_314
+def test_swallowed_refused_operation_is_insufficient_not_built(database):  # noqa: F811
+    """HANDOFF việc mở (b): code lõi bắt (nuốt) ngoại lệ của thao tác bị cấm rồi dựng tiếp → gói đó KHÔNG phải gói sản xuất (sản xuất đã
+    gọi được provider / Kho / ffmpeg) → INSUFFICIENT_INPUT (fail-closed như block() của audit hook), không BUILT."""
+    seen, answer = _run(database, "swallow", code_root=ROOT)
+    assert seen.get("swallowed") is True
+    assert answer["status"] == "INSUFFICIENT_INPUT", answer
+    assert answer["diagnostic"] == [{"kind": "subject_library_list", "path": "<call>"}], answer

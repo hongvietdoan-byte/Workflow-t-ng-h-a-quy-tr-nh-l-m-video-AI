@@ -266,9 +266,13 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
                 job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags,public_config=public_config,
                                                               experimental=experimental if baseline else None)
             except (ValueError, OSError, sqlite3.Error, subprocess.SubprocessError) as exc:
-                job["database_replay"] = {"status": "INSUFFICIENT_INPUT", "matched_at_capture": False,
+                # C-GOLDEN8-FIN (HANDOFF việc mở a): cùng cách báo lỗi với worker (loại thao tác + tệp:dòng); KHÔNG mang trạng thái
+                # worker (`loaded`) — đây là tiến trình cha. DataChanged ở đây không có `paths` → replay_fixture coi là INSUFFICIENT như cũ.
+                from tools.golden_db_replay import _failure_answer
+                answer = _failure_answer(exc)
+                job["database_replay"] = {"status": answer["status"], "matched_at_capture": False,
                                           "reason": "không dựng được ca; tiếp tục các ca khác",
-                                          "diagnostic": {"kind": type(exc).__name__}}
+                                          **({"diagnostic": answer["diagnostic"]} if "diagnostic" in answer else {})}
     return {"fixture_version": 1, "purpose": purpose, "head_sha": head_sha(), "flags": flags,
             "experimental_flags": experimental, "flags_mode": "baseline" if baseline else "all_unverified_off",
             "flags_provenance": "baseline_production_at_capture" if baseline else "explicit_file_unverified_at_send", "schema": schema, "project": project, "scene_id": shot,

@@ -718,8 +718,11 @@ def _failure_answer(exc):
     while trace is not None:
         positions.append(f"{Path(trace.tb_frame.f_code.co_filename).name}:{trace.tb_lineno}")
         trace = trace.tb_next
+    diagnostic = getattr(exc, "diagnostic", None)
+    if not isinstance(diagnostic, dict):           # C-GOLDEN8-FIN: thuộc tính `diagnostic` lạ của code lõi → không TypeError trong except
+        diagnostic = {"kind": type(exc).__name__}
     return {"status": "INSUFFICIENT_INPUT", "reason": "worker thiếu dependency hoặc schema",
-            "diagnostic": {**getattr(exc, "diagnostic", {"kind": type(exc).__name__}), "positions": positions[-8:]}, **_WORKER_STATE}
+            "diagnostic": {**diagnostic, "positions": positions[-8:]}, **_WORKER_STATE}
 
 
 def worker_answer(request):
@@ -771,8 +774,9 @@ def compare_ab(res_a, res_b):
     if res_a["raw"] == res_b["raw"]:
         # rà 22/10: Kho chủ thể giả (--ab) — gói giống nhưng ảnh/nhãn tải lên khác → vẫn là lệch
         if res_a.get("simulated_uploads") != res_b.get("simulated_uploads"):
-            return {"status": "DIFF", "first_diff": {"path": "simulated_uploads", "kind": "value", "a": len(res_a.get("simulated_uploads") or []),
-                                                     "b": len(res_b.get("simulated_uploads") or [])}}
+            # C-GOLDEN8-FIN: chỉ ra mục + trường lệch (sha16 / nhãn — không phải nội dung ảnh), không chỉ hai độ dài
+            return {"status": "DIFF", "first_diff": first_diff(res_a.get("simulated_uploads") or [], res_b.get("simulated_uploads") or [],
+                                                               "simulated_uploads")}
         return {"status": "SAME"}
     try:
         diff = first_diff(json.loads(res_a["raw"]), json.loads(res_b["raw"]))
