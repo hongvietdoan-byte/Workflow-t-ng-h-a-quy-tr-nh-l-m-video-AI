@@ -8,7 +8,7 @@ Gói bàn giao = dòng `  - [..] ... ĐỌC ĐẦU TIÊN ...` mới nhất trong
     py -X utf8 tools/session_handoff.py          (hook gọi) in gói bàn giao + trạng thái worktree so với origin/main
 
 21/10 (người dùng): phiên chính chạm ~70 % context từng gọi `clear_session` → ứng dụng LƯU TRỮ phiên, Remote Control đứt. Nay context
-được nén TỰ ĐỘNG trong cùng phiên (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` ở .claude/settings.json) và hook chạy cả khi `compact`: đọc
+được nén TỰ ĐỘNG trong cùng phiên (`CLAUDE_CODE_AUTO_COMPACT_WINDOW=350000` ở .claude/settings.json, 22/10) và hook chạy cả khi `compact`: đọc
 `source` từ JSON hook gửi qua stdin, sau khi nén thì bảo chính phiên này làm tiếp theo gói mới nhất (kể cả gói nó đã ghi ĐÃ NHẬN).
 """
 import json
@@ -63,7 +63,7 @@ def latest_pack(lines: list):
 
 
 COMPACT_NOTE = (
-    "PHIÊN NÀY VỪA TỰ NÉN CONTEXT (auto-compact ~70 %, cùng phiên — Remote Control vẫn nối). Không chờ người dùng: nạp skill "
+    "PHIÊN NÀY VỪA TỰ NÉN CONTEXT (auto-compact ~340k token, cùng phiên — Remote Control vẫn nối). Không chờ người dùng: nạp skill "
     "`vong-lam-viec-theo-plan`, đọc gói bàn giao mới nhất dưới đây (do chính phiên này ghi trước khi nén) + file nó trỏ tới, "
     "`CronList` (thiếu lịch điều phối thì tạo lại theo gói), rồi LÀM TIẾP đúng việc dở. KHÔNG gọi clear_session / archive / "
     "start_session (lưu trữ phiên, đứt remote — người dùng 21/10).")

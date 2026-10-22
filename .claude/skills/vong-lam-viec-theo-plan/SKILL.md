@@ -39,6 +39,11 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
   8503–8510 (devsys/app.py, dashboard.serve) không có kết nối Established và không phiên nào dùng → tắt cả python.exe lẫn py.exe cha; chỉ giữ
   8501 + 8502. Tiến trình pytest/xdist mồ côi → tắt. Worktree agent đã gộp / đã push nhánh thật → `git worktree remove` (bị app khoá
   "claude agent … (pid)" thì để app tự dọn).
+- **Chọn model phiên con (người dùng 22/10 — Opus chiếm 82 % token ra):** `model: "sonnet"` cho việc NHẸ: rà nhẹ (tài liệu, nhãn,
+  giao diện không đổi luồng, sau cờ TẮT), dọn rác (server thừa, worktree, file tạm), việc hộp thư (viết đề bài, giao/gộp/ghi sự kiện,
+  tóm bảng), kiểm kê / đo số chỉ đọc, chạy cả bộ test rồi báo kết quả. Giữ Opus (bỏ trống `model`) cho: viết/sửa code pipeline, RÀ KỸ
+  (tiền, dữ liệu, quyền, vòng đời job, migration), thiết kế kế hoạch, gỡ xung đột gộp khó. Phân vân → Sonnet trước, rà ra lỗi khó
+  mới chuyển Opus. Phiên chính tự làm việc hộp thư chỉ khi ≤ 2–3 lệnh; nhiều hơn (viết nhiều đề bài, gộp + ghi nhiều mã) → giao agent Sonnet.
 - **Mức rà (người dùng duyệt 05/10):** RÀ KỸ (phiên con rà độc lập riêng) cho việc đụng TIỀN, DỮ LIỆU, QUYỀN, vòng đời job, migration CSDL. RÀ NHẸ (không mở phiên rà; phiên chính đọc `git diff --stat` + đoạn đổi chính + test xanh) cho tài liệu, nhãn, prompt/knowledge sau cờ TẮT, CSS/giao diện không đổi luồng. Gom việc nhỏ cùng vùng file vào MỘT phiên con. Phiên rà chỉ đọc phần thay đổi + chỗ gọi tới, không đọc lại cả kế hoạch. **Ghi số đo mỗi nhánh** vào dòng việc S14.x: token phiên làm / phiên rà (từ thông báo hoàn tất) + số lỗi phiên rà bắt được — để báo người dùng hiệu quả quy trình (mốc trước khi tối ưu: 7 nhánh S14 ngày 04–05/10, làm ≈ 2,0 triệu token, rà ≈ 1,1 triệu ≈ 35 %, rà bắt 1–3 lỗi/nhánh, có lỗi tiền).
 - **Hộp thư SỰ KIỆN (20/10 tối, thay dòng TODO):** `tools/hop_thu.py` — giao `giao <mã> --to <làn|pool> --spec … [--depends …] --lane phien-chinh --push`; gộp xong `gop <mã> --commit <sha> --lane phien-chinh --push`; xem `bang`. Đề bài vẫn trong CLOUD_TASKS / CODEX_TASKS (trường spec trỏ tới). Giữ mỗi làn ≥ 2 việc CHỜ, pool ≥ 3.
 - **Hộp thư chung (người dùng 20/10):** phiên chính, phiên con, cloud tài khoản khác, Codex trao đổi CHỈ qua mục 📨 `TODO.md` trên main ("LUẬT HỘP THƯ CHUNG": dòng CHỜ → ĐANG LÀM → XONG / HỎI; cloud + Codex được push main commit `hộp thư:` chỉ đổi dòng hộp thư). Giao việc = đăng dòng hộp thư + đề bài trong CLOUD_TASKS / CODEX_TASKS; đầu và sau mỗi việc `git pull` + đọc hộp thư; báo người dùng chỉ cần "đọc hộp thư".
@@ -76,7 +81,7 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 
 | Chỉ số | Hành động |
 |---|---|
-| Context phiên chính **≥ 60 %** | commit + push gói bàn giao rồi làm tiếp; ~70 % Claude Code tự nén trong cùng phiên (mục 4) — KHÔNG clear/lưu trữ phiên |
+| Context phiên chính **≥ ~250k token** (get_usage `tokensUsed`) | commit + push gói bàn giao rồi làm tiếp; ~340k Claude Code tự nén trong cùng phiên (mục 4) — KHÔNG clear/lưu trữ phiên |
 | $ **≥ 80 %** | chỉ cho **1** phiên con chạy cùng lúc; báo USD còn lại mỗi lần |
 | $ **≥ 85 %** | điểm nghỉ (trần cứng) — TUYỆT ĐỐI tránh vượt 90–95 % (người dùng: đoạn này % tăng rất nhanh) |
 
@@ -84,7 +89,7 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 
 | Chỉ số | Hành động |
 |---|---|
-| Context phiên chính **≥ 60 %** | commit + push gói bàn giao rồi làm tiếp; ~70 % Claude Code tự nén trong cùng phiên (mục 4) — KHÔNG clear/lưu trữ phiên |
+| Context phiên chính **≥ ~250k token** (get_usage `tokensUsed`) | commit + push gói bàn giao rồi làm tiếp; ~340k Claude Code tự nén trong cùng phiên (mục 4) — KHÔNG clear/lưu trữ phiên |
 | Hạn mức 5 giờ **90–95 %** hoặc tuần **≥ 95 %** (người dùng 06/10: dùng 5 giờ tới 90–95 %; tuần nâng 05/10) | điểm nghỉ — **TRÁNH VƯỢT 95 %**: đã ≥ 90 % thì không mở/đánh thức phiên con nào nữa, chỉ gộp phần đã xong |
 | Hạn mức 5 giờ **≥ 60 %** | chỉ cho **1** phiên con chạy cùng lúc |
 | Hạn mức 5 giờ **70–90 %** | chỉ cho chạy **việc NHỎ** (một phiên, phạm vi chặt, ≈ ≤ 30 lượt gọi công cụ / ≈ ≤ 100k token — ước mỗi việc nhỏ tốn ≈ 3–6 % hạn mức 5 giờ); trước khi mở ước xem có vượt 90–95 % không, có nguy cơ thì KHÔNG mở; không mở việc lớn, không đánh thức phiên có context lớn |
@@ -96,13 +101,13 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 - **Context phiên chính (THAY 21/10 — người dùng: "khi context đạt 70 % lại tự động lưu trữ session, ngắt kết nối remote; yêu cầu là
   commit rồi clear và tự làm tiếp")**. Gốc lỗi: `mcp__ccd_session_mgmt__clear_session` (và archive / mở phiên mới) **LƯU TRỮ phiên** → Remote
   Control đứt, người dùng mất phiên đang điều khiển. Claude KHÔNG tự gõ được `/clear`; cách thay trong CÙNG phiên: `.claude/settings.json`
-  đặt `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` → Claude Code **tự nén context ở ~70 %** (cùng phiên, cùng remote), hook `SessionStart` matcher
+  đặt `CLAUDE_CODE_AUTO_COMPACT_WINDOW=350000` (22/10 thay `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` — biến % chỉ là % của cửa sổ 1M ≈ 677k và không ăn trong phiên đang chạy; app báo nén ở 97 %) → Claude Code **tự nén context ở ~340k token**, áp dụng từ lần mở phiên kế (cùng phiên, cùng remote), hook `SessionStart` matcher
   `compact` (`tools/session_handoff.py`) nạp lại gói bàn giao ngay sau khi nén. Làm:
   1. **Context ≥ ~60 %** (đo `get_usage` trước mỗi lượt điều phối): ở điểm sạch gần nhất (không giữa lúc gộp / xung đột) **commit + push gói
      bàn giao** trong mục 📨 TODO.md dạng `**PHIÊN KẾ (điều phối V3.1 sau nén) — ĐỌC ĐẦU TIÊN.**` (lịch Cron đang có: id, lịch, đề bài rút
      gọn; nhánh gộp dở; việc XONG chờ gộp; câu hỏi chờ người dùng; mục Cấp 3 chờ) + kế hoạch + `plan_progress --write`. Ghi lại gói mỗi
      khi trạng thái đổi nhiều (gói luôn mới nhất lúc nén tới).
-  2. **Làm tiếp bình thường** — KHÔNG dừng chờ người dùng, KHÔNG báo "gõ /clear". Tới ~70 % Claude Code tự nén.
+  2. **Làm tiếp bình thường** — KHÔNG dừng chờ người dùng, KHÔNG báo "gõ /clear". Tới ~340k token Claude Code tự nén.
   3. **Sau khi nén** (hook in "PHIÊN NÀY VỪA TỰ NÉN CONTEXT"): đọc gói + file nó trỏ tới, sửa "ĐỌC ĐẦU TIÊN" → "ĐÃ NHẬN <giờ> (sau nén)",
      commit + push, `CronList` (thiếu lịch điều phối thì tạo lại theo gói), rồi điều phối tiếp.
   4. **TUYỆT ĐỐI KHÔNG** gọi `clear_session`, `archive_session`, `start_session` / mở phiên mới cho chính phiên chính, trừ khi người dùng
@@ -117,7 +122,7 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 3. Cập nhật kế hoạch chính + `plan_progress --write` (ghi vào kế hoạch chính) + với V3.1 tôn trọng cấp quyền mục 4b (code Cấp 2 chỉ sau khi người dùng duyệt phạm vi) + `TODO.md`, ghi rõ **bước kế + file nguồn + nhánh dở (tên, commit cuối)**. Commit, push, pull ở `D:\AI-Video-Pipeline`.
 4. Báo người dùng: đã xong gì (mã commit), còn gì, các chỉ số hiện tại, câu để gõ tiếp ("tiếp tục Sxx").
 5. **Không tự xóa / lưu trữ phiên** (21/10): không gọi `clear_session` / `archive_session` / mở phiên mới thay phiên chính. Context
-   do auto-compact 70 % lo (mục trên); dừng vì hạn mức thì đặt `CronCreate` làm tiếp trong cùng phiên.
+   do auto-compact ~340k token lo (mục trên); dừng vì hạn mức thì đặt `CronCreate` làm tiếp trong cùng phiên.
 
 ## 4b. Quy trình một tính năng / sửa gốc (đã dùng 16/10 — chia vai sân khấu, previs)
 1. Người dùng nêu vấn đề → đo số thật 0 USD trước khi kết luận (vd bảng số đo Blender shot 10) → nêu gốc, KHÔNG đặt luật cấm cứng
