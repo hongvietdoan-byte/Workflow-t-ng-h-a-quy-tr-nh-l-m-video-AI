@@ -168,7 +168,8 @@
       "sent_package_relpath": false,
       "insert_inherit": false,
       "stage_props_byd": false,
-      "ref_end_frames": false
+      "ref_end_frames": false,
+      "lean_package": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -346,7 +347,8 @@
       "sent_package_relpath": false,
       "insert_inherit": false,
       "stage_props_byd": false,
-      "ref_end_frames": false
+      "ref_end_frames": false,
+      "lean_package": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"

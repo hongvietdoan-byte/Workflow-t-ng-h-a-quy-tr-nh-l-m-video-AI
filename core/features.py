@@ -798,6 +798,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "Sổ v31-ep-k3-seedance-ref-groups-with-end-frames-2026-10-21 (EP 21/10 K3-b): end_frames.py:32 bỏ khung cuối ở tuyến ref. "
                "Tách nhóm thêm clip (≥ 4 s tính tiền mỗi clip) + 1 ảnh khung cuối mỗi shot đổi trạng thái. Chưa chạy trên dự án thật",
     },
+    "lean_package": {
+        "label": "Gói gửi TỐI GIẢN SHADOW (V3.1 M2.10, 0 USD): sau mỗi lần gửi ảnh / video, dựng BÊN CẠNH gói thật một gói tối giản (ref "
+                 "tối thiểu theo BYĐ + một dòng vai / ref + thân lệnh 2–4 câu) và ghi so sánh (độ dài, ref bỏ / giữ + lý do, trường BYĐ không "
+                 "còn nói) ra <data>/lean_package/ + một dòng ⚙ Chẩn đoán — KHÔNG gửi, không đổi gói thật",
+        "verified": False,
+        "why": "docs/KE_HOACH_GOI_GUI_TOI_GIAN_2026-10-21.md: chất lượng gói tối giản chỉ chứng minh bằng A/B gen thật (Cấp 3, chờ EP); "
+               "chạy tay trên gói đã gửi: tools/lean_package_shadow.py",
+    },
     "murch_knowledge": {
         "label": "Bộ não prompt Đợt 2: Director + motion đọc thang ưu tiên cảm xúc (Murch), motion đọc kỷ luật I2V (giữ trước, hỏng thì "
                  "giảm chuyển động, check_flags gọi tên rủi ro), Director đọc phương pháp âm thanh; người xem lần đầu chấm thêm cam_xuc",
