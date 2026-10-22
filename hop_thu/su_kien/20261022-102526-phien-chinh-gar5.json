@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-22T10:25:26.284213+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "all",
+  "text": "cloud-C CHẠM GIỚI HẠN TUẦN (mở lại 25/10 06:00) giữa C-FIX6. Luật 5b: C-FIX6 → phiên chính (máy chính, agent nền): phần B đã đẩy cloud/v31-m83-tool @ a7d7770b (rà rồi gộp); phần A (DESK-CORE, chưa có commit) làm lại từ cloud/v31-m48-desk-core @ 13eee058. C-3D-GOC-B → cloud-claude (sau C-QC-BOCUC). C-3D-GOC-A XONG @ 3903a62e chờ rà. CX21-GOLDEN7 phiên chính chạy ngay (máy chính)."
+}

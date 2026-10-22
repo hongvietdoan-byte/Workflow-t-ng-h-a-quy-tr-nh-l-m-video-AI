@@ -2,7 +2,6 @@
 lại, không báo giá); "↻ Rà lại" hiện ước tính Claude TRƯỚC khi bấm; mục thường giữ "✓ Đã sửa". AppTest trên khung thật."""
 import json
 import os
-import tempfile
 from unittest import mock
 
 import pytest
@@ -26,8 +25,8 @@ def _page(db):
 
 
 @pytest.fixture
-def db(monkeypatch):
-    tmp = tempfile.mkdtemp()
+def db(monkeypatch, tmp_path):
+    tmp = str(tmp_path)
     monkeypatch.setenv("FEATURE_SETTINGS_FILE", os.path.join(tmp, "none.json"))
     monkeypatch.setenv("FEATURE_CHANGE_REVIEW", "1")
     path = os.path.join(tmp, "m.sqlite")
@@ -101,3 +100,19 @@ def test_failure_finding_whose_changes_are_gone_offers_fixed_not_a_priced_rerun(
     at.button(key=f"cr_ok_{fail_id}").click().run()
     assert not at.exception
     assert at.session_state["_open"][0] == "resolved"
+
+
+def test_fixed_on_a_failure_finding_that_gained_changes_meanwhile_says_why(db):
+    # C-FIX5: trang vẽ lúc lần lỗi đã bị dọn (hiện "✓ Đã sửa"), phiên khác vừa thêm lần lỗi mới cho shot → bấm ✓ thì close() từ chối:
+    # trang nói lý do (st.error), không traceback
+    conn = connect(db)
+    conn.execute("DELETE FROM change_events WHERE state='failed'")
+    conn.commit()
+    fail_id = conn.execute("SELECT id FROM change_findings WHERE source=?", (CR.FAIL_SOURCE,)).fetchone()[0]
+    conn.close()
+    at = AppTest.from_function(_page, args=(db,)).run()
+    assert f"cr_ok_{fail_id}" in _keys(at, "cr_ok_")
+    with mock.patch.object(CR, "close", side_effect=ValueError(CR.FIXED_ON_FAIL)):
+        at.button(key=f"cr_ok_{fail_id}").click().run()
+    assert not at.exception
+    assert any("Rà lại" in e.value for e in at.error)
