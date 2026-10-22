@@ -72,7 +72,8 @@ def get_motion_prompt_bundle(project_id: int) -> str:
 @mcp.tool()
 def submit_motion_prompts(project_id: int, motion_json: str) -> dict:
     """Step 3: validate and store motion prompts (only for scenes with an approved image)."""
-    return {"stored": llm_io.store_motion_prompts(get_pipeline(), project_id, motion_json)}
+    from core import write_guard                   # V3.1 M2.5: AI ngoài qua MCP (field_guard shadow)
+    return {"stored": llm_io.store_motion_prompts(get_pipeline(), project_id, motion_json, actor=write_guard.actor("ai", "mcp"))}
 
 
 @mcp.tool()

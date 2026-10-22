@@ -68,9 +68,13 @@ def fill_numbers(conn, rows: List[Dict]) -> None:
     for row in rows:
         cur = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()[0] or "{}")
         if isinstance(cur.get("byd"), dict) and "shot" not in cur["byd"]:
+            from core import write_guard               # V3.1 M2.5 (cờ field_guard, shadow): công cụ ghi byd người khóa (L5) → diag
+            write_guard.observe(conn, row["id"], {"byd.shot": cur["shot_no"]}, write_guard.actor("tool", "byd_fill"), read_data=json.loads(json.dumps(cur)))
             cur["byd"]["shot"] = cur["shot_no"]
             conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(cur, ensure_ascii=False), row["id"]))
     conn.commit()
+    from core import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
 
 
 def estimate_usd(conn, n_shots: int) -> Dict:
@@ -112,6 +116,9 @@ def fill(conn, pid: int, rows: List[Dict], client) -> List[Dict]:
     out = []
     for (sc, k), (row, s) in sorted(where.items()):
         cur = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()[0] or "{}")
+        from core import write_guard                   # V3.1 M2.5 (cờ field_guard, shadow): L5 → diag
+        write_guard.observe(conn, row["id"], {k: s[k] for k in ("byd", "byd_kiem") if s.get(k) is not None},
+                            write_guard.actor("tool", "byd_fill"), read_data=json.loads(json.dumps(cur)))
         for key in ("byd", "byd_kiem"):
             if s.get(key) is not None:
                 cur[key] = s[key]
@@ -120,6 +127,8 @@ def fill(conn, pid: int, rows: List[Dict], client) -> List[Dict]:
         out.append({"id": row["id"], "idx": row["idx"], "canh": sc, "shot": k, "muc": kiem.get("muc") or "vang",
                     "ly_do": kiem.get("ly_do") or ("" if kiem else "settle không ghi byd_kiem")})
     conn.commit()
+    from core import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
     return out
 
 

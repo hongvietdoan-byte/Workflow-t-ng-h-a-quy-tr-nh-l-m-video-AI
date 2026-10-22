@@ -490,3 +490,49 @@ def set_override(conn, scene_id: int, alias: Optional[str], p=None) -> None:
         raise ValueError(f"model '{alias}' không gửi được qua API")
     conn.execute("UPDATE motion_prompts SET video_model=? WHERE scene_id=?", (alias or None, scene_id))
     conn.commit()
+
+
+# ---- V3.1 M2.8 (DP10, cờ router_first_frame): shot CẦN khung đầu không đi nhóm ref-only ----------------------------------------------
+# G28 (#31 job 1043: khung 0 khác ảnh đầu), G37 (shot 28 nhóm 28+29 mất dạng bóng mờ): nhóm Seedance ref-only cho model ảnh storyboard làm
+# THAM CHIẾU, không phải khung đầu — shot cần giữ khung đầu đã duyệt không gộp nhóm. Khả năng model ở data/provider_rules.json
+# (`video_models.<m>.refs_with_first_frame`, khóa đã có — một nguồn), không viết cứng trong code. Thiết kế docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md
+# mục 4. MỚI LÀM NỬA (a): chỉ đổi cách chia nhóm; shot tách vẫn gửi ref-only (chưa đổi đường sang chế độ khung đầu) → video_pregen VÀNG khung_dau.
+ROUTER_FLAG = "router_first_frame"
+
+
+def router_first_frame_on() -> bool:
+    from . import features
+    return features.on(ROUTER_FLAG)
+
+
+def ref_mode_keeps_first_frame() -> bool:
+    """Chế độ nhóm ref-only (họ Seedance) giữ khung đầu? Chỉ True khi MỌI model họ seedance trong luật khai `refs_with_first_frame: true`;
+    thiếu khai / không có model nào → False (không biết thì coi như không giữ — tách nhóm, không gộp liều)."""
+    from . import video_rules
+    fam = [r for r in video_rules.models().values() if isinstance(r, dict) and r.get("family") == "seedance"]
+    return bool(fam) and all(r.get("refs_with_first_frame") is True for r in fam)
+
+
+def needs_first_frame(conn, project_id: int, data: Dict, chosen=None) -> Optional[str]:
+    """Lý do (tiếng Việt) shot này CẦN khung đầu đã duyệt, else None. Chỉ đọc dữ liệu shot + Kho, 0 USD. `chosen` = project_assets đọc
+    sẵn (một lần mỗi lượt chia nhóm).
+    1. `start_from_prev_clip` (khung đầu = khung cuối clip shot trước). KHÔNG xét `continuity_from`: đó là luật bố cục ẢNH (layout_from),
+       ảnh storyboard đã duyệt mang bố cục đó — không phải khung đầu video (rà DP10 VỪA-2);
+    2. BYĐ khai mốc nền phải trong khung (`khung.moc_nen.y_do == "trong_khung"`);
+    3. nhân vật ở dạng đặc biệt (Kho style "Dạng của nhân vật") trong shot này — G37: ảnh dạng bị cắt khi nhóm hết chỗ (xét theo TỪNG
+       shot, không theo "dạng cả clip" của thiết kế: shot không nhắc dạng không bị tách).
+    Chưa xét (việc mở): B9 video tham chiếu chuyển động + cỡ khung khóa — cần số đo video ref."""
+    data = data or {}
+    if data.get("start_from_prev_clip"):
+        return "nối từ khung cuối clip shot trước (start_from_prev_clip)"
+    from . import shot_intent
+    y_do, _, _ = shot_intent.read(data, "khung.moc_nen.y_do")
+    if y_do == "trong_khung":
+        return "BYĐ khai mốc nền phải trong khung (khung.moc_nen.y_do = trong_khung)"
+    from . import character_forms
+    forms = character_forms.for_shot(conn, project_id, data, chosen)
+    if forms:
+        who = sorted(forms)
+        return "nhân vật ở dạng đặc biệt: " + ", ".join(f"{w} ({forms[w].get('label') or forms[w].get('form')})" for w in who)
+    return None
+

@@ -59,6 +59,22 @@ def validate_compat_flags(flags):
         raise GoldenError("COMPAT cần đủ mọi cờ verified False trong catalog và đều TẮT")
 
 
+def validate_baseline_flags(flags, experimental):
+    """C-GOLDEN2 (b) — COMPAT theo cờ SẢN XUẤT: `flags` = baseline_flags (trạng thái mọi cờ của máy lúc chụp, như lúc gửi), `experimental` = cờ MỚI
+    của V3.1 do người chụp liệt kê tường minh, phải TẮT. Fail-closed: thiếu bất kỳ cờ nào của catalog, giá trị không phải bool, tên experimental
+    lạ / lặp / không có trong catalog, hoặc experimental đang BẬT → GoldenError."""
+    catalog = feature_catalog()
+    if not isinstance(flags, dict) or any(not isinstance(k, str) or type(v) is not bool for k, v in flags.items()):
+        raise GoldenError("baseline_flags phải là object tên cờ → boolean")
+    if catalog.keys() - flags.keys():
+        raise GoldenError("COMPAT baseline thiếu cờ của catalog (fail-closed): " + ", ".join(sorted(catalog.keys() - flags.keys())[:10]))
+    if (not isinstance(experimental, list) or not all(isinstance(k, str) and k in catalog for k in experimental)
+            or len(set(experimental)) != len(experimental)):
+        raise GoldenError("experimental_flags cần list tên cờ duy nhất có trong catalog")
+    if any(flags[k] for k in experimental):
+        raise GoldenError("COMPAT yêu cầu các cờ thử nghiệm (experimental_flags) đều TẮT")
+
+
 def _safe(value):
     # Từ chối cả bản chụp; không xuất giá trị hay tên trường đáng ngờ trong lỗi.
     if isinstance(value, dict):
@@ -127,8 +143,9 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
             raise GoldenError("Config ngoài danh sách public")
         _safe(public_config)
     flag_input = json.loads(Path(flags_file).read_text(encoding="utf-8-sig"))
-    structured = isinstance(flag_input, dict) and "flags" in flag_input
-    flags = flag_input.get("flags") if structured else flag_input
+    baseline = isinstance(flag_input, dict) and "baseline_flags" in flag_input      # C-GOLDEN2 (b): cờ sản xuất lúc chụp
+    structured = isinstance(flag_input, dict) and ("flags" in flag_input or baseline)
+    flags = flag_input.get("baseline_flags" if baseline else "flags") if structured else flag_input
     if not isinstance(flags, dict) or not all(isinstance(k, str) and type(v) is bool for k, v in flags.items()):
         raise GoldenError("flags phải là JSON object tên cờ → boolean (không đọc môi trường)")
     experimental = flag_input.get("experimental_flags") if structured else list(flags)
@@ -138,7 +155,10 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
     if purpose == "compat" and any(flags[k] for k in experimental):
         raise GoldenError("COMPAT yêu cầu các cờ thử nghiệm khai trong file đều TẮT")
     if purpose == "compat":
-        validate_compat_flags(flags)
+        if baseline:
+            validate_baseline_flags(flags, experimental)
+        else:
+            validate_compat_flags(flags)
     inputs = {}
     if input_snapshots_file is not None:
         inputs = json.loads(Path(input_snapshots_file).read_text(encoding="utf-8-sig"))
@@ -177,7 +197,10 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
                         if isinstance(candidate, dict) and isinstance(candidate.get("prompt"), str) and candidate["prompt"]:
                             break
                         visited.add(row["id"])
-                        source_id = row["source_job_id"] if "source_job_id" in columns else None
+                        # C-GOLDEN2 (a): bản final video (submit_final_from_sample, prompt rỗng) có source_job_id = job ẢNH; bản nháp
+                        # video được nâng nằm ở draft_job_id → đi theo draft_job_id; ảnh / chưa có draft → source_job_id như cũ
+                        draft_id = row["draft_job_id"] if "draft_job_id" in columns and row["type"] == "video_gen" else None
+                        source_id = draft_id if type(draft_id) is int else (row["source_job_id"] if "source_job_id" in columns else None)
                         if type(source_id) is not int or source_id in visited:
                             raise GoldenError("chuỗi nguồn thiếu/hỏng hoặc có vòng lặp")
                         parent = conn.execute("SELECT * FROM jobs WHERE id=? AND project_id=? AND scene_id=? AND type=?",
@@ -231,18 +254,29 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
             if "sent_package_raw" not in job:
                 continue
             try:
-                job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags,public_config=public_config)
+                job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags,public_config=public_config,
+                                                              experimental=experimental if baseline else None)
             except (ValueError, OSError, sqlite3.Error, subprocess.SubprocessError) as exc:
                 job["database_replay"] = {"status": "INSUFFICIENT_INPUT", "matched_at_capture": False,
                                           "reason": "không dựng được ca; tiếp tục các ca khác",
                                           "diagnostic": {"kind": type(exc).__name__}}
     return {"fixture_version": 1, "purpose": purpose, "head_sha": head_sha(), "flags": flags,
-            "experimental_flags": experimental,
-            "flags_provenance": "explicit_file_unverified_at_send", "schema": schema, "project": project, "scene_id": shot,
+            "experimental_flags": experimental, "flags_mode": "baseline" if baseline else "all_unverified_off",
+            "flags_provenance": "baseline_production_at_capture" if baseline else "explicit_file_unverified_at_send", "schema": schema, "project": project, "scene_id": shot,
             "jobs": jobs, "warnings": warnings, "replay_status": "CAPTURED_NOT_ACCEPTED" if database_replay else "OPEN", "correctness_status": "OPEN"}
 
 
+def _utf8_console():
+    """C-GOLDEN2 (f): bảng điều khiển Windows cp1252 + chữ Việt trong --help → UnicodeEncodeError khi thiếu PYTHONUTF8."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv=None):
+    _utf8_console()
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("db", "flags-file", "ref-root", "output"):

@@ -84,7 +84,8 @@ def _who(data: Dict, text: str = "") -> Tuple[Optional[str], str]:
     named = [c for c in cast if re.search(r"(?<!\w)" + re.escape(c.strip()) + r"(?!\w)", text or "", re.I)]
     if len(named) == 1:                          # several in the shot, the side words name exactly one of them ("Kelly núp bên trái")
         return named[0].strip(), ""
-    byd = data.get("byd") if isinstance(data.get("byd"), dict) else {}
+    from . import shot_intent                      # V3.1 M2.1: đọc BYĐ qua adapter
+    byd = shot_intent.byd_of(data) or {}
     ai = list(dict.fromkeys(h.get("ai") for h in byd.get("hanh_dong") or [] if isinstance(h, dict) and h.get("ai")))
     if not cast and len(ai) == 1:
         return str(ai[0]), ""

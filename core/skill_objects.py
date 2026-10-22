@@ -511,6 +511,29 @@ def rises(data: Dict, names: Sequence[str] = ()) -> bool:
     return any(_RISES.search(s) and (mentions(s, names) or _WALL.search(s)) for s in _sentences(text))
 
 
+def rising_names(conn, project_id: Optional[int], data: Dict) -> List[str]:
+    """V3.1 M2.9 A11: tên Kho của vật kỹ năng trong CÂU nói nó xuất hiện (cùng câu `rises` đọc) — để thông điệp nói đúng vật (tháp,
+    tường…) thay cho "ném keo" viết cứng; [] khi không biết tên (thông điệp nói chung "vật kỹ năng")."""
+    from . import prop_lock
+    text = prop_lock.shot_text(data or {})
+    motion = (data or {}).get("motion_en") or {}
+    if isinstance(motion, dict):
+        text += " " + " ".join(str(v) for v in motion.values() if isinstance(v, str))
+    try:
+        items = skill_assets(conn, project_id)
+    except Exception:  # noqa: BLE001 - chỉ để gọi tên trong thông điệp
+        return []
+    out: List[str] = []
+    for s in _sentences(text):
+        if not _RISES.search(s):
+            continue
+        for a in items:
+            rx = _name_rx(_names_of([a]))
+            if rx and rx.search(s) and a.get("name") and a["name"] not in out:
+                out.append(a["name"])
+    return out
+
+
 COMPOSE_TOOL = "tools/skill_object_composite.py"
 
 

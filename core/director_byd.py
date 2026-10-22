@@ -156,6 +156,10 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
         else:
             s["byd_kiem"] = {"muc": "vang" if yellow else "ok", "ly_do": "; ".join(e["loi"] for e in yellow), "loi": yellow,
                              "vong": rounds}
+        if shot_intent.levels_enabled() and isinstance(s.get("byd"), dict):   # V3.1 M2.1 (cờ byd_v2_levels): mức BLOCK/REVIEW/WARN — chỉ ghi
+            found = shot_intent.assess(s["byd"], conn)
+            s["byd_kiem"]["byd_v"] = shot_intent.version(s["byd"])
+            s["byd_kiem"]["muc_v2"] = {lv: sum(1 for i in found if i["level"] == lv) for lv in shot_intent.LEVELS}
     summary = {"shots": len(rows), "vang_do": len(vang), "vong": rounds, "input_tokens": tin, "output_tokens": tout,
                "loi_goi": call_errors, "so_shot_theo_vi_tri": numbered}
     obj["byd_kiem"] = summary

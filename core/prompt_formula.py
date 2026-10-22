@@ -1166,6 +1166,8 @@ def _say(conn, project_id, scene_id, label: str, fc: Dict) -> None:
 
 
 def _write(conn, scene_id: int, data: Dict, fc: Dict) -> None:
+    from . import write_guard                      # V3.1 M2.5 (cờ field_guard, shadow): ghi cả bảng đọc từ trước (L6) → diag stale_write
+    write_guard.observe(conn, scene_id, {"formula_check": fc}, write_guard.actor("auto", "prompt_formula"), read_data=data)
     data["formula_check"] = fc
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene_id))
 
@@ -1208,6 +1210,8 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             fc["cross"] = [i for i in cross if r["idx"] in i.get("shots", [])]
             _write(conn, r["id"], data, fc)
         conn.commit()
+        from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+        _wg.flush(conn)
         warn_only = []
         for r, data, fc in results:
             if any(i["level"] == "red" for i in fc["image"] + fc["motion"] + fc["growth"]):
@@ -1225,6 +1229,8 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             diag.record(conn, "director", "warn", "Công thức prompt (giữa các shot): " + i["msg"], "prompt_formula", project_id)
     except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the paid plan
         conn.rollback()
+        from . import write_guard as _wg                   # rà M25-1: diag shadow của lần ghi đã hủy không được ghi
+        _wg.discard(conn)
         diag.record(conn, "director", "warn", f"không kiểm được công thức prompt: {type(e).__name__}: {e}", "prompt_formula", project_id)
 
 
@@ -1254,12 +1260,16 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
         fc.update(image_sha=_sha(image), motion_sha=_sha(motion), at=_now())
         _write(conn, scene_id, data, fc)
         conn.commit()
+        from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+        _wg.flush(conn)
         _say(conn, project_id, scene_id, _label(data, row["idx"]) + f" ({'ảnh' if kind == 'image' else 'motion'} vừa lưu)",
              dict(fc, image=fc["image"] if kind == "image" else [], motion=fc["motion"] if kind == "motion" else [],
                   growth=[g for g in fc["growth"] if g.get("kind") == kind], cross=[]))
     except Exception as e:  # noqa: BLE001 - never a reason to lose a saved prompt
         try:
             conn.rollback()
+            from . import write_guard as _wg               # rà M25-1: diag shadow của lần ghi đã hủy không được ghi
+            _wg.discard(conn)
         except Exception:  # noqa: BLE001
             pass
         diag.record(conn, "director", "warn", f"không kiểm được công thức prompt (shot #{scene_id}): {type(e).__name__}: {e}",

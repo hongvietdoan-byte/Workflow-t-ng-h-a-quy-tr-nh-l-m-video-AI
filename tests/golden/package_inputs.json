@@ -158,7 +158,15 @@
       "whitebox_height_dummy": false,
       "stage_view_ui": false,
       "crew_registry": false,
-      "continuity_validator": false
+      "continuity_validator": false,
+      "byd_v2_levels": false,
+      "field_guard": false,
+      "narration_offscreen": false,
+      "fit_durations_review": false,
+      "image_pregen": false,
+      "router_first_frame": false,
+      "insert_inherit": false,
+      "stage_props_byd": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -326,7 +334,15 @@
       "whitebox_height_dummy": false,
       "stage_view_ui": false,
       "crew_registry": false,
-      "continuity_validator": false
+      "continuity_validator": false,
+      "byd_v2_levels": false,
+      "field_guard": false,
+      "narration_offscreen": false,
+      "fit_durations_review": false,
+      "image_pregen": false,
+      "router_first_frame": false,
+      "insert_inherit": false,
+      "stage_props_byd": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"
