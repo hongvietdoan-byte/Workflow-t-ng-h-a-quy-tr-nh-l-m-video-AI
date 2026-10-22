@@ -300,9 +300,9 @@ def story_text(conn, pid: int, g: Dict) -> str:
     # the scene's light: a flashback sentence only when EVERY frame is one (a flashback shot gets its own sentence in its prompt)
     if datas and not all(scene_establish.is_flashback(d) for d in datas):
         datas = [d for d in datas if not scene_establish.is_flashback(d)]
-    from .runner import indoor_spot                    # rà 17/10 vòng 2: a room at night — no street lamps / moonlight
+    from .runner import indoor_light                   # rà 17/10 vòng 2: a room at night — no street lamps / moonlight; A2c
     light = scene_establish.light_sentence(datas[0] if datas else {},
-                                           indoor=bool(datas and indoor_spot(conn, pid, datas[0])))
+                                           indoor=bool(datas) and indoor_light(conn, pid, datas[0]))
     if light:
         frame += " " + light
     return no_minor_age(f"{head}{frame} {beats}")[:3000]

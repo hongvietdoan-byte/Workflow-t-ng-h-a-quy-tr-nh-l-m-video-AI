@@ -3448,6 +3448,38 @@ def indoor_spot(conn, project_id: int, data: Dict) -> Optional[str]:
     return (sp.get("label") or sp.get("name") or "indoor room") if sp.get("indoor") else None
 
 
+def _has_3d_spot(conn, project_id: int, data: Dict) -> bool:
+    """The shot's place has a 3D model (place_render_refs on): its spot — indoor or not — is the code's truth for the light."""
+    from . import location_pack, place_refs
+    if not place_refs.enabled():
+        return False
+    place = assets.scene_location(conn, project_id, data)
+    return bool(place is not None and location_pack.model3d(conn, place["id"]))
+
+
+def indoor_light(conn, project_id: int, data: Dict) -> bool:
+    """Trong nhà cho câu ánh sáng (light_sentence). Đường cũ: chỉ chỗ đứng 3D trong nhà (indoor_spot). V3.1 M2.2 A2c (cờ byd_fields +
+    byd_fields_a2c): chỗ đứng 3D (code) thắng — lệch BYĐ v2 `noi_chon.trong_nha` thì byd_field_mismatch; không có chỗ đứng 3D → đọc
+    `noi_chon.trong_nha` (bool); chưa v2 / thiếu → ngoài trời như cũ + byd_fallback."""
+    spot = indoor_spot(conn, project_id, data)
+    from . import byd_fields, shot_intent
+    if not byd_fields.enabled("a2c"):
+        return bool(spot)
+    said = shot_intent.read(data, "noi_chon.trong_nha")[0] if byd_fields.is_v2(data) else None
+    said = said if isinstance(said, bool) else None
+    if spot or _has_3d_spot(conn, project_id, data):
+        if said is not None and said != bool(spot):
+            byd_fields.note(conn, "a2c", data, f"BYĐ noi_chon.trong_nha = {said} nhưng chỗ đứng 3D là "
+                            f"{'trong nhà (' + str(spot) + ')' if spot else 'ngoài trời'} — ánh sáng theo chỗ đứng 3D, cần người xem",
+                            kind=byd_fields.MISMATCH, project_id=project_id)
+        return bool(spot)
+    if said is not None:
+        return said
+    byd_fields.note(conn, "a2c", data, "trong nhà / ngoài trời cho câu ánh sáng: không có chỗ đứng 3D và shot chưa có BYĐ v2 "
+                    "noi_chon.trong_nha — coi là ngoài trời như cũ", project_id=project_id)
+    return False
+
+
 def sendable_references(refs, model: Optional[str], limit: Optional[int] = None) -> Tuple[list, list]:
     """The reference pictures that will really reach Deepix (readable, ≤ 10 MB, within the model's picture limit), and why the others
     are left out. The prompt's "Image 2 is KELLY" numbering must be built from the kept list, never from the list before the cut."""
@@ -3720,7 +3752,7 @@ class ImageRunner(_Runner):
         render = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) if place_refs.enabled() else None
         from . import scene_establish
         from . import location_pack
-        light = scene_establish.light_sentence(data, indoor=bool(indoor_spot(conn, job["project_id"], data)))   # rà 17/10: no moon indoors
+        light = scene_establish.light_sentence(data, indoor=indoor_light(conn, job["project_id"], data))   # rà 17/10: no moon indoors; A2c
         chosen = location_pack.script_sentence(conn, job["project_id"], data)   # S5.7: direction + extra lights of this shot
         geo = scale = ""
         if render is not None:                         # the render's real numbers (place_refs.geometry_sentence) — the place part

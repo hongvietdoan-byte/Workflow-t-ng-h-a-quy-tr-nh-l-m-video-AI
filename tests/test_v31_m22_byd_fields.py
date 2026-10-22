@@ -348,3 +348,52 @@ def test_a2d_on_v1_falls_back_with_warning(kho):
         assert pc.landmark_off_frame(_a2d_scene("away", v1=True), kho["conn"], kho["pid"]) is True
         assert pc.landmark_off_frame(_a2d_scene("landmark"), kho["conn"], kho["pid"]) is False
     assert len(kho["diags"](byd_fields.FALLBACK)) == 2
+
+
+
+# ---- A2c: trong nhà / ngoài trời cho câu ánh sáng theo noi_chon.trong_nha ----------------------------------------------------
+def _a2c_scene(trong_nha="-", v1=False):
+    s = {"text": "Kelly ngồi bên cửa sổ", "characters": ["KELLY"], "time": "night"}
+    if v1:
+        s["byd"] = {"shot": 1, "noi_chon": {"kho_id": 41}}
+    elif trong_nha != "-":
+        s["byd"] = v2_scene(noi_chon={"kho_id": 41, "trong_nha": trong_nha})["byd"]
+    return s
+
+
+def _indoor(kho, scene, flags, spot=None):
+    from core import runner
+    with env(*flags), mock.patch.object(runner, "indoor_spot", return_value=spot), \
+            mock.patch.object(runner, "_has_3d_spot", return_value=spot is not None or flags == ("3d",)):
+        return runner.indoor_light(kho["conn"], kho["pid"], scene)
+
+
+def test_a2c_off_is_old_spot_only(kho):
+    for flags in ((), ("a2c",), ("mother",)):
+        assert _indoor(kho, _a2c_scene(True), flags) is False                    # không chỗ đứng 3D → ngoài trời (y main)
+        assert _indoor(kho, _a2c_scene(False), flags, spot="phòng ngủ") is True
+    assert kho["diags"](byd_fields.FALLBACK) == []
+
+
+def test_a2c_on_v2_reads_trong_nha_only_without_3d_spot(kho):
+    from core import runner
+    on = ("mother", "a2c")
+    assert _indoor(kho, _a2c_scene(True), on) is True
+    assert _indoor(kho, _a2c_scene(False), on) is False
+    assert _indoor(kho, _a2c_scene(False), on, spot="phòng ngủ") is True              # chỗ đứng 3D (code) thắng
+    with env(*on), mock.patch.object(runner, "indoor_spot", return_value=None), mock.patch.object(runner, "_has_3d_spot", return_value=True):
+        assert runner.indoor_light(kho["conn"], kho["pid"], _a2c_scene(True)) is False   # chỗ đứng 3D ngoài trời: code thắng, nói ra
+    assert len(kho["diags"](byd_fields.MISMATCH)) == 2
+
+
+def test_a2c_on_v1_or_missing_falls_back_with_warning(kho):
+    on = ("mother", "a2c")
+    assert _indoor(kho, _a2c_scene(v1=True), on) is False
+    assert _indoor(kho, _a2c_scene(None), on) is False                                     # v2 nhưng trong_nha null
+    assert len(kho["diags"](byd_fields.FALLBACK)) >= 1
+
+
+def test_a2c_light_call_sites_use_one_helper():
+    src = (ROOT / "core" / "runner.py").read_text(encoding="utf-8") + (ROOT / "core" / "scene_storyboard.py").read_text(encoding="utf-8")
+    assert "light_sentence(data, indoor=bool(indoor_spot(" not in src and "indoor=bool(datas and indoor_spot(" not in src
+    assert src.count("indoor_light(") >= 3
