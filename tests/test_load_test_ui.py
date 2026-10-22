@@ -488,3 +488,32 @@ def test_a_measured_run_on_a_real_copy_never_touches_the_real_files(tmp_path):
     finally:
         import shutil
         shutil.rmtree(work[0], ignore_errors=True)
+
+
+# ---- C-FIX6 (rà C-M83-TOOL VỪA): rò đường thật → dừng; bộ đếm rò đúng mẫu; thư mục ghi phụ vào bản sao -----------------------------
+def test_leak_counter_matches_the_relocate_patterns(tmp_path):
+    real = tmp_path / "real"
+    (real / "projects").mkdir(parents=True)
+    pat = __import__("re").compile(__import__("re").escape(str(real)) + L._BOUNDARY)
+    assert L._leaks_in("./data/projects/1/a.png", pat) == 1
+    assert L._leaks_in("Data/assets/k.png", pat) == 1                                       # hoa / thường: rò trên Windows
+    assert L._leaks_in("metadata/x and https://h/data/y", pat) == 0
+    assert L._leaks_in(json.dumps({"p": str(real / "projects")}), pat) == 1                 # đường tuyệt đối TỒN TẠI ngoài bản sao
+    assert L._leaks_in(json.dumps({"p": str(real / "khong_co.png")}), pat) == 0             # không tồn tại: không ghi / dời được
+
+
+def test_run_level_stops_on_leaks_unless_allowed(tmp_path, monkeypatch):
+    tpl = dict(L.build_data(str(tmp_path / "d"), projects=1, shots=20), real_homes=[(str(tmp_path / "real"), "")])
+    monkeypatch.setattr(L, "relocate", lambda *a, **k: {"_leaks": 2})
+    args = type("A", (), {"port": 8501, "latency": 0, "keep": False, "chrome": None, "out": None, "allow_leaks": False})()
+    with pytest.raises(RuntimeError, match="--allow-leaks"):
+        L.run_level(1, tpl, args, print)
+    args.allow_leaks = True                                                                 # có chủ ý: đi tiếp (rồi vấp cổng thật)
+    with pytest.raises(RuntimeError, match="Dashboard thật"):
+        L.run_level(1, tpl, args, print)
+
+
+def test_app_env_moves_side_writes_into_the_work_dir(tmp_path):
+    env = L.app_env("db", "data", str(tmp_path), 0.1, "probe")
+    for k in ("DELIVERY_OUTPUT_ROOT", "KNOWLEDGE_USER_DIR", "RETIRED_TOPICS_FILE"):
+        assert env[k].startswith(str(tmp_path)), k

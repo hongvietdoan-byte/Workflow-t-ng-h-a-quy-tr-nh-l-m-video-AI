@@ -92,7 +92,10 @@ def neutralize(db: str) -> List[str]:
 
 # 'data/…' TƯƠNG ĐỐI (giải theo cwd = repo / máy thật): đứng đầu / sau dấu nháy / khoảng trắng, theo sau là một ký tự tên tệp (không đổi
 # chữ "data/ " trong câu văn, "metadata/", "https://x/data/")
-_REL_DATA = re.compile(r"(?<![\w/\\.:~-])data(?:/|\\\\|\\)(?=[\w.-])")
+_REL_DATA = re.compile(r"(?<![\w/\\.:~-])(?:\./|\.\\)?data(?:/|\\\\|\\)(?=[\w.-])", re.I if os.name == "nt" else 0)
+# bộ đếm rò (C-FIX6): đúng mẫu đường tương đối như trên nhưng LUÔN không phân biệt hoa / thường ("Data/…" rò trên Windows)
+_REL_DATA_LEAK = re.compile(_REL_DATA.pattern, re.I)
+_PATH_END = re.compile(r"[\"'\s,;]")
 _BOUNDARY = r"(?=[/\\\"'\s]|$)"                 # sau tiền tố thư mục phải là ranh giới đường (không đổi '/x/data2', '/x/database')
 # thư viện Kho / âm thanh: CHỈ ĐỌC khi đo (dọn rác + đồng bộ đã làm trơ ở neutralize); lineage băm đường ảnh Kho → đổi đường làm mọi ảnh
 # đã duyệt thành "cũ" (số đo lệch máy thật). Lịch sử ticket: trigger chặn UPDATE + chuỗi hash
@@ -122,6 +125,18 @@ def real_homes_of(src_db: str, data: Optional[str]) -> List[tuple]:
     if os.environ.get("ASSET_DIR"):
         out += [(os.path.abspath(os.environ["ASSET_DIR"]), "assets")]
     return out
+
+
+def _leaks_in(val: str, pat) -> int:
+    """Số chỗ trong một giá trị còn trỏ tệp THẬT: 'data/…' tương đối (cả './data/', 'Data/') + đường tuyệt đối dưới thư mục thật
+    (cùng regex có ranh giới đường của relocate) mà tệp / thư mục đó TỒN TẠI ngoài bản sao."""
+    n = len(_REL_DATA_LEAK.findall(val))
+    for m in (pat.finditer(val) if pat is not None else ()):
+        end = _PATH_END.search(val, m.end())
+        path = val[m.start():end.start() if end else len(val)].replace("\\\\", "\\")
+        if os.path.exists(path):
+            n += 1
+    return n
 
 
 def relocate(db: str, real_homes: Sequence, new_home: str) -> Dict[str, int]:
@@ -180,14 +195,12 @@ def relocate(db: str, real_homes: Sequence, new_home: str) -> Dict[str, int]:
             conn.execute(sql)
         conn.commit()
         leaks = 0
-        roots = [old for old, _ in pairs]
         for t in tables:
             if t in SKIP_TABLES:
                 continue
             for c in [r[1] for r in conn.execute(f'PRAGMA table_info("{t}")')]:
                 for (val,) in conn.execute(f'SELECT "{c}" FROM "{t}" WHERE typeof("{c}")=\'text\''):
-                    if any((old.lower() in val.lower()) if flags else (old in val) for old in roots):
-                        leaks += 1
+                    leaks += _leaks_in(val, pat)
     finally:
         conn.close()
     if skipped:
@@ -387,6 +400,9 @@ def app_env(db: str, data: str, work: str, latency: float, probe_dir: str) -> Di
                # chỉ chạy khi người bấm trong trang quản trị; luồng đo không đi qua
                FF_SITE_AUTO="0", PLATES3D_LOCK=os.path.join(work, "blender.lock"),
                BLENDER_PATH=os.path.join(work, "khong_co_blender", "blender.exe"),
+               # C-FIX6: thư mục giao bản dựng / tài liệu người dùng / chủ đề đã bỏ → thư mục đo (không ghi ngoài bản sao)
+               DELIVERY_OUTPUT_ROOT=os.path.join(work, "delivery"), KNOWLEDGE_USER_DIR=os.path.join(work, "knowledge_user"),
+               RETIRED_TOPICS_FILE=os.path.join(work, "retired_topics.json"),
                LOAD_PROBE_OUT=os.path.join(work, "probe.json"), LOAD_PROBE_LOCK_WAIT=str(LOCK_WAIT_S), LOAD_MOCK_LATENCY=str(latency),
                PYTHONPATH=os.pathsep.join([probe_dir] + [x for x in [os.environ.get("PYTHONPATH")] if x]))
     env.pop("DASHBOARD_SYNC_BACKGROUND", None)
@@ -829,8 +845,17 @@ def run_level(n: int, template: Dict, args, log) -> Dict:
         moved = relocate(db, template["real_homes"], home)
         log(f"  đổi đường tệp thật → bản sao: {moved}")
         if moved.get("_leaks"):
-            log(f"  ⚠ còn {moved['_leaks']} giá trị nhắc thư mục THẬT trong bản sao (bảng thư viện Kho chỉ đọc không tính) — xem lại "
-                "trước khi tin số đo")
+            msg = (f"còn {moved['_leaks']} chỗ trong bản sao trỏ tệp THẬT (bảng thư viện Kho chỉ đọc không tính) — phiên bấm Duyệt / Gen "
+                   "có thể ghi / dời tệp thật")
+            if not getattr(args, "allow_leaks", False):
+                raise RuntimeError(msg + " — dừng (chạy lại với --allow-leaks nếu chấp nhận có chủ ý)")
+            log("  ⚠ " + msg + " (--allow-leaks: vẫn đo)")
+    for name in ("retired_topics.json", "knowledge_user"):      # C-FIX6: đọc như máy thật nhưng ghi vào bản sao
+        src = os.path.join(ROOT, "data", name)
+        if os.path.isdir(src):
+            shutil.copytree(src, os.path.join(work, name))
+        elif os.path.isfile(src):
+            shutil.copy2(src, os.path.join(work, name))
     probe_dir = os.path.join(work, "probe")
     write_probe(probe_dir)
     env = app_env(db, data, work, args.latency, probe_dir)
@@ -896,6 +921,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--port", type=int, default=PORT)
     ap.add_argument("--chrome", help="đường dẫn Chromium (mặc định: PLAYWRIGHT_BROWSERS_PATH hoặc bản playwright tự tìm)")
     ap.add_argument("--out", help="thư mục ghi load_ui.md + load_ui.json (mặc định: thư mục tạm)")
+    ap.add_argument("--allow-leaks", action="store_true", help="vẫn đo khi bản sao còn trỏ tệp thật (mặc định: dừng)")
     ap.add_argument("--keep", action="store_true", help="giữ thư mục làm việc từng mức (log streamlit, CSDL sau đo)")
     args = ap.parse_args(argv)
     try:
