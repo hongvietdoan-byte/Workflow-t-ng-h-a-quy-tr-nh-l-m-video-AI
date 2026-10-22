@@ -100,6 +100,8 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 - **C-QC-BOCUC** (cloud-claude tự làm): core/layout_facts v1 lên main 31340c68 (nguồn bố cục chung). Phần QC + tools/trainee_score_report.py
   đang trên nhánh cloud/v31-qc-bocuc. **Máy chính khi gộp:** `py tools/trainee_score_report.py --feature qc_team` → báo người dùng khớp thật.
 
+- **22/10 11:45 — C-3D-GOC-B XONG** (`cloud/v31-3d-goc-b` @ be02e84c, chứa sẵn qc-bocuc + crew-hoso + 3d-goc-a). **Máy chính:** gộp nhánh này, chạy test Windows, khởi động lại 8501/8502. Dựng world map #31 rồi chạy `py tools/position_invariants.py --project 31` và gửi người dùng số phát hiện. Sau đó chạy `py tools/trainee_score_report.py --feature qc_team` để có số khớp Tổ QC thật, và `py -m core.crew check` (phải ra 0 lỗi). Chi tiết: `docs/handoff/BAN_GIAO_CLOUD_CLAUDE_2026-10-22.md` mục 7.
+
 ## D. Ghi chú lượt 22/10 02:58
 - C-GOLDEN7 (cloud-C) XONG @ cloud/v31-golden5 621661a8 — CHƯA gộp (công cụ golden gộp cùng tích hợp M2 khi CX21-GOLDEN7 ĐẠT). Máy chính: không cần làm gì
   tới khi codex báo kết quả; ĐẠT → phiên điều phối gộp cloud/v31-m2-tichhop + m24 + golden5 (+ m73, m210, golden4 dựng trên nền đó) một lần.

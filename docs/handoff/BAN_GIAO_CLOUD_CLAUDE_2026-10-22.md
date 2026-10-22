@@ -71,3 +71,23 @@ Mỗi đợt gộp đều chạy cả bộ test Linux: 31 test hỏng, đúng b�
 - `hop_thu --push` tạo commit riêng lên main nên nhánh tích hợp local lệch. Cách xử lý: `git checkout -B <nhánh> origin/main` khi cây sạch.
 - `pkill -f <mẫu>` trùng chính dòng lệnh bash, nên tự giết shell. Hãy dừng tiến trình theo PID.
 - `tests/test_decisions.py`: check mới phải nằm TRƯỚC dòng `CHECKS = {…}`.
+
+## 7. Bổ sung 22/10 ~11:45: C-3D-GOC-B XONG (cloud-claude, người dùng "có làm luôn đi")
+- **Nhánh `cloud/v31-3d-goc-b` @ be02e84c.** Đã chứa sẵn `cloud/v31-3d-goc-a` + `cloud/v31-qc-bocuc` + `cloud/v31-crew-hoso` và đã merge main, không xung đột. **Gộp nhánh này là kéo theo cả 4 gói.** Rà gói A (cloud-C, chưa ai rà kỹ) trước khi gộp.
+- **Nội dung:** gốc R1. Vị trí người/vật xuyên shot lấy từ MỘT bản đồ cảnh (`core/world_map`). Có 5 bất biến chạy cho mọi shot (`core/position_invariants`):
+  - R1-MAP: thiếu bản đồ cảnh;
+  - R1-SIDE: chữ trái/phải ngược bản đồ;
+  - R1-AXIS-JUMP: nhảy trục;
+  - R1-TRAVEL: đi về phía / rời khỏi X sai chỗ X;
+  - R1-PROP-SCENE: khối giữ chỗ mang từ cảnh khác.
+
+  `layout_facts.positions` đọc bản đồ (số shot của bản đồ = `scenes.idx`). Công cụ `tools/position_invariants.py` chỉ đọc. Các KPI trong hồ sơ vai trỏ tới hàm đo của gói A và B; còn 6 KPI chưa đo được. Thiết kế R5 (Kho vật nhiều dạng) chờ CX21-M23.
+- **Bằng chứng:**
+  - test biến thể 24 seed, 131 ca;
+  - rà quy ước 7: 2 CAO + 4 VỪA, đã sửa hết;
+  - cả bộ Linux: 31 hỏng nền + 1 test chập chờn (poll 2 tiến trình, chạy riêng thì qua).
+- **Máy chính:**
+  1. Dựng bản đồ #31 bằng `core.world_map.refresh` (cờ world_map, 0 USD).
+  2. Chạy `PYTHONUTF8=1 py tools/position_invariants.py --project 31` để có bằng chứng thật. Có bằng chứng rồi mới đổi trạng thái sổ lỗi G41–G50.
+  3. Sửa `dashboard/stage_view_ui.py:175`: đang dùng `shot_no` thay vì `idx` (lỗi có sẵn, cùng loại lỗi đã sửa trong gói).
+- **Báo cáo:** `docs/RA_CLOUD_3D_GOC_B_2026-10-22.md` (trên nhánh).
