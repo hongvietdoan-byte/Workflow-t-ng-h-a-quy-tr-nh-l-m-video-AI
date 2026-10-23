@@ -601,6 +601,13 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual(data["location_asset"], loc)
 
     def test_the_storyboard_is_built_from_step_1_and_shown_without_any_approval(self):
+        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": "0"}):     # M8.0 cờ tắt: bấm là chạy như cũ
+            self._storyboard_from_step_1(safe=False)
+
+    def test_m80_storyboard_buttons_ask_once_with_price_before_running(self):
+        self._storyboard_from_step_1(safe=True)                                  # M8.0 cờ bật (mặc định): bấm → hỏi → Có → chạy
+
+    def _storyboard_from_step_1(self, safe):
         import io
         from PIL import Image
         from core import assets, llm_io
@@ -616,11 +623,21 @@ class DashboardSmokeTests(unittest.TestCase):
         assets.attach(p.conn, pid, loc)
         llm_io.update_scene(p, pid, 1, {"location_asset": loc})
         at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
+        board = os.path.join(self.tmp, "projects", str(pid), "layouts", "storyboard.png")
         at.button(key=f"pv_plan_{pid}").click().run()
         self.assertFalse(at.exception)
-        self.assertTrue(os.path.exists(os.path.join(self.tmp, "projects", str(pid), "layouts", "storyboard.png")))
+        if safe:                                                                 # mới hỏi, chưa dựng
+            self.assertFalse(os.path.exists(board))
+            self.assertIn("USD", at.button(key=f"pv_plan_{pid}_yes").label)
+            at.button(key=f"pv_plan_{pid}_yes").click().run()
+            self.assertFalse(at.exception)
+        self.assertTrue(os.path.exists(board))
         at.button(key=f"pv_review_{pid}").click().run()
         self.assertFalse(at.exception)
+        if safe:
+            self.assertNotIn("không thấy lỗi", self.notes(at))
+            at.button(key=f"pv_review_{pid}_yes").click().run()
+            self.assertFalse(at.exception)
         self.assertIn("không thấy lỗi", self.notes(at))                 # v2: say("success") = pill + one line + the text in ⓘ
 
     def test_an_outfit_is_picked_in_the_character_bible_and_a_character_set_made_from_it(self):

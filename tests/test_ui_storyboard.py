@@ -369,6 +369,13 @@ class StoryboardV2Tests(unittest.TestCase):
 
     # -- cổng storyboard đang chờ: nút board_ok_<pid> trên thanh dính -------------------------------------------------------------------
     def test_board_ok_button_when_the_gate_waits(self):
+        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": "0"}):     # M8.0 cờ tắt: bấm là gửi như cũ
+            self._board_ok(safe=False)
+
+    def test_m80_board_ok_asks_then_undo_window_then_starts_once(self):
+        self._board_ok(safe=True)                                                # M8.0 cờ bật: hỏi → Có → hẹn → tới hạn mới gửi
+
+    def _board_ok(self, safe):
         import json
         from core import autopilot
         p, pid, sc = self.seed(1)
@@ -381,8 +388,23 @@ class StoryboardV2Tests(unittest.TestCase):
         self.assertIn(f"board_ok_{pid}", {b.key for b in at.button})            # the button is on the sticky bar
         self.assertEqual(sum(1 for b in at.button if b.key == f"board_ok_{pid}"), 1)   # and only there (not duplicated in the closed panel)
         self.assertIn("Chờ bạn duyệt storyboard", self.text(at))
-        with mock.patch("dashboard.design.screens.storyboard_cards.autopilot_manager") as mgr:
+        with mock.patch("dashboard.common.autopilot_manager") as mgr:            # paid_confirm.schedule_resume gọi qua dashboard.common
             next(b for b in at.button if b.key == f"board_ok_{pid}").click().run()
+            if safe:
+                self.assertFalse(at.exception, at.exception)
+                next(b for b in at.button if b.key == f"board_ok_{pid}_yes").click().run()   # Có → chỉ hẹn
+                self.assertFalse(at.exception, at.exception)
+                mgr.return_value.start.assert_not_called()
+                self.assertEqual(autopilot.get_gates(Pipeline(connect(self.db)), pid)["waiting_for"], "storyboard")
+                self.assertNotIn(f"board_ok_{pid}", {b.key for b in at.button})            # đang hẹn: không bấm lại được
+                from dashboard import paid_confirm as P
+                items = dict(at.session_state[P.UNDO_KEY])
+                (uid,) = items                                                        # đúng MỘT mục hẹn
+                items[uid] = dict(items[uid], not_before=0)                   # tới hạn hoàn tác
+                at.session_state[P.UNDO_KEY] = items
+                at.run()
+                self.assertFalse(at.exception, at.exception)
+                at.run()                                                                     # vẽ lại: không gửi lần hai
         self.assertFalse(at.exception, at.exception)
         mgr.return_value.start.assert_called_once_with(pid, user=None)                     # the background run starts again
         gates = autopilot.get_gates(Pipeline(connect(self.db)), pid)

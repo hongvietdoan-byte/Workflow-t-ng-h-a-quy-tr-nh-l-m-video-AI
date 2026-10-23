@@ -21,6 +21,13 @@
   bị disabled hoặc bấm Có/Không. Hậu quả: quay lại màn sau khi đổi màn vẫn thấy hộp hỏi (chưa tốn tiền).
 - M8.6: E2 (xem trước / HOLD cho các nút "Duyệt hết") và hoàn tác cho pilot_release.
 
+## Vòng sửa test sau gộp main (23/10)
+- Golden COMPAT: fixture `tests/golden/package_inputs.json` ghi `safe_paid_buttons: false` (image + video) như mọi cờ verified False
+  khác (kể cả default_on: video_gate, plate_view_sentence…); baseline byte KHÔNG đổi → replay vẫn so byte giống (cờ chỉ-UI).
+- 6 test giao diện tách đôi: tên cũ chạy cờ TẮT (FEATURE_SAFE_PAID_BUTTONS=0, assert cũ giữ nguyên) + test `m80_*` cờ BẬT
+  (bấm → hỏi `<key>_yes` → chạy đúng 1 lần; chat: Enter 0 lời gọi, "📨 Gửi" 1 lời gọi; storyboard: Có → chưa start, cổng còn chờ →
+  tới hạn hoàn tác → start đúng 1 lần). Patch đích đổi sang `dashboard.common.autopilot_manager` (schedule_resume gọi qua đó).
+
 ## Đang dở / chưa làm
 - Các nút chỉ có giá (EXCEPTIONS `_PRICE_ONLY`) chưa có xác nhận — để M8.6.
 - Chưa rà bằng agent riêng theo quy ước 7 (đã chạy related_areas + test các khu step1/step2/step4/dashboard_ui).
