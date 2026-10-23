@@ -3,6 +3,7 @@
 Migration chỉ chạy khi được gọi tường minh; không gắn vào khởi tạo/mở DB. Mỗi lần ghi tạo revision mới. API chỉ nhận token phiên đăng nhập
 được `core.auth` xác minh, không nhận email/role do caller khai báo; không có đường CLI/Claude/tool để tự tạo phiên hoặc ghi ngoại lệ.
 """
+import hashlib
 import json
 import re
 import sqlite3
@@ -13,6 +14,11 @@ from . import access, auth, features
 
 FLAG = "qc_overrides"
 TABLE = "overrides"
+Q6C_ANCHOR_ERROR = "Q6C_MAIN_CHARACTER_ANCHOR"
+# EP may tune Q6(c) role policy here without changing BYĐ v2 or its schema.
+Q6C_MAIN_ROLE = "chinh"
+Q6C_SECONDARY_ROLE = "phu"
+Q6C_EXCLUDED_ROLE = "khong_duoc_co"
 _TARGET_KIND = re.compile(r"^[a-z][a-z0-9_.-]{0,31}$")
 _EXPECTED_COLUMNS = {
     "id", "project_id", "target_kind", "target_ref", "error_code", "actor_email", "revision", "reason", "evidence_json", "created_at",
@@ -289,4 +295,160 @@ def latest(conn, project_id: int, target_kind: str, target_ref: str) -> Optional
         return None
     result = dict(row)
     result["evidence"] = json.loads(result.pop("evidence_json"))
+    return result
+
+
+def _character_key(value) -> str:
+    from .stage_grid import fold
+    if not isinstance(value, str):
+        return ""
+    return " ".join(fold(value).split())
+
+
+def character_anchor_gate(conn, project_id: int) -> Dict:
+    """M4.7 Q6(c): require an approved anchor for project characters marked `chinh` in any BYĐ v2 shot.
+
+    The result is read-only and caller-ready: `block` contains override target metadata, `warn` covers characters known only as
+    secondary or without a declared main role, and `review` reports missing/unreadable BYĐ v2 or unmatched main cast names.
+    Unmatched secondary cast names still warn. Overrides are bound to the current main-cast occurrences, so changed BYĐ findings
+    need a new review. This gate is inert while M4.7 is off.
+    """
+    result = {"block": [], "review": [], "warn": [], "overridden": []}
+    if not enabled():
+        return result
+    if type(project_id) is not int or project_id < 1:
+        raise ValueError("project_id phải là số nguyên dương")
+
+    from . import shot_intent
+
+    try:
+        scenes = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx,id", (project_id,)).fetchall()
+        characters = conn.execute(
+            "SELECT id, name, anchor_approved FROM characters WHERE project_id=? ORDER BY id", (project_id,)
+        ).fetchall()
+    except sqlite3.Error as exc:
+        result["review"].append(f"REVIEW Q6(c): không đọc được dữ liệu shot/nhân vật ({type(exc).__name__}); chưa chặn vì thiếu BYĐ v2.")
+        return result
+
+    by_key = {}
+    ambiguous = set()
+    for character in characters:
+        key = _character_key(character["name"])
+        if not key:
+            result["review"].append(f"REVIEW Q6(c): nhân vật id={character['id']} không có tên để đối chiếu BYĐ v2.")
+            continue
+        if key in by_key and by_key[key]["id"] != character["id"]:
+            ambiguous.add(key)
+        else:
+            by_key[key] = {"id": character["id"], "name": character["name"],
+                           "anchor_approved": bool(character["anchor_approved"])}
+    if ambiguous:
+        names = sorted({by_key[key]["name"] for key in ambiguous})
+        result["review"].append("REVIEW Q6(c): tên nhân vật trùng khi đối chiếu BYĐ v2 (không dấu): " + ", ".join(names))
+
+    roles = {key: set() for key in by_key if key not in ambiguous}
+    main_shots = {key: set() for key in roles}
+    main_occurrences = {key: [] for key in roles}
+    unmapped_cast = {}
+    valid_cast_shots = 0
+    incomplete_byd = False
+    missing_byd_shots = []
+    for scene in scenes:
+        idx = scene["idx"]
+        try:
+            data = json.loads(scene["data"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            result["review"].append(f"REVIEW Q6(c): không đọc được BYĐ v2 ở shot {idx} — kiểm tra dữ liệu shot.")
+            incomplete_byd = True
+            continue
+        byd = shot_intent.byd_of(data)
+        if shot_intent.version(byd) != 2:
+            missing_byd_shots.append(idx)
+            continue
+        cast = byd.get("thanh_phan")
+        if not isinstance(cast, list):
+            result["review"].append(f"REVIEW Q6(c): BYĐ v2 shot {idx} thiếu danh sách thanh_phan; không chặn shot này.")
+            incomplete_byd = True
+            continue
+        valid_cast_shots += 1
+        for part_index, part in enumerate(cast):
+            if not isinstance(part, dict):
+                result["review"].append(f"REVIEW Q6(c): thanh_phan[{part_index}] shot {idx} sai kiểu; không chặn theo mục này.")
+                incomplete_byd = True
+                continue
+            key = _character_key(part.get("vat"))
+            role = part.get("vai")
+            if not key or role not in shot_intent.VAI:
+                result["review"].append(f"REVIEW Q6(c): thiếu tên hoặc vai hợp lệ ở thanh_phan[{part_index}] shot {idx}.")
+                incomplete_byd = True
+                continue
+            if key in ambiguous:
+                continue
+            if key in roles:
+                roles[key].add(role)
+                if role == Q6C_MAIN_ROLE:
+                    main_shots[key].add(idx)
+                    main_occurrences[key].append({
+                        "scene_id": scene["id"], "idx": idx, "part_index": part_index, "part": part,
+                    })
+            else:
+                entry = unmapped_cast.setdefault(
+                    key, {"name": str(part.get("vat") or "").strip(), "roles": set(), "shots": set()}
+                )
+                entry["roles"].add(role)
+                entry["shots"].add(idx)
+
+    if missing_byd_shots:
+        result["review"].append(
+            "REVIEW Q6(c): thiếu BYĐ v2 ở shot(s) " + ", ".join(map(str, missing_byd_shots))
+            + " — không chặn các shot thiếu BYĐ v2."
+        )
+    if not scenes:
+        result["review"].append("REVIEW Q6(c): dự án chưa có shot BYĐ v2 — chưa đủ dữ liệu xác định vai chính.")
+
+    for entry in unmapped_cast.values():
+        if Q6C_MAIN_ROLE not in entry["roles"]:
+            non_excluded_roles = entry["roles"] - {Q6C_EXCLUDED_ROLE}
+            if non_excluded_roles:
+                shots = ", ".join(map(str, sorted(entry["shots"])))
+                role_label = "vai phụ" if non_excluded_roles == {Q6C_SECONDARY_ROLE} else "vai không chính"
+                result["warn"].append(
+                    f"{entry['name']} có {role_label} ở shot {shots} nhưng không khớp nhân vật trong dự án."
+                )
+            continue
+        shots = ", ".join(map(str, sorted(entry["shots"])))
+        result["review"].append(
+            f"REVIEW Q6(c): mục vai chính {entry['name']} ở shot {shots} không khớp nhân vật trong dự án; "
+            "chưa thể xác minh loại người hoặc ảnh mốc."
+        )
+
+    for key, character in by_key.items():
+        if key in ambiguous or character["anchor_approved"]:
+            continue
+        character_roles = roles.get(key, set())
+        if Q6C_MAIN_ROLE in character_roles:
+            finding_source = json.dumps(main_occurrences[key], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            finding_hash = hashlib.sha256(finding_source.encode("utf-8")).hexdigest()
+            target_ref = f"q6c-character:{character['id']}:{finding_hash}"
+            try:
+                override = latest(conn, project_id, "character_anchor", target_ref)
+            except (sqlite3.Error, ValueError, TypeError, json.JSONDecodeError) as exc:
+                result["review"].append(
+                    f"REVIEW Q6(c): không xác minh được override cho {character['name']} ({type(exc).__name__}); giữ chặn.")
+                override = None
+            finding = {"name": character["name"], "target_kind": "character_anchor", "target_ref": target_ref,
+                       "error_code": Q6C_ANCHOR_ERROR,
+                       "shots": sorted(main_shots[key])}
+            shot_list = ", ".join(map(str, finding["shots"]))
+            finding["message"] = f"{character['name']} là vai chính ở shot {shot_list}, chưa duyệt ảnh mốc."
+            if override and override.get("error_code") == Q6C_ANCHOR_ERROR:
+                result["overridden"].append({**finding, "revision": override["revision"], "reason": override["reason"]})
+            else:
+                result["block"].append(finding)
+        elif character_roles - {Q6C_EXCLUDED_ROLE}:
+            role_label = "vai phụ" if character_roles - {Q6C_EXCLUDED_ROLE} == {Q6C_SECONDARY_ROLE} else "vai không chính"
+            result["warn"].append(f"{character['name']} chỉ có {role_label} trong BYĐ v2 và chưa duyệt ảnh mốc.")
+        elif not character_roles and valid_cast_shots and not missing_byd_shots and not incomplete_byd:
+            result["warn"].append(f"{character['name']} chưa có vai chính trong BYĐ v2 và chưa duyệt ảnh mốc.")
+
     return result
