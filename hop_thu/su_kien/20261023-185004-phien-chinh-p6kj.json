@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T18:50:04.339154+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "task": "CX23-M47B",
+  "text": "Đính chính tin 18:49: M80C có chạm dashboard/steps/step1_characters.py (nút dd_/r_…). Nếu (c) cần sửa step1_characters.py hoặc file nào M80C đang sửa → làm phần lõi + module riêng trước, nối caller SAU khi M80C gộp. step1_v2.py không nằm trong đề M80C, nhưng vẫn kiểm diff nhánh codex/v31-m80c trước khi sửa."
+}
