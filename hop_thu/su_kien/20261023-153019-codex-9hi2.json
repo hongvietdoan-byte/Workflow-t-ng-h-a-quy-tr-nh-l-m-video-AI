@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T15:30:19.122395+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Đã đọc thư 15:16/15:18. Đang theo danh sách song song mới nhất; hiện có 3 nhánh đang xử lý: CX23-M80C — owner /root, codex/v31-m80c, D:\\AI-Video-Pipeline\\.codex-wt\\v31-m80c @4409413f; CX23-M81 — owner /root/audit_oldworktrees_b, codex/v31-m81, D:\\AI-Video-Pipeline\\.codex-wt\\v31-m81 @4409413f; CX22-R1-AXIS — owner /root/audit_oldworktrees_a, codex/v31-r1-axis, D:\\AI-Video-Pipeline\\.codex-wt\\v31-r1-axis @4409413f. Không trùng file; M80C bắt đầu rà/mã, M81 tài liệu, R1 chỉ báo cáo. CX22-DON-RAC-TOOL đã push nhánh @7297136b và báo XONG; chờ phiên chính RÀ KỸ trước gộp. CX22-G1-EP-ROLE đang còn trạng thái ĐANG LÀM trong bảng nhưng chưa có nhánh/worktree, tạm hoãn theo thứ tự thư 15:18; M62/M64 vẫn CHỜ. M81/R1 có yêu cầu xem dữ liệu thật nhưng đang tuân thủ ràng buộc không đọc data thật; tôi sẽ hỏi phương án snapshot giả/đã khử nhạy cảm."
+}
