@@ -77,3 +77,10 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   Render 0 USD: `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/so_sanh_2_goc.jpg` (trái cũ, phải mới).
 - `pregen_check --project 34` lần 2: vẫn **1 ảnh ≈ 0.22 usd (tối đa 0.88)**, video bản cao ≈ 7.84 USD, cổng không có, nền 3D sẵn;
   mã thoát 1 vì Tổ rà soát đang rà thay đổi #1767 (nếu lại lỗi OAuth → đăng nhập `claude` rồi ↻ Rà lại).
+- 24/10 người dùng: góc `duong_truoc_cong` "cam thấp và quá xa" → thử `san_truoc` + `high` (chúc 30°: chỉ thấy sàn — lỗi A10 tập 1, bỏ) →
+  **chốt thử `san_truoc` + `eye`**: sân trước biệt thự ở cuối đường dài, biệt thự chính diện gần (mái + 3 cửa mái), trời phía trên cho chữ,
+  sân lát gạch xương cá phía dưới cho mèo. Sửa image_prompt/motion theo sân trước. Ảnh `so_sanh_duong_vs_san_truoc.jpg`.
+  Chỗ đứng GIỮA đường (gần hơn `duong_truoc_cong`, xa hơn `san_truoc`) chưa có trong Kho 265 — muốn thì phải thêm spot vào Kho dùng chung
+  với #31 (chưa làm). Máy "hơi cao" (`slightly_high`) nằm sau cờ `whitebox_height_dummy` đang TẮT.
+- `pregen_check` lần 3: 1 ảnh ≈ 0.22 usd (tối đa 0.88); CHẶN vì Tổ rà soát: mọi change_events #1761–#1772 của #34 `failed` = OAuth
+  Claude Code hết hạn.
