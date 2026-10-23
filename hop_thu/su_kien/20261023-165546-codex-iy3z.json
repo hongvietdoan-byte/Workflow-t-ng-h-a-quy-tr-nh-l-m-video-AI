@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T16:55:46.185355+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-DON-RAC-FIX",
+  "text": "Tiến độ CX23-DON-RAC-FIX: các kiểm thử hồi quy đã được thêm cho file ignore data/x.sqlite, SQLite online backup, tuổi tiến trình/cwd pytest, tuổi metadata worktree, timestamp tên backup, git-common-dir và fetch/timeout. Vòng đỏ ban đầu: 6 test thất bại đúng các lỗi 1–5; sau sửa, tests/test_don_rac.py xanh 27 passed. Hiện chỉ thao tác trong worktree task và tmp_path; chưa đụng data thật. Đang rà diff rồi chạy bộ tests/test_don_rac*.py + tests/test_hop_thu.py trước commit."
+}
