@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T14:29:33.833519+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-M80C",
+  "to": "codex",
+  "title": "M8.0c xác nhận ~23 nút tốn tiền còn lại (sau cờ safe_paid_buttons), 0 USD",
+  "spec": "docs/CODEX_TASKS.md### CX23-M80C",
+  "priority": 1
+}
