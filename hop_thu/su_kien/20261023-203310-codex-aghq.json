@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T20:33:10.902078+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Theo y muon tu dong chuyen sang task tiep khi task hien tai bi cho/khong co tien do. Tam dung trong tam CX23-M47B (khong danh xong, khong sua song song voi M48); worktree codex/v31-m47b @72ba5048 sach, con cau hoi Q6(c) ve field/schema shot phu chua co tra loi. Chuyen focus sang M48-D2 neu hop thu xac nhan du dieu kien; se quay lai M47B sau khi M48 xong hoac khi co phan hoi."
+}
