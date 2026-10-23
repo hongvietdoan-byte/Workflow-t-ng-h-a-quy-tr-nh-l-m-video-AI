@@ -376,6 +376,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "Người dùng 07/10 (Khủng Long Đỏ mục 10, Đợt 1): code + test ở cloud, chưa thử trên Dashboard thật. Không đổi gì gửi tới "
                "model trả phí; bật để thử bố cục mới, tắt = màn cũ y nguyên",
     },
+    "safe_paid_buttons": {"default_on": True, "costs": False,
+        "label": "An toàn tiền (M8.0): nút tốn tiền = giá + xác nhận một lần; chat không tự gửi Claude khi Enter (nút “📨 Gửi · ≈ X USD”); "
+                 "“✔ Duyệt storyboard → gửi video” / “✔ Đã duyệt — tiếp tục” hẹn 30 giây có “↩ Hoàn tác” trước khi máy gửi",
+        "verified": False,
+        "why": "Sổ quyết định ep-2210-qf-money-safety-first (làm trước mọi luồng tự động trả phí M8). Chỉ THÊM bước hỏi / hoàn tác ở thao "
+               "tác bấm tay, không đổi gì gửi tới model, không chạm luồng tự động → mặc định BẬT (người dùng 12/10: cờ an toàn / có lợi "
+               "bật mặc định); tắt = nút cũ bấm là chạy",
+    },
     "idea_to_script": {
         "label": "💡 Ý tưởng thô → kịch bản ở Bước 1: Biên kịch (Claude) hỏi lại ≤ 5 câu → 3 hướng → dàn ý theo giây → kịch bản đúng khuôn, "
                  "code kiểm, người duyệt từng lượt + màn 2 cột tô phần thêm (S11.1)",
