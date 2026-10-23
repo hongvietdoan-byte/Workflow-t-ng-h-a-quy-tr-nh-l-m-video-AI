@@ -189,7 +189,8 @@ def _command(p: Pipeline, pid: int, cmd: str, typed=None) -> None:
             return say_(f"✂ Đã phân tích và tách {_scene_count(p, pid)} cảnh (0 USD, code đọc tiêu đề cảnh — không gọi model).")
         return say_("Chưa tách được — xem lỗi ngay dưới. Chưa tốn gì.")
     if cmd == "cancel":
-        if ss.pop(k["chatask"], None) is not None or ss.pop(k["chatsend"], None) is not None:
+        asked, held = ss.pop(k["chatask"], None), ss.pop(k["chatsend"], None)   # rà kỹ M8.0: bỏ CẢ HAI (không ngắt mạch, kẹt tin chờ gửi)
+        if asked is not None or held is not None:
             return say_("Đã bỏ qua tin vừa rồi — chưa làm gì.")
         if typed is not None and not Chat.hard_cancel(typed) and (waiting_choice(pid) or text or file):
             # rà 09/10: "thôi" / "bỏ qua" không xóa kịch bản đang chờ — chỉ gõ đúng "hủy" (typed None = gọi cũ, giữ như trước)
@@ -484,8 +485,10 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                 Chat.append(p, pid, "user", incoming)
                 ss[k["chatask"]] = incoming
             elif kind == "chat":                                      # M8.0 (cờ safe_paid_buttons): Enter chỉ giữ chữ — gửi khi bấm
-                Chat.append(p, pid, "user", incoming)                  # "📨 Gửi · ≈ X USD" ở thẻ ngay dưới (_chat_send); cờ tắt: gửi ngay
-                ss[k["chatsend"]] = incoming
+                from core import access                                # rà kỹ M8.0: 'Chỉ xem' không ghi được tin (kiểm TRƯỚC khi ghi)
+                if act(lambda: access.need_edit(p, pid, "gửi tin cho Claude")):
+                    Chat.append(p, pid, "user", incoming)              # "📨 Gửi · ≈ X USD" ở thẻ ngay dưới (_chat_send); cờ tắt: gửi ngay
+                    ss[k["chatsend"]] = incoming
             else:
                 Chat.append(p, pid, "user", incoming or f"📎 {files[0].name}")
                 if kind == "edit":

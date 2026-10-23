@@ -104,7 +104,12 @@ def _resume(p, it: Dict, start: Callable) -> str:
     if it.get("fp") is not None and list(storyboard_gate.fingerprint(p, pid)) != list(it["fp"]):
         return "Không gửi: ảnh storyboard đã đổi trong lúc chờ hoàn tác — xem lại rồi bấm duyệt lại."
     autopilot.resume(p, pid, p.actor)
-    start(pid, it.get("user"))
+    try:                                                # cổng đã mở; khởi chạy nền lỗi → nói rõ, không báo "Đã gửi"
+        ok = start(pid, it.get("user"))
+    except Exception as e:  # noqa: BLE001 - nói lỗi cho người bấm
+        return f"Đã duyệt nhưng chưa khởi chạy ({e}) — bấm ▶ Tiếp tục."
+    if ok is False:                                     # Manager.start: False = lượt chạy đang sống / đã xếp hàng → nó tự đi tiếp
+        return "Đã duyệt — chạy tự động đang chạy sẵn nên tự đi tiếp, không mở lượt mới."
     return ""
 
 
@@ -158,17 +163,21 @@ def _undo_fragment() -> None:
     due = take_due(ss, force=ss.pop("_paid_undo_now", None))
     if due:
         for it in due:
-            p = C.scoped(Pipeline(connect(C.DB)))
-            p.actor = it.get("actor")
+            conn = connect(C.DB)
             try:
-                why = run_item(p, it, lambda pid, user: C.autopilot_manager(C.DB, C.DATA).start(pid, user=user))
-            except Exception as e:  # noqa: BLE001 - nói lỗi, không nuốt; mục đã ra khỏi hàng chờ nên không lặp
-                why = f"Không gửi được: {e}"
-            if why:
-                st.session_state["_paid_undo_note"] = why
-            else:
-                C.log_ui(p, "gen_video", page="storyboard", project_id=it["pid"], detail=it.get("log") or it["what"])
-                st.toast(f"Đã gửi: {it['what']}")
+                p = C.scoped(Pipeline(conn))
+                p.actor = it.get("actor")
+                try:
+                    why = run_item(p, it, lambda pid, user: C.autopilot_manager(C.DB, C.DATA).start(pid, user=user))
+                except Exception as e:  # noqa: BLE001 - nói lỗi, không nuốt; mục đã ra khỏi hàng chờ nên không lặp
+                    why = f"Không gửi được: {e}"
+                if why:
+                    st.session_state["_paid_undo_note"] = why
+                else:
+                    C.log_ui(p, "gen_video", page="storyboard", project_id=it["pid"], detail=it.get("log") or it["what"])
+                    st.toast(f"Đã gửi: {it['what']}")
+            finally:
+                conn.close()                             # rà kỹ M8.0: mỗi lần tới hạn mở một kết nối → đóng ngay
         st.rerun(scope="app")
     note = ss.pop("_paid_undo_note", None)
     if note:

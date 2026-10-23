@@ -334,7 +334,61 @@ class UndoQueue(unittest.TestCase):
         resume.assert_not_called()
 
 
+    def test_start_error_says_not_started(self):
+        """Rà kỹ M8.0 #4: khởi chạy nền lỗi → nói 'chưa khởi chạy', không báo đã gửi."""
+        from core import autopilot, storyboard_gate
+        it = {"action": "resume", "pid": 7, "waiting_for": "storyboard", "fp": None}
+
+        def boom(pid, user):
+            raise RuntimeError("hết slot")
+        with mock.patch.object(autopilot, "get_gates", return_value={"waiting_for": "storyboard"}), \
+                mock.patch.object(storyboard_gate, "fingerprint", return_value=[]), mock.patch.object(autopilot, "resume"):
+            why = self.P.run_item(mock.Mock(actor="ep"), it, boom)
+            already = self.P.run_item(mock.Mock(actor="ep"), it, lambda pid, user: False)
+        self.assertIn("chưa khởi chạy", why)
+        self.assertIn("đang chạy sẵn", already)
+
+    def test_due_item_closes_its_connection(self):
+        """Rà kỹ M8.0 #7: mỗi lần tới hạn mở một kết nối CSDL → phải đóng."""
+        src = open(os.path.join(DASH, "paid_confirm.py"), encoding="utf-8").read()
+        frag = src[src.index("def _undo_fragment"):]
+        self.assertIn("conn.close()", frag)
+        self.assertIn("finally:", frag)
+
+
+class ChatBoxFixes(unittest.TestCase):
+    def test_cancel_clears_both_ask_and_held_message(self):
+        """Rà kỹ M8.0 #6: 'hủy' bỏ cả tin hỏi lại lẫn tin chờ gửi (trước: ngắt mạch, kẹt chatsend)."""
+        from dashboard.steps import step1_box as B
+        k = B._keys(5)
+        ss = {k["chatask"]: "a", k["chatsend"]: "b"}
+        with mock.patch.object(B.st, "session_state", ss), mock.patch("core.script_chat.append"):
+            B._command(mock.Mock(), 5, "cancel")
+        self.assertNotIn(k["chatask"], ss)
+        self.assertNotIn(k["chatsend"], ss)
+
+    def test_chat_branch_checks_edit_right_before_writing(self):
+        """Rà kỹ M8.0 #5: nhánh kind=='chat' kiểm access.need_edit TRƯỚC Chat.append (người 'Chỉ xem' không ghi được tin)."""
+        src = open(os.path.join(DASH, "steps", "step1_box.py"), encoding="utf-8").read()
+        branch = src[src.index('elif kind == "chat":'):]
+        branch = branch[:branch.index("else:")]
+        self.assertIn("access.need_edit", branch)
+        self.assertLess(branch.index("access.need_edit"), branch.index("Chat.append"))
+
+
 class Flag(unittest.TestCase):
+    def test_stable_preset_keeps_safety_flag_on(self):
+        """Rà kỹ M8.0 #3: preset Ổn định giữ cờ an toàn BẬT; cờ khác không đổi (đã thử thật / khóa → bật, còn lại tắt)."""
+        from core import features as F
+        s = {"preset": "stable", "flags": {}, "modes": {}}
+        self.assertEqual(F._state("safe_paid_buttons", s), "on")
+        for name, meta in F.FEATURES.items():
+            if name in F.REMOVED or name == "safe_paid_buttons":
+                continue
+            want = "on" if (F.locked(name) or meta["verified"] or meta.get("safety")) else "off"
+            self.assertEqual(F._state(name, s), want, name)
+        self.assertEqual([n for n, m in F.FEATURES.items() if m.get("safety")], ["safe_paid_buttons"])
+
     def test_flag_declared_default_on_free(self):
         from core import features
         meta = features.FEATURES["safe_paid_buttons"]
