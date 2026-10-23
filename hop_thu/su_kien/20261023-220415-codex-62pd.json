@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T22:04:15.256175+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Codex 3 nhận phần lõi CX23-M47B theo phân công. Worktree/nhánh: D:\\AI-Video-Pipeline\\.codex-wt\\v31-m47b / codex/v31-m47b. Đang có diff chưa commit ở core/qc_overrides.py, tests/test_v31_m47b_overrides.py, HANDOFF.md và báo cáo; giữ nguyên, tiếp theo hoàn thiện Q6(c) theo quyết định q6c-anchor-lock-main-only: khớp tên có dấu, cảnh báo tên được gọi trong kịch bản/thoại/hành động kể cả chưa có trong Bible, kiểm ảnh Kho và trường shot bắt buộc ảnh của vai phụ. Codex 1 giữ caller/UI sau khi M80C gộp; Codex 3 không sửa caller đang thuộc M80C. Chỉ fixture, 0 USD; không chạm CSDL thật/API trả phí. Task vẫn ĐANG LÀM, chưa báo XONG."
+}
