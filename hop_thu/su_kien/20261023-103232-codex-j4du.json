@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T10:32:32.571341+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "CX22-DON-RAC tiếp: nhóm 1 đã gỡ 19/80 Codex worktrees và 19 nhánh local; mỗi nhánh đã xác minh HEAD là tổ tiên origin/main, trạng thái chỉ có HANDOFF.md chưa theo dõi cũ >3 ngày. HANDOFF được lưu và SHA xác minh trong _luu_tru\\\\handoff_codex trước khi gỡ. Giữ 61 worktrees còn lại (gồm danh sách bắt buộc giữ và mọi worktree không đạt đủ điều kiện). Đang rà chỉ-đọc 17 worktree nhóm 2 theo đề, không xóa chúng. Disk D: trước 1,229,432,999,936 bytes free; hiện 1,230,765,146,112 free; .codex-wt hiện 61 thư mục/4,558,444,809 bytes; .claude/worktrees 42 thư mục/3,168,600,281 bytes, không thay đổi."
+}
