@@ -15,11 +15,12 @@ DASH = os.path.join(ROOT, "dashboard")
 # Hàm tốn tiền gián tiếp (không nhận client/runner trong lời gọi ở nút): gỡ chặn vòng nền Claude, nhả autopilot gửi video…
 PAID_CALLS = {"autopilot.resume", "previz.plan_layouts", "previz.review_storyboard", "CR.rerun_failed", "autoqc.clear_error",
               "autoqc.clear_video_error", "Chat.send", "P.schedule_resume", "paid_confirm.schedule_resume", "autopilot.start",
-              "C.llm", "llm_client"}
+              "C.llm", "llm_client", "p.retry", "p.reject", "p.reopen_approved", "p.restart_job",
+              "regen.regenerate_video", "voice.generate", "voice.preview", "music.submit_drafts"}
 # Đuôi tên lời gọi tốn tiền bất kể gốc: nhả việc đã xếp hàng, khởi chạy autopilot nền.
 PAID_SUFFIXES = (".submit_pending", "autopilot_manager().start")
 MONEY_ARGS = {"client", "llm", "runner"}
-CONFIRM_FUNCS = ("paid_button", "confirm_all", "_confirm_all_primary")
+CONFIRM_FUNCS = ("paid_button", "paid_batch_button", "confirm_all", "_confirm_all_primary")
 PRICE_RE = re.compile(r"tag|price|estimate|usd|credit", re.I)
 
 # Ngoại lệ: "<file>::<key>" → lý do. Mục không còn khớp nút nào → test đỏ (danh sách không được cũ).
@@ -37,6 +38,8 @@ EXCEPTIONS = {
     "quality_ui.py::f'qfinal_allnew_{pid}'": "giá + xác nhận có sẵn: nhãn/câu hỏi do new_final_texts dựng (chứa _usd_text) + confirm_all",
     "design/screens/money_days.py::'md_new_go'": "0 USD: mở đợt ngân sách mới; `llm` ở đây là trần USD (số), không phải client",
     "steps/step5.py::f'sub_burn_{pid}'":"0 USD: in phụ đề với cues đã dịch truyền vào (delivery.subtitle_layer không gọi localize khi có cues)",
+    "steps/step2.py::f'dd_{jid}'": "0 USD: p.reject(..., respawn=False) chỉ xóa ảnh vào thùng rác, không tạo job mới",
+    "design/screens/storyboard_cards.py::f'dd_{jid}'": "0 USD: p.reject(..., respawn=False) chỉ xóa ảnh vào thùng rác, không tạo job mới",
 }
 # M8.0b: các nút trước chỉ có giá — nay PHẢI là paid_button (giá + xác nhận), không được quay lại EXCEPTIONS.
 M80B_CONVERTED = [
@@ -54,6 +57,19 @@ M80B_CONVERTED = [
 M80_SPOTS = [("steps/step1_prep.py", "pv_plan_"), ("steps/step1_prep.py", "pv_review_"), ("change_review_ui.py", "_rerun_"),
              ("steps/step2.py", "autoqc_retry_"), ("steps/step4.py", "vqc_retry_"),
              ("design/screens/storyboard_cards.py", "board_ok_"), ("steps/step2.py", "board_ok_"), ("steps/step1_run.py", "ap_resume_")]
+# M8.0c: toàn bộ nút thủ công còn lại có thể tạo job/chi phí. `dd_` được quét riêng và
+# ngoại lệ chỉ hợp lệ khi chứng minh `respawn=False` (xóa ảnh vào thùng rác, 0 USD).
+M80C_SPOTS = [
+    ("steps/step2.py", "reject_all"), ("steps/step2.py", "f'r_{jid}'"), ("steps/step2.py", "f'retry_{jid}'"),
+    ("steps/step2.py", "f'stale_{jid}'"), ("steps/step2.py", "f'rs_{jid}'"), ("steps/step2.py", "f'dr_{jid}'"),
+    ("steps/step2.py", "f'dretry_{jid}'"), ("steps/step2.py", "f'drs_{jid}'"), ("steps/step2.py", "f'reopen_{jid}'"),
+    ("design/screens/storyboard_cards.py", "f'r_{jid}'"), ("design/screens/storyboard_cards.py", "f'dretry_{jid}'"),
+    ("design/screens/storyboard_cards.py", "f'reopen_{jid}'"),
+    ("design/screens/storyboard_cards.py", "f'rs_{jid}'"),
+    ("steps/step4.py", "btn_bad_retry"), ("steps/step4.py", "stale_requeue_"), ("steps/step4.py", "f'vregen_{jid}'"),
+    ("steps/step4.py", "f'vr_rej_{jid}'"), ("steps/step4.py", "f'vrs_{jid}'"),
+    ("steps/step3.py", "tts_gen_"), ("steps/step1_characters.py", "vprev_"), ("steps/step5.py", "mdraft_"),
+]
 # M8.0b E2: nút "Duyệt tất cả" (duyệt hết) — (file, khóa, loại approve_preview.KINDS)
 APPROVE_SITES = [("steps/step2.py", "approve_all", "images"), ("design/screens/storyboard_cards.py", "approve_all", "images"),
                  ("steps/step3.py", "btn_ok_all", "motion"), ("steps/step4.py", "vid_ok_all_", "clips")]
@@ -87,7 +103,10 @@ def _paid_calls(body) -> set:
             if not isinstance(n, ast.Call):
                 continue
             name = dotted(n.func)
-            if name in PAID_CALLS or name.endswith(PAID_SUFFIXES):
+            if name == "p.reject" and any(k.arg == "respawn" and isinstance(k.value, ast.Constant) and k.value.value is False
+                                           for k in n.keywords):
+                hits.add("p.reject(respawn=False)")
+            elif name in PAID_CALLS or name.endswith(PAID_SUFFIXES):
                 hits.add(name)
             for a in [n.func] + list(n.args) + [k.value for k in n.keywords]:
                 for m in ast.walk(a):
@@ -103,7 +122,7 @@ def _kw(call, name):
 
 
 def _priced(call: ast.Call) -> bool:
-    if dotted(call.func).split(".")[-1] == "paid_button":
+    if dotted(call.func).split(".")[-1] in ("paid_button", "paid_batch_button"):
         tag = call.args[2] if len(call.args) > 2 else _kw(call, "tag")
         return tag is not None and not (isinstance(tag, ast.Constant) and not tag.value)
     label = call.args[0] if call.args else _kw(call, "label")
@@ -121,8 +140,9 @@ def _priced(call: ast.Call) -> bool:
 
 def _key(call: ast.Call) -> str:
     k = _kw(call, "key")
-    if k is None and dotted(call.func).split(".")[-1] in CONFIRM_FUNCS + ("paid_button",) and call.args:
-        k = call.args[1] if dotted(call.func).split(".")[-1] == "paid_button" and len(call.args) > 1 else call.args[0]
+    name = dotted(call.func).split(".")[-1]
+    if k is None and name in CONFIRM_FUNCS + ("paid_button",) and call.args:
+        k = call.args[1] if name in ("paid_button", "paid_batch_button") and len(call.args) > 1 else call.args[0]
     return ast.unparse(k) if k is not None else "?"
 
 
@@ -235,6 +255,26 @@ class PaidButtonScan(unittest.TestCase):
             for r in rows:
                 self.assertTrue(r["priced"] and r["confirmed"], f"{file}:{r['line']} {r['key']}: thiếu giá hoặc xác nhận")
                 self.assertNotIn(f"{file}::{r['key']}", EXCEPTIONS)
+
+    def test_m80c_remaining_paid_buttons_are_priced_and_confirmed(self):
+        """M8.0c: mọi đường retry/reject-gen/reopen/restart/TTS/nhạc còn lại phải qua xác nhận có giá."""
+        for file, frag in M80C_SPOTS:
+            rows = [r for r in self.rows if r["file"] == file and frag in r["key"]]
+            self.assertTrue(rows, f"không thấy nút M8.0c {frag} ở {file}")
+            for r in rows:
+                exc = EXCEPTIONS.get(f"{file}::{r['key']}", "").strip()
+                self.assertTrue((r["priced"] and r["confirmed"]) or exc,
+                                f"{file}:{r['line']} {r['key']}: thiếu giá/xác nhận")
+
+    def test_m80c_delete_buttons_are_proven_free(self):
+        """dd_ chỉ xóa khỏi hàng chờ; mọi đường p.reject có gen lại đã được test riêng."""
+        keys = [("steps/step2.py", "f'dd_{jid}'"), ("design/screens/storyboard_cards.py", "f'dd_{jid}'")]
+        for file, key in keys:
+            rows = [r for r in self.rows if r["file"] == file and r["key"] == key]
+            self.assertTrue(rows, f"không thấy nút xóa {key} ở {file}")
+            for row in rows:
+                self.assertIn("p.reject(respawn=False)", row["calls"], f"{file}:{row['line']} không chứng minh xóa 0 USD")
+                self.assertIn(f"{file}::{key}", EXCEPTIONS)
 
     def test_free_never_constant(self):
         """`paid_button(..., free=…)` chỉ được là ĐIỀU KIỆN lần này 0 USD (vd phụ đề không dịch) — `free=True` cố định = bỏ xác nhận."""
@@ -493,6 +533,18 @@ def _app_paid():
     st.write(f"ran={st.session_state.get('ran', 0)}")
 
 
+def _app_paid_batch():
+    import streamlit as st
+    from unittest import mock
+    from dashboard import paid_batch_preview as B
+    from dashboard import paid_confirm as P
+    p = mock.Mock(actor="ep")
+    B.paid_batch_button("↻ Gửi lại ảnh lỗi (2)", key="t_batch", tag=" · ≈ 2 USD", p=p, pid=7,
+                        action="retry_images", items=[11, 12], preview=["Ảnh job 11", "Ảnh job 12"])
+    st.write(f"pending={len(P.pending(st.session_state, 7))}")
+    st.write(f"ran={st.session_state.get('ran', 0)}")
+
+
 class PaidButtonApp(unittest.TestCase):
     def _texts(self, at):
         return " ".join(m.value for m in at.markdown)
@@ -522,6 +574,70 @@ class PaidButtonApp(unittest.TestCase):
             at = AppTest.from_function(_app_paid).run()
             at.button(key="t_paid").click().run()
             self.assertIn("ran=1", self._texts(at))
+
+
+class PaidBatchButtonApp(unittest.TestCase):
+    def _texts(self, at):
+        return " ".join(m.value for m in [*at.markdown, *at.caption])
+
+    def _patches(self):
+        from dashboard import paid_confirm
+        return (mock.patch.object(paid_confirm, "enabled", return_value=True),
+                mock.patch("dashboard.paid_batch_preview.fingerprint", return_value="same-state"),
+                mock.patch("dashboard.common.access_user", return_value={}))
+
+    def test_batch_yes_schedules_preview_and_executes_each_item_once(self):
+        from streamlit.testing.v1 import AppTest
+        from dashboard import paid_confirm as P
+        from core import batch, access
+        enabled, fingerprint, user = self._patches()
+        with enabled, fingerprint, user:
+            at = AppTest.from_function(_app_paid_batch).run()
+            self.assertIn("USD", at.button(key="t_batch").label)
+            at.button(key="t_batch").click().run()
+            self.assertIn("Ảnh job 11", self._texts(at))
+            self.assertIn("Ảnh job 12", self._texts(at))
+            at.button(key="t_batch_yes").click().run()
+            self.assertIn("pending=1", self._texts(at))
+            item, = P.pending(at.session_state, 7)
+            self.assertEqual(item["action"], "paid_batch")
+            self.assertEqual(item["items"], [11, 12])
+            self.assertEqual(item["batch_action"], "retry_images")
+            self.assertGreaterEqual(item["not_before"], __import__("time").time() + P.UNDO_SEC - 1)
+
+            due, = P.take_due(at.session_state, force=item["id"])
+            pipeline = mock.Mock(actor="ep")
+            with mock.patch.object(access, "need_edit"), mock.patch.object(batch, "provider_failures", return_value=[11, 12]), \
+                    mock.patch("dashboard.paid_batch_preview.fingerprint", return_value="same-state"):
+                self.assertEqual(P.run_item(pipeline, due, lambda *args: None), "")
+                self.assertEqual(P.take_due(at.session_state), [])
+            self.assertEqual(pipeline.retry.call_count, 2)
+            self.assertEqual([call.args[0] for call in pipeline.retry.call_args_list], [11, 12])
+
+    def test_batch_no_cancels_without_scheduling(self):
+        from streamlit.testing.v1 import AppTest
+        with self._patches()[0], self._patches()[1], self._patches()[2]:
+            at = AppTest.from_function(_app_paid_batch).run()
+            at.button(key="t_batch").click().run()
+            at.button(key="t_batch_no").click().run()
+            self.assertIn("pending=0", self._texts(at))
+            self.assertIn("ran=0", self._texts(at))
+
+    def test_batch_due_state_change_sends_nothing(self):
+        from dashboard import paid_confirm as P
+        from dashboard import paid_batch_preview as B
+        from core import access, batch
+        session = {}
+        uid = P.schedule(session, "paid_batch", 7, "retry images", batch_action="retry_images", items=[11, 12],
+                         params={}, fp="old-state", data_dir="fake")
+        (due,) = P.take_due(session, force=uid)
+        pipeline = mock.Mock(actor="ep")
+        with mock.patch.object(access, "need_edit"), mock.patch.object(B, "fingerprint", return_value="new-state"), \
+                mock.patch.object(batch, "provider_failures") as eligible:
+            message = P.run_item(pipeline, due, lambda *args: None)
+        self.assertIn("đã đổi", message)
+        eligible.assert_not_called()
+        pipeline.retry.assert_not_called()
 
 
 if __name__ == "__main__":

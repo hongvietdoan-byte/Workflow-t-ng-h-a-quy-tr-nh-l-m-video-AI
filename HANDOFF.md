@@ -1,3 +1,15 @@
+# HANDOFF — CX23-M80C (nhánh `codex/v31-m80c`, worktree `D:\AI-Video-Pipeline\.codex-wt\v31-m80c`, 23/10)
+
+- Mở rộng máy quét `tests/test_safe_paid_buttons.py` cho retry/reject-gen/reopen/restart, TTS và nhạc; chỉ ngoại lệ `dd_` khi AST thấy rõ
+  `p.reject(..., respawn=False)` (0 USD). Các nút mới/đổi khóa vẫn được quét theo đúng vị trí.
+- Sau cờ `safe_paid_buttons`, các đường gọi đơn dùng `paid_button` với nhãn giá và xác nhận. Lô gửi lại ảnh/clip lỗi, xếp lại clip đầu vào cũ,
+  TTS và tạo nhạc dùng `dashboard/paid_batch_preview.py`: xem trước danh sách + tổng giá, xác nhận, chờ 30 giây có thể hoàn tác; khi hết hạn hoặc
+  chọn “Gửi ngay”, kiểm lại fingerprint/trạng thái trước khi dispatch action allowlist. Cờ TẮT vẫn dùng nhãn + nhánh gọi cũ.
+- Đã khai báo module mới trong `devsys/areas.json`, không đổi version. Không gọi provider, không dùng data thật, không migration, không khởi động Dashboard.
+- Kiểm tra: `PYTHONUTF8=1 py -m pytest -q -p no:cacheprovider tests/test_safe_paid_buttons.py tests/test_ui_v2_acceptance.py --tb=short`
+  — 39 passed; `py_compile` và `git diff --check` sạch.
+- Trạng thái: chờ phiên chính giao rà kỹ độc lập trước khi gộp. Chưa kiểm tra Dashboard thật; không chạy cả bộ test theo đề.
+
 # HANDOFF — M8.0b phần còn M8.0 An toàn tiền (nhánh worktree-agent-a76909ef8d083efe1, 23/10)
 
 - ĐÃ XONG (0 USD, sau cờ safe_paid_buttons; cờ TẮT = nhãn/hành vi như cũ):
