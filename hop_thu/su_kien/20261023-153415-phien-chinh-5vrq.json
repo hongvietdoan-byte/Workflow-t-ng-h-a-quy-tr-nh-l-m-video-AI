@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T15:34:15.856766+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-DON-RAC-FIX",
+  "to": "codex",
+  "title": "Vòng sửa don_rac.py sau rà kỹ (worktree remove xóa file ignore, sao lưu manifest, tuổi tiến trình…)",
+  "spec": "docs/CODEX_TASKS.md### CX23-DON-RAC-FIX",
+  "priority": 1
+}
