@@ -1616,3 +1616,26 @@ Nếu phải đổi schema/CHECK CSDL thật → DỪNG, báo HỎI hộp thư (
 (`tests/test_decisions.py`) + `tests/test_access*.py`: người được cấp EP duyệt được; bị thu thì không; edit không; ai/tool không; đăng nhập TẮT
 giữ hành vi cũ. Ghi `enforced_by` của sổ ep-2210-g1b vào check. Khai file mới ở `devsys/areas.json` (không tăng version). Nhánh `codex/v31-g1-ep-role`.
 Không đụng file của CX21-M23 / CX22-FLAG20. XONG hộp thư; phiên chính RÀ KỸ (quyền).
+
+### CX23-DOI-SOAT — bảng đối soát khâu ↔ kế hoạch trên AI Dev System (ưu tiên 2; NGƯỜI DÙNG YÊU CẦU 23/10; Cấp 1, 0 USD)
+Người dùng 23/10: "muốn có sự đồng bộ rõ ràng, dễ biết khâu nào lỗi để sửa, khâu nào còn lỏng lẻo, khâu nào thiếu cái gì để update vào plan".
+Hiện trạng (phiên chính đo 23/10 bằng `devsys.pipeline_maps.build_model()`; kế hoạch 72,3 %): sơ đồ dây chuyền và sơ đồ tiến độ cùng đọc kế hoạch
+chính (44 test xanh) NHƯNG LỆCH NGHĨA: khâu L3, L4, L5, L7, L9, L10 ĐỎ dù mọi việc kế hoạch gắn khâu đều ✅; L14 ĐỎ không gắn việc nào; ô
+Dashboard kb.byd + nút trường t.forms, t.plate ĐỎ "thiếu bằng chứng" dù M2.1/M2.2/M2.3 ✅; 13 ô VÀNG "lỏng (mốc 17/10)" là cờ `loose` tĩnh không
+bao giờ tự xóa (kể cả khi việc gắn đã ✅: kb.fixflags M7.1, kb.characters M2.3, sb.pregate M2.7, bg.popup M4.4); kb.dialogue, kb.lock, sb.motion,
+bg.subs, bg.fx VÀNG không gắn việc; lỗi mở theo khâu (devsys/errors.json): L6 13, L12 12, L3 9, L16 7, L11 5 — chưa biết lỗi nào đã có việc.
+Cần (file: devsys/pipeline_maps.py, devsys/plan_map.py, devsys/app.py, devsys/stages.json, devsys/pipeline_maps.json, devsys/plan_map.json):
+1. Hàm `devsys/doi_soat.py` (khai areas.json, không tăng version) dựng BẢNG ĐỐI SOÁT mỗi khâu L1–L16 + mỗi ô/nút: màu, lý do, lỗi mở (mã lỗi),
+   việc kế hoạch gắn + trạng thái, và PHÂN LOẠI: `LOI` (lỗi mở chưa VERIFIED), `LONG` (vàng: chỉ người / cờ tắt / kiểm trước-sau không có),
+   `THIEU` (đỏ thiếu nút/hàm/kiểm), `LECH` (đỏ/vàng mà mọi việc gắn ✅ = kế hoạch báo xong nhưng sơ đồ còn lỗ, hoặc ngược lại xanh mà việc chưa xong),
+   `KHONG_VIEC` (đỏ/vàng/lỗi mở mà không gắn việc kế hoạch nào) → mỗi dòng có "việc đề xuất thêm vào plan" (tiêu đề + khâu + lý do + bằng chứng).
+2. RÀ TỪNG MỤC LECH/KHONG_VIEC hiện tại (danh sách trên) bằng code thật: dữ liệu sơ đồ CŨ (stages.json kiem_truoc/kiem_sau ghi tay, evidence
+   glob/text sai tên, cờ `loose` mốc 17/10 đã hết đúng) → sửa dữ liệu kèm bằng chứng file:dòng trong báo cáo; lỗ THẬT → giữ đỏ/vàng và đưa vào
+   danh sách việc đề xuất. Cờ `loose` đổi thành có điều kiện hết hạn (vd `loose_until_plan: [M2.7]` hoặc bằng chứng) thay vì tĩnh.
+3. Trang 8502: tab/khối "Đối soát" (bảng lọc theo loại, mỗi khâu một dòng, bấm mở chi tiết) + nút xuất `docs/DOI_SOAT_KHAU_<ngày>.md`;
+   tổng ở đầu: số khâu LOI/LONG/THIEU/LECH/KHONG_VIEC. Không ghi kế hoạch tự động — phiên chính đọc bản xuất rồi trình người dùng thêm việc.
+4. Test `tests/test_devsys_doi_soat.py` (dữ liệu giả): mỗi loại phân đúng; đỏ + mọi việc ✅ → LECH; đỏ không việc → KHONG_VIEC; loose hết hạn khi
+   việc ✅; test bảo vệ: kế hoạch thật + sơ đồ thật KHÔNG còn mục LECH chưa giải thích (mục lỗ thật phải có việc kế hoạch hoặc trong danh sách
+   đề xuất có lý do) — đỏ trước khi sửa dữ liệu, xanh sau.
+Chạy thật một bản trên máy chính, commit `docs/DOI_SOAT_KHAU_2026-10-23.md` (bảng + danh sách việc đề xuất thêm plan). Đổi devsys/ → báo phiên
+chính khởi động lại 8502. Nhánh `codex/v31-doi-soat`, push sau MỖI commit. Không đụng file của CX22-G1-EP-ROLE / CX22-DON-RAC-TOOL. XONG hộp thư.
