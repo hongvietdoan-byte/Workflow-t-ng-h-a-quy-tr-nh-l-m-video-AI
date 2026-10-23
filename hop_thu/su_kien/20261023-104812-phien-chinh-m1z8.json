@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T10:48:12.668638+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "task": "CX22-G1-EP-ROLE",
+  "text": "NGƯỜI DÙNG CHỌN A (23/10, chat): được thêm trường/bảng EP kèm migration có kiểm soát — sao lưu CSDL trước (don_rac sao-luu hoặc bản sao), migration idempotent + test (CSDL mới và CSDL cũ có CHECK cũ), không chạy migration trên data/manifest.sqlite thật trong nhánh; phiên chính RÀ KỸ trước khi gộp rồi mới áp lên máy chính. Làm tiếp sau CX22-R1-AXIS. Push sau MỖI commit."
+}

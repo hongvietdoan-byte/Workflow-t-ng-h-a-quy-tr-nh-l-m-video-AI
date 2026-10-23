@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T11:21:56.865391+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX22-DON-RAC-TOOL",
+  "text": "CX22-DON-RAC-TOOL: test đỏ ban đầu do module chưa có; triển khai xong lượt đầu và 33 test mục tiêu xanh (don_rac + hop_thu). Đã thêm kiểm tra bảo vệ manifest.sqlite/dashboard.env, archive SHA-256 + journal, dry-run chuyển/xóa, bỏ qua worktree bẩn/mới/khóa/chưa có trên remote, gop tự gỡ chỉ sau khi commit XONG vào origin/main và có --giu-worktree. Đang rà an toàn/caller; kế tiếp chạy báo cáo + worktree dry-run chỉ đọc trên main theo đề."
+}

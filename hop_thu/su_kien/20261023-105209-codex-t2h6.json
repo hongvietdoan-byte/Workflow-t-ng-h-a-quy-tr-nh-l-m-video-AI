@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T10:52:09.915344+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX22-R1-AXIS",
+  "text": "Đối chiếu #31: lệnh tools/position_invariants.py với cờ stage_camera hiện OFF trả 0 VÀNG và 3 KHÔNG RÕ. Nếu tính từ map/camera saved với stage_camera được bật thì check_axis_jumps báo shot17→18, enemy right→left, hai yaw cùng phía (169.6°/174.0°). Nhưng ảnh đã duyệt 1103/1111 cho thấy shot17 địch bị tường che, shot18 địch nằm bên phải; blocking hiện tại mô tả địch còn đứng sau tường, còn map nguồn round cc_20261016_104931 ghi địch đã nằm từ nhịp 15. Vì dữ liệu/map mâu thuẫn nên chưa thể kết luận trục bị vượt; logic core/position_invariants.py:263-281 cũng không kiểm hiện/ẩn. Xin chốt: (A) báo NHẦM/không xác minh do nguồn map lệch, không sửa code; hay (B) bổ sung hợp đồng dữ liệu hiển thị/che khuất rồi sửa checker + test? Chưa sửa code/dữ liệu."
+}
