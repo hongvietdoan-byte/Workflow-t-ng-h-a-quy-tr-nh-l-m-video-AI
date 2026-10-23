@@ -1099,6 +1099,18 @@
    "enforced_by": [],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "q6c-anchor-lock-main-only-2026-10-23",
+   "date": "2026-10-23",
+   "by": "người dùng (Executive Producer, chat phiên chính 23/10)",
+   "text": "Q6(c) siết nút 'Duyệt & khóa → Storyboard' theo đề xuất A: nhân vật vai CHÍNH theo BYĐ thiếu ảnh mốc (anchor_approved=0) → CHẶN, chỉ qua được bằng override có lý do (bảng overrides). Nhân vật phụ thiếu ảnh mốc → không chặn, chỉ cảnh báo; riêng shot bắt buộc ảnh tham chiếu của nhân vật phụ thì chặn nhân vật đó. BỔ SUNG của người dùng: luôn CẢNH BÁO khi phát hiện bất kỳ nhân vật nào ĐƯỢC GỌI TÊN (trong kịch bản/thoại/hành động shot) mà không có ảnh (không ảnh mốc / không ảnh Kho gắn), kể cả nhân vật phụ hoặc tên chưa có trong Bible.",
+   "keeps": "Q6(a)(b) theo V3 §A.5 (ô 'vẫn gen' chỉ bật sau mở thẻ gói; lý do ≥ 15 ký tự ở cả core/video_gate.py và dashboard/video_gate_ui.py)",
+   "changes": "Codex CX23-M47B làm (c) theo quy tắc này, sau cờ mặc định TẮT; chưa có code enforce.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
   }
  ]
 }

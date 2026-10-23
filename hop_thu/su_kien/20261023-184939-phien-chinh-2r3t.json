@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T18:49:39.044085+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "task": "CX23-M47B",
+  "text": "NGƯỜI DÙNG CHỐT Q6(c) (23/10, sổ quyết định id q6c-anchor-lock-main-only-2026-10-23): theo đề xuất A — nhân vật vai CHÍNH theo BYĐ thiếu ảnh mốc (characters.anchor_approved=0) → CHẶN nút 'Duyệt & khóa → Storyboard', chỉ qua bằng override có lý do ghi bảng overrides; nhân vật phụ thiếu ảnh mốc → chỉ CẢNH BÁO (riêng shot bắt buộc ảnh tham chiếu của nhân vật phụ thì chặn nhân vật đó). BỔ SUNG: luôn CẢNH BÁO khi phát hiện bất kỳ nhân vật nào ĐƯỢC GỌI TÊN trong kịch bản/thoại/hành động shot mà không có ảnh (không ảnh mốc, không ảnh Kho gắn), kể cả tên chưa có trong Bible — so tên có dấu (tránh nhầm kiểu cúi/cũi, xem assets.name_spans). Sau cờ mặc định TẮT; test cờ TẮT giữ hành vi cũ; thêm check_* vào tests/test_decisions.py + enforced_by cho mục sổ khi code xong. Nơi gọi: dashboard/steps/step1_v2.py (_lock_and_go), core/chat_flow.py:40, dashboard/next_step.py:38 — step1_v2 không thuộc M80C nên được sửa."
+}
