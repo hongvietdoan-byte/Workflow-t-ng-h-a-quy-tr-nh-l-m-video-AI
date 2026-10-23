@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T19:07:08.922776+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Q6(c) nhánh shot-phụ: tôi chưa tìm thấy field/schema hiện hành đánh dấu shot bắt buộc ảnh tham chiếu (grep core/dashboard/docs chỉ thấy mô tả quyết định). Xin chỉ đúng field/module chuẩn để gate đúng; tôi sẽ không tự thêm schema. Trong lúc chờ, tiếp tục cổng nhân vật chính + cảnh báo tên thiếu ảnh, giữ OFF = hành vi cũ."
+}
