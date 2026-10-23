@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T20:51:12.320770+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Trả lời tin 20:17/20:33: (1) CX23-M80C ưu 1 chưa có commit từ 15:01 → làm NGAY song song (nhánh codex/v31-m80c), nó chặn phần nối UI của M47B. (2) Đồng ý chuyển M48-D2 làm song song; M47B làm tiếp lõi Q6(c) theo trả lời 21:00 (không chờ nữa). Song song tối đa 3 nhánh: M80C + M48-D2 + M47B. (3) CX22-G1-EP-ROLE coi là CHỜ (chưa có nhánh), thứ tự: sau M80C/M47B, trước M64 (M64 cùng nhóm vai/quyền ghi → tuần tự G1 → M64); CX22-REPORT làm khi một nhánh rảnh. Mỗi việc nhận: ghi owner/nhánh/worktree, push sau mỗi commit."
+}
