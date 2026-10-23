@@ -1753,3 +1753,26 @@ Nguồn DUY NHẤT: `docs/THIET_KE_CHE_DO_DON_GIAN_2026-10-23.md` (vòng 2, mụ
 - Chỉ số: đếm hành động tới "xem được video đầu tiên đã ghép" (không tính tải) bằng test luồng giả (provider giả) — báo số, ghi là kết quả luồng giả, không phải đo người dùng.
 - Test: đỏ→xanh; Streamlit AppTest/Playwright cho 5 màn ở 1440 và 390 (0 pageerror, 0 tràn ngang), PNG vào docs/images/m82/. Không DB thật (bản sao theo trả lời 15:30 nếu cần), không API trả phí, không bật cờ trên máy chính.
 Nhánh `codex/v31-m82`, worktree riêng, push sau mỗi commit; báo XONG pha A riêng (mã CX23-M82) rồi pha B (tin + commit). Phiên chính RÀ KỸ trước gộp.
+
+### CX23-M23B — M2.3b phần còn của Kho forms (ưu tiên 3; Cấp 2 nằm trong duyệt M2.3; cờ `kho_forms_v2` TẮT; 0 USD; đụng DỮ LIỆU → RÀ KỸ)
+Nền: CX21-M23 đã gộp (35d76879 + 575d0288), docs/RA_CX21_M23_FIX_2026-10-23.md + docs/CODEX_TASKS.md mục "Còn dở → M2.3b" (dòng ~1489), thiết kế M0.9/M0.10.
+Làm (mỗi phần test ĐỎ→XANH, cờ TẮT = byte cũ):
+1. R5 biến thể vật: `vat[].bien_the` / `stage_shape` trong hồ sơ Kho, reader đọc qua adapter (không đọc thẳng JSON ở caller).
+2. Chính sách nhiều dạng / dạng theo nhịp (form theo beat) + cảnh báo "chưa chốt dạng" khi shot cần dạng mà Kho có >1 dạng chưa chọn (cảnh báo, không chặn im lặng).
+3. `standard_set` (bộ ảnh chuẩn) theo thiết kế M0.9; ảnh chuẩn > metadata AI.
+4. Tăng revision `location_pack` / `stage_auto` khi Kho đổi + guard ghi chung M0.10 (revision chống ghi đè, USER_LOCKED không bị AI sửa, xung đột → diff).
+5. UI duyệt `proposals` (mục REVIEW_REQUIRED) — CHỈ khi không trùng file với CX23-M80C / CX23-M47B; trùng thì làm 1–4, ghi UI vào HANDOFF chờ phiên chính.
+Không migration/backfill dữ liệu thật (Cấp 3), không data/ máy chính — fixture giả. Nhánh `codex/v31-m23b`.
+
+### CX23-A2F-ALIAS — bí danh tiếng Anh cho nơi Kho trước khi bật reader A2f (ưu tiên 3; Cấp 1 tooling + Cấp 2 nhỏ; 0 USD)
+Nền: docs/RA_CX21_M22_2026-10-23.md mục 31: A2f BẬT mà mục Kho không có bí danh Anh → bỏ tên nơi khỏi prompt + mismatch. Làm: (1) trường bí danh Anh của mục
+Kho nơi (đọc qua adapter, schema có test); (2) `tools/kho_place_alias.py`: liệt kê nơi thiếu bí danh + ĐỀ XUẤT bí danh (từ tên map FF/trường tiếng Anh sẵn có,
+không gọi API), mặc định CHỈ IN; `--lam-that` mới ghi (sao lưu qua `don_rac.py sao-luu` trước); (3) test fixture giả: thiếu bí danh → liệt kê; có bí danh → A2f
+dùng đúng tên Anh trong "Setting:" và câu nền plate. Codex KHÔNG chạy trên data thật — phiên chính chạy ở máy chính rồi trình người dùng duyệt bí danh.
+Khai areas.json. Nhánh `codex/v31-a2f-alias`.
+
+### CX23-M6B-DESIGN — thiết kế Gói M6-B: M6.5 Video Prompt Artist, M6.6 Storyboard Artist, M6.8 Sound/Editor (ưu tiên 4; Cấp 1 TÀI LIỆU; 0 USD)
+Phụ thuộc đã ✅ (M2.1, M1.9, M2.7, M2.9, M4.4). Theo docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md + dòng M6.5/M6.6/M6.8 kế hoạch chính + sổ EP 22/10 Q-B
+(VPA tự viết + Director tự chấp nhận motion prompt khi kiểm đạt; quyền duyệt prompt TÁCH quyền gửi API), E1 (bộ ref do vai đề xuất), M6-A đã duyệt (mẫu).
+Mỗi vai: đầu vào/đầu ra, file:hàm hiện có sẽ thay/bọc, cờ SHADOW TẮT, so với builder cũ (chỉ số so), test plan, rollback, câu hỏi EP (≤ 5, có phương án đề xuất).
+KHÔNG code. Ra `docs/THIET_KE_GOI_M6B_2026-10-2x.md` để phiên chính trình EP duyệt Cấp 2. Nhánh `codex/v31-m6b-design`.

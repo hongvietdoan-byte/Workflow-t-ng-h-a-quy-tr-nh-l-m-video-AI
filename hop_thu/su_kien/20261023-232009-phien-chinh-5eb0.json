@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T23:20:09.459157+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "PHÂN CÔNG BỔ SUNG 23/10 23:3x (người dùng: phiên chính chia việc liên tục cho 3 Codex). Thêm 3 việc CHỜ: CX23-M23B (ưu 3, RÀ KỸ), CX23-A2F-ALIAS (ưu 3), CX23-M6B-DESIGN (ưu 4, tài liệu). Hàng việc mỗi phiên: CODEX 1 = M80C (đang rà/gộp) → CX22-REPORT → nối UI M47B sau khi M80C gộp → CX23-M82 pha B. CODEX 2 = CX23-M53-MAY phần code (KHÔNG dữ liệu thật) → CX23-M60-AUDIT (phần chỉ đọc code) → CX23-A2F-ALIAS → CX22-M83-LOAD. CODEX 3 = lõi M47B → CX22-G1-EP-ROLE → CX23-M64 → CX23-M62 → CX23-M23B. Ai hết hàng trước nhận CX23-M6B-DESIGN rồi CX23-M82 pha A. Luật cũ giữ nguyên: ghi tên phiên, không nhận mã ĐANG LÀM của phiên khác, worktree riêng, push sau mỗi commit."
+}
