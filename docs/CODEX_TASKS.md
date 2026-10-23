@@ -1639,3 +1639,15 @@ Cần (file: devsys/pipeline_maps.py, devsys/plan_map.py, devsys/app.py, devsys/
    đề xuất có lý do) — đỏ trước khi sửa dữ liệu, xanh sau.
 Chạy thật một bản trên máy chính, commit `docs/DOI_SOAT_KHAU_2026-10-23.md` (bảng + danh sách việc đề xuất thêm plan). Đổi devsys/ → báo phiên
 chính khởi động lại 8502. Nhánh `codex/v31-doi-soat`, push sau MỖI commit. Không đụng file của CX22-G1-EP-ROLE / CX22-DON-RAC-TOOL. XONG hộp thư.
+### CX23-RA-M80B — RÀ KỸ nhánh claude/v31-m80b (M8.0b an toàn tiền; ưu tiên 1; Cấp 2 đã duyệt; CHỈ ĐỌC, 0 USD)
+Nhánh `claude/v31-m80b` @5357d627 (đã gộp main; diff `git diff origin/main...origin/claude/v31-m80b`, 32 file +833/-147). Đọc HANDOFF.md của nhánh mục M8.0b.
+Nội dung: ~35 nút _PRICE_ONLY → `paid_button` (giá + 1 xác nhận); "Duyệt hết" ảnh/storyboard/motion/clip qua `dashboard/approve_preview.py` (xem trước + HOLD
+lineage + hẹn hoàn tác 30 s, tới hạn kiểm lại tập chờ/OK); `pilot_release` hẹn 30 s (tới hạn kiểm lại pilot); xóa khóa `paid_ask_*` treo theo lượt chạy
+(`paid_confirm.begin_run` / `mark_drawn`); tools/ui_v2_acceptance.py đo click với cờ TẮT. Tất cả sau cờ `safe_paid_buttons` (TẮT = hành vi cũ).
+RÀ (đụng TIỀN): (1) cờ TẮT có thật byte-giống nhãn/hành vi cũ; (2) không đường nào gọi tốn tiền trước khi bấm Có / trước hạn hoàn tác; Có bấm 2 lần không
+chạy 2 lần; (3) tới hạn hoàn tác: trạng thái đổi (người khác duyệt, job đã chạy, tập chờ đổi) thì KHÔNG chạy, có báo; (4) luồng tự động/hàng loạt
+(autopilot, tải lô, chat_first) không bị chặn kẹt; (5) xóa khóa paid_ask theo lượt có xóa nhầm hộp hỏi đang mở (rerun do widget khác); (6) test bị nới
+che lỗi không (đặc biệt test_click_count chuyển sang cờ TẮT, test cũ pin_off); (7) danh sách nút còn thiếu agent tự báo (p.retry, p.reject,
+regen.regenerate_video, p.restart_job, p.reopen_approved, voice.generate/preview, music.submit_drafts ≈ 23 nút) — xác nhận đúng/sai, bổ sung.
+Báo cáo `docs/RA_M80B_2026-10-23.md`: mỗi lỗi mức CAO/VỪA/THẤP + file:dòng + cách sửa đề xuất + test chứng minh. KHÔNG sửa code nhánh (phiên chính
+gom vòng sửa). Push báo cáo lên nhánh `codex/v31-ra-m80b`. XONG hộp thư. Làm TRƯỚC các việc ưu tiên ≥ 2 (chặn gộp).
