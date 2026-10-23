@@ -1712,3 +1712,19 @@ bảng top khối chậm + đề xuất; (3) đề xuất check tự động cho
 `docs/M6_0_AUDIT_2026-10-2x.md` + script đo nếu cần (khai areas.json). Nhánh `codex/v31-m60-audit`.
 Chung: push sau MỖI commit; HANDOFF.md trên nhánh; chạy song song 2–3 nhánh không trùng file (M47B và M48-D2 có thể cùng đụng dashboard — kiểm trùng trước);
 XONG từng mã qua hộp thư.
+### CX23-M81 — M8.1 Audit thao tác + thiết kế CHẾ ĐỘ ĐƠN GIẢN (ưu tiên 2; Cấp 1 tài liệu; NGƯỜI DÙNG giao 23/10; 0 USD)
+Theo dòng M8.1 trong docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md + câu trả lời EP 22/10 Q-A…Q-F + E2 (grep trong
+docs/ và data/decisions.json). Đếm màn/nút/bước bắt buộc/thuật ngữ từ devsys/pipeline_maps.json + nhật ký ui_step (CSDL mode=ro) + code dashboard/; đề xuất gộp nút,
+ẩn nút chuyên gia, wizard theo bước, chữ thường thay thuật ngữ, mặc định an toàn (giữ guard an toàn tiền M8.0/M8.0b/M8.0c); bản vẽ màn (HTML/ảnh tĩnh) + bảng nút
+giữ/gộp/ẩn có lý do + số bước trước/sau. KHÔNG code giao diện (M8.2 sau EP duyệt). Ra `docs/THIET_KE_CHE_DO_DON_GIAN_2026-10-2x.md`. Nhánh `codex/v31-m81`.
+
+### CX23-M62 — M6.2 Handoff Contract SHADOW (ưu tiên 3; Cấp 2 shadow cờ TẮT — người dùng giao 23/10 "giao thêm việc đẩy tiến độ"; 0 USD)
+Theo docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục M6.2 + dòng M6.2 kế hoạch chính. Ghi jsonl SHADOW (cờ mới TẮT, costs=False) mỗi lần bàn giao giữa khâu:
+id dự án/shot, revision, phụ thuộc, sản phẩm (đường dẫn + sha), bằng chứng QC, trạng thái duyệt — đọc từ nguồn M1.9 (golden/replay) + M2.6 (đã ✅); KHÔNG đổi luồng sản
+xuất, KHÔNG ghi CSDL (chỉ file jsonl trong data/<pid>/ hoặc thư mục cấu hình, có đường dẫn tuyệt đối). Test đỏ→xanh: cờ TẮT = 0 file, byte golden không đổi; cờ BẬT =
+một dòng đúng schema mỗi bàn giao. Nhánh `codex/v31-m62`.
+
+### CX23-M64 — M6.4 Write guard theo VAI (ưu tiên 3; Cấp 2 sau cờ TẮT — người dùng giao 23/10; 0 USD; đụng QUYỀN → RÀ KỸ)
+Theo kế hoạch M6 mục M6.4 + guard M2.5 (đã ✅). actor = vai (Đạo diễn, Quay phim, Storyboard, VPA, 3D, Sound, Editor, EP, Kỹ sư…), mỗi trường production một vai chủ
+(bảng trong code + test), ghi sai vai → chặn (cờ BẬT) / chỉ ghi cảnh báo (cờ TẮT, shadow). Check "Kỹ sư không ghi nội dung production" vào tests/test_decisions.py nếu
+sổ quyết định đã có mục (không tự thêm mục mới — trình phiên chính). Không đụng file CX22-G1-EP-ROLE (chỉ gọi is_executive_producer). Nhánh `codex/v31-m64`.
