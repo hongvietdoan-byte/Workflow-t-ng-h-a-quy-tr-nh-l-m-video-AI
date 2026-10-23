@@ -4,6 +4,7 @@ Drawn right above the Director's run buttons (1d panel and the v2 hero "Lập k�
 so the screen and the flow are exactly as before."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from core import asset_checklist
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 
 
 def _row_text(r) -> str:
@@ -25,9 +26,8 @@ def checklist_panel(p: Pipeline, pid: int, scope: str = "dir") -> None:
                     "(🧪 cờ `asset_checklist`, chưa thử thật)")
         res = asset_checklist.get(p, pid)
         client = llm_client(pid)
-        if st.button(("📋 Lập bảng kê tài nguyên" if res is None else "↻ Lập lại bảng kê")
-                     + cost.llm_button_tag(p.conn, asset_checklist.STAGE, 1),
-                     key=f"asset_chk_{scope}_{pid}", disabled=client is None,
+        if P.paid_button(("📋 Lập bảng kê tài nguyên" if res is None else "↻ Lập lại bảng kê"), key=f"asset_chk_{scope}_{pid}",
+                         tag=cost.llm_button_tag(p.conn, asset_checklist.STAGE, 1), container=st, disabled=client is None,
                      help="Một lượt Claude (không ảnh; tối đa 2 lượt nếu sai định dạng — giá trên nút đã tính cả 2): đọc kịch bản, kê nhân vật / nơi / đồ vật / vũ khí / thú cưng / trang phục, ghép với "
                           "Kho. Code kiểm lại id và loại." if client else claude_hint()):
             with st.spinner("Claude đang kê tài nguyên kịch bản cần…"):

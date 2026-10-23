@@ -1,5 +1,6 @@
 """S14.24 (Bộ não prompt Đợt 5): agent chấm bài học — CHẾ ĐỘ BÓNG. Chấm + ghi lesson_reviews (reviewer_type ai_agent), KHÔNG đổi
 bài học / knowledge; cờ `lesson_judge` TẮT mặc định; rubric 6 tiêu chí (AI ghi khoản trừ + bằng chứng, CODE tính điểm); 8 van về người."""
+from tests._flags import pin_off  # M8.0b
 import json
 import os
 import shutil
@@ -348,6 +349,7 @@ class LessonsTabUiTests(unittest.TestCase):
         self.assertFalse([b for b in at.button if b.key == "ls_judge"])
 
     def test_flag_on_button_has_price_and_click_records_shadow_review(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         at = self._run("1")
         self.assertFalse(at.exception)
         btn = next(b for b in at.button if b.key == "ls_judge")

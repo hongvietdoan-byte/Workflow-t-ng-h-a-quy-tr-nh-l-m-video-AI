@@ -15,17 +15,43 @@ from tests.test_llm_io_preflight import ANALYSIS
 
 APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 
+_SYSTEM_ENV_KEYS = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "PYTHONPATH", "PYTHONHOME",
+                   "PYTHONUTF8", "PYTHONIOENCODING", "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE")
+_APP_ENV_KEYS = ("DASHBOARD_AUTH", "FF_SITE_AUTO", "BG_POLL", "DASHBOARD_SYNC_BACKGROUND", "PLATES3D_LOCK",
+                 "PIPELINE_DB", "PIPELINE_DATA", "KNOWLEDGE_USER_DIR", "DASHBOARD_EXPERT", "FEATURE_SETTINGS_FILE")
+
+
+def _test_environ(overrides=None):
+    """Mỗi lượt AppTest dùng dict giả; chỉ đọc tên biến cho phép, không duyệt os.environ."""
+    source = os.environ
+    env = {key: source[key] for key in _SYSTEM_ENV_KEYS if key in source}
+    # Giữ cấu hình test đã đặt trong dict giả khi có context lồng nhau; không kế thừa từ environ thật.
+    if type(source) is dict:
+        env.update({key: source[key] for key in _APP_ENV_KEYS if key in source})
+    env.setdefault("DASHBOARD_AUTH", "off")
+    env.setdefault("FF_SITE_AUTO", "0")
+    env.setdefault("BG_POLL", "0")
+    env.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")
+    env.setdefault("FEATURE_SETTINGS_FILE", os.path.join(tempfile.mkdtemp(prefix="ui_storyboard_features_"), "settings.json"))
+    env["FEATURE_BASELINE_FILE"] = ""
+    # Tắt provider trừ khi test bật mock rõ ràng; mock có thể lấy các job queued đã gieo
+    # ngay ở lần AppTest render đầu.
+    env["VIDEO_PROVIDER"] = ""
+    env["IMAGE_PROVIDER"] = ""
+    env.update(overrides or {})
+    return mock.patch.object(os, "environ", env)
+
 
 class StoryboardV2Tests(unittest.TestCase):
     def setUp(self):
-        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "m.sqlite")
-        self.env = mock.patch.dict(os.environ, {"PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.tmp, "projects"),
-                                                "KNOWLEDGE_USER_DIR": os.path.join(self.tmp, "ku"), "FEATURE_UI_V2": "1",
-                                                "DASHBOARD_EXPERT": "1"})
+        self.env = _test_environ({"PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.tmp, "projects"),
+                                  "KNOWLEDGE_USER_DIR": os.path.join(self.tmp, "ku"), "FEATURE_UI_V2": "1",
+                                  "DASHBOARD_EXPERT": "1"})
         self.env.start()
         self.addCleanup(self.env.stop)
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: áp lên dict môi trường giả
 
     # -- seed ------------------------------------------------------------------------------------------------------------------
     def seed(self, scenes=5):
@@ -151,6 +177,7 @@ class StoryboardV2Tests(unittest.TestCase):
 
     # -- the buttons still do what they did ----------------------------------------------------------------------------------------
     def test_approve_all_asks_then_approves(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         p, pid, sc = self.seed(2)
         a, b = self.job_in(p, sc[0], "pending_review"), self.job_in(p, sc[1], "pending_review")
         at = self.board()
@@ -160,12 +187,39 @@ class StoryboardV2Tests(unittest.TestCase):
         next(x for x in at.button if x.key == "approve_all_yes").click().run()
         self.assertEqual({s for _, s in self.states(self.db)}, {"approved"})
 
+    def test_m80b_approve_all_previews_then_undo_window(self):
+        """M8.0b E2 cờ BẬT: xem trước từng ảnh + giá → Có → hẹn 30 s (chưa duyệt) → ↩ Hoàn tác = 0 thay đổi; bấm lại → tới hạn mới duyệt."""
+        from dashboard import paid_confirm as P
+        p, pid, sc = self.seed(2)
+        self.job_in(p, sc[0], "pending_review"), self.job_in(p, sc[1], "pending_review")
+        with _test_environ({"FEATURE_SAFE_PAID_BUTTONS": "1"}):
+            at = self.board()
+            next(x for x in at.button if x.key == "approve_all").click().run()
+            self.assertFalse(at.exception, at.exception)
+            self.assertTrue(any("Xem trước: duyệt 2/2 ảnh" in w.value and "0 USD" in w.value for w in at.warning))
+            next(x for x in at.button if x.key == "approve_all_yes").click().run()
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual({s for _, s in self.states(self.db)}, {"pending_review"})      # mới hẹn
+            (uid,) = dict(at.session_state[P.UNDO_KEY])
+            next(x for x in at.button if x.key == f"paid_undo_cancel_{uid}").click().run()     # ↩ Hoàn tác
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual(dict(at.session_state[P.UNDO_KEY]), {})
+            next(x for x in at.button if x.key == "approve_all").click().run()
+            next(x for x in at.button if x.key == "approve_all_yes").click().run()
+            items = dict(at.session_state[P.UNDO_KEY])
+            (uid,) = items
+            items[uid] = dict(items[uid], not_before=0)                                       # tới hạn hoàn tác
+            at.session_state[P.UNDO_KEY] = items
+            at.run()
+            self.assertFalse(at.exception, at.exception)
+        self.assertEqual({s for _, s in self.states(self.db)}, {"approved"})
+
     def test_a_redraw_is_sent_not_only_queued(self):
         """07/10 Khủng Long Đỏ: ↻ Vẽ lại queued the picture and, with nothing else running, nobody sent it."""
         p, pid, sc = self.seed(1)
         a = self.job_in(p, sc[0], "pending_review")
         sent = []
-        with mock.patch.dict(os.environ, {"IMAGE_PROVIDER": "mock"}),                 mock.patch("core.runner.ImageRunner.submit_pending", lambda self_, pid_, **kw: sent.append(pid_) or 1):
+        with _test_environ({"IMAGE_PROVIDER": "mock"}),                 mock.patch("core.runner.ImageRunner.submit_pending", lambda self_, pid_, **kw: sent.append(pid_) or 1):
             at = self.board()
             at.selectbox(key=f"rreason_c{a}").set_value("nhan_vat_sai").run()             # C2: a reason first
             next(x for x in at.button if x.key == f"r_{a}").click().run()
@@ -276,16 +330,15 @@ class StoryboardV2Tests(unittest.TestCase):
         self.job_in(p, sc[0], "approved")
         store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "push in slowly", "camera": "push", "duration_sec": 5,
                                                   "negative_prompt": ""}]})
-        os.environ["FEATURE_END_STATE_FRESH"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_END_STATE_FRESH", None)
-        at = AppTest.from_file(APP, default_timeout=60)
-        at.session_state["sb_tab"] = "🎞 Motion & giọng"
-        at.run()
-        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
-        self.assertEqual(at.text_input(key=f"es_{sc[0]}").value, "Kelly kneels")
-        at.text_input(key=f"es_{sc[0]}").set_value("Kelly sits by the well").run()
-        at.button(key=f"mps_{sc[0]}").click().run()
-        self.assertFalse(at.exception, at.exception)
+        with _test_environ({"FEATURE_END_STATE_FRESH": "1"}):
+            at = AppTest.from_file(APP, default_timeout=60)
+            at.session_state["sb_tab"] = "🎞 Motion & giọng"
+            at.run()
+            at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
+            self.assertEqual(at.text_input(key=f"es_{sc[0]}").value, "Kelly kneels")
+            at.text_input(key=f"es_{sc[0]}").set_value("Kelly sits by the well").run()
+            at.button(key=f"mps_{sc[0]}").click().run()
+            self.assertFalse(at.exception, at.exception)
         q = Pipeline(connect(self.db)).conn
         self.assertEqual(json.loads(q.execute("SELECT data FROM scenes WHERE id=?", (sc[0],)).fetchone()["data"])["end_state"],
                          "Kelly sits by the well")
@@ -369,7 +422,7 @@ class StoryboardV2Tests(unittest.TestCase):
 
     # -- cổng storyboard đang chờ: nút board_ok_<pid> trên thanh dính -------------------------------------------------------------------
     def test_board_ok_button_when_the_gate_waits(self):
-        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": "0"}):     # M8.0 cờ tắt: bấm là gửi như cũ
+        with _test_environ({"FEATURE_SAFE_PAID_BUTTONS": "0"}):     # M8.0 cờ tắt: bấm là gửi như cũ
             self._board_ok(safe=False)
 
     def test_m80_board_ok_asks_then_undo_window_then_starts_once(self):
@@ -446,8 +499,8 @@ class StoryboardV2Tests(unittest.TestCase):
 class FlagOffTest(unittest.TestCase):
     def test_flag_off_keeps_the_old_cards(self):
         tmp = tempfile.mkdtemp()
-        with mock.patch.dict(os.environ, {"PIPELINE_DB": os.path.join(tmp, "m.sqlite"), "PIPELINE_DATA": os.path.join(tmp, "projects"),
-                                          "KNOWLEDGE_USER_DIR": os.path.join(tmp, "ku"), "FEATURE_UI_V2": "0"}):
+        with _test_environ({"PIPELINE_DB": os.path.join(tmp, "m.sqlite"), "PIPELINE_DATA": os.path.join(tmp, "projects"),
+                            "KNOWLEDGE_USER_DIR": os.path.join(tmp, "ku"), "FEATURE_UI_V2": "0"}):
             p = Pipeline(connect(os.environ["PIPELINE_DB"]))
             pid = p.create_project("Demo")
             sid = p.create_scene(pid, 1, "CẢNH 1")

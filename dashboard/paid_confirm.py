@@ -9,6 +9,8 @@ ep-2210-e2-approve-all-preview; docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md m
    làm đúng việc của nút cũ. Đóng trang trước hạn = KHÔNG gửi gì (nói rõ trên thanh). Luồng tự động (autopilot, tải lô, CLI) không đi qua
    đây — chặn cứng của luồng tự động là việc riêng (Q-D).
 Cờ tắt → nút như cũ (bấm là chạy), giá vẫn hiện trên nhãn.
+M8.0b: ~35 nút "chỉ có giá" dùng paid_button; "Duyệt tất cả" xem trước + HOLD + hẹn (dashboard/approve_preview.py); "✔ Mẫu thử ổn" hẹn
+hoàn tác; khóa hỏi `paid_ask_<key>` của nút không còn được vẽ cả một lượt chạy bị bỏ (begin_run ở đầu app.main, mark_drawn ở paid_button).
 """
 import time
 import uuid
@@ -19,6 +21,9 @@ import streamlit as st
 FLAG = "safe_paid_buttons"
 UNDO_SEC = 30
 UNDO_KEY = "_paid_undo"
+RUN_KEY = "_paid_run"          # M8.0b: số lượt chạy cả trang (app.main gọi begin_run)
+DRAWN_KEY = "_paid_drawn"      # {key nút: lượt chạy vẽ nút gần nhất}
+ASK_PREFIX = "paid_ask_"
 
 
 def enabled() -> bool:
@@ -26,18 +31,52 @@ def enabled() -> bool:
     return features.on(FLAG)
 
 
+# ---- 0. khóa hỏi treo (M8.0b) --------------------------------------------------------------------------------------------------
+def begin_run(ss) -> int:
+    """Đầu mỗi lượt chạy cả trang (app.main): tăng số lượt; bỏ `paid_ask_<key>` của nút KHÔNG được vẽ ở lượt trước (lượt vẽ cuối
+    < lượt này - 1) — đổi màn / đóng khung rồi quay lại không còn thấy hộp hỏi cũ. Chạy lại riêng một fragment không qua đây (nút trong
+    fragment vẫn mang lượt hiện tại)."""
+    run = int(ss.get(RUN_KEY) or 0) + 1
+    ss[RUN_KEY] = run
+    drawn = ss.get(DRAWN_KEY)
+    if not isinstance(drawn, dict):
+        drawn = {}
+        ss[DRAWN_KEY] = drawn
+    for k in [k for k in list(ss.keys()) if isinstance(k, str) and k.startswith(ASK_PREFIX)]:
+        last = drawn.get(k[len(ASK_PREFIX):])
+        if last is None or last < run - 1:
+            ss.pop(k, None)
+    for k in [k for k, last in drawn.items() if last < run - 1]:
+        drawn.pop(k, None)
+    return run
+
+
+def mark_drawn(ss, key: str) -> None:
+    drawn = ss.get(DRAWN_KEY)
+    if not isinstance(drawn, dict):
+        drawn = {}
+        ss[DRAWN_KEY] = drawn
+    drawn[key] = int(ss.get(RUN_KEY) or 0)
+
+
 # ---- 1. nút có giá + xác nhận một lần ----------------------------------------------------------------------------------------
-def paid_button(label: str, key: str, tag: str, container=None, *, ask: bool = True, question: Optional[str] = None,
-                yes_label: str = "Có, chạy", **kwargs) -> bool:
-    """Nút tốn tiền. `tag` = chữ giá do hàm ước tính có sẵn tính (cost.llm_button_tag, cost.video_batch_tag …) — bắt buộc, rỗng thì
-    ghi "chưa có giá" (không im lặng). True chỉ khi người dùng đã xác nhận (cờ tắt / ask=False: khi bấm nút)."""
+def paid_button(label: str, key: str, tag: str, container=None, *, ask: bool = True, free: bool = False,
+                question: Optional[str] = None, yes_label: str = "Có, chạy", **kwargs) -> bool:
+    """Nút tốn tiền. `tag` = chữ giá do hàm ước tính có sẵn tính (cost.llm_button_tag, cost.video_batch_tag …) — bắt buộc; cờ BẬT mà
+    rỗng thì ghi "chưa có giá" (không im lặng). True chỉ khi người dùng đã xác nhận (cờ tắt / ask=False: khi bấm nút).
+    Cờ TẮT: nhãn = `label + tag` đúng như nút cũ (M8.0b — nút cũ không có giá thì không thêm chữ).
+    `free` = ĐIỀU KIỆN lần bấm này 0 USD (vd phụ đề giữ nguyên ngôn ngữ, xuất bản không dịch) → nút thường, không hỏi; không được là
+    hằng True (tests/test_safe_paid_buttons.py)."""
     box = container if container is not None else st
+    if free or not enabled():
+        return box.button(label + (tag or ""), key=key, **kwargs)
     tag = tag or " · chưa có giá"
     text = label + tag
-    if not ask or not enabled():
+    if not ask:
         return box.button(text, key=key, **kwargs)
     ss = st.session_state
-    pending = f"paid_ask_{key}"
+    mark_drawn(ss, key)
+    pending = f"{ASK_PREFIX}{key}"
     if kwargs.get("disabled"):
         ss.pop(pending, None)
     if not ss.get(pending):
@@ -85,7 +124,9 @@ def cancel(ss, uid: str) -> bool:
 
 def take_due(ss, now: Optional[float] = None, force: Optional[str] = None) -> List[Dict]:
     """Lấy RA (xóa khỏi hàng chờ trước khi chạy → không chạy hai lần) các mục đã hết hạn hoàn tác; `force` = id mục người dùng bấm
-    "Gửi ngay"."""
+    "Gửi ngay". Đây là lựa chọn có chủ ý để bỏ qua đồng hồ hoàn tác sau khi thấy nút riêng; nó chỉ bỏ qua thời gian chờ, không bỏ
+    qua kiểm tra khi tới hạn: mọi mục vẫn đi qua `run_item` (cổng + fingerprint cho resume, danh sách + HOLD cho bulk, trạng thái mẫu
+    cho pilot). Xóa trước khi chạy giữ bảo đảm một lần kể cả khi kiểm tra chặn hoặc phần thực thi lỗi."""
     items = ss.get(UNDO_KEY) or {}
     now = time.time() if now is None else now
     due = [uid for uid, it in items.items() if it["not_before"] <= now or uid == force]
@@ -113,7 +154,26 @@ def _resume(p, it: Dict, start: Callable) -> str:
     return ""
 
 
-ACTIONS: Dict[str, Callable] = {"resume": _resume}
+def _approve(p, it: Dict, start: Callable) -> str:
+    """M8.0b E2: "Duyệt tất cả" đã xác nhận + hết hạn hoàn tác → duyệt đúng các mục đủ điều kiện lúc bấm (so lại, đổi thì không duyệt)."""
+    from dashboard import approve_preview
+    return approve_preview.run(p, it)
+
+
+def _pilot_release(p, it: Dict, start: Callable) -> str:
+    """M8.0b: "✔ Mẫu thử ổn — gen phần còn lại" hết hạn hoàn tác → mở gen cả lô, CHỈ khi mẫu thử vẫn đúng như lúc bấm."""
+    from core import pilot
+    state = pilot.get(p, it["pid"])
+    if not state.get("enabled") or state.get("released") or list(state.get("scenes") or []) != list(it.get("scenes") or []):
+        return "Không mở gen cả lô: mẫu thử đã đổi trong lúc chờ hoàn tác (bật/tắt, đổi cảnh hoặc đã mở) — xem lại rồi bấm lại."
+    if not pilot.done(p, it["pid"]):
+        return "Không mở gen cả lô: còn ảnh thử chưa duyệt (có ảnh bị bỏ duyệt trong lúc chờ hoàn tác) — xem lại rồi bấm lại."
+    pilot.release(p, it["pid"])
+    return ""
+
+
+ACTIONS: Dict[str, Callable] = {"resume": _resume, "approve_images": _approve, "approve_motion": _approve, "approve_clips": _approve,
+                                "pilot_release": _pilot_release}
 
 
 def run_item(p, it: Dict, start: Callable) -> str:
@@ -173,9 +233,10 @@ def _undo_fragment() -> None:
                     why = f"Không gửi được: {e}"
                 if why:
                     st.session_state["_paid_undo_note"] = why
-                else:
-                    C.log_ui(p, "gen_video", page="storyboard", project_id=it["pid"], detail=it.get("log") or it["what"])
-                    st.toast(f"Đã gửi: {it['what']}")
+                else:                                    # M8.0b: mục duyệt hàng loạt / mẫu thử mang sự kiện + trang của nó
+                    C.log_ui(p, it.get("event") or "gen_video", page=it.get("page") or "storyboard", project_id=it["pid"],
+                             detail=it.get("log") or it["what"])
+                    st.toast(f"{it.get('done') or 'Đã gửi'}: {it['what']}")
             finally:
                 conn.close()                             # rà kỹ M8.0: mỗi lần tới hạn mở một kết nối → đóng ngay
         st.rerun(scope="app")
@@ -186,13 +247,14 @@ def _undo_fragment() -> None:
     for it in pending(ss):
         left = max(0, int(round(it["not_before"] - now)))
         with st.container(border=True, key=f"paid_undo_{it['id']}"):
-            st.markdown(f"⏳ **{it['what']}**{it['tag']} — máy gửi sau **{left} giây**. Chưa gửi gì, chưa tốn tiền; "
-                        "đóng trang trước hạn cũng KHÔNG gửi.")
+            verb = it.get("verb") or "gửi"
+            st.markdown(f"⏳ **{it['what']}**{it['tag']} — máy {verb} sau **{left} giây**. Chưa {verb} gì, chưa tốn tiền; "
+                        f"đóng trang trước hạn cũng KHÔNG {verb}.")
             row = st.container(horizontal=True)
             if row.button(f"↩ Hoàn tác ({left} s)", key=f"paid_undo_cancel_{it['id']}", type="primary"):
                 cancel(ss, it["id"])
                 st.toast("Đã hoàn tác — chưa gửi gì, 0 USD.")
                 st.rerun(scope="app")
-            if row.button("▶ Gửi ngay", key=f"paid_undo_now_{it['id']}"):
+            if row.button(f"▶ {(it.get('verb') or 'gửi').capitalize()} ngay", key=f"paid_undo_now_{it['id']}"):
                 ss["_paid_undo_now"] = it["id"]
                 st.rerun(scope="fragment")

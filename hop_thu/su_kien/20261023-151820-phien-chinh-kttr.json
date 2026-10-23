@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T15:18:20.819345+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "NGƯỜI DÙNG NHẤN MẠNH (23/10): (1) dùng MODEL MẠNH NHẤT có trong Codex + mức suy luận cao cho mọi việc code/rà kỹ, để làm nhanh và đúng ngay lần đầu; (2) ĐẨY NHANH TIẾN ĐỘ: chạy song song TỐI ĐA 3–4 nhánh/worktree riêng (không trùng file), không làm tuần tự từng việc; (3) vừa giao thêm CX23-M81 (ưu 2, tài liệu), CX23-M62, CX23-M64 (ưu 3). Thứ tự gợi ý song song ngay: M80C (ưu 1) + M81 (tài liệu, không trùng file) + DON-RAC-TOOL (đã có 2 commit, push rồi xong) + R1-AXIS (chỉ đọc); xong cái nào bốc tiếp M47B → G1-EP-ROLE → M53-MAY / M60-AUDIT / M62 / M64 / M48-D2. Mỗi việc nhận ghi owner/nhánh/worktree; push sau MỖI commit; báo XONG từng mã."
+}

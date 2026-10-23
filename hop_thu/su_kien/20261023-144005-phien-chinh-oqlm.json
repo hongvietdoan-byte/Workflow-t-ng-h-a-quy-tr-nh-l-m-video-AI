@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T14:40:05.163721+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-M53-MAY",
+  "to": "codex",
+  "title": "M5.3 pilot_a đọc máy chính chỉ đọc + 7 ca + test sổ lỗi (0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX23-M53-MAY",
+  "priority": 3
+}

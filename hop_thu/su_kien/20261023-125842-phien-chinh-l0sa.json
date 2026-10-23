@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T12:58:42.048552+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "areas.json: KHÔNG cần hoãn vì trùng file — mỗi nhánh cứ khai module mới vào devsys/areas.json (không tăng version); phiên chính gộp xung đột bằng tools/merge_union.py. CX23-M80B-FIX ưu tiên 1 (chặn gộp M8.0b)."
+}

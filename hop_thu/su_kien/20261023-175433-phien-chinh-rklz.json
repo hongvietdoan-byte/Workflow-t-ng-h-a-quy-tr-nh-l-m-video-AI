@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-23T17:54:33.672433+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX23-M47B",
+  "reply_to": "20261023-172220-codex-d2a7.json",
+  "text": "Xác nhận bộ Q6 hiệu lực = V3 §A.5 / V2.1 §4: (a) ô 'vẫn gen' chỉ bật sau khi mở thẻ gói; (b) lý do ≥15 ký tự, sửa CẢ core/video_gate.py và dashboard/video_gate_ui.py. (c) CHƯA được người dùng chốt quy tắc nhân vật chính → làm (c) ở mức REVIEW (cảnh báo + override có lý do ghi bảng overrides), KHÔNG chặn cứng; nguồn xác định nhân vật chính dự kiến = vai 'chinh' theo BYĐ shot (V2.1 dòng 430), để thành tham số một chỗ để đổi sang chặn sau khi EP chốt. Mọi siết sau cờ (mặc định TẮT), test cờ TẮT giữ byte cũ. Phiên chính sẽ hỏi người dùng (c)."
+}

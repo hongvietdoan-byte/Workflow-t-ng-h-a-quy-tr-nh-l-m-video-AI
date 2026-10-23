@@ -6,8 +6,10 @@ estimated price ON its label (regex PRICE: "≈ <số>" or "chưa có giá" — 
 llm_button_tag / image_button_tag, budget.audio_tag) or in the nearest plain statement (a caption / an assignment) before it in the same block — sibling
 `if …button` rows in between are skipped, so one caption can price a row of small card buttons. Otherwise it must be in ALLOWED below,
 named by (file, key) with the reason. Entries that no longer match a paid button are reported too (a stale list hides nothing)."""
+from tests._flags import pin_off  # M8.0b
 import ast
 import fnmatch
+import os
 import re
 import unittest
 from pathlib import Path
@@ -72,14 +74,17 @@ def _is_button(n) -> bool:
         return False
     f = n.func
     name = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else ""
-    return name in ("button", "confirm_all", "form_submit_button")
+    return name in ("button", "confirm_all", "form_submit_button", "paid_button")   # M8.0b: paid_button(label, key=, tag=giá)
 
 
 def _label(call: ast.Call):
+    name = call.func.attr if isinstance(call.func, ast.Attribute) else call.func.id
+    if name == "paid_button":                     # M8.0b: nhãn hiện = label + tag (giá nằm ở tag)
+        tag = next((k.value for k in call.keywords if k.arg == "tag"), call.args[2] if len(call.args) > 2 else None)
+        return ast.Tuple(elts=[e for e in (call.args[0] if call.args else None, tag) if e is not None], ctx=ast.Load())
     for k in call.keywords:
         if k.arg == "label":
             return k.value
-    name = call.func.attr if isinstance(call.func, ast.Attribute) else call.func.id
     i = 2 if name == "confirm_all" else 0
     return call.args[i] if len(call.args) > i else None
 
@@ -211,6 +216,20 @@ class PriceLabelScan(unittest.TestCase):
             rows = scan(Path(d))
         self.assertEqual([("'x'", False), ("'y'", True)], [(r[2], r[4]) for r in rows])
 
+    def test_scanner_reads_the_tag_of_paid_button(self):
+        """M8.0b: nút tốn tiền chuyển sang paid_button — giá nằm ở `tag`, máy quét vẫn phải thấy (và thấy khi thiếu)."""
+        src = ("def f(p, jid, P):\n"
+               "    if P.paid_button('Gen lại', key='a', tag=''):\n"
+               "        p.retry(jid, 'r')\n"
+               "    if P.paid_button('Gen lại', key='b', tag=cost.price_tag(0.1), container=st):\n"
+               "        p.retry(jid, 'r')\n")
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "dashboard").mkdir()
+            (Path(d) / "dashboard" / "x.py").write_text(src, encoding="utf-8")
+            rows = {r[2]: r[4] for r in scan(Path(d))}
+        self.assertEqual({"'a'": False, "'b'": True}, rows)
+
     def test_scanner_sees_forms_callbacks_idea_to_script_and_wants_a_real_price(self):
         """Rà soát A2 (e): form_submit_button, on_click= callbacks and idea_to_script were not looked at; a lone '$' counted as a price."""
         src = ("def go(p):\n"
@@ -246,10 +265,10 @@ class CostButtonTags(unittest.TestCase):
 
     def test_llm_tag_counts_the_margin_and_estimates_an_unpriced_model_high(self):
         from unittest import mock
-        from core import cost
-        with mock.patch.dict("os.environ", {"ANTHROPIC_MODEL": "claude-x"}):
+        with mock.patch.object(os, "environ", {"ANTHROPIC_MODEL": "claude-x"}):
+            from core import cost
             self.assertEqual(" · Claude ≈ 0.04 USD (ước tính)", cost.llm_tokens_tag(10000, 1000, self.PRICING))   # (0.02+0.01)×1.3
-        with mock.patch.dict("os.environ", {"ANTHROPIC_MODEL": "claude-new"}):
+        with mock.patch.object(os, "environ", {"ANTHROPIC_MODEL": "claude-new"}):
             self.assertEqual(" · Claude chưa có giá — ước tính dư ≈ 0.06 USD", cost.llm_tokens_tag(10000, 1000, self.PRICING))
             self.assertIn("chưa có giá — ước tính dư", cost.llm_button_tag(None, "qc", 1, pricing=self.PRICING))
         self.assertEqual(" · Claude: chưa có giá", cost.llm_tokens_tag(10, 10, {"per_million_tokens": {}}))
@@ -304,6 +323,7 @@ class EditorReviewWithoutClaude(unittest.TestCase):
     """J6 (mục 8): the rough-cut review button said nothing when Claude was not set up — now it says why and what to do."""
 
     def test_button_without_claude_says_why_and_how(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         from unittest import mock
         from dashboard.steps import step5
         fake = mock.MagicMock()

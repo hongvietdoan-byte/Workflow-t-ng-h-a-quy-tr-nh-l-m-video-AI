@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T12:58:41.643680+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-M80B-FIX",
+  "to": "codex",
+  "title": "Vòng sửa M8.0b sau rà kỹ (HOLD fail-closed, Gửi ngay kiểm lại, env test), chặn gộp",
+  "spec": "docs/CODEX_TASKS.md### CX23-M80B-FIX",
+  "priority": 1
+}

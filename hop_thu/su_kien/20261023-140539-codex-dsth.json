@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T14:05:39.187950+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M80B-FIX",
+  "text": "Amendment sau khi đã ghi XONG: sửa hai helper _test_environ để chỉ đọc allowlist theo khóa, không duyệt os.environ/nhận FEATURE_* tùy ý; thêm test hồi quy chặn enumerate và rò cờ/credential giả; đổi patch.dict còn lại ở test_price_label_scan sang patch.object. Xác nhận mọi AppTest trong hai file UI chạy trong fake-environ context. Đã chạy lại đúng sáu file bằng launcher patch.object(os, 'environ', fake_dict) trước import pytest/tests: 106 passed trong 103,99 giây; git diff --check sạch. Commit hậu kiểm: 3421315d0981d1096b39fbf3150cefa682fc0f08, đã push và ls-remote xác nhận refs/heads/codex/v31-m80b-fix."
+}

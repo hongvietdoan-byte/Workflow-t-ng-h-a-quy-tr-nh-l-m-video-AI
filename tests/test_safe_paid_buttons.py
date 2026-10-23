@@ -23,45 +23,40 @@ CONFIRM_FUNCS = ("paid_button", "confirm_all", "_confirm_all_primary")
 PRICE_RE = re.compile(r"tag|price|estimate|usd|credit", re.I)
 
 # Ngoại lệ: "<file>::<key>" → lý do. Mục không còn khớp nút nào → test đỏ (danh sách không được cũ).
-_PRICE_ONLY = ("giá trên nút (D01b: thao tác EP bấm tay = cảnh báo + giá, ep-2210-qd2); ngoài 6 chỗ M8.0 — xác nhận thêm khi gộp ở M8.6 "
-               "(chế độ Đơn giản ẩn / tự động)")
+# M8.0b (23/10): ~35 nút "chỉ có giá" (_PRICE_ONLY cũ) đã chuyển sang paid_button (giá + xác nhận một lần) khi cờ BẬT — không còn ngoại lệ
+# "chỉ giá". Còn lại chỉ nút 0 USD hoặc nút có sẵn cách xác nhận riêng.
 _FREE = "0 USD: chỉ hỏi trạng thái / tải về / hủy / nối lại task đã trả tiền (không gửi việc mới)"
 EXCEPTIONS = {
-    "admin.py::'ls_judge'": _PRICE_ONLY, "admin.py::'ls_mine'": _PRICE_ONLY, "admin.py::'ls_research'": _PRICE_ONLY,
-    "admin.py::f'kb_distill_{group}'": _PRICE_ONLY, "admin.py::'va_go'": _PRICE_ONLY,
     "admin.py::'meshy_go'": "ô tick 'Tôi đồng ý trả ≈ N credit' bắt buộc trước khi nút bật (xác nhận + giá có sẵn)",
-    "admin.py::f\"meshy_rig{r['id']}\"": _PRICE_ONLY + " (màn quản trị Kho 3D)",
     "admin.py::'meshy_refresh'": _FREE,
-    "end_frame_ui.py::f'efoff_{scene_id}'": _PRICE_ONLY, "quality_ui.py::f'qfinal_{scene_id}'": _PRICE_ONLY,
-    "send_preview_ui.py::f'sendpv_btn_{jid}'": _PRICE_ONLY,
-    "steps/step1_characters.py::f'outfit_set_{pid}_{name}'": _PRICE_ONLY, "steps/step1_characters.py::f'{k}_ai'": _PRICE_ONLY,
-    "steps/step1_characters.py::f'bcheck_{pid}'": _PRICE_ONLY, "steps/step1_characters.py::f'cast_{pid}'": _PRICE_ONLY,
-    "steps/step1_checklist.py::f'asset_chk_{scope}_{pid}'": _PRICE_ONLY, "steps/step1_director.py::f'dlg_ai_{pid}'": _PRICE_ONLY,
-    "steps/step1_director.py::f'replan_{pid}_{scene_idx}'": _PRICE_ONLY, "steps/step1_idea.py::f'idea_redo_d_{pid}'": _PRICE_ONLY,
-    "steps/step1_intake.py::f'ci_style_{pid}'": _PRICE_ONLY, "steps/step1_prep.py::f'wb_run_{pid}'": _PRICE_ONLY,
-    "steps/step1_v2.py::f'script-cta_{pid}'": _PRICE_ONLY + " ('🤖 Lập kế hoạch' — gộp vào 'Được, làm tiếp' ở M8.6)",
-    "steps/step2.py::f'gen_img_{pid}'": _PRICE_ONLY + " + show_estimate: lô lớn bắt tick xác nhận (confirm_batch_at)",
-    "steps/step2.py::f'setqc_{pid}'": _PRICE_ONLY, "steps/step3.py::f'llm_mot_{pid}'": _PRICE_ONLY,
-    "steps/step3.py::f'lint_{pid}'": _PRICE_ONLY, "steps/step4.py::'btn_bad_retry'": _PRICE_ONLY,
-    "steps/step4.py::f'clipqc_{pid}'": _PRICE_ONLY, "steps/step4.py::f'seqlogic_{pid}'": _PRICE_ONLY,
-    "steps/step4.py::f'vr_rej_{jid}'": _PRICE_ONLY + " (gen lại một clip, lý do bắt buộc)",
+    "send_preview_ui.py::f'sendpv_btn_{jid}'": ("0 USD: 'Dựng gói (0 USD)' chỉ DỰNG gói xem trước bằng đường của nút Gen — không gửi, không gọi "
+                                                "Claude / nhà cung cấp, không ghi gì (send_preview.video_package)"),
     "steps/step4.py::f'vc_{jid}'": _FREE, "steps/step4.py::f'vrl_{jid}'": _FREE, "steps/step4.py::f'ms_refresh_{pid}'": _FREE,
     "steps/step4.py::f'quality_refresh_{pid}'": _FREE,
-    "steps/step5.py::f'deliver_{pid}'": _PRICE_ONLY + " ('📦 Xuất bản' — Claude chỉ khi dịch phụ đề)",
-    "steps/step5.py::f'mbrief_ai_{pid}'": _PRICE_ONLY, "steps/step5.py::f'sub_make_{pid}'": _PRICE_ONLY,
-    "steps/step5.py::f'sfx_ai_go_{pid}'": _PRICE_ONLY, "steps/step5.py::f'editor_review_{pid}'": _PRICE_ONLY,
     "quality_ui.py::f'qfinal_new_{scene_id}'": "giá + xác nhận có sẵn: nhãn/câu hỏi do new_final_texts dựng (chứa _usd_text) + confirm_all",
     "quality_ui.py::f'qfinal_allnew_{pid}'": "giá + xác nhận có sẵn: nhãn/câu hỏi do new_final_texts dựng (chứa _usd_text) + confirm_all",
     "design/screens/money_days.py::'md_new_go'": "0 USD: mở đợt ngân sách mới; `llm` ở đây là trần USD (số), không phải client",
-    "steps/step1_director.py::f'llm_dir_{pid}'": _PRICE_ONLY + " (nhãn cộng ' · Claude ≈ X USD'; đã khóa → confirm_all)",
-    "steps/step4.py::f'gen_vid_{pid}'": _PRICE_ONLY + " (nhãn cộng cost.video_batch_tag / batch.picked_tag)",
-    "steps/step4.py::f'stale_requeue_{pid}'": _PRICE_ONLY + " (nhãn có cost.price_tag)",
     "steps/step5.py::f'sub_burn_{pid}'":"0 USD: in phụ đề với cues đã dịch truyền vào (delivery.subtitle_layer không gọi localize khi có cues)",
 }
+# M8.0b: các nút trước chỉ có giá — nay PHẢI là paid_button (giá + xác nhận), không được quay lại EXCEPTIONS.
+M80B_CONVERTED = [
+    ("admin.py", "ls_judge"), ("admin.py", "ls_mine"), ("admin.py", "ls_research"), ("admin.py", "kb_distill_"), ("admin.py", "va_go"),
+    ("admin.py", "meshy_rig"), ("end_frame_ui.py", "efoff_"), ("quality_ui.py", "f'qfinal_{scene_id}'"),
+    ("steps/step1_characters.py", "outfit_set_"), ("steps/step1_characters.py", "_ai'"), ("steps/step1_characters.py", "bcheck_"),
+    ("steps/step1_characters.py", "cast_"), ("steps/step1_checklist.py", "asset_chk_"), ("steps/step1_director.py", "dlg_ai_"),
+    ("steps/step1_director.py", "replan_"), ("steps/step1_director.py", "llm_dir_"), ("steps/step1_idea.py", "idea_redo_d_"),
+    ("steps/step1_intake.py", "ci_style_"), ("steps/step1_prep.py", "wb_run_"), ("steps/step1_v2.py", "script-cta_"),
+    ("steps/step2.py", "gen_img_"), ("steps/step2.py", "setqc_"), ("steps/step3.py", "llm_mot_"), ("steps/step3.py", "lint_"),
+    ("steps/step4.py", "btn_bad_retry"), ("steps/step4.py", "clipqc_"), ("steps/step4.py", "seqlogic_"), ("steps/step4.py", "vr_rej_"),
+    ("steps/step4.py", "gen_vid_"), ("steps/step4.py", "stale_requeue_"), ("steps/step5.py", "deliver_"), ("steps/step5.py", "mbrief_ai_"),
+    ("steps/step5.py", "sub_make_"), ("steps/step5.py", "sfx_ai_go_"), ("steps/step5.py", "editor_review_")]
 # 6 chỗ thiếu giá + xác nhận (kế hoạch dòng 21) + nút duyệt gửi tiền (mục 8.4): phải có GIÁ + XÁC NHẬN, không được là ngoại lệ.
 M80_SPOTS = [("steps/step1_prep.py", "pv_plan_"), ("steps/step1_prep.py", "pv_review_"), ("change_review_ui.py", "_rerun_"),
              ("steps/step2.py", "autoqc_retry_"), ("steps/step4.py", "vqc_retry_"),
              ("design/screens/storyboard_cards.py", "board_ok_"), ("steps/step2.py", "board_ok_"), ("steps/step1_run.py", "ap_resume_")]
+# M8.0b E2: nút "Duyệt tất cả" (duyệt hết) — (file, khóa, loại approve_preview.KINDS)
+APPROVE_SITES = [("steps/step2.py", "approve_all", "images"), ("design/screens/storyboard_cards.py", "approve_all", "images"),
+                 ("steps/step3.py", "btn_ok_all", "motion"), ("steps/step4.py", "vid_ok_all_", "clips")]
 # `paid_button(..., ask=False)`: chính nút là bước xác nhận của việc người dùng vừa làm (tin chat đã gõ + Enter) — chỉ được dùng ở đây.
 ASK_FALSE_OK = {("steps/step1_box.py", "box_chatsend_go_"), ("steps/step1_box.py", "box_chatask_chat_")}
 
@@ -147,14 +142,22 @@ def _scope_of(tree, node):
     return cache.get(id(node), tree)
 
 
+def _buttons_in(expr) -> list:
+    return [c for c in ast.walk(expr) if isinstance(c, ast.Call) and _is_button(c)]
+
+
 def _assigned_buttons(tree) -> dict:
-    """`go = st.button(...)` → {(id phạm vi, "go"): lời gọi nút} để `if go:` được tính là nút."""
+    """`go = st.button(...)` → {(id phạm vi, "go"): [lời gọi nút]} để `if go:` được tính là nút. M8.0b: cả `go = ok and st.button(...)`,
+    `go = confirm_all(...) if x else st.button(...)` và nhiều lần gán cùng tên (mọi nhánh đều phải có giá + xác nhận)."""
     out = {}
     for n in ast.walk(tree):
-        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call) and _is_button(n.value):
+        if isinstance(n, ast.Assign):
+            calls = _buttons_in(n.value)
+            if not calls:
+                continue
             for t in n.targets:
                 if isinstance(t, ast.Name):
-                    out[(id(_scope_of(tree, n)), t.id)] = n.value
+                    out.setdefault((id(_scope_of(tree, n)), t.id), []).extend(calls)
     return out
 
 
@@ -173,20 +176,23 @@ def scan(root: str = DASH) -> list:
             for node in ast.walk(tree):
                 if not isinstance(node, ast.If):
                     continue
-                buttons = [c for c in ast.walk(node.test) if isinstance(c, ast.Call) and _is_button(c)]
-                buttons += [assigned[(id(_scope_of(tree, node)), m.id)] for m in ast.walk(node.test)
-                            if isinstance(m, ast.Name) and (id(_scope_of(tree, node)), m.id) in assigned]
+                buttons = _buttons_in(node.test)
+                for m in ast.walk(node.test):
+                    if isinstance(m, ast.Name):
+                        buttons += assigned.get((id(_scope_of(tree, node)), m.id), [])
                 if not buttons:
                     continue
                 calls = _paid_calls(node.body)
                 if not calls:
                     continue
-                b = buttons[0]
-                last = dotted(b.func).split(".")[-1]
-                ask = _kw(b, "ask")
-                out.append({"file": rel, "line": node.lineno, "key": _key(b), "calls": calls, "priced": _priced(b),
-                            "confirmed": last in CONFIRM_FUNCS,
-                            "ask_false": last == "paid_button" and isinstance(ask, ast.Constant) and ask.value is False})
+                lasts = [dotted(b.func).split(".")[-1] for b in buttons]
+                asks = [(_kw(b, "ask"), last) for b, last in zip(buttons, lasts)]
+                frees = [(_kw(b, "free"), last) for b, last in zip(buttons, lasts)]
+                out.append({"file": rel, "line": node.lineno, "key": _key(buttons[0]), "calls": calls,
+                            "priced": all(_priced(b) for b in buttons),
+                            "confirmed": all(last in CONFIRM_FUNCS for last in lasts),
+                            "ask_false": any(last == "paid_button" and isinstance(a, ast.Constant) and a.value is False for a, last in asks),
+                            "free_const": any(last == "paid_button" and isinstance(f, ast.Constant) and f.value for f, last in frees)})
     return out
 
 
@@ -221,6 +227,35 @@ class PaidButtonScan(unittest.TestCase):
                 self.assertTrue(any(r["file"] == f and frag in r["key"] for f, frag in ASK_FALSE_OK),
                                 f"{r['file']}:{r['line']} paid_button(ask=False) ngoài chỗ cho phép")
 
+    def test_m80b_price_only_buttons_now_confirmed(self):
+        """M8.0b: mọi nút trước chỉ có giá (danh sách _PRICE_ONLY cũ) nay có giá + xác nhận một lần, không nằm trong ngoại lệ."""
+        for file, frag in M80B_CONVERTED:
+            rows = [r for r in self.rows if r["file"] == file and frag in r["key"]]
+            self.assertTrue(rows, f"không thấy nút {frag} ở {file}")
+            for r in rows:
+                self.assertTrue(r["priced"] and r["confirmed"], f"{file}:{r['line']} {r['key']}: thiếu giá hoặc xác nhận")
+                self.assertNotIn(f"{file}::{r['key']}", EXCEPTIONS)
+
+    def test_free_never_constant(self):
+        """`paid_button(..., free=…)` chỉ được là ĐIỀU KIỆN lần này 0 USD (vd phụ đề không dịch) — `free=True` cố định = bỏ xác nhận."""
+        self.assertEqual([f"{r['file']}:{r['line']}" for r in self.rows if r["free_const"]], [])
+
+    def test_approve_all_sites_preview_when_flag_on(self):
+        """M8.0b E2: mọi nút "Duyệt tất cả" (duyệt hết) có đường cờ BẬT qua approve_preview.approve_all_box (xem trước + giá + HOLD +
+        hẹn 30 s hoàn tác) trước confirm_all cũ."""
+        for file, key, kind in APPROVE_SITES:
+            with open(os.path.join(DASH, file), encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+            boxes = [ast.unparse(c) for c in ast.walk(tree) if isinstance(c, ast.Call) and dotted(c.func).endswith("approve_all_box")]
+            self.assertTrue(any(key in b and repr(kind) in b for b in boxes), f"{file}: thiếu approve_all_box({kind!r}, {key})")
+
+    def test_pilot_release_goes_through_undo(self):
+        """M8.0b: '✔ Mẫu thử ổn — gen phần còn lại' cờ BẬT = giá + xác nhận + hẹn 30 s (P.schedule 'pilot_release')."""
+        src = open(os.path.join(DASH, "steps", "step2.py"), encoding="utf-8").read()
+        frag = src[src.index("def pilot_panel"):src.index("def animatic_box")]
+        self.assertIn("paid_button(", frag)
+        self.assertIn('"pilot_release"', frag)
+
     def test_approve_and_send_goes_through_undo(self):
         """'✔ Duyệt storyboard → gửi video' / '✔ Đã duyệt — tiếp tục': thân nút hẹn qua hàng chờ hoàn tác, không gọi autopilot.resume."""
         for file, frag in [("design/screens/storyboard_cards.py", "board_ok_"), ("steps/step2.py", "board_ok_"),
@@ -239,6 +274,10 @@ class ScannerCatchesPatterns(unittest.TestCase):
         "c_form.py": "def f(st, runner, pid):\n    if st.form_submit_button('Gửi'):\n        runner.submit_pending(pid)\n",
         "d_manager.py": "def f(st, C, pid):\n    if st.button('Chạy', key='d'):\n        C.autopilot_manager(C.DB, C.DATA).start(pid)\n",
         "e_llm.py": "def f(st, llm_io, C, p, pid):\n    if st.button('Hỏi', key='e'):\n        llm_io.x(p, pid, C.llm(pid))\n",
+        # M8.0b: gán qua and / if-else (nút "↻ Chỉ hỏi lại N cảnh lỗi", nút Director khi Bible khóa) — máy quét cũ bỏ sót
+        "f_boolop.py": "def f(st, runner, pid, ok):\n    go = ok and st.button('Gen', key='f')\n    if go:\n        runner.submit_images(pid)\n",
+        "g_ifexp.py": ("def f(st, runner, pid, x, confirm_all):\n    go = confirm_all('k', [1], 'L · ≈ 1 USD', 'Q') if x else st.button('Gen', key='g')\n"
+                       "    if go:\n        runner.submit_pending(pid)\n"),
     }
 
     def test_scanner_reports_all_five_patterns(self):
@@ -249,6 +288,8 @@ class ScannerCatchesPatterns(unittest.TestCase):
                     fh.write(src)
             rows = scan(d)
         self.assertEqual(sorted(r["file"] for r in rows), sorted(self.SAMPLES))
+        g = next(r for r in rows if r["file"] == "g_ifexp.py")
+        self.assertFalse(g["confirmed"], "một nhánh là st.button trần → chưa xác nhận dù nhánh kia là confirm_all")
 
 
 class ChatNoSendOnEnter(unittest.TestCase):
@@ -302,6 +343,52 @@ class UndoQueue(unittest.TestCase):
     def test_send_now(self):
         uid = self.P.schedule(self.ss, "resume", 7, "x", now=1000.0)
         self.assertEqual([d["id"] for d in self.P.take_due(self.ss, now=1001.0, force=uid)], [uid])
+
+    def test_send_now_rechecks_and_runs_once(self):
+        ss = {}
+        uid = self.P.schedule(ss, "resume", 7, "Duyệt storyboard", now=1000.0,
+                              waiting_for="storyboard", fp=[1, 2], user={"email": "a"})
+        (queued,) = self.P.take_due(ss, now=1001.0, force=uid)
+        why, resume, started = self._run("khac", [1, 2], queued)
+        self.assertIn("Không gửi", why)
+        resume.assert_not_called()
+        self.assertEqual(started, [])
+        self.assertEqual(self.P.take_due(ss, now=99999.0, force=uid), [])
+
+        ss = {}
+        uid = self.P.schedule(ss, "resume", 7, "Duyệt storyboard", now=1000.0,
+                              waiting_for="storyboard", fp=[1, 2], user={"email": "a"})
+        (queued,) = self.P.take_due(ss, now=1001.0, force=uid)
+        why, resume, started = self._run("storyboard", [1, 2], queued)
+        self.assertEqual(why, "")
+        resume.assert_called_once()
+        self.assertEqual(started, [(7, {"email": "a"})])
+        self.assertEqual(self.P.take_due(ss, now=99999.0, force=uid), [])
+
+        # Gửi clip ngay vẫn so lại hàng chờ và tập HOLD tại thời điểm chạy.
+        from dashboard import approve_preview as A
+        ss = {}
+        uid = self.P.schedule(ss, "approve_clips", 7, "Duyệt clip", now=1000.0,
+                              ids=[21], ok=[21], kind="clips")
+        (queued,) = self.P.take_due(ss, now=1001.0, force=uid)
+        clip = mock.Mock(actor="ep")
+        with mock.patch.object(A, "pending_ids", return_value=[21]), \
+                mock.patch.object(A, "rows", return_value=[{"id": 21, "scene_id": 11, "hold": "clip đang cũ"}]), \
+                mock.patch("dashboard.quality_ui.approve_clip") as approve:
+            why = self.P.run_item(clip, queued, lambda pid, user: None)
+        self.assertIn("Không duyệt", why)
+        approve.assert_not_called()
+
+        # Mở lô ngay vẫn kiểm tra trạng thái mẫu hiện tại trước khi giải phóng các cảnh còn lại.
+        ss = {}
+        uid = self.P.schedule(ss, "pilot_release", 7, "Gen phần còn lại", now=1000.0, scenes=[1])
+        (queued,) = self.P.take_due(ss, now=1001.0, force=uid)
+        pilot_project = mock.Mock(actor="ep")
+        with mock.patch("core.pilot.get", return_value={"enabled": False, "released": False, "scenes": [1]}), \
+                mock.patch("core.pilot.release") as release:
+            why = self.P.run_item(pilot_project, queued, lambda pid, user: None)
+        self.assertIn("Không mở gen cả lô", why)
+        release.assert_not_called()
 
     def _run(self, gate_now, fp_now, it):
         from core import autopilot, storyboard_gate
@@ -394,7 +481,7 @@ class Flag(unittest.TestCase):
         meta = features.FEATURES["safe_paid_buttons"]
         self.assertTrue(meta.get("default_on"))
         self.assertFalse(meta.get("costs"))
-        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": ""}):
+        with mock.patch.object(os, "environ", {"FEATURE_SAFE_PAID_BUTTONS": ""}):
             self.assertEqual(features.default_state("safe_paid_buttons"), "on")
 
 

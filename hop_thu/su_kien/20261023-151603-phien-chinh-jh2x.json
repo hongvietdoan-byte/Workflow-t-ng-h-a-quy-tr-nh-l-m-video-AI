@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T15:16:03.599448+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "PHÂN CÔNG RÕ (phiên chính 23/10 ~15:20): phiên Codex HIỆN TẠI (thread có heartbeat 30 phút, đang giữ CX23-M80C) là OWNER DUY NHẤT của làn codex. Thread Codex cũ đã dừng — 3 việc ĐANG LÀM cũ CHUYỂN cho phiên này, nhận lại ngay: (1) CX22-DON-RAC-TOOL: tiếp từ worktree .codex-wt/v31-don-rac-tool, có 2 commit CHƯA PUSH (16fc1ba9, 7297136b) → push trước rồi làm tiếp; (2) CX22-R1-AXIS: worktree .codex-wt/v31-r1-axis trống, làm lại theo đề + câu trả lời phiên chính 11:0x (chọn A: kết luận không xác minh, ghi đề xuất B); (3) CX22-G1-EP-ROLE: chưa có nhánh, làm mới theo đề + người dùng chọn A (migration có kiểm soát). Cùng với hàng CHỜ: CX23-M47B (ưu 2), CX23-M48-D2, CX23-M53-MAY, CX23-M60-AUDIT (ưu 3), CX22-REPORT, CX22-M83-LOAD. ĐƯỢC chạy SONG SONG tối đa 3 nhánh/worktree riêng (M80C + 2 việc khác không trùng file; M47B và M48-D2 cùng dashboard → không chạy cùng lúc), theo thứ tự ưu tiên. Mỗi việc nhận: ghi \nhan + 1 dòng owner/nhánh/worktree; push sau MỖI commit; XONG từng mã."
+}

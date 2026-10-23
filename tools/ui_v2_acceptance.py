@@ -366,10 +366,16 @@ def seed_states(out: str) -> None:
 
 # ---------------------------------------------------------------- điều phối
 def child(mode: str, v2: str, extra=()) -> dict:
-    # tests/__init__.py đặt FEATURE_PROJECT_BUDGET=0 … → bỏ mọi FEATURE_* thừa hưởng để phép đo giống máy thật (chỉ FEATURE_UI_V2 do _env đặt)
-    env = {k: v for k, v in os.environ.items() if not k.startswith("FEATURE_")}
+    # Tiến trình đo chỉ nhận biến hệ thống/Python/cờ cần thiết; tuyệt đối không kế thừa credential hoặc cấu hình ngoài phạm vi.
+    allowed = {"PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE"}
+    env = {k: v for k, v in os.environ.items() if k in allowed or k.startswith("PYTHON")}  # bỏ FEATURE_* thừa hưởng (tests/__init__ đặt FEATURE_PROJECT_BUDGET=0 …) — chỉ cờ _env đặt
     env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1", FEATURE_SETTINGS_FILE=os.path.join(tempfile.mkdtemp(), "none.json"),
                FEATURE_BASELINE="0")                                # M7.2: phép đo không theo baseline cờ sản xuất
+    if mode == "clicks":
+        # M8.0b: cờ safe_paid_buttons cố ý thêm 1 click xác nhận cho mỗi nút tốn tiền (gen ảnh/motion/video) — đó là an toàn tiền đã duyệt,
+        # không phải giao diện v2 dài ra. Phép đo này so bố cục v2 với mốc cũ 14 → đo với cờ TẮT; số click khi cờ bật kiểm ở
+        # tests/test_m80b_money_rest.py + test_ui_video.test_m80b_gen_video_asks_once_then_sends.
+        env["FEATURE_SAFE_PAID_BUTTONS"] = "0"
     out = subprocess.run([sys.executable, os.path.abspath(__file__), "_child", mode, v2, *extra], capture_output=True, text=True,
                          encoding="utf-8", cwd=ROOT, env=env).stdout
     return json.loads(out[out.index("@@JSON@@") + 8:])

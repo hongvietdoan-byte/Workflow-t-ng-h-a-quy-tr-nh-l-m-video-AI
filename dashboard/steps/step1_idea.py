@@ -5,6 +5,7 @@ S14.21 (Đợt 3): drawn inside the script box (step1_box.py) — the idea comes
 `st.form` (⚙ Thiết lập), and the box's free "nói thêm" (`wish`) goes into the next paid turn. Every paid call stays behind `_paid`."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 _CSS = """<style>
@@ -148,7 +149,7 @@ def turn_directions(p, pid, state, client, wish, used, replies):
     choice = st.radio("Chọn hướng", range(3), format_func=lambda i: labels[i], index=state.get("chosen") or 0, key=f"idea_ch_{pid}")
     note = st.text_input("Ghi chú cho hướng đã chọn (không bắt buộc)", state.get("choice_note", ""), key=f"idea_note_{pid}")
     changed = I.directions_input_changed(state, replies, wish)
-    if st.button(f"↻ Hỏi lại 3 hướng khác (≈ {I.TURN_USD:g} USD)", key=f"idea_redo_d_{pid}", disabled=not changed,
+    if P.paid_button("↻ Hỏi lại 3 hướng khác", key=f"idea_redo_d_{pid}", tag=f" (≈ {I.TURN_USD:g} USD)", container=st, disabled=not changed,
                  help=None if changed else "Đổi câu trả lời ở lượt 1 hoặc nói thêm ở khung bên dưới trước — hỏi lại y hệt là trả tiền cho cùng một câu hỏi."):
         def redo():
             I.answer(p.conn, pid, replies)

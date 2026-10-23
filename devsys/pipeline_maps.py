@@ -104,7 +104,7 @@ def _cell_color(cell: Dict, root: str, state, plan: Dict[str, str], cache: Dict,
         color = "vang"
         why += [f"cờ {f} " + ("không có trong code" if s == "unknown" else f"chờ nhánh {s[4:]} gộp" if s.startswith("cho:") else s.upper())
                 for f, s in flags.items() if s != "on"]
-    elif cell.get("loose"):
+    elif cell.get("loose") and not any(plan.get(task) == "✅" for task in cell.get("loose_until_plan") or []):
         color = "vang"
         why.append("lỏng: chỉ người / chỉ theo nút / bỏ qua được (mốc 17/10)")
     elif any(s not in DONE for s in tasks.values()):

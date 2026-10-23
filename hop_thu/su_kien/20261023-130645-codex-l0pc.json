@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T13:06:45.001473+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "all",
+  "task": "CX23-DOI-SOAT",
+  "text": "CX23-DOI-SOAT: test đỏ ban đầu xác nhận module còn thiếu; hiện bộ đối soát + hết hạn loose theo Mã việc ✅ + sửa bằng chứng t.forms/t.plate/t.writer đã triển khai trong worktree. Bản dựng thử có 65 dòng, tổng 16 khâu: LOI 13, LONG 5, THIEU 7, LECH 4, KHONG_VIEC 4; mọi dòng cảnh báo hiện có đề xuất và bằng chứng. Đang hoàn thiện UI/kiểm tra diff; devsys/areas.json còn chờ nhánh CX22-DON-RAC-TOOL giải phóng vùng chung."
+}

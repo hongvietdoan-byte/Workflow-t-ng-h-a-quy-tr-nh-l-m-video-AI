@@ -1651,3 +1651,94 @@ che lỗi không (đặc biệt test_click_count chuyển sang cờ TẮT, test 
 regen.regenerate_video, p.restart_job, p.reopen_approved, voice.generate/preview, music.submit_drafts ≈ 23 nút) — xác nhận đúng/sai, bổ sung.
 Báo cáo `docs/RA_M80B_2026-10-23.md`: mỗi lỗi mức CAO/VỪA/THẤP + file:dòng + cách sửa đề xuất + test chứng minh. KHÔNG sửa code nhánh (phiên chính
 gom vòng sửa). Push báo cáo lên nhánh `codex/v31-ra-m80b`. XONG hộp thư. Làm TRƯỚC các việc ưu tiên ≥ 2 (chặn gộp).
+### CX23-M80B-FIX — vòng sửa M8.0b sau RÀ KỸ (ưu tiên 1; Cấp 2 đã duyệt; 0 USD; chặn gộp)
+Nền: nhánh `claude/v31-m80b` @5357d627 → tạo `codex/v31-m80b-fix` TỪ nhánh đó (không từ main). Báo cáo rà: `docs/RA_M80B_2026-10-23.md` (nhánh codex/v31-ra-m80b).
+Sửa MỘT vòng, mỗi lỗi 1 test ĐỎ→XANH:
+1. (VỪA, phát hiện 1) HOLD clip/motion theo ĐÚNG job (không chỉ job mới nhất mỗi cảnh); lineage thiếu / scan thiếu → fail-CLOSED (HOLD "không xác minh
+   được lineage"); test: hai clip cùng cảnh (job cũ + job mới stale), scan rỗng, recheck lúc tới hạn. Sửa luôn `tests/test_ui_video.py:194` (_scan={} hiện
+   đang chấp nhận duyệt — phải thành HOLD hoặc dùng scan hợp lệ).
+2. (VỪA, phát hiện 2) `_image_hold` lỗi → HOLD có lý do, không `hold=None`; test exception. `input_hash` NULL (legacy) giữ như cũ (đúng chính sách lineage).
+3. (VỪA, phát hiện 3) PHIÊN CHÍNH CHỐT: GIỮ "▶ Gửi ngay" (người dùng đã bấm Có thấy giá rồi bấm thêm một nút rõ ràng = ý định có chủ ý), nhưng tới lúc gửi
+   ngay vẫn phải chạy CÙNG bước kiểm lại (cổng/fingerprint/tập chờ/pilot) như khi tới hạn; ghi chú lý do trong `paid_confirm.py`; test: Gửi ngay trước hạn
+   + trạng thái đã đổi → không chạy, có báo; trạng thái không đổi → chạy đúng 1 lần.
+4. (THẤP, phát hiện 5) test mới thay hẳn `os.environ` bằng dict giả (không patch.dict trên môi trường thật); `tools/ui_v2_acceptance.py` chỉ truyền
+   whitelist biến (PATH, SYSTEMROOT, TEMP/TMP, HOME/USERPROFILE, PYTHON*, FEATURE_*) cho tiến trình con — không kế thừa khóa API.
+Phát hiện 4 (CAO, ~23 nút retry/reject/reopen/restart/voice/music) KHÔNG làm ở đây → M8.0c riêng sau khi gộp.
+Chạy test liên quan gom một lệnh (test_safe_paid_buttons, test_m80b_money_rest, test_ui_video, test_ui_storyboard, test_ui_v2_acceptance, test_price_label_scan);
+không chạy cả bộ (phiên chính chạy khi gộp). `devsys/areas.json`: được sửa — xung đột với nhánh khác phiên chính gộp bằng `tools/merge_union.py`, KHÔNG cần chờ.
+Push sau MỖI commit. XONG hộp thư kèm commit; phiên chính đọc diff phần sửa rồi gộp.
+### CX23-M80C — M8.0c xác nhận cho ~23 nút tốn tiền còn lại (ưu tiên 1; NGƯỜI DÙNG DUYỆT 23/10 chat; Cấp 2; 0 USD — KHÔNG gọi API trả phí)
+Nền: main @74f46e9e (M8.0b đã gộp e79c1282). Đọc `docs/RA_M80B_2026-10-23.md` phát hiện 4 + HANDOFF_M80.md + `dashboard/paid_confirm.py` (paid_button,
+schedule/undo_bar, begin_run/mark_drawn) + `dashboard/approve_preview.py` + `tests/test_safe_paid_buttons.py` (máy quét AST).
+Việc (tất cả sau cờ `safe_paid_buttons`; cờ TẮT = nhãn + hành vi cũ byte-giống):
+1. Mở rộng máy quét để coi là TỐN TIỀN các lời gọi: `p.retry`, `p.reject` (kèm gen lại), `p.reopen_approved`, `p.restart_job`, `regen.regenerate_video`,
+   `voice.generate` / `voice.preview` (nếu tốn tiền — kiểm provider; 0 USD thì ngoại lệ có lý do), `music.submit_drafts` + mọi đuôi tương tự tìm thêm.
+   Test quét ĐỎ trước (liệt kê đúng các nút: dd_, r_, dretry_, reopen_, vregen_, tts_gen_, mdraft_, reject_all… — chỗ ở step1_characters, step2, step3,
+   step4, step5, storyboard_cards theo báo cáo rà), XANH sau.
+2. Mỗi nút → `paid_button` (giá từ hàm có sẵn + 1 xác nhận). Nút hàng loạt (reject_all, gen lại nhiều) → xem trước danh sách + tổng giá + hẹn hoàn tác 30 s
+   như "Duyệt hết" (tới hạn / "Gửi ngay" kiểm lại trạng thái; đổi thì không chạy). Ngoại lệ chỉ khi có lý do + bằng chứng 0 USD ghi trong test.
+3. Test cũ bấm các nút đổi: giữ tên, chạy cờ TẮT; thêm test cờ BẬT (hỏi → Có → chạy đúng 1 lần; Không → 0 lần). Môi trường test giả hoàn toàn (như CX23-M80B-FIX).
+Gom test liên quan một lệnh, ≤ 3 lần chạy + chạy `tests/test_ui_v2_acceptance.py` một lần cuối. Không chạy cả bộ (phiên chính chạy khi gộp).
+Khai file mới `devsys/areas.json` (không tăng version). Nhánh `codex/v31-m80c`, push sau MỖI commit, HANDOFF.md trên nhánh. XONG hộp thư → phiên chính giao RÀ KỸ
+(Codex nhánh/agent khác, context sạch, chỉ đọc) trước khi gộp.
+### CX23-M47B — M4.7 phần GHI: bảng overrides (C3-4) + siết 3 cổng Q6 (ưu tiên 2; NGƯỜI DÙNG giao 23/10; Cấp 2 + C3-4 DUYỆT CÓ ĐK; 0 USD)
+Phần XEM đã gộp 21/10 (C-M47A, cờ TẮT; xem docs/RA_CLOUD_M47A_2026-10-20.md, docs/CLOUD_TASKS.md quanh dòng 494). Còn: (1) bảng CSDL `overrides`
+theo docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md mục C3-4 (override ↔ mã lỗi/finding, người, revision, lý do, bằng chứng) — điều kiện duyệt: migration
+idempotent + test schema (CSDL mới + CSDL cũ), sao lưu trước, KHÔNG chạy trên data/manifest.sqlite thật trong nhánh; (2) nút override trên thẻ BYĐ/sổ lỗi/gói
+(chỉ người có quyền edit; ghi lý do ≥ câu có nghĩa + bằng chứng; Claude/công cụ không override); (3) "siết 3 cổng" Q6 theo dòng M4.7 trong
+docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + câu Q6 trong docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md — đọc kỹ, phần nào chưa rõ thì HỎI hộp thư. Tất cả sau cờ
+của M4.7 (TẮT = cũ). Test đỏ→xanh. Nhánh `codex/v31-m47b`. Đụng DỮ LIỆU/QUYỀN → phiên chính RÀ KỸ trước gộp.
+
+### CX23-M48-D2 — M4.8 Bàn đạo diễn 3D Đợt 2: N12, N14, N15, N16 (ưu tiên 3; NGƯỜI DÙNG giao 23/10; Cấp 2 đã duyệt EP 21/10 S-A…S-G; 0 USD)
+Kế hoạch: docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md (bảng nút dòng ~130–145, luật "không ghi trước duyệt" ~192/287, Đợt 2 ~248/355, Q-F/Q-G ~345).
+Lõi đã gộp (core/stage_desk.py, cờ stage_desk_ui TẮT; docs/RA_CLOUD_M48_DESK_UI_2026-10-22.md mục 3 = phần chưa có). Làm: N12 tách `stage_previs.run`, N14
+`crew_user_pick` (chỉ chọn trong shot_hist; lần đo lạ → lỗi như validate_review), N15 `world_map.refresh` (cờ world_map TẮT → ẩn), N16 khai họ sân khấu qua
+đường ghi Kho sẵn có (gợi ý VÀNG, không tự gộp) + bảng đối chiếu "đã khai ↔ đo được" nếu kịp. Nút duyệt sân khấu dùng `is_executive_producer` (KHÔNG đụng
+phần vai EP đang làm ở CX22-G1-EP-ROLE — chỉ gọi hàm). Test "không ghi trước duyệt" (sha CSDL không đổi cho N12/N14/N15). Cờ TẮT = cũ. Nhánh `codex/v31-m48-d2`.
+Thử cờ trên #31 = việc của EP, KHÔNG làm.
+
+### CX23-M53-MAY — M5.3 phần còn: pilot_a đọc dữ liệu máy chính CHỈ ĐỌC + 7 ca MAY_CHINH + test cho mục sổ lỗi (ưu tiên 3; NGƯỜI DÙNG giao 23/10; Cấp 1; 0 USD)
+Nền: tools/pilot_a.py + docs/PILOT_A_KET_QUA_2026-10-23.md (vòng A DAT_OFFLINE, 15 ca xanh; 7 ca MAY_CHINH chưa chạy). Làm: tùy chọn `--may-chinh` đọc CSDL bằng
+URI `mode=ro` + file data/ chỉ đọc (không ghi, không mạng, không provider; kiểm sha CSDL trước/sau bằng nhau trong test và lúc chạy); chạy 7 ca trên máy chính
+D:\AI-Video-Pipeline; bổ sung test cho các mục sổ lỗi (65 mục chưa có test) theo thứ tự lỗi tốn tiền / lặp lại nhiều nhất trước — ít nhất 15 mục, mỗi test
+tái hiện lỗi trên dữ liệu giả hoặc fixture; mục không tái hiện được 0 USD → ghi lý do. Cập nhật docs/PILOT_A_KET_QUA (bản mới, không ghi đè) → kết luận vòng A
+đủ/thiếu. Nhánh `codex/v31-m53-may`.
+
+### CX23-M60-AUDIT — M6.0 phần còn: audit nơi gọi tạo job + profiling Dashboard đủ khối (ưu tiên 3; NGƯỜI DÙNG giao 23/10; Cấp 1 CHỈ ĐỌC; 0 USD)
+Kế hoạch: docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 0 (E1–E7 đã đo). Làm: (1) liệt kê MỌI caller tạo job tốn tiền (ảnh/video/TTS/nhạc/Claude) —
+file:dòng, vai thực hiện (người/Đạo diễn/công cụ), có qua sổ chi + ước tính trước + xác nhận người không, đường ghi theo vai; đánh dấu đường "Kỹ sư ghi nội dung
+production" (vi phạm check M6.0); (2) profiling Dashboard đủ khối trên bản sao dữ liệu (thời gian vẽ từng màn/khối, truy vấn CSDL chậm, lineage.summary) →
+bảng top khối chậm + đề xuất; (3) đề xuất check tự động cho sổ quyết định M6 (không tự thêm vào data/decisions.json — trình phiên chính). Báo cáo
+`docs/M6_0_AUDIT_2026-10-2x.md` + script đo nếu cần (khai areas.json). Nhánh `codex/v31-m60-audit`.
+Chung: push sau MỖI commit; HANDOFF.md trên nhánh; chạy song song 2–3 nhánh không trùng file (M47B và M48-D2 có thể cùng đụng dashboard — kiểm trùng trước);
+XONG từng mã qua hộp thư.
+### CX23-M81 — M8.1 Audit thao tác + thiết kế CHẾ ĐỘ ĐƠN GIẢN (ưu tiên 2; Cấp 1 tài liệu; NGƯỜI DÙNG giao 23/10; 0 USD)
+Theo dòng M8.1 trong docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md + câu trả lời EP 22/10 Q-A…Q-F + E2 (grep trong
+docs/ và data/decisions.json). Đếm màn/nút/bước bắt buộc/thuật ngữ từ devsys/pipeline_maps.json + nhật ký ui_step (CSDL mode=ro) + code dashboard/; đề xuất gộp nút,
+ẩn nút chuyên gia, wizard theo bước, chữ thường thay thuật ngữ, mặc định an toàn (giữ guard an toàn tiền M8.0/M8.0b/M8.0c); bản vẽ màn (HTML/ảnh tĩnh) + bảng nút
+giữ/gộp/ẩn có lý do + số bước trước/sau. KHÔNG code giao diện (M8.2 sau EP duyệt). Ra `docs/THIET_KE_CHE_DO_DON_GIAN_2026-10-2x.md`. Nhánh `codex/v31-m81`.
+
+### CX23-M62 — M6.2 Handoff Contract SHADOW (ưu tiên 3; Cấp 2 shadow cờ TẮT — người dùng giao 23/10 "giao thêm việc đẩy tiến độ"; 0 USD)
+Theo docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục M6.2 + dòng M6.2 kế hoạch chính. Ghi jsonl SHADOW (cờ mới TẮT, costs=False) mỗi lần bàn giao giữa khâu:
+id dự án/shot, revision, phụ thuộc, sản phẩm (đường dẫn + sha), bằng chứng QC, trạng thái duyệt — đọc từ nguồn M1.9 (golden/replay) + M2.6 (đã ✅); KHÔNG đổi luồng sản
+xuất, KHÔNG ghi CSDL (chỉ file jsonl trong data/<pid>/ hoặc thư mục cấu hình, có đường dẫn tuyệt đối). Test đỏ→xanh: cờ TẮT = 0 file, byte golden không đổi; cờ BẬT =
+một dòng đúng schema mỗi bàn giao. Nhánh `codex/v31-m62`.
+
+### CX23-M64 — M6.4 Write guard theo VAI (ưu tiên 3; Cấp 2 sau cờ TẮT — người dùng giao 23/10; 0 USD; đụng QUYỀN → RÀ KỸ)
+Theo kế hoạch M6 mục M6.4 + guard M2.5 (đã ✅). actor = vai (Đạo diễn, Quay phim, Storyboard, VPA, 3D, Sound, Editor, EP, Kỹ sư…), mỗi trường production một vai chủ
+(bảng trong code + test), ghi sai vai → chặn (cờ BẬT) / chỉ ghi cảnh báo (cờ TẮT, shadow). Check "Kỹ sư không ghi nội dung production" vào tests/test_decisions.py nếu
+sổ quyết định đã có mục (không tự thêm mục mới — trình phiên chính). Không đụng file CX22-G1-EP-ROLE (chỉ gọi is_executive_producer). Nhánh `codex/v31-m64`.
+### CX23-DON-RAC-FIX — vòng sửa CX22-DON-RAC-TOOL sau RÀ KỸ phiên chính (ưu tiên 1, chặn gộp; 0 USD)
+Trên chính nhánh `codex/v31-don-rac-tool` (@7297136b). Mỗi lỗi 1 test ĐỎ→XANH, một vòng:
+1. VỪA `don_rac.py:379,444`: `git worktree remove` xóa file bị gitignore (vd data/manifest.sqlite bản sao trong worktree) mà `git status --porcelain` không thấy → dùng
+   `git status --porcelain --ignored`; còn file ignore khác __pycache__/*.pyc/.pytest_cache → BỎ QUA worktree (hoặc chuyển vào _luu_tru có nhật ký). Test: worktree đã gộp có
+   data/x.sqlite bị ignore → giữ.
+2. VỪA `don_rac.py:63` + create_backup: `sao-luu data/manifest.sqlite` bị từ chối → cho phép SAO LƯU riêng manifest bằng `sqlite3.connect(src).backup(dst)` (an toàn WAL); vẫn cấm
+   chuyển manifest và cấm sao lưu dashboard.env. Test: sao lưu manifest đang mở, bản sao mở được, đúng số bảng.
+3. VỪA `stop_redundant_servers:469`, `stop_orphan_pytest:506`: chỉ tắt tiến trình có create_time > 15 phút; pytest thêm điều kiện cwd trong repo. Test psutil giả: 8501/8502 không
+   đụng, còn ESTABLISHED giữ, tiến trình mới giữ.
+4. THẤP `_worktree_is_old:277`: tuổi = mtime lớn nhất của .git/worktrees/<tên>/{index,HEAD,logs/HEAD}.
+5. THẤP `rotate_backups:173`: xếp theo dấu thời gian trong tên, không có thì st_ctime. Test: 4 bản mtime đảo ngược → giữ đúng 3 mới nhất theo tên.
+6. THẤP `find_repo_root:29`: gốc = cha của `git rev-parse --git-common-dir` (chạy trong worktree vẫn ra repo chính).
+7. THẤP `cleanup_merged_branch_worktree:414`, `cleanup_worktrees:306`: `_git` timeout=60; `git fetch --prune origin` một lần trước khi rà.
+Chạy tests/test_don_rac*.py + tests/test_hop_thu.py một lệnh. Push sau MỖI commit; XONG hộp thư (phiên chính đọc diff phần sửa rồi gộp).

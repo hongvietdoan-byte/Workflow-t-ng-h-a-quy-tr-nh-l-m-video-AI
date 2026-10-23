@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T17:14:10.723837+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "CX23-DON-RAC-FIX: đã sửa đủ 7 mục; rà độc lập tìm thêm 2 biên an toàn, đã giới hạn backup manifest đúng data/manifest.sqlite và giữ payload không phải .pyc trong __pycache__. Regression mới đỏ 2/2 rồi xanh; bộ tests/test_don_rac.py + tests/test_hop_thu.py xanh 47 passed, diff-check sạch. Đang ghi báo cáo và chuẩn bị commit/push nhánh codex/v31-don-rac-tool; lưu ý hop_thu.py gop cần chạy từ repo chính để cleanup tìm đúng worktree anh em."
+}

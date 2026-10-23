@@ -4,6 +4,7 @@
 (chọn vai, tên / nhân vật / cảnh, ✔ Gắn hoặc ✖ Bỏ). Không gọi model; phân tích ảnh phong cách bằng Claude là nút có giá riêng."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from core import chat_intake as I
 from core import script_chat as Chat
 
@@ -112,8 +113,8 @@ def style_offer(p: Pipeline, pid: int) -> None:
     llm = llm_client(pid)
     with st.chat_message("assistant"):
         st.markdown(f"Có **{len(paths)} ảnh phong cách**. Claude soạn nháp World Bible từ {n} ảnh — bạn xem và Lưu ở ⚙ Chi tiết.")
-        if st.button("🤖 Phân tích ảnh phong cách" + cost.llm_tag(cost.llm_estimate(p.conn, "style", 1, images=n), 1),
-                     key=f"ci_style_{pid}", disabled=llm is None, help=None if llm else claude_hint()):
+        if P.paid_button("🤖 Phân tích ảnh phong cách", key=f"ci_style_{pid}", tag=cost.llm_tag(cost.llm_estimate(p.conn, "style", 1, images=n), 1),
+                         container=st, disabled=llm is None, help=None if llm else claude_hint()):
             from dashboard.steps.step1_prep import WB_LABELS
             try:
                 draft = style.analyse(llm, paths, note=lambda m: diag.record(p.conn, "director", "warn", m, "bad_json_retry", pid))

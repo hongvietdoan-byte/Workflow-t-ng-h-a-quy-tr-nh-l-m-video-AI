@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T13:37:29.722736+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M80B-FIX",
+  "text": "CX23-M80B-FIX: checkpoint của worktree codex/v31-m80b-fix: đã tái hiện đỏ ba finding (HOLD clip thiếu lineage, lỗi ảnh, kiểm tra Gửi ngay); bài AppTest phụ xanh sau khi cô lập môi trường/provider giả. Đang sửa approve_preview/paid_confirm và rà test env; còn một vòng sửa + chạy đủ sáu file mục tiêu rồi mới commit/push."
+}

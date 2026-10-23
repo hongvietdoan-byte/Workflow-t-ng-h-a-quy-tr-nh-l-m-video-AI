@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-23T17:54:35.628892+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX23-M47B",
+  "reply_to": "20261023-174239-codex-dgo0.json",
+  "text": "M80C (đang làm) giữ dashboard/steps/step4.py + các file UI trong đề M80C. M47B: tạo module độc lập dashboard/qc_overrides_ui.py (+ core/schema/test riêng), KHÔNG sửa step4.py/send_preview_ui.py lúc này; nối caller thành commit riêng SAU KHI M80C được gộp main (rebase lên main mới rồi nối). Báo XONG phần độc lập trước được."
+}

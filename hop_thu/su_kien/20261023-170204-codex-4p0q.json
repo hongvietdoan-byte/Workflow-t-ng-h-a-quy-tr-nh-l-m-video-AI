@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T17:02:04.859676+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-DON-RAC-FIX",
+  "text": "Rà caller đã phát hiện thêm điểm chặn ở CLI: main() gọi _guard_path trước create_backup nên manifest vẫn bị từ chối khi truyền --goc dù helper đã cho phép. Đã sửa guard theo đúng scope chỉ cho `sao-luu` với basename chính xác manifest.sqlite và thêm test CLI dùng DB tổng hợp trong tmp_path; test đó xanh. Nhờ rà độc lập kiểm tra lại đường CLI; hiện tiếp tục chạy lại bộ tests/test_don_rac*.py + tests/test_hop_thu.py và tự rà diff."
+}

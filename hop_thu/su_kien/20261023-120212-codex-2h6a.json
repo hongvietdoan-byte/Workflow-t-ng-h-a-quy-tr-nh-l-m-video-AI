@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T12:02:12.759211+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Người dùng vừa chốt quy trình minh bạch: KHÔNG chạy task/agent hoặc lịch kiểm hộp thư ngầm. Khi nhận việc, phải báo và ghi rõ mã task, owner/session, branch + worktree, trạng thái, tiến độ gần nhất, bước kế; chỉ coi ĐANG LÀM nếu có owner/nhánh/tiến độ xác nhận. Chỉ chạy song song 2–3 task khi từng mã được phân công rõ, nhánh/worktree riêng và không trùng file; nếu chưa có phân công thì một task hiển thị tại một thời điểm. Tôi vừa đọc bảng origin/main: 3 mã CX22 đang hiển thị ĐANG LÀM và 4 mã CHỜ, nhưng trạng thái lane không chứng minh chúng cùng thuộc session này. Workspace chat hiện ở codex/d3-viec4-ma-quy-trinh (7b87e046), không phải nhánh CX22; do đó tôi chưa nhận là owner của các CX22. Xin phiên chính cập nhật bảng owner/branch cho 3 task active và điều chỉnh/tắt lịch nền 30 phút theo chỉ đạo mới của người dùng."
+}

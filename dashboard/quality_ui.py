@@ -289,8 +289,9 @@ def card_block(p, pid: int, scene_id: int, runner, line: Optional[Dict] = None) 
         price = scene_final_price(p.conn, pid, scene_id)
         qt = module()
         if offer["upgrade"]:
-            if st.button("⬆ Gen bản cao" + cost.price_tag(price), key=f"qfinal_{scene_id}", width="stretch",
-                         help="Nâng cảnh từ bản nháp đã duyệt lên bản chất lượng cao (người bấm — không tính vào trần tự gen lại)."):
+            from dashboard import paid_confirm as P       # M8.0b: giá + xác nhận một lần (cờ safe_paid_buttons)
+            if P.paid_button("⬆ Gen bản cao", key=f"qfinal_{scene_id}", tag=cost.price_tag(price), container=st, width="stretch",
+                             help="Nâng cảnh từ bản nháp đã duyệt lên bản chất lượng cao (người bấm — không tính vào trần tự gen lại)."):
                 if act(lambda: qt.request_final(p, scene_id, "user")):
                     if runner is not None:
                         act(lambda: runner.submit_pending(pid))

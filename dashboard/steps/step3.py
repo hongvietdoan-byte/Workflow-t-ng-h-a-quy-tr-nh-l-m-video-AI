@@ -1,6 +1,7 @@
 """Step 3: video motion prompts."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from dashboard.widgets import dialogue_panel
 from contextlib import nullcontext
 from core import motion_prompt_lint
@@ -62,9 +63,10 @@ def step3(p: Pipeline, pid: int):
             mot_usd = None if mot_usd is None else round(mot_usd + tr_usd, 4)
         todo += len(vi_held)
         code_note = (f" · {by_code_n} viết bằng code" + (f", gồm 1 lượt dịch ≈ {tr_usd:.2f} USD" if tr_usd else "")) if by_code_n else ""
-        if c1.button(f"🤖 Viết motion prompt ({len(missing)} chưa có · {len(stale_idx)} đã cũ{code_note}){cost.llm_tag(mot_usd, calls)}",
-                     type="primary", key=f"llm_mot_{pid}", disabled=(client is None and not by_code_n) or not todo,
-                     help=None if client else claude_hint()):
+        if P.paid_button(f"🤖 Viết motion prompt ({len(missing)} chưa có · {len(stale_idx)} đã cũ{code_note})", key=f"llm_mot_{pid}",
+                         tag=cost.llm_tag(mot_usd, calls), container=c1, free=calls == 0,   # 0 lượt Claude = chỉ viết bằng code
+                         type="primary", disabled=(client is None and not by_code_n) or not todo,
+                         help=None if client else claude_hint()):
             def go():
                 code = seedance_refs.write_by_code(p, pid, client)
                 if code["warn"]:
@@ -86,12 +88,16 @@ def step3(p: Pipeline, pid: int):
                 if _ok:
                     st.rerun()
         waiting = [r["sid"] for r in rows if r["state"] != "approved"]
-        if confirm_all("btn_ok_all", waiting, f"✔ Duyệt tất cả ({len(waiting)} prompt)", f"Duyệt tất cả {len(waiting)} motion prompt đang chờ?", c2):
+        if P.enabled():                                   # M8.0b E2: xem trước + giá + HOLD → hẹn 30 s hoàn tác
+            from dashboard import approve_preview as AP
+            AP.approve_all_box(p, pid, "motion", "btn_ok_all", waiting, f"✔ Duyệt tất cả ({len(waiting)} prompt)", c2)
+        elif confirm_all("btn_ok_all", waiting, f"✔ Duyệt tất cả ({len(waiting)} prompt)", f"Duyệt tất cả {len(waiting)} motion prompt đang chờ?", c2):
             for sid in waiting:
                 llm_io.approve_motion_prompt(p, sid)
             st.rerun()
-        if c3.button(f"🔍 Rà motion prompt ({len(rows)}){cost.llm_tag(cost.llm_estimate(p.conn, 'motion', 1 if rows else 0), 1 if rows else 0)}",
-                     key=f"lint_{pid}", disabled=client is None or not rows,
+        if P.paid_button(f"🔍 Rà motion prompt ({len(rows)})", key=f"lint_{pid}",
+                         tag=cost.llm_tag(cost.llm_estimate(p.conn, 'motion', 1 if rows else 0), 1 if rows else 0), container=c3,
+                         disabled=client is None or not rows,
                      help="Checklist Seedance Final QC + 4 kiểm tra mơ hồ (tỉ lệ, vị trí, đường máy, thời điểm) cho cảnh phức tạp"):
             with st.spinner("Claude đang rà từng prompt…"):
                 act(lambda: claude_tasks.lint_motion(p, pid, client))

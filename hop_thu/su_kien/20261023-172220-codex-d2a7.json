@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T17:22:20.351842+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Đề CX23-M47B dẫn Q6 sang docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md nhưng file hiện không có Q6; Q6 chi tiết tôi tìm thấy ở docs/KE_HOACH_AI_VIDEO_PIPELINE_V2_1_REVIEW.md §4 và docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md §A.5: (a) bật 'vẫn gen' chỉ sau mở thẻ gói; (b) lý do ≥15 ký tự; (c) 'Duyệt & khóa' chặn thiếu ảnh mốc nhân vật chính theo BYĐ, nhân vật phụ REVIEW/override có lý do. Xin xác nhận đây là bộ Q6 có hiệu lực và định nghĩa nguồn xác định nhân vật chính cho (c); tôi tiếp tục C3-4 và các phần độc lập, chưa thay đổi hành vi cổng."
+}

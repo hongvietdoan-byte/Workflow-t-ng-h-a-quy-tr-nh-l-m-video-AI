@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T15:18:19.943865+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-M62",
+  "to": "codex",
+  "title": "M6.2 Handoff Contract shadow jsonl, cờ TẮT (0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX23-M62",
+  "priority": 3
+}

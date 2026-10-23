@@ -1,6 +1,7 @@
 """Step 4: video generation."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from dashboard.widgets import auto_poll_videos, video_busy
 from dashboard.design.screens.prompt_versions_ui import spin as _spin  # S14.17: spinner khi Đạo diễn viết lại prompt
 from core.pipeline import MISSING_INPUT, STALE_INPUT  # KLD-1 (08/10): failures on the input are never resent unchanged
@@ -197,13 +198,13 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     queued = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued'", (pid,)).fetchone()[0]
     if send or queued or stale_rows:
         label = (f"▶ Gen video ({len(new_rows)} cảnh mới" + (f", làm lại {len(picked)}/{len(stale_rows)} cảnh đã cũ" if stale_rows else "")
-                 + (f", {queued} clip đang chờ gửi" if queued else "") + ")"     # 07/10: resent / redone clips only wait in the queue
-                 + (cost.video_batch_tag(p, pid) if len(new_rows) == all_new and not picked else batch.picked_tag(p, send)))
+                 + (f", {queued} clip đang chờ gửi" if queued else "") + ")")    # 07/10: resent / redone clips only wait in the queue
+        vid_tag = cost.video_batch_tag(p, pid) if len(new_rows) == all_new and not picked else batch.picked_tag(p, send)
     else:                                               # điểm 6 (07/10): nothing to send → say WHY on the button, not '(0 cảnh mới)'
         from core import stage_map
-        label = "▶ Gen video — " + stage_map.video_idle_reason(stage_map.build(p.conn, pid))
-    if c1.button(label,
-                 type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (send or queued)):
+        label, vid_tag = "▶ Gen video — " + stage_map.video_idle_reason(stage_map.build(p.conn, pid)), ""
+    if P.paid_button(label, key=f"gen_vid_{pid}", tag=vid_tag, container=c1, free=not (send or queued),   # không có gì gửi = nút xám
+                     type="primary", disabled=runner is None or not allowed_run or not (send or queued)):
         def go():
             r = batch.queue_videos(p, pid, C.DATA, only={x["scene_id"] for x in send})
             sent = runner.submit_pending(pid)
@@ -218,7 +219,8 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     failed = batch.provider_failures(p, pid)
     prices = [cost.clip_estimate(p.conn, p.job(j)["scene_id"], parent_job_id=j) for j in failed]   # p.retry: giữ bậc của job (bản cao = nâng 1080p)
     total = None if any(x is None for x in prices) else sum(prices)
-    if c2.button(f"↻ Gửi lại clip lỗi ({len(failed)}){cost.price_tag(total, len(failed))}", key="btn_bad_retry", disabled=not failed,
+    if P.paid_button(f"↻ Gửi lại clip lỗi ({len(failed)})", key="btn_bad_retry", tag=cost.price_tag(total, len(failed)), container=c2,
+                     free=not failed, disabled=not failed,
                  help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải). Clip bị bộ lọc nội dung chặn "
                       "hoặc hỏng vì đầu vào đã cũ / thiếu không nằm trong nút này."):
         for jid in failed:
@@ -232,8 +234,8 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
                    + "; ".join(f"{C.unit_code(p, pid, r['idx'])} ({escape((r['note'] or '')[:80])})" for r in stale_failed))
         s_prices = [cost.clip_estimate(p.conn, r["scene_id"]) for r in stale_failed]
         s_total = None if any(x is None for x in s_prices) else sum(s_prices)
-        if st.button(f"↻ Xếp hàng lại từ đầu vào mới ({len(stale_failed)}){cost.price_tag(s_total, len(stale_failed))}",
-                     key=f"stale_requeue_{pid}", disabled=runner is None,
+        if P.paid_button(f"↻ Xếp hàng lại từ đầu vào mới ({len(stale_failed)})", key=f"stale_requeue_{pid}",
+                         tag=cost.price_tag(s_total, len(stale_failed)), container=st, disabled=runner is None,
                      help="Job cũ đóng lại (chưa từng gửi, không tốn tiền); job mới dùng ảnh + motion prompt đang duyệt. Shot chưa duyệt "
                           "đủ đầu vào thì chỉ báo, không gửi."):
             out = {}
@@ -259,7 +261,10 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
         quality_ui.batch_block(p, pid, runner)
     waiting = [j["id"] for j in p.conn.execute(
         "SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
-    if waiting and confirm_all(f"vid_ok_all_{pid}", waiting, f"✔ Duyệt tất cả ({len(waiting)} clip)",
+    if waiting and P.enabled():                          # M8.0b E2: xem trước + giá + HOLD → hẹn 30 s hoàn tác
+        from dashboard import approve_preview as AP
+        AP.approve_all_box(p, pid, "clips", f"vid_ok_all_{pid}", waiting, f"✔ Duyệt tất cả ({len(waiting)} clip)")
+    elif waiting and confirm_all(f"vid_ok_all_{pid}", waiting, f"✔ Duyệt tất cả ({len(waiting)} clip)",
                                f"Duyệt tất cả {len(waiting)} clip đang chờ duyệt?"):
         for jid in waiting:
             quality_ui.approve_clip(p, jid, note="gate_bulk")
@@ -269,7 +274,6 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     problem = autoqc.video_last_error(pid)
     if problem:
         st.warning(f"⚠ Tự kiểm tra video đã dừng: {problem}")
-        from dashboard import paid_confirm as P                 # M8.0: gỡ dừng = vòng nền Claude kiểm lại các clip chưa chấm → giá + xác nhận
         try:
             vqc_tag = cost.llm_button_tag(p.conn, "clipcheck", max(1, len(claude_tasks.unchecked_videos(p, pid))), images=2, ledger_stage="qc")
         except Exception:  # noqa: BLE001 - nút vẫn hiện, nhãn nói thiếu giá
@@ -293,8 +297,9 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
         st.caption("Claude xem khung giữa của mọi clip và các điểm nối giữa hai shot liền mạch: màu, ánh sáng, chất hình, nhân vật có "
                    "khớp nhau không (clip do các model khác nhau làm dễ lệch). Nên chạy trước khi dựng ở màn Bản giao.")
         client = llm_client(pid)
-        if st.button(f"🤖 Kiểm tra {usable} clip" + cost.llm_tag(cost.llm_estimate(p.conn, "clipcheck", 1, images=2, ledger_stage="qc"), 1),
-                     key=f"clipqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
+        if P.paid_button(f"🤖 Kiểm tra {usable} clip", key=f"clipqc_{pid}",
+                         tag=cost.llm_tag(cost.llm_estimate(p.conn, "clipcheck", 1, images=2, ledger_stage="qc"), 1), container=st,
+                         disabled=client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang so cả bộ clip…"):
                 act(lambda: claude_tasks.clip_set_consistency(p, pid, client, C.DATA))
             st.rerun()
@@ -340,8 +345,8 @@ def sequence_logic_panel(p: Pipeline, pid: int) -> None:
                    "có clip) kèm câu hành động: chỗ đứng / độ cao nền có giữ đúng giữa shot liền nhau, địch đã gục có bị bắn tiếp hay "
                    "xuất hiện lại, việc lời thoại nhắc tới có shot thể hiện, thứ tự có nhảy vô lý. Chỉ báo — sửa / gen lại do bạn quyết.")
         client = llm_client(pid)
-        if st.button(f"🤖 Kiểm {calls} nhóm cảnh" + cost.llm_tag(usd, calls), key=f"seqlogic_{pid}",
-                     disabled=client is None, help=None if client else claude_hint()):
+        if P.paid_button(f"🤖 Kiểm {calls} nhóm cảnh", key=f"seqlogic_{pid}", tag=cost.llm_tag(usd, calls), container=st,
+                         disabled=client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang xem nối tiếp các shot…"):
                 act(lambda: sequence_logic.check(p, pid, client, C.DATA))
             st.rerun()
@@ -650,7 +655,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
                   help="Mở tab Motion của Storyboard (tab Motion).")
         from dashboard import reject_reason_ui                     # C2 15/10: no reject without a reason of the fixed list
         rcode, rtext, rerr = (vpick if vpick is not None and not stale_reason else reject_reason_ui.pick(f"v{jid}")) if reviewable else (None, None, None)
-        if r4.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{jid}", disabled=not reviewable or bool(rerr), width="stretch",
+        if P.paid_button("✖ Loại & gen lại", key=f"vr_rej_{jid}", tag=tag, container=r4, disabled=not reviewable or bool(rerr), width="stretch",
                      help=rerr or "Loại clip này và xếp hàng gen lại (kèm câu sửa nếu bạn nhập)."):
             _t0 = time.monotonic()
             _ok = act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None, reason=rcode, reason_text=rtext)))

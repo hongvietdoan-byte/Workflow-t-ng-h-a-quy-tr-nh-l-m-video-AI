@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T13:52:58.021169+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M80B-FIX",
+  "text": "Hậu kiểm sau event XONG: mình phát hiện hai helper test lọc môi trường bằng .items() nên iterator vẫn đọc value ngoài allowlist. Đang yêu cầu amendment trên cùng nhánh để chỉ truy cập khóa allowlist tường minh, không kế thừa FEATURE_* tùy ý; sẽ chạy lại sáu file và push commit bổ sung, không mở rộng phạm vi code trả phí."
+}

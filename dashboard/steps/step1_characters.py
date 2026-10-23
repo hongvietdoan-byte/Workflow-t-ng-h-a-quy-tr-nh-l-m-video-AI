@@ -4,6 +4,7 @@ from typing import Optional
 
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from core import voice_casting  # noqa: E402  (S14.26: voices cast by rule from the scene analysis)
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
@@ -143,9 +144,9 @@ def outfit_panel(p: Pipeline, pid: int, name: str, box) -> None:
             _outfit_to_kho_button(p,pid,name,st)
         runner = image_runner(p) if current else None
         set_model = (getattr(runner.provider, "usage_info", lambda: (None,))()[0] if runner is not None else None)  # S14.2 A2
-        if current and st.button("🧍 Tạo bộ ảnh nhân vật mặc trang phục này (2 ảnh Deepix)" + cost.image_button_tag(set_model, 2),
-                                 key=f"outfit_set_{pid}_{name}",
-                                 disabled=runner is None, help="Chính diện + góc 3/4, toàn thân. Tạo xong tự thành ảnh tham chiếu của nhân vật "
+        if current and P.paid_button("🧍 Tạo bộ ảnh nhân vật mặc trang phục này (2 ảnh Deepix)", key=f"outfit_set_{pid}_{name}",
+                                      tag=cost.image_button_tag(set_model, 2), container=st,
+                                      disabled=runner is None, help="Chính diện + góc 3/4, toàn thân. Tạo xong tự thành ảnh tham chiếu của nhân vật "
                                                                "trong dự án này, mọi cảnh bám theo cùng một bộ; đổi lại được ở ô “Ảnh tham chiếu lấy từ”."):
             with st.spinner("Deepix đang vẽ bộ ảnh nhân vật (khoảng 1 phút)…"):
                 if act(lambda: costume.make_character_set(p, pid, name, runner.provider, C.DATA), f"Đã tạo bộ ảnh cho {name}"):
@@ -294,7 +295,8 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
         if b1.button("💾 Lưu Lock", key=f"{k}_save", disabled=locked):
             act(lambda: claude_tasks.set_lock(p, pid, c["name"], {"must_keep": must, "may_change": may, "forbidden": forb}), "Đã lưu")
             st.rerun()
-        if b2.button("🤖 Claude viết Lock từ ảnh" + cost.llm_button_tag(p.conn, "director", 1, images=4), key=f"{k}_ai", disabled=locked or client is None, help=None if client else claude_hint()):
+        if P.paid_button("🤖 Claude viết Lock từ ảnh", key=f"{k}_ai", tag=cost.llm_button_tag(p.conn, "director", 1, images=4), container=b2,
+                         disabled=locked or client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang xem ảnh tham chiếu…"):
                 if act(lambda: claude_tasks.character_lock(p, pid, c["name"], client), "Đã viết Character Lock"):
                     for suffix in ("must", "may", "forb"):
@@ -434,9 +436,9 @@ def bible_check_box(p: Pipeline, pid: int, rows, client, locked: bool) -> None:
             if not locked and d["can_apply"] and box.button("✔ Dùng đề xuất này", key=f"bfix_{pid}_{r['name']}"):
                 act(lambda: llm_io.update_character(p, pid, r["name"], fixed, r["wardrobe"]), "Đã sửa mô tả theo ảnh")
                 st.rerun()
-    if client is not None and st.button("🔍 Kiểm mô tả nhân vật với ảnh tài nguyên (1 lượt Claude, chỉ nhân vật đổi từ lần kiểm trước)"
-                                        + cost.llm_button_tag(p.conn, "director", 1, images=len(rows)),
-                                        key=f"bcheck_{pid}"):
+    if client is not None and P.paid_button("🔍 Kiểm mô tả nhân vật với ảnh tài nguyên (1 lượt Claude, chỉ nhân vật đổi từ lần kiểm trước)",
+                                            key=f"bcheck_{pid}", tag=cost.llm_button_tag(p.conn, "director", 1, images=len(rows)),
+                                            container=st):
         with st.spinner("Claude đang so mô tả với ảnh…"):
             act(lambda: claude_tasks.bible_check(p, pid, client), "Đã kiểm xong")
         st.rerun()
@@ -494,8 +496,8 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                            + (f" ⚠ {len(speakers)} nhân vật có thoại nhưng chỉ {len(vi_pool)} giọng tiếng Việt: sẽ phải dùng chung giọng." if 0 < len(vi_pool) < len(speakers) else ""))
             voice_rule_box(p, pid, rows, speakers)
             if no_voice and voices and client is not None:
-                if st.button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại" + cost.llm_button_tag(p.conn, "director", 1),
-                             key=f"cast_{pid}"):
+                if P.paid_button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại", key=f"cast_{pid}",
+                                 tag=cost.llm_button_tag(p.conn, "director", 1), container=st):
                     with st.spinner("Claude đang chọn giọng…"):
                         act(lambda: claude_tasks.cast_voices(p, pid, client, voices), "Đã chọn giọng")
                     for r in rows:                     # the voice pickers must show the new choice, not their old widget value

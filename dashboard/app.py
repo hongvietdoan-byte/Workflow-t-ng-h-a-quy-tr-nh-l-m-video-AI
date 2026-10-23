@@ -130,6 +130,8 @@ def main():
     logo = os.path.join(os.path.dirname(__file__), "..", "assets", "logo_g_192.png")
     st.set_page_config(layout="wide", page_title="AI Video Pipeline", page_icon=logo if os.path.exists(logo) else None)
     ui.inject_css()
+    from dashboard import paid_confirm                 # M8.0b: đếm lượt chạy — hộp hỏi "chạy thật?" của nút không còn được vẽ thì bỏ
+    paid_confirm.begin_run(st.session_state)
     os.makedirs(os.path.dirname(DB) or ".", exist_ok=True)
     p = Pipeline(connect(DB))
     C.capture_op_source()                                # 14/10: ?op=claude → nhật ký thao tác ghi nguồn Claude (trước đăng nhập, dính cả phiên)
@@ -140,8 +142,7 @@ def main():
     start_background_watch()                             # 08/10: jobs at the provider are polled + downloaded even with every tab closed
     # 11/10: before the project check — the home screen (no project chosen) also starts it; dashboard/serve.py starts it with the server
     pid = global_bar(p)
-    from dashboard import paid_confirm                 # M8.0: việc đã duyệt đang chờ hết hạn "↩ Hoàn tác" — hiện ở MỌI màn (cả ⌂)
-    paid_confirm.undo_bar()
+    paid_confirm.undo_bar()                            # M8.0: việc đã duyệt đang chờ hết hạn "↩ Hoàn tác" — hiện ở MỌI màn (cả ⌂)
     if pid is None:
         return
     C.periodic("purge_trash", lambda: purge_trash(DATA))              # V4 5.3: housekeeping every 60 s, not on every click

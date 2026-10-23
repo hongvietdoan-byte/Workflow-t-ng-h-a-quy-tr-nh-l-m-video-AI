@@ -2,6 +2,7 @@
 
 Chạy với core/quality_tier.py THẬT (N1): trạng thái từng cảnh dựng bằng job video (quality_tier) + review_log người duyệt, như
 tests/test_quality_tier.py. Không gọi API: VIDEO_PROVIDER=mock và runner.submit_pending được thay bằng Mock."""
+from tests._flags import pin_off  # M8.0b
 import json
 import os
 import unittest
@@ -117,6 +118,7 @@ class VideoScreenTests(TwoTierSeed):
         self.assertTrue({f"vres_{s}" for s in self.sids} <= {s.key for s in at.selectbox})   # 09/10: ô Chất lượng thay ô Cấu hình
 
     def test_gen_final_only_on_draft_ok_with_price(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         self.on()
         at = self.open(3)
         labels = {b.key: b.label for b in at.button}

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T15:32:17.128242+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX22-R1-AXIS",
+  "branch": "codex/v31-r1-axis",
+  "commit": "0b8ef9c0",
+  "report": "docs/RA_CX22_R1_AXIS_CODEX_2026-10-23.md",
+  "text": "Báo cáo hoàn tất theo lựa chọn A: shot17→18 không xác minh độc lập, nhiều khả năng nhầm do lệch trạng thái map/blocking; trích evidence từ sự kiện 10:52 và đối chiếu tĩnh check_axis_jumps, đề xuất B thành việc riêng. Không mở data/manifest/ảnh thật, không gọi API, không sửa code/dữ liệu; chỉ commit báo cáo 0b8ef9c0 và push nhánh. Đã hỏi phiên chính qua mailbox về nguyên nhân cảnh 3 thiếu blocking và K1 cảnh 4 chưa đo; hai điểm phụ ghi chưa xác minh, chờ phản hồi."
+}

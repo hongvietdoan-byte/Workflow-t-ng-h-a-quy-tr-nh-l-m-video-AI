@@ -14,6 +14,7 @@ import streamlit as st
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers, như step2/step3)
 from dashboard import common as C
 from dashboard.design import components as D
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0 / M8.0b: giá + xác nhận + hẹn hoàn tác, cờ safe_paid_buttons)
 from dashboard.design.screens.prompt_versions_ui import spin as _spin  # S14.17: spinner khi Đạo diễn viết lại prompt
 
 # job.state -> trạng thái duyệt cố định của thiết kế (components.FRAME_STATES)
@@ -439,7 +440,6 @@ def action_bar(p, pid: int) -> None:
                         board_tag = cost.video_batch_tag(p, pid)
                     except Exception:  # noqa: BLE001 - the button stays; the label says the price is missing
                         board_tag = " · chưa có giá (không ước tính được)"
-                    from dashboard import paid_confirm as P   # M8.0: giá + xác nhận + hẹn 30 s có ↩ Hoàn tác trước khi máy gửi video
                     if P.waiting(st.session_state, "resume", pid):
                         st.caption("⏳ Đã hẹn gửi video — xem thanh ↩ Hoàn tác trên cùng.")
                     elif P.paid_button("✔ Duyệt storyboard → gửi video", key=f"board_ok_{pid}", tag=board_tag, container=st,
@@ -447,7 +447,11 @@ def action_bar(p, pid: int) -> None:
                         P.schedule_resume(p, pid, "Duyệt storyboard → gửi video", board_tag, "duyệt storyboard → gửi video (tự chạy)")
                         st.rerun()
             with right:
-                if _confirm_all_primary("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?",
+                if P.enabled():                              # M8.0b E2: xem trước + giá + HOLD → hẹn 30 s hoàn tác
+                    from dashboard import approve_preview as AP
+                    AP.approve_all_box(p, pid, "images", "approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", right,
+                                       primary=bool(pending) or not waiting, stretch=True)
+                elif _confirm_all_primary("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?",
                                         right, primary=bool(pending) or not waiting):
                     for jid in pending:
                         p.approve(jid, "user", note="gate_bulk")

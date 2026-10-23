@@ -1,6 +1,7 @@
 """Step 1 · 1b: format, resources, World Bible, image model, shot format, storyboard previz (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 WB_LABELS = (("render_style", "Phong cách dựng hình", "vd: hoạt hình 3D mềm, không viền, chuyển sắc liên tục"),
@@ -31,8 +32,9 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
                                    key=f"wb_up_{pid}")
         llm = llm_client(pid)
         n_up = min(len(uploads or []), style.MAX_REFS)
-        if st.button("🤖 Phân tích ảnh phong cách bằng Claude" + cost.llm_tag(cost.llm_estimate(p.conn, "style", 1, images=n_up), 1),
-                     key=f"wb_run_{pid}", disabled=not uploads or llm is None, help=None if llm else claude_hint()):
+        if P.paid_button("🤖 Phân tích ảnh phong cách bằng Claude", key=f"wb_run_{pid}",
+                         tag=cost.llm_tag(cost.llm_estimate(p.conn, "style", 1, images=n_up), 1), container=st,
+                         disabled=not uploads or llm is None, help=None if llm else claude_hint()):
             folder = project_dir(pid, "style_refs")
             paths = []
             for i, f in enumerate(uploads[:style.MAX_REFS], 1):
@@ -361,7 +363,6 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
                    "Chỉ cảnh đã có Background (ảnh bối cảnh trong kho) mới dựng được. Không phải duyệt: sửa blocking rồi dựng lại nếu muốn.")
         client = llm_client(pid)
         c1, c2 = st.columns(2)
-        from dashboard import paid_confirm as P
         plan_tag, review_tag = _previz_tags(p, pid)
         if P.paid_button("🎬 Dựng storyboard", key=f"pv_plan_{pid}", tag=plan_tag, container=c1, disabled=client is None, type="primary",
                          help=None if client else C.claude_hint()):

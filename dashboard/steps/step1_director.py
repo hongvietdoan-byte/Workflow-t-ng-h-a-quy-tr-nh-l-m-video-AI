@@ -1,6 +1,7 @@
 """Step 1 · 1d/1f: Director, its reports, dialogue review, re-plan of a scene (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from core import director_lease
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
@@ -73,19 +74,19 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                         summary=("💵 Ước tính Director ≈ " + f"{usd:.2f}".replace(".", ",") + " USD") if usd is not None else "💵 Ước tính Director: model chưa có giá")
                 except Exception as e:  # noqa: BLE001 - an estimate that cannot be made is said, never hidden
                     cap(f"💵 Chưa ước tính được chi phí Director ({type(e).__name__}: {e})")
-                label += f" · Claude ≈ {usd:.2f} USD (ước tính)" if usd is not None else " · Claude: chưa có giá"
+                dir_tag = f" · Claude ≈ {usd:.2f} USD (ước tính)" if usd is not None else " · Claude: chưa có giá"
                 if running:
-                    go = st.button(label, key=f"llm_dir_{pid}", disabled=True)
-                else:
-                    go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
-                                  "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
-                                  "không đổi. Chạy?", st, "Có, chạy lại") if locked
-                          else st.button(label, type="primary", key=f"llm_dir_{pid}"))
+                    go = P.paid_button(label, key=f"llm_dir_{pid}", tag=dir_tag, container=st, disabled=True)
+                else:                                  # Bible khóa: confirm_all có sẵn (giá trên nhãn + câu hỏi) — M8.0b: còn lại paid_button
+                    go = (confirm_all(f"llm_dir_{pid}", ["again"], label + dir_tag + " (chạy lại)",
+                                      "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
+                                      "không đổi. Chạy?", st, "Có, chạy lại") if locked
+                          else P.paid_button(label, key=f"llm_dir_{pid}", tag=dir_tag, container=st, type="primary"))
                 pending = director_two_pass.pending_scenes(p, pid) if two else []
-                resume = bool(pending) and st.button(
-                    f"↻ Chỉ hỏi lại {len(pending)} cảnh lỗi (cảnh {', '.join(map(str, pending))})"
-                    + (f" · Claude ≈ {scene_usd * len(pending):.2f} USD (ước tính)" if scene_usd is not None
-                       else cost.llm_button_tag(p.conn, "director", len(pending))), key=f"llm_dir_resume_{pid}", disabled=bool(running),
+                resume = bool(pending) and P.paid_button(
+                    f"↻ Chỉ hỏi lại {len(pending)} cảnh lỗi (cảnh {', '.join(map(str, pending))})", key=f"llm_dir_resume_{pid}",
+                    tag=(f" · Claude ≈ {scene_usd * len(pending):.2f} USD (ước tính)" if scene_usd is not None
+                         else cost.llm_button_tag(p.conn, "director", len(pending))), container=st, disabled=bool(running),
                     help="Lần chạy trước dừng vì Quay phim chưa chia được các cảnh này. Dùng lại ý đồ Tầng A và các cảnh đã chia (đã trả tiền) "
                          "khi kịch bản/luật không đổi — chỉ trả tiền cho các cảnh lỗi.")
                 if go or resume:
@@ -135,8 +136,8 @@ def dialogue_review_panel(p: Pipeline, pid: int) -> None:
             dialogue.extend(p, entries)
             st.rerun()
         client = llm_client(pid)
-        if st.button("🤖 Claude rà thoại (6 lỗi thoại + độ dài)" + cost.llm_button_tag(p.conn, "director", 1), key=f"dlg_ai_{pid}", disabled=client is None,
-                     help=None if client else claude_hint()):
+        if P.paid_button("🤖 Claude rà thoại (6 lỗi thoại + độ dài)", key=f"dlg_ai_{pid}", tag=cost.llm_button_tag(p.conn, "director", 1),
+                         container=st, disabled=client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang đọc thoại…"):
                 act(lambda: st.session_state.__setitem__(key, claude_tasks.review_dialogue(p, pid, client)))
         res = st.session_state.get(key)
@@ -170,8 +171,8 @@ def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
     running = director_lease.busy(p.conn, pid)
     if running:
         col.caption(running)
-    if col.button("↻ Chia shot lại cảnh này" + cost.llm_button_tag(p.conn, "director", 1), key=f"replan_{pid}_{scene_idx}",
-                  disabled=bool(running),
+    if P.paid_button("↻ Chia shot lại cảnh này", key=f"replan_{pid}_{scene_idx}", tag=cost.llm_button_tag(p.conn, "director", 1),
+                     container=col, disabled=bool(running),
                   help="Một lượt Claude chỉ cho cảnh này (phần luật chung được cache) — vài cent thay vì ~$0,3 của cả kịch bản. "
                        "Cảnh sau được ghi lại theo thứ tự phim, không đổi nội dung. Director hai lượt: Quay phim chia lại theo ý đồ "
                        "Tầng A đã lưu (không hỏi lại Đạo diễn)."):
