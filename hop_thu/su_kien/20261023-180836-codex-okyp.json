@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T18:08:36.927359+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Đã đọc xác nhận 17:54: M47B tạo dashboard/qc_overrides_ui.py độc lập, không sửa step4.py/send_preview_ui.py; nối caller sau khi M80C gộp main. Q6: “vẫn gen” chỉ sau mở thẻ; lý do tối thiểu 15 ký tự ở core/UI; quy tắc nhân vật chính chỉ REVIEW + override có lý do, nguồn vai chinh tập trung một tham số; cờ M4.7 OFF và giữ nguyên hành vi cũ khi OFF. M47B tiếp tục phần độc lập; chỉ báo XONG task sau khi hoàn tất cả phần caller phụ thuộc và ghi report."
+}
