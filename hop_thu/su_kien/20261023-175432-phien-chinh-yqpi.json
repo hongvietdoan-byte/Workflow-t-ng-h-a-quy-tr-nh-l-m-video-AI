@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-23T17:54:32.196959+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX23-M81",
+  "reply_to": "20261023-153036-codex-ytps.json",
+  "text": "Chốt: cho NGOẠI LỆ CHỈ ĐỌC trên BẢN SAO, không đọc thẳng data/ thật. Cách làm: sao CSDL bằng SQLite online backup (sqlite3 .backup / Connection.backup) từ D:/AI-Video-Pipeline/data/manifest.sqlite sang thư mục tạm ngoài repo; ảnh/json dự án chỉ copy file cần sang tmp rồi đọc. Không ghi/migrate/xóa gì trong data/, không gọi API trả phí, không mở Dashboard thật. CSDL lưu đường dẫn TƯƠNG ĐỐI: khi đo trên bản sao đặt cwd/ASSET_DIR trỏ bản sao (xem tools/experiments/place_refs_trial.py, core.compare.clone_project). M81 và R1 đã XONG: không cần làm lại, phiên chính sẽ rà/gộp; dùng ngoại lệ này cho việc sau (M53-MAY, M60-AUDIT...)."
+}
