@@ -17,6 +17,24 @@ V2 = {"FEATURE_UI_V2": "1"}
 STEP_VIDEO, STEP_DELIVER = 3, 4
 
 
+def _test_environ(overrides=None):
+    """Mỗi lượt AppTest dùng một bản môi trường giả, chỉ giữ cấu hình hệ thống/Python/cờ cần cho test."""
+    allowed = {"PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "DASHBOARD_AUTH", "FF_SITE_AUTO",
+               "BG_POLL", "DASHBOARD_SYNC_BACKGROUND", "PLATES3D_LOCK", "PIPELINE_DB", "PIPELINE_DATA",
+               "KNOWLEDGE_USER_DIR", "DASHBOARD_EXPERT", "VIDEO_PROVIDER", "IMAGE_PROVIDER"}
+    env = {k: v for k, v in os.environ.items() if k in allowed or k.startswith(("PYTHON", "FEATURE_"))}
+    env.setdefault("DASHBOARD_AUTH", "off")
+    env.setdefault("FF_SITE_AUTO", "0")
+    env.setdefault("BG_POLL", "0")
+    env.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")
+    # Tắt provider trừ khi test bật mock rõ ràng; mock có thể lấy các job queued đã gieo
+    # ngay ở lần AppTest render đầu.
+    env["VIDEO_PROVIDER"] = ""
+    env["IMAGE_PROVIDER"] = ""
+    env.update(overrides or {})
+    return mock.patch.object(os, "environ", env)
+
+
 class VideoSeed(unittest.TestCase):
     """A project with one video job per state: succeeded, pending_review, failed, queued, approved."""
 
@@ -24,8 +42,8 @@ class VideoSeed(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "m.sqlite")
         self.data = os.path.join(self.tmp, "projects")
-        patcher = mock.patch.dict(os.environ, {"PIPELINE_DB": self.db, "PIPELINE_DATA": self.data,
-                                               "KNOWLEDGE_USER_DIR": os.path.join(self.tmp, "k")})
+        patcher = _test_environ({"PIPELINE_DB": self.db, "PIPELINE_DATA": self.data,
+                                 "KNOWLEDGE_USER_DIR": os.path.join(self.tmp, "k")})
         patcher.start()
         self.addCleanup(patcher.stop)
         self.p = Pipeline(connect(self.db))
@@ -57,7 +75,11 @@ class VideoSeed(unittest.TestCase):
 
     def open_video(self, v2=True) -> AppTest:
         env = dict(V2) if v2 else {"FEATURE_UI_V2": "0"}
-        with mock.patch.dict(os.environ, env):
+        # Giữ mock được bật rõ ràng ở môi trường giả bên ngoài; không kế thừa provider thật.
+        for name in ("VIDEO_PROVIDER", "IMAGE_PROVIDER"):
+            if os.environ.get(name) == "mock":
+                env[name] = "mock"
+        with _test_environ(env):
             at = AppTest.from_file(APP, default_timeout=40).run()
             at.radio(key="step").set_value(at.radio(key="step").options[STEP_VIDEO]).run()
         self.assertFalse(at.exception, at.exception)
@@ -70,8 +92,8 @@ def md(at: AppTest) -> str:
 
 class VideoV2Tests(VideoSeed):
     def setUp(self):
-        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         super().setUp()
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: áp lên dict môi trường giả của test
 
     def test_every_state_has_a_card_with_the_fixed_pill_text(self):
         at = self.open_video()
@@ -149,7 +171,7 @@ class VideoV2Tests(VideoSeed):
 
     def test_empty_project_shows_an_empty_state_with_one_action(self):
         other = self.p.create_project("Trống")
-        with mock.patch.dict(os.environ, V2):
+        with _test_environ(V2):
             at = AppTest.from_file(APP, default_timeout=40)
             at.session_state["global_pid"] = other
             at.run()
@@ -164,7 +186,7 @@ class QueuedClipsAreSentTests(VideoSeed):
     "0 cảnh sẵn sàng" — 7 paid-for clips waited with no button to send them."""
 
     def test_gen_video_is_enabled_and_sends_the_queued_clips(self):
-        with mock.patch.dict(os.environ, {"VIDEO_PROVIDER": "mock", "FEATURE_SAFE_PAID_BUTTONS": "0"}):   # M8.0b cờ tắt: bấm là gửi như cũ
+        with _test_environ({"VIDEO_PROVIDER": "mock", "FEATURE_SAFE_PAID_BUTTONS": "0"}):   # M8.0b cờ tắt: bấm là gửi như cũ
             at = self.open_video()
             btn = next(b for b in at.button if b.key == f"gen_vid_{self.pid}")
             self.assertFalse(btn.disabled)
@@ -176,7 +198,7 @@ class QueuedClipsAreSentTests(VideoSeed):
 
     def test_m80b_gen_video_asks_once_then_sends(self):
         """M8.0b cờ BẬT: '▶ Gen video' = giá trên nút + hỏi một lần; chỉ 'Có, chạy' mới gửi."""
-        with mock.patch.dict(os.environ, {"VIDEO_PROVIDER": "mock", "FEATURE_SAFE_PAID_BUTTONS": "1"}):
+        with _test_environ({"VIDEO_PROVIDER": "mock", "FEATURE_SAFE_PAID_BUTTONS": "1"}):
             at = self.open_video()
             sent = []
             with mock.patch("core.runner.VideoRunner.submit_pending", lambda self_, pid: sent.append(pid) or 1):
@@ -188,25 +210,17 @@ class QueuedClipsAreSentTests(VideoSeed):
         self.assertEqual(sent, [self.pid])
 
     def test_m80b_approve_all_clips_previews_then_undo_window(self):
-        """M8.0b E2 cờ BẬT: 'Duyệt tất cả' → xem trước danh sách + giá → Có → hẹn 30 s (chưa duyệt) → tới hạn mới duyệt."""
+        """M8.0b E2: không có lineage thì HOLD clip ngay trong phần xem trước."""
         pr = self.jobs["pending_review"]
-        # hạt giống không có motion prompt → lineage gọi clip là "cũ" (HOLD, test_m80b_money_rest kiểm); ở đây xem đường duyệt được
-        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": "1"}), mock.patch("dashboard.approve_preview._scan", return_value={}):
+        with _test_environ({"FEATURE_SAFE_PAID_BUTTONS": "1"}), mock.patch("dashboard.approve_preview._scan", return_value={}):
             at = self.open_video()
             next(b for b in at.button if b.key == f"vid_ok_all_{self.pid}").click().run()
             self.assertFalse(at.exception, at.exception)
-            self.assertIn("0 USD", md(at) + " ".join(w.value for w in at.warning))
-            next(b for b in at.button if b.key == f"vid_ok_all_{self.pid}_yes").click().run()
-            self.assertFalse(at.exception, at.exception)
-            self.assertEqual(Pipeline(connect(self.db)).job(pr)["state"], "pending_review")    # mới hẹn
-            from dashboard import paid_confirm as P
-            items = dict(at.session_state[P.UNDO_KEY])
-            (uid,) = items
-            items[uid] = dict(items[uid], not_before=0)
-            at.session_state[P.UNDO_KEY] = items
-            at.run()
-            self.assertFalse(at.exception, at.exception)
-        self.assertEqual(Pipeline(connect(self.db)).job(pr)["state"], "approved")
+            preview = md(at) + " ".join(w.value for w in at.warning)
+            self.assertIn("HOLD", preview)
+            self.assertIn("lineage", preview)
+            self.assertNotIn(f"vid_ok_all_{self.pid}_yes", {b.key for b in at.button})
+        self.assertEqual(Pipeline(connect(self.db)).job(pr)["state"], "pending_review")
 
 
 class KldVideoScreenTests(VideoSeed):

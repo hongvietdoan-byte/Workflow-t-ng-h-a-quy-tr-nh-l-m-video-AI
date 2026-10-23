@@ -157,6 +157,48 @@ class ApproveRun(unittest.TestCase):
         self.assertIsNone(clip[21])
         self.assertIn("ảnh đã được thay", clip[22])
 
+    def test_clip_and_motion_lineage_fail_closed_for_each_job_and_on_recheck(self):
+        """Clip cũ không mượn dấu của job mới nhất; thiếu scan/lineage hoặc lỗi khi quét đều là HOLD cả lúc xem lẫn lúc chạy."""
+        conn = mock.Mock()
+        newest_stale = {11: {"idx": 1, "image_job_id": 3, "motion_stale": None,
+                             "video_job_id": 22, "video_stale": "motion prompt đã đổi"}}
+        scene_for = {11: 11, 21: 11, 22: 11}
+        with mock.patch("core.lineage.scan", return_value=newest_stale), \
+                mock.patch.object(self.A, "_scene_of", side_effect=lambda _c, _k, i: scene_for[i]):
+            clips = {r["id"]: r["hold"] for r in self.A.rows(conn, 7, "clips", [21, 22])}
+        self.assertIn("lineage", clips[21])                         # job cũ không khớp job mà scan đã kiểm
+        self.assertIn("motion prompt", clips[22])                   # job mới có lý do cũ riêng
+
+        for failed_scan in ({}, RuntimeError("scan unavailable")):
+            scan_patch = mock.patch("core.lineage.scan", side_effect=failed_scan) if isinstance(failed_scan, Exception) \
+                else mock.patch("core.lineage.scan", return_value=failed_scan)
+            with scan_patch, mock.patch.object(self.A, "_scene_of", side_effect=lambda _c, _k, i: scene_for[i]):
+                held = self.A.rows(conn, 7, "clips", [21, 22])
+                motion = self.A.rows(conn, 7, "motion", [11])
+            self.assertTrue(all("lineage" in r["hold"] for r in held))
+            self.assertIn("lineage", motion[0]["hold"])
+
+        it = {"kind": "clips", "pid": 7, "ids": [21], "ok": [21]}
+        with mock.patch.object(self.A, "pending_ids", return_value=[21]), \
+                mock.patch("core.lineage.scan", return_value={}), \
+                mock.patch.object(self.A, "_scene_of", side_effect=lambda _c, _k, i: scene_for[i]), \
+                mock.patch("dashboard.quality_ui.approve_clip") as approve:
+            why = self.A.run(mock.Mock(actor="ep"), it)
+        self.assertIn("Không duyệt", why)
+        approve.assert_not_called()
+
+    def test_image_lineage_exception_is_hold_and_legacy_null_hash_stays_allowed(self):
+        conn = mock.Mock()
+        with mock.patch("core.lineage.scan", return_value={}), \
+                mock.patch.object(self.A, "_scene_of", return_value=11), \
+                mock.patch.object(self.A, "_image_hold", side_effect=ValueError("invalid lineage data")):
+            item = self.A.rows(conn, 7, "images", [51])[0]
+        self.assertIn("không xác minh được lineage", item["hold"])
+
+        legacy = mock.Mock()
+        legacy.execute.return_value.fetchone.return_value = (None, "{}")
+        self.assertIsNone(self.A._image_hold(legacy, 7, 51))
+
     def test_price_line_says_approve_is_free(self):
         with mock.patch("core.cost.clip_estimate", return_value=0.5):
             line = self.A.price_line(mock.Mock(), "images", self._rows([1, 2], hold={2}))

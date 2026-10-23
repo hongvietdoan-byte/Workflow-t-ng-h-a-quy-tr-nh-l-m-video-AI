@@ -344,6 +344,52 @@ class UndoQueue(unittest.TestCase):
         uid = self.P.schedule(self.ss, "resume", 7, "x", now=1000.0)
         self.assertEqual([d["id"] for d in self.P.take_due(self.ss, now=1001.0, force=uid)], [uid])
 
+    def test_send_now_rechecks_and_runs_once(self):
+        ss = {}
+        uid = self.P.schedule(ss, "resume", 7, "Duyệt storyboard", now=1000.0,
+                              waiting_for="storyboard", fp=[1, 2], user={"email": "a"})
+        (queued,) = self.P.take_due(ss, now=1001.0, force=uid)
+        why, resume, started = self._run("khac", [1, 2], queued)
+        self.assertIn("Không gửi", why)
+        resume.assert_not_called()
+        self.assertEqual(started, [])
+        self.assertEqual(self.P.take_due(ss, now=99999.0, force=uid), [])
+
+        ss = {}
+        uid = self.P.schedule(ss, "resume", 7, "Duyệt storyboard", now=1000.0,
+                              waiting_for="storyboard", fp=[1, 2], user={"email": "a"})
+        (queued,) = self.P.take_due(ss, now=1001.0, force=uid)
+        why, resume, started = self._run("storyboard", [1, 2], queued)
+        self.assertEqual(why, "")
+        resume.assert_called_once()
+        self.assertEqual(started, [(7, {"email": "a"})])
+        self.assertEqual(self.P.take_due(ss, now=99999.0, force=uid), [])
+
+        # Gửi clip ngay vẫn so lại hàng chờ và tập HOLD tại thời điểm chạy.
+        from dashboard import approve_preview as A
+        ss = {}
+        uid = self.P.schedule(ss, "approve_clips", 7, "Duyệt clip", now=1000.0,
+                              ids=[21], ok=[21], kind="clips")
+        (queued,) = self.P.take_due(ss, now=1001.0, force=uid)
+        clip = mock.Mock(actor="ep")
+        with mock.patch.object(A, "pending_ids", return_value=[21]), \
+                mock.patch.object(A, "rows", return_value=[{"id": 21, "scene_id": 11, "hold": "clip đang cũ"}]), \
+                mock.patch("dashboard.quality_ui.approve_clip") as approve:
+            why = self.P.run_item(clip, queued, lambda pid, user: None)
+        self.assertIn("Không duyệt", why)
+        approve.assert_not_called()
+
+        # Mở lô ngay vẫn kiểm tra trạng thái mẫu hiện tại trước khi giải phóng các cảnh còn lại.
+        ss = {}
+        uid = self.P.schedule(ss, "pilot_release", 7, "Gen phần còn lại", now=1000.0, scenes=[1])
+        (queued,) = self.P.take_due(ss, now=1001.0, force=uid)
+        pilot_project = mock.Mock(actor="ep")
+        with mock.patch("core.pilot.get", return_value={"enabled": False, "released": False, "scenes": [1]}), \
+                mock.patch("core.pilot.release") as release:
+            why = self.P.run_item(pilot_project, queued, lambda pid, user: None)
+        self.assertIn("Không mở gen cả lô", why)
+        release.assert_not_called()
+
     def _run(self, gate_now, fp_now, it):
         from core import autopilot, storyboard_gate
         p = mock.Mock(actor="ep")
@@ -435,7 +481,7 @@ class Flag(unittest.TestCase):
         meta = features.FEATURES["safe_paid_buttons"]
         self.assertTrue(meta.get("default_on"))
         self.assertFalse(meta.get("costs"))
-        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": ""}):
+        with mock.patch.object(os, "environ", {"FEATURE_SAFE_PAID_BUTTONS": ""}):
             self.assertEqual(features.default_state("safe_paid_buttons"), "on")
 
 

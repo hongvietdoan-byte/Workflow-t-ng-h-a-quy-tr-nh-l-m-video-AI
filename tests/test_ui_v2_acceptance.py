@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
 import ui_v2_acceptance as U  # noqa: E402
@@ -16,6 +17,19 @@ def _git_has(rev: str) -> bool:
 
 
 class AcceptanceTests(unittest.TestCase):
+    def test_child_receives_only_the_environment_allowlist(self):
+        fake = {"PATH": "safe-path", "SYSTEMROOT": "safe-root", "TEMP": "safe-temp", "TMP": "safe-tmp",
+                "HOME": "safe-home", "USERPROFILE": "safe-profile", "PYTHONPATH": "safe-python",
+                "FEATURE_UI_V2": "1", "API_TOKEN": "credential-canary", "AWS_ACCESS_KEY_ID": "credential-canary",
+                "UNRELATED_SETTING": "private-canary"}
+        with mock.patch.object(os, "environ", fake), \
+                mock.patch.object(U.subprocess, "run", return_value=mock.Mock(stdout="@@JSON@@{}")) as run:
+            U.child("keys", "1")
+        child_env = run.call_args.kwargs["env"]
+        self.assertEqual({k: child_env[k] for k in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "PYTHONPATH", "FEATURE_UI_V2")},
+                         {k: fake[k] for k in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "PYTHONPATH", "FEATURE_UI_V2")})
+        self.assertFalse({"API_TOKEN", "AWS_ACCESS_KEY_ID", "UNRELATED_SETTING"} & set(child_env))
+
     @unittest.skipUnless(_git_has(U.BASE_REV), "không có lịch sử git tới " + U.BASE_REV)
     def test_no_widget_key_pattern_lost_in_source(self):
         old, new = U.static_keys(U.BASE_REV), U.static_keys("HEAD")

@@ -15,6 +15,7 @@ KINDS: Dict[str, Dict] = {
     "clips": {"noun": "clip", "event": "duyet_het_clip", "page": "video"},
 }
 SHOW_MAX = 40                                            # dòng xem trước tối đa (còn lại ghi "… và N mục")
+LINEAGE_UNKNOWN = "không xác minh được lineage"
 
 
 def pending_ids(conn, pid: int, kind: str) -> List[int]:
@@ -58,27 +59,43 @@ def _image_hold(conn, pid: int, jid: int) -> Optional[str]:
 
 def rows(conn, pid: int, kind: str, ids) -> List[Dict]:
     """[{id, scene_id, idx, text, hold}] — `hold` = lý do chưa đủ điều kiện (None = duyệt được)."""
-    scan = _scan(conn, pid)
+    try:
+        scan = _scan(conn, pid)
+    except Exception:  # noqa: BLE001 - scan lỗi không được mở khóa duyệt
+        scan = None
     noun = KINDS[kind]["noun"]
     out = []
     for i in ids:
-        sid = _scene_of(conn, kind, i)
-        s = scan.get(sid) or {}
+        try:
+            sid = _scene_of(conn, kind, i)
+        except Exception:  # noqa: BLE001 - không xác định được scene thì lineage chưa được xác minh
+            sid = None
+        s = scan.get(sid) if isinstance(scan, dict) and sid is not None else None
+        if not isinstance(s, dict):
+            s = None
         hold = None
         if kind == "motion":
-            if s and not s.get("image_job_id"):
+            if s is None or not {"image_job_id", "motion_stale"}.issubset(s):
+                hold = LINEAGE_UNKNOWN
+            elif not s.get("image_job_id"):
                 hold = "cảnh chưa có ảnh duyệt"
             elif s.get("motion_stale"):
                 hold = f"motion prompt cũ: {s['motion_stale']}"
         elif kind == "clips":
-            if s.get("video_stale") and (s.get("video_job_id") in (None, i)):
+            # lineage.scan chỉ lưu một video được chọn mỗi cảnh. Lý do cũ thuộc đúng job đó;
+            # job chờ khác chưa có lineage được xác minh trong lượt scan này.
+            if s is None or not {"video_job_id", "video_stale"}.issubset(s):
+                hold = LINEAGE_UNKNOWN
+            elif s.get("video_job_id") != i:
+                hold = LINEAGE_UNKNOWN
+            elif s.get("video_stale"):
                 hold = f"clip làm từ đầu vào cũ: {s['video_stale']}"
         else:
             try:
                 hold = _image_hold(conn, pid, i)
-            except Exception:  # noqa: BLE001 - không đo được dấu thì không chặn (như nút cũ), chỉ không thêm HOLD
-                hold = None
-        idx = s.get("idx")
+            except Exception:  # noqa: BLE001 - lỗi đọc dấu ảnh phải giữ HOLD
+                hold = f"{LINEAGE_UNKNOWN}: lỗi đọc đầu vào ảnh"
+        idx = s.get("idx") if s else None
         what = f"{noun} job {i}" if kind != "motion" else noun
         out.append({"id": i, "scene_id": sid, "idx": idx, "text": (f"S{idx:02d} · " if isinstance(idx, int) else "") + what, "hold": hold})
     return out

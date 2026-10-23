@@ -124,7 +124,9 @@ def cancel(ss, uid: str) -> bool:
 
 def take_due(ss, now: Optional[float] = None, force: Optional[str] = None) -> List[Dict]:
     """Lấy RA (xóa khỏi hàng chờ trước khi chạy → không chạy hai lần) các mục đã hết hạn hoàn tác; `force` = id mục người dùng bấm
-    "Gửi ngay"."""
+    "Gửi ngay". Đây là lựa chọn có chủ ý để bỏ qua đồng hồ hoàn tác sau khi thấy nút riêng; nó chỉ bỏ qua thời gian chờ, không bỏ
+    qua kiểm tra khi tới hạn: mọi mục vẫn đi qua `run_item` (cổng + fingerprint cho resume, danh sách + HOLD cho bulk, trạng thái mẫu
+    cho pilot). Xóa trước khi chạy giữ bảo đảm một lần kể cả khi kiểm tra chặn hoặc phần thực thi lỗi."""
     items = ss.get(UNDO_KEY) or {}
     now = time.time() if now is None else now
     due = [uid for uid, it in items.items() if it["not_before"] <= now or uid == force]
