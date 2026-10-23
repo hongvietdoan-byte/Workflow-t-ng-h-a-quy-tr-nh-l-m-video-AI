@@ -15,17 +15,25 @@ from tests.test_llm_io_preflight import ANALYSIS
 
 APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 
+_SYSTEM_ENV_KEYS = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "PYTHONPATH", "PYTHONHOME",
+                   "PYTHONUTF8", "PYTHONIOENCODING", "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE")
+_APP_ENV_KEYS = ("DASHBOARD_AUTH", "FF_SITE_AUTO", "BG_POLL", "DASHBOARD_SYNC_BACKGROUND", "PLATES3D_LOCK",
+                 "PIPELINE_DB", "PIPELINE_DATA", "KNOWLEDGE_USER_DIR", "DASHBOARD_EXPERT", "FEATURE_SETTINGS_FILE")
+
 
 def _test_environ(overrides=None):
-    """Mỗi lượt AppTest dùng môi trường giả, không sửa os.environ thật."""
-    allowed = {"PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "DASHBOARD_AUTH", "FF_SITE_AUTO",
-               "BG_POLL", "DASHBOARD_SYNC_BACKGROUND", "PLATES3D_LOCK", "PIPELINE_DB", "PIPELINE_DATA",
-               "KNOWLEDGE_USER_DIR", "DASHBOARD_EXPERT", "VIDEO_PROVIDER", "IMAGE_PROVIDER"}
-    env = {k: v for k, v in os.environ.items() if k in allowed or k.startswith(("PYTHON", "FEATURE_"))}
+    """Mỗi lượt AppTest dùng dict giả; chỉ đọc tên biến cho phép, không duyệt os.environ."""
+    source = os.environ
+    env = {key: source[key] for key in _SYSTEM_ENV_KEYS if key in source}
+    # Giữ cấu hình test đã đặt trong dict giả khi có context lồng nhau; không kế thừa từ environ thật.
+    if type(source) is dict:
+        env.update({key: source[key] for key in _APP_ENV_KEYS if key in source})
     env.setdefault("DASHBOARD_AUTH", "off")
     env.setdefault("FF_SITE_AUTO", "0")
     env.setdefault("BG_POLL", "0")
     env.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")
+    env.setdefault("FEATURE_SETTINGS_FILE", os.path.join(tempfile.mkdtemp(prefix="ui_storyboard_features_"), "settings.json"))
+    env["FEATURE_BASELINE_FILE"] = ""
     # Tắt provider trừ khi test bật mock rõ ràng; mock có thể lấy các job queued đã gieo
     # ngay ở lần AppTest render đầu.
     env["VIDEO_PROVIDER"] = ""

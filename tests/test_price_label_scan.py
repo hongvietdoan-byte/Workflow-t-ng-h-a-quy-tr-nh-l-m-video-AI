@@ -9,6 +9,7 @@ named by (file, key) with the reason. Entries that no longer match a paid button
 from tests._flags import pin_off  # M8.0b
 import ast
 import fnmatch
+import os
 import re
 import unittest
 from pathlib import Path
@@ -264,10 +265,10 @@ class CostButtonTags(unittest.TestCase):
 
     def test_llm_tag_counts_the_margin_and_estimates_an_unpriced_model_high(self):
         from unittest import mock
-        from core import cost
-        with mock.patch.dict("os.environ", {"ANTHROPIC_MODEL": "claude-x"}):
+        with mock.patch.object(os, "environ", {"ANTHROPIC_MODEL": "claude-x"}):
+            from core import cost
             self.assertEqual(" · Claude ≈ 0.04 USD (ước tính)", cost.llm_tokens_tag(10000, 1000, self.PRICING))   # (0.02+0.01)×1.3
-        with mock.patch.dict("os.environ", {"ANTHROPIC_MODEL": "claude-new"}):
+        with mock.patch.object(os, "environ", {"ANTHROPIC_MODEL": "claude-new"}):
             self.assertEqual(" · Claude chưa có giá — ước tính dư ≈ 0.06 USD", cost.llm_tokens_tag(10000, 1000, self.PRICING))
             self.assertIn("chưa có giá — ước tính dư", cost.llm_button_tag(None, "qc", 1, pricing=self.PRICING))
         self.assertEqual(" · Claude: chưa có giá", cost.llm_tokens_tag(10, 10, {"per_million_tokens": {}}))

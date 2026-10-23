@@ -16,23 +16,76 @@ APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 V2 = {"FEATURE_UI_V2": "1"}
 STEP_VIDEO, STEP_DELIVER = 3, 4
 
+_SYSTEM_ENV_KEYS = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "PYTHONPATH", "PYTHONHOME",
+                   "PYTHONUTF8", "PYTHONIOENCODING", "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE")
+_APP_ENV_KEYS = ("DASHBOARD_AUTH", "FF_SITE_AUTO", "BG_POLL", "DASHBOARD_SYNC_BACKGROUND", "PLATES3D_LOCK",
+                 "PIPELINE_DB", "PIPELINE_DATA", "KNOWLEDGE_USER_DIR", "DASHBOARD_EXPERT", "FEATURE_SETTINGS_FILE")
+
 
 def _test_environ(overrides=None):
-    """Mỗi lượt AppTest dùng một bản môi trường giả, chỉ giữ cấu hình hệ thống/Python/cờ cần cho test."""
-    allowed = {"PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "DASHBOARD_AUTH", "FF_SITE_AUTO",
-               "BG_POLL", "DASHBOARD_SYNC_BACKGROUND", "PLATES3D_LOCK", "PIPELINE_DB", "PIPELINE_DATA",
-               "KNOWLEDGE_USER_DIR", "DASHBOARD_EXPERT", "VIDEO_PROVIDER", "IMAGE_PROVIDER"}
-    env = {k: v for k, v in os.environ.items() if k in allowed or k.startswith(("PYTHON", "FEATURE_"))}
+    """Mỗi lượt AppTest dùng dict giả; chỉ đọc tên biến cho phép, không duyệt os.environ."""
+    source = os.environ
+    env = {key: source[key] for key in _SYSTEM_ENV_KEYS if key in source}
+    # Giữ cấu hình test đã đặt trong dict giả khi có context lồng nhau; không kế thừa từ environ thật.
+    if type(source) is dict:
+        env.update({key: source[key] for key in _APP_ENV_KEYS if key in source})
     env.setdefault("DASHBOARD_AUTH", "off")
     env.setdefault("FF_SITE_AUTO", "0")
     env.setdefault("BG_POLL", "0")
     env.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")
+    env.setdefault("FEATURE_SETTINGS_FILE", os.path.join(tempfile.mkdtemp(prefix="ui_video_features_"), "settings.json"))
+    env["FEATURE_BASELINE_FILE"] = ""
     # Tắt provider trừ khi test bật mock rõ ràng; mock có thể lấy các job queued đã gieo
     # ngay ở lần AppTest render đầu.
     env["VIDEO_PROVIDER"] = ""
     env["IMAGE_PROVIDER"] = ""
     env.update(overrides or {})
     return mock.patch.object(os, "environ", env)
+
+
+class TestEnvironmentIsolation(unittest.TestCase):
+    def test_ui_helpers_read_allowlisted_keys_and_explicit_feature_overrides(self):
+        from tests.test_ui_storyboard import _test_environ as storyboard_test_environ
+
+        class NoItemsDict(dict):
+            def items(self):
+                raise AssertionError("test environment must not enumerate variables")
+
+        fake_source = NoItemsDict({
+            "PATH": "test-path",
+            "SYSTEMROOT": "test-system-root",
+            "TEMP": "test-temp",
+            "TMP": "test-tmp",
+            "HOME": "test-home",
+            "USERPROFILE": "test-profile",
+            "FEATURE_SETTINGS_FILE": "test-settings.json",
+            "FEATURE_SAFE_PAID_BUTTONS": "unexpected-feature",
+            "FEATURE_PRIVATE_CANARY": "private-canary",
+            "API_TOKEN": "credential-canary",
+        })
+        # Nested UI contexts must select only named system variables and explicit test flags.
+        for helper in (_test_environ, storyboard_test_environ):
+            with mock.patch.object(os, "environ", fake_source):
+                with helper({"FEATURE_UI_V2": "1"}):
+                    self.assertEqual(os.environ["PATH"], "test-path")
+                    self.assertEqual(os.environ["FEATURE_UI_V2"], "1")
+                    self.assertNotIn("FEATURE_SAFE_PAID_BUTTONS", os.environ)
+                    self.assertNotIn("FEATURE_PRIVATE_CANARY", os.environ)
+                    self.assertNotIn("API_TOKEN", os.environ)
+
+        # A plain fake dict may carry allowlisted app settings between nested test contexts.
+        fake_parent = {
+            "PATH": "test-path",
+            "FEATURE_SETTINGS_FILE": "test-settings.json",
+            "PIPELINE_DB": "test.sqlite",
+            "FEATURE_PRIVATE_CANARY": "private-canary",
+        }
+        with mock.patch.object(os, "environ", fake_parent):
+            with _test_environ({"FEATURE_UI_V2": "1"}):
+                self.assertEqual(os.environ["FEATURE_SETTINGS_FILE"], "test-settings.json")
+                self.assertEqual(os.environ["PIPELINE_DB"], "test.sqlite")
+                self.assertEqual(os.environ["FEATURE_UI_V2"], "1")
+                self.assertNotIn("FEATURE_PRIVATE_CANARY", os.environ)
 
 
 class VideoSeed(unittest.TestCase):
@@ -75,10 +128,13 @@ class VideoSeed(unittest.TestCase):
 
     def open_video(self, v2=True) -> AppTest:
         env = dict(V2) if v2 else {"FEATURE_UI_V2": "0"}
-        # Giữ mock được bật rõ ràng ở môi trường giả bên ngoài; không kế thừa provider thật.
-        for name in ("VIDEO_PROVIDER", "IMAGE_PROVIDER"):
-            if os.environ.get(name) == "mock":
-                env[name] = "mock"
+        # Chỉ mang tiếp mock/cờ an toàn đã bật rõ ràng trong context test giả.
+        if type(os.environ) is dict:
+            for name in ("VIDEO_PROVIDER", "IMAGE_PROVIDER"):
+                if os.environ.get(name) == "mock":
+                    env[name] = "mock"
+            if "FEATURE_SAFE_PAID_BUTTONS" in os.environ:
+                env["FEATURE_SAFE_PAID_BUTTONS"] = os.environ["FEATURE_SAFE_PAID_BUTTONS"]
         with _test_environ(env):
             at = AppTest.from_file(APP, default_timeout=40).run()
             at.radio(key="step").set_value(at.radio(key="step").options[STEP_VIDEO]).run()
