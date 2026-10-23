@@ -1651,3 +1651,19 @@ che lỗi không (đặc biệt test_click_count chuyển sang cờ TẮT, test 
 regen.regenerate_video, p.restart_job, p.reopen_approved, voice.generate/preview, music.submit_drafts ≈ 23 nút) — xác nhận đúng/sai, bổ sung.
 Báo cáo `docs/RA_M80B_2026-10-23.md`: mỗi lỗi mức CAO/VỪA/THẤP + file:dòng + cách sửa đề xuất + test chứng minh. KHÔNG sửa code nhánh (phiên chính
 gom vòng sửa). Push báo cáo lên nhánh `codex/v31-ra-m80b`. XONG hộp thư. Làm TRƯỚC các việc ưu tiên ≥ 2 (chặn gộp).
+### CX23-M80B-FIX — vòng sửa M8.0b sau RÀ KỸ (ưu tiên 1; Cấp 2 đã duyệt; 0 USD; chặn gộp)
+Nền: nhánh `claude/v31-m80b` @5357d627 → tạo `codex/v31-m80b-fix` TỪ nhánh đó (không từ main). Báo cáo rà: `docs/RA_M80B_2026-10-23.md` (nhánh codex/v31-ra-m80b).
+Sửa MỘT vòng, mỗi lỗi 1 test ĐỎ→XANH:
+1. (VỪA, phát hiện 1) HOLD clip/motion theo ĐÚNG job (không chỉ job mới nhất mỗi cảnh); lineage thiếu / scan thiếu → fail-CLOSED (HOLD "không xác minh
+   được lineage"); test: hai clip cùng cảnh (job cũ + job mới stale), scan rỗng, recheck lúc tới hạn. Sửa luôn `tests/test_ui_video.py:194` (_scan={} hiện
+   đang chấp nhận duyệt — phải thành HOLD hoặc dùng scan hợp lệ).
+2. (VỪA, phát hiện 2) `_image_hold` lỗi → HOLD có lý do, không `hold=None`; test exception. `input_hash` NULL (legacy) giữ như cũ (đúng chính sách lineage).
+3. (VỪA, phát hiện 3) PHIÊN CHÍNH CHỐT: GIỮ "▶ Gửi ngay" (người dùng đã bấm Có thấy giá rồi bấm thêm một nút rõ ràng = ý định có chủ ý), nhưng tới lúc gửi
+   ngay vẫn phải chạy CÙNG bước kiểm lại (cổng/fingerprint/tập chờ/pilot) như khi tới hạn; ghi chú lý do trong `paid_confirm.py`; test: Gửi ngay trước hạn
+   + trạng thái đã đổi → không chạy, có báo; trạng thái không đổi → chạy đúng 1 lần.
+4. (THẤP, phát hiện 5) test mới thay hẳn `os.environ` bằng dict giả (không patch.dict trên môi trường thật); `tools/ui_v2_acceptance.py` chỉ truyền
+   whitelist biến (PATH, SYSTEMROOT, TEMP/TMP, HOME/USERPROFILE, PYTHON*, FEATURE_*) cho tiến trình con — không kế thừa khóa API.
+Phát hiện 4 (CAO, ~23 nút retry/reject/reopen/restart/voice/music) KHÔNG làm ở đây → M8.0c riêng sau khi gộp.
+Chạy test liên quan gom một lệnh (test_safe_paid_buttons, test_m80b_money_rest, test_ui_video, test_ui_storyboard, test_ui_v2_acceptance, test_price_label_scan);
+không chạy cả bộ (phiên chính chạy khi gộp). `devsys/areas.json`: được sửa — xung đột với nhánh khác phiên chính gộp bằng `tools/merge_union.py`, KHÔNG cần chờ.
+Push sau MỖI commit. XONG hộp thư kèm commit; phiên chính đọc diff phần sửa rồi gộp.
