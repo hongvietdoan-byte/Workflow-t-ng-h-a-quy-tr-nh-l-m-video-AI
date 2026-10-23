@@ -977,7 +977,7 @@
    "changes": "Cấp 1 ghi sổ + kế hoạch. Không phải lệnh triển khai code (Cấp 2 theo gói) và không cấp quyền Cấp 3 (API trả phí, bật cờ production, migration, xóa asset) — EP 22/10 điều kiện chung 3/4/8.",
    "replaces": null,
    "enforced_by": [],
-   "status": "active",
+   "status": "replaced",
    "phase": "APPROVED_IN_PRINCIPLE"
   },
   {
@@ -1073,7 +1073,7 @@
    "changes": "Code (M8.0/M8.1, Cấp 2 theo gói): cổng chặn luồng tự động đọc chi ghi nhận + giữ chỗ; chưa làm, chưa bật cờ production.",
    "replaces": "ep-2210-qd-film-budget-hard-stop-2026-10-22",
    "enforced_by": [],
-   "status": "active",
+   "status": "replaced",
    "phase": "APPROVED_IN_PRINCIPLE"
   },
   {
@@ -1111,6 +1111,42 @@
    "enforced_by": [],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2310-mode-labels-basic-advanced-2026-10-23",
+   "date": "2026-10-23",
+   "by": "người dùng (Executive Producer, góp ý M8.1 trong chat phiên chính 23/10 ~21:20)",
+   "text": "Q-E (nhãn): hai chế độ hiển thị tên 'Chế độ Cơ bản' (thay 'Đơn giản') và 'Chế độ Nâng cao' (thay 'Chuyên gia'). Tài khoản mới mặc định Cơ bản; tài khoản đang dùng Chuyên gia chuyển nhãn sang Nâng cao, KHÔNG đổi quyền. Chuyển chế độ chỉ đổi cách trình bày + luồng thao tác, không đổi quyền truy cập hay quyền chi tiêu. Được giữ tên cờ nội bộ (simple_mode…) nếu đổi tên ảnh hưởng code/dữ liệu.",
+   "keeps": "ep-2210-qe-default-mode-2026-10-22 (mặc định + không đổi quyền)",
+   "changes": "Chỉ nhãn hiển thị.",
+   "replaces": "ep-2210-qe-default-mode-2026-10-22",
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2310-qd3-auto-spend-limit-2026-10-23",
+   "date": "2026-10-23",
+   "by": "người dùng (Executive Producer, góp ý M8.1 trong chat phiên chính 23/10 ~21:20)",
+   "text": "Q-D (thay qd2): Dashboard tính + hiển thị ngân sách dự kiến / mức trần TOÀN PHIM trước khi bắt đầu; người có quyền duyệt ngân sách xác nhận MỘT lần — làm căn cứ 'HẠN MỨC CHI CỦA LUỒNG TỰ ĐỘNG' (gọi đúng tên này trên UI để người dùng không hiểu nhầm thao tác tay bị chặn). Không duyệt lại ngân sách toàn phim ở từng job trong phạm vi đã duyệt. Luồng tự động KHÔNG gửi job mới nếu (chi đã ghi nhận + chi đang giữ chỗ + chi dự kiến của job đó) vượt hạn mức tự động. Được chia hạn mức tự động theo khâu khi ước lượng đủ tin cậy; tổng hạn mức các khâu ≤ hạn mức tự động toàn phim. Thao tác THỦ CÔNG vượt mức KHÔNG hard-block: cảnh báo kèm chi phí thao tác + khoản dự kiến vượt; người tạo dự án được tiếp tục; sổ chi ghi chi phí thực tế + người thực hiện. Không bỏ giới hạn generation mỗi shot (E4), quyền duyệt nội dung, quyền gửi job hiện có.",
+   "keeps": "ep-2210-e4-counters-2026-10-22; v31-ep-m6-self-repair-budget-40-2026-10-21; budget-gate-removed-2026-10-15 (thao tác tay không bị khóa ngân sách)",
+   "changes": "So với qd2: thêm chi dự kiến của job vào phép so; hạn mức theo khâu; người tạo dự án được vượt bằng tay có cảnh báo + ghi sổ; đặt tên 'hạn mức chi của luồng tự động'.",
+   "replaces": "ep-2210-qd2-hard-stop-automated-only-2026-10-22",
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2310-m84-gate-before-auto-paid-2026-10-23",
+   "date": "2026-10-23",
+   "by": "người dùng (Executive Producer, góp ý M8.1 trong chat phiên chính 23/10 ~21:20)",
+   "text": "Cổng an toàn M8: M8.4 phải HOÀN TẤT trước khi bật bất kỳ luồng M8 tự động gửi API trả phí nào; M8.0 / M8.0c KHÔNG thay thế yêu cầu này. Ghi rõ trong dependency + acceptance criteria của roadmap. LƯU Ý ĐÁNH SỐ: kế hoạch chính hiện có M8.4 = 'Tối ưu theo số đo M8.3' (10 người, màn chính < 2 s); 'M8.4' trong docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md cũ = an toàn tiền = M8.0 kế hoạch chính (sổ qf). Ghi theo nghĩa đen M8.4 kế hoạch chính (cổng chặt hơn) — phiên chính trình EP xác nhận khi trình lại M8.1.",
+   "keeps": "ep-2210-qf-money-safety-first-2026-10-22",
+   "changes": "Thêm cổng M8.4 (kế hoạch chính) trước luồng tự động trả phí của M8.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "PENDING_VERIFICATION"
   }
  ]
 }
