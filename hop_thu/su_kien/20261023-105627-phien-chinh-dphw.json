@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T10:56:27.904396+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "NGƯỜI DÙNG NHẮC (23/10): (1) Codex phải có LỊCH TỰ ĐỘNG tuần hoàn kiểm hộp thư (~30 phút): git pull → hop_thu.py bang → nhận/làm/báo → push; báo lại ngay 1 dòng tin: đã lên lịch chưa, chu kỳ bao nhiêu, cơ chế gì. Mọi trao đổi với phiên chính CHỈ qua hộp thư, báo tiến độ ít nhất mỗi giờ khi đang làm. (2) CHIA NHIỀU NHÁNH LÀM SONG SONG: mỗi mã việc một nhánh codex/v31-<mã> + worktree riêng, chạy song song 2–3 nhánh không trùng file (hiện có thể song song: CX22-R1-AXIS, CX22-G1-EP-ROLE (đã duyệt A), CX22-REPORT, CX22-M83-LOAD); mỗi nhánh commit nhỏ + push sau MỖI commit, báo xong từng mã riêng."
+}
