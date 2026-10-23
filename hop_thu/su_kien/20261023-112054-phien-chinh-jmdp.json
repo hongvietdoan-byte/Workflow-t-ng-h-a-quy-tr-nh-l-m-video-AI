@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T11:20:54.919597+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-DOI-SOAT",
+  "to": "codex",
+  "title": "Bảng đối soát khâu ↔ kế hoạch (lỗi/lỏng/thiếu/lệch → việc đề xuất plan), 0 USD",
+  "spec": "docs/CODEX_TASKS.md### CX23-DOI-SOAT",
+  "priority": 2
+}
