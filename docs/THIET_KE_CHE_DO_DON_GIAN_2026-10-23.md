@@ -1,6 +1,6 @@
 # Thiết kế M8.1 — Chế độ Cơ bản cho Dashboard (vòng 2)
 
-> **Trạng thái: Chấp thuận hướng về nguyên tắc 23/10 — chưa duyệt chính thức M8.2.** Bản trình EP duyệt lại · 23/10/2026 · Cấp 1, 0 USD.
+> **Trạng thái: Chấp thuận hướng về nguyên tắc 23/10; EP đã trả lời 5 câu hỏi mở (mục 14) — TRÌNH DUYỆT CHÍNH THỨC M8.1, chưa bắt đầu M8.2.** Bản trình EP duyệt lại · 23/10/2026 · Cấp 1, 0 USD.
 > Đây là thiết kế và mockup tĩnh; chưa thay đổi giao diện đang chạy, chưa bật cờ, không gọi API, không đọc dữ liệu dự án thật.
 > M8.2 chỉ bắt đầu sau khi EP duyệt chính thức bản này.
 >
@@ -214,7 +214,7 @@ hiện đầu ra nào sẽ cũ và báo giá.
 
 ## 13. Đối chiếu nguồn
 
-Trạng thái chung: **Chấp thuận hướng về nguyên tắc 23/10 — chưa duyệt chính thức M8.2.**
+Trạng thái chung: **Chấp thuận hướng về nguyên tắc 23/10; EP đã trả lời 5 câu hỏi mở (mục 14) — TRÌNH DUYỆT CHÍNH THỨC M8.1, chưa bắt đầu M8.2.**
 
 | Điểm EP | Sổ quyết định (`data/decisions.json`) | Roadmap (`KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md`) | Tài liệu gốc | Mục trong thiết kế |
 |---|---|---|---|---|
@@ -228,16 +228,15 @@ Trạng thái chung: **Chấp thuận hướng về nguyên tắc 23/10 — chư
 | E2 "Duyệt hết" xem trước, đúng vai, HOLD | `ep-2210-e2-approve-all-preview-2026-10-22`; giữ `v31-ep-stage-desk-actions-2026-10-21` | dòng M8.0 (M8.0b), M8.1 | `KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md` mục 1b | 3, 9 |
 | E4 trần 3 ảnh + 2 video, bộ đếm riêng, không né | `ep-2210-e4-counters-2026-10-22`; `v31-ep-m6-self-repair-budget-40-2026-10-21`; `v31-m6-generation-limits-policy-b-2026-10-21` | M6 (Generation Authorization) | `KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md` mục 4 | 3, 9 |
 | "Được, làm tiếp" không duyệt thay EP | `ep-2210-e2-approve-all-preview-2026-10-22`; `ep-2210-g1b-ep-role-package-approved-2026-10-22` | dòng M8.1 | `KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md` mục 1b | 3, 7 |
-| Chỉ số ≤ 8 hành động, một điểm kết thúc | — (đề xuất thiết kế, chờ EP) | dòng M8.1 | `KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md` mục 4, 8c.6, 9 | 8 |
+| Chỉ số ≤ 8 hành động, một điểm kết thúc | `ep-2310-m81-r2-answers-2026-10-23` | dòng M8.1 | `KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md` mục 4, 8c.6, 9 | 8 |
 
-## 14. Câu hỏi còn mở cho EP
+## 14. Câu hỏi đã được EP trả lời (23/10, sổ `ep-2310-m81-r2-answers-2026-10-23`)
 
-1. **Đánh số cổng M8.4.** Thiết kế ghi theo nghĩa đen M8.4 kế hoạch chính (Tối ưu theo số đo M8.3 — 10 người, < 2 s) là cổng trước luồng tự động
-   trả phí. Nếu ý EP là "M8.4" của kế hoạch 21/10 (= an toàn tiền = M8.0, đã ✅, còn M8.0c) thì cổng nhẹ hơn. EP xác nhận nghĩa nào?
-2. **Điểm kết thúc chỉ số.** Đề xuất: tới khi xem được video đầu tiên đã ghép, không tính tải bản giao (mục 8). Đồng ý?
-3. **Ngưỡng cảnh báo sớm 80 %** của hạn mức tự động: qd3 không nhắc lại (có trong Q-D gốc/qd2). Giữ 80 %?
-4. **Chia hạn mức theo khâu:** bật mặc định khi nào "ước lượng đủ tin cậy" (vd sai số dự toán ≤ 20 % trên 2 dự án gần nhất), hay chỉ khi EP chọn?
-5. **Người được "Vẫn làm" khi vượt bằng tay:** qd3 ghi "người tạo dự án". Khi người tạo dự án khác EP của dự án (G1), EP có cần được báo không?
+1. **Cổng M8.4** = M8.4 kế hoạch chính (Tối ưu theo số đo M8.3 — 10 người, màn chính < 2 s), đúng như roadmap. M8.0/M8.0c không thay thế.
+2. **Điểm kết thúc chỉ số** = xem được video đầu tiên đã ghép; KHÔNG tính bấm tải bản giao (mục 8). Áp cùng cho baseline và bài thử.
+3. **Giữ cảnh báo sớm 80 %** của hạn mức chi của luồng tự động.
+4. **Chia hạn mức theo khâu** chỉ khi ước lượng đủ tin cậy; **mặc định một hạn mức chung** cho cả phim.
+5. **Vượt hạn mức bằng tay:** không chặn; **báo EP sau** (thông báo + dòng sổ chi có người thực hiện, chi phí thực tế, khoản vượt).
 
 ## 15. Bản vẽ
 

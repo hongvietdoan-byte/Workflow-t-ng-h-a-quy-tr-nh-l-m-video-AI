@@ -1145,8 +1145,20 @@
    "changes": "Thêm cổng M8.4 (kế hoạch chính) trước luồng tự động trả phí của M8.",
    "replaces": null,
    "enforced_by": [],
-   "status": "active",
+   "status": "replaced",
    "phase": "PENDING_VERIFICATION"
+  },
+  {
+   "id": "ep-2310-m81-r2-answers-2026-10-23",
+   "date": "2026-10-23",
+   "by": "người dùng (Executive Producer, chat phiên chính 23/10 ~22:10 — trả lời 5 câu hỏi mở M8.1 vòng 2)",
+   "text": "(1) Cổng trước mọi luồng M8 tự động gửi API trả phí = M8.4 KẾ HOẠCH CHÍNH (tối ưu theo số đo tải 10 người M8.3) phải hoàn tất; M8.0/M8.0c không thay thế. (2) Chỉ số '≤ 8 hành động' kết thúc khi xem được video đầu tiên đã ghép, không tính tải bản giao; áp cùng baseline và bài thử; chưa có dữ liệu = mục tiêu thiết kế. (3) Giữ cảnh báo sớm ở 80 % hạn mức chi của luồng tự động. (4) Mặc định MỘT hạn mức chung cả phim; chỉ chia theo khâu khi ước lượng đủ tin cậy (tổng các khâu ≤ hạn mức toàn phim). (5) Thao tác tay vượt hạn mức: không chặn, BÁO EP SAU (thông báo + sổ chi ghi người thực hiện, chi phí thực tế, khoản vượt).",
+   "keeps": "ep-2310-qd3-auto-spend-limit-2026-10-23; ep-2210-qf-money-safety-first-2026-10-22; ep-2310-mode-labels-basic-advanced-2026-10-23",
+   "changes": "Xác nhận nghĩa M8.4 (thay mục PENDING_VERIFICATION ep-2310-m84-gate-before-auto-paid); bổ sung qd3: 80 %, hạn mức chung mặc định, báo EP sau khi vượt tay.",
+   "replaces": "ep-2310-m84-gate-before-auto-paid-2026-10-23",
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
   }
  ]
 }
