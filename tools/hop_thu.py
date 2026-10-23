@@ -492,7 +492,14 @@ def cmd_gop(args, root):
         raise HopThuError(f"Từ chối: {args.ma} chưa XONG (hiện: {'chưa giao' if t is None else t.status}).")
     p = write_event(root, args.lane, "gop", task=args.ma, commit=args.commit, text=args.text)
     _finish(args, root, p, "gop", args.ma)
-    if not args.giu_worktree and t.branch and t.commit:
+    siblings = sorted(
+        ma for ma, other in state["tasks"].items()
+        if ma != args.ma and other.branch == t.branch and other.status not in (GOP, BO)
+    ) if t.branch else []
+    if not args.giu_worktree and t.branch and siblings:
+        # Nhiều việc dùng chung một nhánh (vd việc sửa tiếp nối): còn việc chưa gộp thì giữ worktree.
+        print(f"Dọn sau gộp: bỏ qua — nhánh {t.branch} còn việc chưa gộp: {', '.join(siblings)}")
+    elif not args.giu_worktree and t.branch and t.commit:
         try:
             import don_rac
             result = don_rac.cleanup_merged_branch_worktree(root, t.branch, t.commit)

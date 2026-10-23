@@ -268,6 +268,7 @@ def test_worktree_cleanup_removes_only_merged_old_codex_handoff(tmp_path):
     (wt / "HANDOFF.md").write_text("handoff", encoding="utf-8")
     old = datetime.now(timezone.utc).timestamp() - 5 * 86400
     _age_worktree_git_metadata(wt, old)
+    os.utime(wt / "HANDOFF.md", (old, old))  # HANDOFF cũng phải cũ (> 3 ngày) mới được dọn
     now = datetime.fromtimestamp(datetime.now(timezone.utc).timestamp(), timezone.utc)
 
     dry = don_rac.cleanup_worktrees(root, dry_run=True, now=now)
@@ -698,3 +699,132 @@ def _run_hop_thu(root: Path, *args: str) -> tuple[int, str, str]:
     with redirect_stdout(out), redirect_stderr(err):
         rc = hop_thu.main(["--goc", str(root), *args])
     return rc, out.getvalue(), err.getvalue()
+
+
+# ---- Rà phiên chính 23/10 (CX22/CX23): hồi quy an toàn ----
+
+def _merged_codex_worktree(root: Path, name: str) -> tuple[Path, str]:
+    wt = root / ".codex-wt" / name
+    wt.parent.mkdir(exist_ok=True)
+    _git(root, "worktree", "add", "-b", f"codex/{name}", str(wt), "origin/main")
+    _git(wt, "config", "user.name", "test")
+    _git(wt, "config", "user.email", "test@example.invalid")
+    (wt / f"{name}.py").write_text("merged\n", encoding="utf-8")
+    _git(wt, "add", f"{name}.py")
+    _git(wt, "commit", "-q", "-m", "feature")
+    tip = _git(wt, "rev-parse", "HEAD")
+    _git(root, "merge", "-q", "--no-ff", f"codex/{name}", "-m", "merge feature")
+    _git(root, "push", "-q", "origin", "HEAD:main")
+    return wt, tip
+
+
+def test_merged_cleanup_accepts_short_commit_from_xong_event(tmp_path):
+    # Sự kiện XONG thật hay ghi sha rút gọn (vd "2c4444b0"); so chuỗi thô làm việc dọn không bao giờ chạy.
+    root, _remote = _repo(tmp_path)
+    wt, tip = _merged_codex_worktree(root, "short-sha")
+    journal = tmp_path / "_luu_tru" / "nhat_ky_don_rac.jsonl"
+
+    result = don_rac.cleanup_merged_branch_worktree(root, "codex/short-sha", tip[:8], journal=journal)
+
+    assert "đã gỡ worktree" in result
+    assert not wt.exists()
+
+
+def test_worktree_cleanup_never_removes_worktree_holding_cwd(tmp_path, monkeypatch):
+    root, _remote = _repo(tmp_path)
+    wt = root / ".claude" / "worktrees" / "agent-cwd"
+    wt.parent.mkdir(parents=True)
+    _git(root, "worktree", "add", "-b", "worktree-agent-cwd", str(wt), "origin/main")
+    (wt / "sub").mkdir()
+    _age_worktree_git_metadata(wt, datetime.now(timezone.utc).timestamp() - 5 * 86400)
+    monkeypatch.chdir(wt / "sub")
+
+    result = don_rac.cleanup_worktrees(root, dry_run=True)
+
+    assert result["candidates"] == 0
+    assert any(item["reason"] == "worktree đang chạy lệnh" for item in result["skipped"])
+
+
+def test_merged_cleanup_never_removes_worktree_holding_cwd(tmp_path, monkeypatch):
+    root, _remote = _repo(tmp_path)
+    wt, tip = _merged_codex_worktree(root, "cwd-merged")
+    monkeypatch.chdir(wt)
+
+    result = don_rac.cleanup_merged_branch_worktree(
+        root, "codex/cwd-merged", tip, journal=tmp_path / "j.jsonl")
+
+    assert result.startswith("bỏ qua")
+    assert wt.exists()
+
+
+def test_codex_handoff_edited_recently_keeps_worktree(tmp_path):
+    root, _remote = _repo(tmp_path)
+    wt = root / ".codex-wt" / "active-handoff"
+    wt.parent.mkdir()
+    _git(root, "worktree", "add", "-b", "codex/active-handoff", str(wt), "origin/main")
+    (wt / "HANDOFF.md").write_text("đang ghi", encoding="utf-8")
+    _age_worktree_git_metadata(wt, datetime.now(timezone.utc).timestamp() - 5 * 86400)
+
+    result = don_rac.cleanup_worktrees(root, dry_run=True)
+
+    assert result["candidates"] == 0
+
+
+def test_gop_keeps_worktree_while_sibling_task_on_same_branch_unmerged(tmp_path, monkeypatch):
+    # CX22-DON-RAC-TOOL và CX23-DON-RAC-FIX dùng chung nhánh: gộp việc đầu không được gỡ chỗ việc sau đang làm.
+    monkeypatch.setattr(don_rac, "JOURNAL_PATH", tmp_path / "_luu_tru" / "j.jsonl")
+    root, _remote = _repo(tmp_path)
+    wt, tip = _merged_codex_worktree(root, "shared")
+    _write_xong_events(root, "codex/shared", tip)
+    event_dir = root / "hop_thu" / "su_kien"
+    for i, row in enumerate([
+        {"ts": "2026-10-23T09:10:00+07:00", "lane": "codex", "kind": "giao",
+         "task": "CX23-T", "to": "codex", "title": "fix"},
+        {"ts": "2026-10-23T09:10:01+07:00", "lane": "codex", "kind": "nhan", "task": "CX23-T"},
+        {"ts": "2026-10-23T09:10:02+07:00", "lane": "codex", "kind": "xong", "task": "CX23-T",
+         "branch": "codex/shared", "commit": tip},
+    ]):
+        (event_dir / f"20261023-09100{i}-codex-b{i:03x}.json").write_text(json.dumps(row), encoding="utf-8")
+
+    rc, out, err = _run_hop_thu(root, "gop", "CX22-T", "--lane", "phien-chinh", "--commit", "merge-sha")
+
+    assert rc == 0, err
+    assert wt.exists()
+    assert "CX23-T" in out
+
+
+@pytest.mark.skipif(os.name != "nt", reason="junction chỉ có trên Windows")
+def test_directory_sizes_does_not_follow_junctions(tmp_path):
+    import _winapi
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "f.bin").write_bytes(b"12345")
+    outside = tmp_path.parent / (tmp_path.name + "-outside")
+    outside.mkdir()
+    (outside / "big.bin").write_bytes(b"x" * 999)
+    _winapi.CreateJunction(str(outside), str(tmp_path / "link"))
+
+    sizes = {Path(path).name: size for size, path in don_rac._directory_sizes(tmp_path)}
+
+    assert sizes == {"a": 5}
+
+
+def test_rotation_continues_when_one_backup_is_locked(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    data.mkdir()
+    for kind in ("alpha", "beta"):
+        for i in range(4):
+            (data / f"{kind}.backup_202610{i + 1:02d}-120000.json").write_text(kind, encoding="utf-8")
+    real_move = don_rac.shutil.move
+
+    def locked_move(src, dst):
+        if Path(src).name.startswith("alpha"):
+            raise PermissionError("file đang bị giữ")
+        return real_move(src, dst)
+
+    monkeypatch.setattr(don_rac.shutil, "move", locked_move)
+    result = don_rac.rotate_backups(data, tmp_path / "arch", tmp_path / "j.jsonl", keep=3, dry_run=False)
+
+    assert result["moved"] == 1
+    assert (data / "alpha.backup_20261001-120000.json").exists()
+    assert not (data / "beta.backup_20261001-120000.json").exists()
+    assert result["failed"] and "alpha" in result["failed"][0][0]

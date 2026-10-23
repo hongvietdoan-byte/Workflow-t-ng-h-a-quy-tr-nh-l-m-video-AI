@@ -237,19 +237,33 @@ def rotate_backups(
                 destination = destination.with_name(f"{destination.stem}-{uuid.uuid4().hex[:6]}{destination.suffix}")
             move_plan.append((source, destination))
     moved: list[str] = []
+    failed: list[tuple[str, str]] = []
     for source, destination in move_plan:
         if dry_run:
             continue
         _guard_path(source, data_root.parent)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        digest = _sha256(source)
+        try:
+            digest = _sha256(source)
+            size = source.stat().st_size
+        except OSError as exc:
+            failed.append((str(source), str(exc)))
+            continue
         record = {
             "id": uuid.uuid4().hex[:12], "action": "move", "status": "planned", "kind": _backup_kind(source),
             "source": str(source), "stored": str(destination), "sha256": digest,
-            "bytes": source.stat().st_size, "ts": datetime.now(timezone.utc).isoformat(),
+            "bytes": size, "ts": datetime.now(timezone.utc).isoformat(),
         }
         _append_journal(journal, record)
-        shutil.move(str(source), str(destination))
+        try:
+            shutil.move(str(source), str(destination))
+        except OSError as exc:
+            # File đang bị giữ (Windows) → bỏ qua file này, các file khác vẫn xoay; ghi nhật ký thất bại.
+            record["status"] = "failed"
+            record["error"] = str(exc)
+            _append_journal(journal, record)
+            failed.append((str(source), str(exc)))
+            continue
         if _sha256(destination) != digest:
             # Preserve evidence; do not delete destination on mismatch.
             raise OSError(f"SHA-256 sau khi chuyển không khớp: {destination.name}")
@@ -259,6 +273,7 @@ def rotate_backups(
     return {
         "moved": len(move_plan) if dry_run else len(moved), "ids": moved,
         "kept": kept, "plan": [(str(a), str(b)) for a, b in move_plan], "dry_run": dry_run,
+        "failed": failed,
     }
 
 
@@ -383,6 +398,14 @@ def _worktree_is_old(path: Path, days: int, now: datetime) -> bool:
     return age > days * 86400
 
 
+def _holds_cwd(path: Path) -> bool:
+    """True nếu tiến trình đang đứng trong worktree này (kể cả thư mục con)."""
+    try:
+        return _inside(Path.cwd(), path)
+    except OSError:
+        return True
+
+
 def _worktree_candidate(root: Path, row: dict[str, Any], now: datetime, current: Path) -> tuple[bool, str]:
     path = row.get("path")
     branch = row.get("branch")
@@ -393,7 +416,7 @@ def _worktree_candidate(root: Path, row: dict[str, Any], now: datetime, current:
         return False, "ngoài thư mục worktree được phép"
     if row.get("locked") or row.get("prunable"):
         return False, "worktree bị khóa hoặc prunable"
-    if path == current:
+    if path == current or _holds_cwd(path):
         return False, "worktree đang chạy lệnh"
     is_codex = path.parent.name.casefold() == ".codex-wt" or branch.startswith("codex/")
     days = 3 if is_codex else 1
@@ -403,6 +426,13 @@ def _worktree_candidate(root: Path, row: dict[str, Any], now: datetime, current:
     if status:
         if not (is_codex and len(status) == 1 and status[0].replace("\\", "/") == "?? HANDOFF.md"):
             return False, "có thay đổi chưa commit"
+        # HANDOFF.md chưa theo dõi không làm đổi index: tuổi worktree phải tính cả lần sửa HANDOFF.
+        try:
+            handoff_age = now.timestamp() - (path / "HANDOFF.md").stat().st_mtime
+        except OSError:
+            return False, "không đọc được HANDOFF.md"
+        if handoff_age <= days * 86400:
+            return False, f"HANDOFF.md sửa chưa quá {days} ngày"
     head = row.get("head") or _git(path, "rev-parse", "HEAD").stdout.strip()
     main_ancestor = _git(root, "merge-base", "--is-ancestor", head, "origin/main", check=False).returncode == 0
     remote_contains = bool(_git(root, "branch", "-r", "--contains", head, check=False).stdout.strip())
@@ -517,11 +547,16 @@ def cleanup_merged_branch_worktree(
 ) -> str:
     """Gỡ worktree local sạch sau khi commit của nhánh đã vào origin/main."""
     root = Path(root).resolve()
-    if not branch or branch.startswith("-") or not merged_commit:
+    if not branch or branch.startswith("-") or not merged_commit or merged_commit.startswith("-"):
         return "bỏ qua: thiếu nhánh hoặc commit"
     fetched = _git(root, "fetch", "--prune", "origin", check=False)
     if fetched.returncode:
         return "bỏ qua: không cập nhật được origin/main để kiểm tra an toàn"
+    # Sự kiện XONG có thể ghi sha rút gọn: chuẩn hóa thành sha đầy đủ trước khi so với HEAD worktree.
+    resolved = _git(root, "rev-parse", "--verify", "--quiet", f"{merged_commit}^{{commit}}", check=False)
+    if resolved.returncode or not resolved.stdout.strip():
+        return "bỏ qua: không xác định được commit báo XONG"
+    merged_commit = resolved.stdout.strip()
     contained = _git(root, "merge-base", "--is-ancestor", merged_commit, "origin/main", check=False)
     if contained.returncode:
         return "bỏ qua: commit nhánh chưa nằm trong origin/main"
@@ -535,7 +570,7 @@ def cleanup_merged_branch_worktree(
     if not any(_inside(path, base) and path != base.resolve() for base in allowed):
         return "bỏ qua: worktree nằm ngoài vùng được phép"
     current = Path(_git(root, "rev-parse", "--show-toplevel").stdout.strip()).resolve()
-    if path == current:
+    if path == current or _holds_cwd(path):
         return "bỏ qua: đang đứng trong worktree mục tiêu"
     head = _git(path, "rev-parse", "HEAD", check=False).stdout.strip()
     if head != merged_commit:
@@ -663,7 +698,7 @@ def _directory_sizes(path: Path, limit: int = 15) -> list[tuple[int, str]]:
             with os.scandir(current) as entries:
                 for entry in entries:
                     try:
-                        if entry.is_symlink():
+                        if entry.is_symlink() or getattr(entry, "is_junction", lambda: False)():
                             continue
                         if entry.is_dir(follow_symlinks=False):
                             if current == base_root and entry.name.casefold() in {"data", ".codex-runtime"}:
@@ -804,6 +839,8 @@ def main(argv: list[str] | None = None) -> int:
                                           keep=3, dry_run=not args.lam_that)
                 print(f"Xoay sau sao lưu: {'kế hoạch chuyển' if not args.lam_that else 'đã chuyển'} "
                       f"{rotation['moved']} bản cũ; không xóa file.")
+                for old_source, reason in rotation.get("failed", []):
+                    print(f"CẢNH BÁO: giữ nguyên {old_source} (không chuyển được: {reason})")
                 if not args.lam_that:
                     for old_source, destination in rotation["plan"]:
                         print(f"Kế hoạch: {old_source} -> {destination}")
@@ -813,6 +850,8 @@ def main(argv: list[str] | None = None) -> int:
                                     keep=args.giu, dry_run=not args.lam_that)
             print(f"Xoay {'dry-run' if not args.lam_that else 'đã chạy'}: giữ {len(result['kept'])}, "
                   f"chuyển {result['moved']}; không xóa file.")
+            for source, reason in result.get("failed", []):
+                print(f"CẢNH BÁO: giữ nguyên {source} (không chuyển được: {reason})")
             if not args.lam_that:
                 for source, destination in result["plan"]:
                     print(f"Kế hoạch: {source} -> {destination}")
