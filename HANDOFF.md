@@ -1,3 +1,15 @@
+# HANDOFF — CX23-M48-D2 (23/10, nhánh `codex/v31-m48-d2`)
+
+- Trạng thái: hoàn tất code N12/N14/N15/N16; 223 test liên quan xanh; đang chuẩn bị commit/push nhánh và báo `xong` qua hộp thư.
+- N12 tách runner previs dùng SQLite chỉ đọc, giữ sản phẩm cũ, từ chối shot được chọn mà lượt hiện tại chưa đo; progress UI hiển thị shot thực tế và đường dẫn clay/depth/plan.
+- N14 chỉ nhận lần đo thuộc lịch sử đúng shot; N15 ẩn/chặn khi `world_map` tắt; N16 chỉ ghi họ sân khấu theo đủ gợi ý VÀNG qua đường ghi Kho hiện có, không tự gộp.
+- Bằng chứng: bộ hồi quy mục tiêu 223 passed; `py -m core.decisions check` khớp; `py tools/related_areas.py` liệt kê plates3d, step2, devsys và caller autopilot/step4/core_infra; `git diff --check` sạch.
+- Cờ `stage_desk_ui` giữ TẮT/OPT_IN_ONLY. Chưa chạy Blender thật, chưa kiểm thử Dashboard live, không gọi API trả phí hoặc dùng dữ liệu thật.
+- Rà độc lập phát hiện hai điểm P2 về chọn shot và hiển thị đầu ra; đã sửa và thêm test đỏ→xanh.
+- Việc kế sau khi báo M48 xong: kiểm tra lại hộp thư; nhận CX23-M82 nếu vẫn là việc kế được giao. Không nhận trước khi M48 hoàn tất.
+
+---
+
 # HANDOFF — M8.0b phần còn M8.0 An toàn tiền (nhánh worktree-agent-a76909ef8d083efe1, 23/10)
 
 - ĐÃ XONG (0 USD, sau cờ safe_paid_buttons; cờ TẮT = nhãn/hành vi như cũ):

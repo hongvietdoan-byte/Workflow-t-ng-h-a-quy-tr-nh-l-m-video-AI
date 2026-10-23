@@ -10,14 +10,14 @@ Thời lượng: mặc định = tổng thời lượng kịch bản các shot (
 quãng đường / tốc độ (cú máy dài hơn bản dựng); --duration = ép tổng.
 """
 import argparse
+import datetime
 import json
 import math
 import os
 import re
-import shutil
 import subprocess
 import sys
-from typing import Dict, List
+from typing import Callable, Dict, List, Optional
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -653,6 +653,92 @@ def encode(frames_dir: str, prefix: str, fps: int, path: str) -> str:
     return path
 
 
+def run(conn, pid: int, scene, shots=None, out: Optional[str] = None, opts: Optional[Dict] = None,
+        log: Optional[Callable[[str], None]] = None) -> Dict:
+    """Chạy previs cục bộ từ một lượt sân khấu đã lưu; chỉ đọc CSDL, ghi sản phẩm vào `out`.
+
+    `opts` nhận các tùy chọn của plan (duration, speed, fps, lens_range, uniform_run, orbit, extra, rig,
+    allow_straight, plan_only). Không xóa thư mục hay sản phẩm đã có. Mặc định từ chối đường đi chưa nối được.
+    """
+    from core import stage_auto
+
+    def say(msg: str) -> None:
+        if log:
+            log(str(msg))
+
+    seg = next((g for g in stage_auto.segments(conn, pid) if str(g["scene"]) == str(scene)), None)
+    if seg is None:
+        return {"ok": False, "errors": [f"không có cảnh {scene}"]}
+    options = dict(opts or {})
+    data_dir = options.pop("data_dir", os.path.join("data", "projects"))
+    rd = stage_auto.result_round(data_dir, pid, seg)
+    if rd is None:
+        return {"ok": False, "errors": [f"cảnh {scene}: chưa có lượt sân khấu đã lưu"]}
+    if shots is not None:
+        # plan() intentionally defaults to measured shots. For an explicit UI/CLI selection,
+        # silently filtering a mixed selection would make the rendered result incomplete.
+        with open(os.path.join(rd, "v2.json"), encoding="utf-8") as f:
+            round_shots = json.load(f).get("shots") or []
+        measured = {str(item.get("shot")) for item in round_shots
+                    if isinstance(item, dict) and isinstance(item.get("best"), dict) and item["best"].get("m")}
+        missing = sorted({str(shot) for shot in shots} - measured)
+        if missing:
+            return {"ok": False, "errors": ["shot " + ", ".join(missing)
+                                              + " không có máy đo được trong lượt này; đã dừng để không tự bỏ shot"]}
+    if not out and not options.get("plan_only"):
+        return {"ok": False, "errors": ["cần thư mục đầu ra `out`"]}
+    allow_straight = bool(options.pop("allow_straight", False))
+    plan_only = bool(options.get("plan_only", False))
+    options.pop("plan_only", None)
+    fps = int(options.pop("fps", 24))
+    p = plan(rd, shots=shots, fps=fps, **options)
+    problems = ref_problems(p)
+    if p["summary"]["unrouted"] and not allow_straight:
+        problems.append("không tìm được lối trên lưới sàn (người nộm sẽ đi thẳng xuyên vật): "
+                        + ", ".join(map(str, p["summary"]["unrouted"])) + " — sửa chỗ đứng hoặc bật cho phép đi thẳng")
+    if problems:
+        return {"ok": False, "errors": problems, "summary": p["summary"]}
+    selected = sorted(shots) if shots is not None else []
+    shot_label = "" if not selected else "_shot" + "_".join(map(str, selected))
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    name = (f"previs_canh{scene}{shot_label}" + (f"_xoay{float(options.get('orbit') or 0):g}" if options.get("orbit") else "")
+            + "".join(f"_them{k}s{v:g}" for k, v in sorted((options.get("extra") or {}).items()))
+            + "".join(f"_{k}{v}" for k, v in sorted((options.get("rig") or {}).items())) + f"_{stamp}")
+    out_dir = os.path.abspath(out) if out else None
+    if plan_only:
+        plan_path = None
+        if out:
+            os.makedirs(out_dir, exist_ok=True)
+            plan_path = os.path.join(out_dir, name + "_plan.json")
+            with open(plan_path, "x", encoding="utf-8") as f:
+                json.dump(p, f, ensure_ascii=False, indent=1)
+        return {"ok": True, "plan": p, "summary": p["summary"], "plan_path": plan_path}
+
+    work = os.path.join(out_dir, name + "_blender")
+    os.makedirs(out_dir, exist_ok=True)
+    if os.path.exists(work):
+        return {"ok": False, "errors": [f"thư mục render đã tồn tại, chọn lượt đầu ra mới: {work}"]}
+    os.makedirs(work, exist_ok=False)
+    plan_path = os.path.join(out_dir, name + "_plan.json")
+    with open(plan_path, "x", encoding="utf-8") as f:
+        json.dump(p, f, ensure_ascii=False, indent=1)
+    cfg_path = os.path.join(rd, "cfg.json")
+    with open(cfg_path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    cfg = dict(cfg, out_dir=work, cameras=[], v2=None, skip_grid=True, previs=p["previs"])
+    say("chờ lượt Blender")
+    import stage_grid as sgt
+    sgt.run_blender_safe(cfg, work, timeout=3600)
+    clay = encode(os.path.join(work, "frames"), "f_", fps, os.path.join(out_dir, name + "_clay.mp4"))
+    depth = None
+    depth_dir = os.path.join(work, "frames_depth")
+    if os.path.isdir(depth_dir) and os.listdir(depth_dir):
+        depth = encode(depth_dir, "d_", fps, os.path.join(out_dir, name + "_depth.mp4"))
+    say("đã render clay" + (" + depth" if depth else ""))
+    return {"ok": True, "path": clay, "depth_path": depth, "plan_path": plan_path,
+            "summary": p["summary"], "output_dir": out_dir}
+
+
 def main(argv=None):
     from core import ui_step                             # C-DEVSYS-MAPS-FIX: cli_step ghi SAU khi chạy, theo kết quả thật
     return ui_step.run_cli("stage_previs", _main, argv)
@@ -687,43 +773,26 @@ def _main(argv, step):
     seg = next((g for g in stage_auto.segments(conn, a.project) if g["scene"] == a.scene), None)
     if seg is None:
         sys.exit(f"không có cảnh {a.scene}")
-    rd = stage_auto.result_round(a.data_dir, a.project, seg)
-    if rd is None:
-        sys.exit(f"cảnh {a.scene}: chưa có lượt sân khấu đã lưu")
     if not a.plan_only:                                  # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên sơ đồ;
         step.update(conn=conn, project=a.project, task=f"previs Blender cảnh {a.scene}")   # --plan-only chỉ in kế hoạch: không ghi
     shots = None
     if a.shots:
         lo_, _, hi_ = a.shots.partition("-")
         shots = set(range(int(lo_), int(hi_ or lo_) + 1))
-    p = plan(rd, shots, a.duration, a.speed, a.fps, lens_range=a.lens_range, uniform_run=a.uniform_run, orbit=a.orbit,
-             extra={int(x.split(":")[0]): float(x.split(":")[1]) for x in a.extra},
-             rig={int(x.split(":")[0]): x.split(":")[1] for x in a.rig})
-    problems = ref_problems(p)
-    if p["summary"]["unrouted"] and not a.allow_straight:
-        problems.append("không tìm được lối trên lưới sàn (người nộm sẽ đi thẳng xuyên vật): " + ", ".join(p["summary"]["unrouted"])
-                        + " — sửa chỗ đứng hoặc thêm --allow-straight")
-    if problems:
-        print(json.dumps(p["summary"], ensure_ascii=False, indent=1))
-        sys.exit("DỪNG — " + "; ".join(problems))
-    os.makedirs(a.out, exist_ok=True)
-    name = f"previs_canh{a.scene}" + (f"_shot{a.shots}" if a.shots else "") + (f"_xoay{a.orbit:g}" if a.orbit else "")         + "".join(f"_them{x.replace(':', 's')}" for x in a.extra) + "".join(f"_{x.replace(':', '')}" for x in a.rig)
-    with open(os.path.join(a.out, name + "_plan.json"), "w", encoding="utf-8") as f:
-        json.dump(p, f, ensure_ascii=False, indent=1)
-    print(json.dumps(p["summary"], ensure_ascii=False, indent=1))
-    if a.plan_only:
-        return
-    with open(os.path.join(rd, "cfg.json"), encoding="utf-8") as f:
-        cfg = json.load(f)
-    work = os.path.join(a.out, name + "_blender")
-    shutil.rmtree(work, ignore_errors=True)
-    os.makedirs(work, exist_ok=True)                     # 16/10: tệp còn khóa (Blender bản Store của lượt bị dừng) → không sập
-    cfg = dict(cfg, out_dir=work, cameras=[], v2=None, skip_grid=True, previs=p["previs"])
-    sgt.run_blender_safe(cfg, work, timeout=3600)
-    clay = encode(os.path.join(work, "frames"), "f_", a.fps, os.path.join(a.out, name + "_clay.mp4"))
-    print("clay:", clay)
-    if os.path.isdir(os.path.join(work, "frames_depth")) and os.listdir(os.path.join(work, "frames_depth")):
-        print("depth:", encode(os.path.join(work, "frames_depth"), "d_", a.fps, os.path.join(a.out, name + "_depth.mp4")))
+    opts = {"duration": a.duration, "speed": a.speed, "lens_range": a.lens_range, "uniform_run": a.uniform_run,
+            "orbit": a.orbit, "extra": {int(x.split(":")[0]): float(x.split(":")[1]) for x in a.extra},
+            "rig": {int(x.split(":")[0]): x.split(":")[1] for x in a.rig}, "fps": a.fps,
+            "allow_straight": a.allow_straight, "plan_only": a.plan_only, "data_dir": a.data_dir}
+    result = run(conn, a.project, a.scene, shots=shots, out=a.out, opts=opts, log=print)
+    if not result.get("ok"):
+        if result.get("summary"):
+            print(json.dumps(result["summary"], ensure_ascii=False, indent=1))
+        sys.exit("DỪNG — " + "; ".join(result.get("errors") or ["không chạy được previs"]))
+    print(json.dumps(result.get("summary") or {}, ensure_ascii=False, indent=1))
+    if result.get("path"):
+        print("clay:", result["path"])
+    if result.get("depth_path"):
+        print("depth:", result["depth_path"])
 
 
 if __name__ == "__main__":

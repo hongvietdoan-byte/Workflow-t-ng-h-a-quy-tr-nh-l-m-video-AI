@@ -144,14 +144,24 @@ def set_family(conn, place_ids: List[int], family: str) -> None:
     fam = str(family or "").strip()
     if not fam:
         raise ValueError("cần tên họ sân khấu")
-    for pid_ in place_ids:
+    ids = list(dict.fromkeys(int(pid_) for pid_ in (place_ids or [])))
+    updates = []
+    for pid_ in ids:
         row = conn.execute("SELECT profile FROM assets WHERE id=?", (pid_,)).fetchone()
         prof = json.loads(row["profile"] or "{}") if row else {}
         if not prof.get("model3d"):
             raise ValueError(f"Kho #{pid_} chưa có model 3D")
         prof["model3d"]["stage_family"] = fam
-        conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), pid_))
-    conn.commit()
+        updates.append((json.dumps(prof, ensure_ascii=False), pid_))
+    conn.execute("SAVEPOINT stage_family_update")
+    try:
+        conn.executemany("UPDATE assets SET profile=? WHERE id=?", updates)
+        conn.execute("RELEASE SAVEPOINT stage_family_update")
+        conn.commit()
+    except Exception:
+        conn.execute("ROLLBACK TO SAVEPOINT stage_family_update")
+        conn.execute("RELEASE SAVEPOINT stage_family_update")
+        raise
 
 
 def family_hints(segs: List[Dict]) -> List[str]:
@@ -169,6 +179,40 @@ def family_hints(segs: List[Dict]) -> List[str]:
                 out.append(msg)
         seen.setdefault(sig, (g["stage"], str(g["place"]["id"])))
     return out
+
+
+def family_suggestions(segs: List[Dict]) -> List[Dict]:
+    """Nhóm bối cảnh có dấu chỗ đứng giống hệt nhưng stage khác để người dùng xem xét thủ công; không tự gộp.
+
+    Mỗi gợi ý giữ cả cấu hình khai báo ở Kho và cấu hình quan sát từ `spots`, để UI phân biệt bằng chứng với kết luận.
+    """
+    groups: Dict[str, List[Dict]] = {}
+    for g in segs or []:
+        place_id = (g.get("place") or {}).get("id")
+        if place_id is None:
+            continue
+        spots = g.get("entry", {}).get("spots") or {}
+        if not spots:
+            continue                                      # không có dấu vị trí đo được thì không đủ căn cứ gợi ý cùng họ
+        sig = json.dumps(spots, sort_keys=True, ensure_ascii=False)
+        groups.setdefault(sig, []).append({"place_id": int(place_id), "stage": str(g.get("stage") or ""),
+                                           "declared": str(g.get("entry", {}).get("stage_family") or "").strip() or None})
+    out = []
+    for sig, members in groups.items():
+        unique = {m["place_id"]: m for m in members}
+        members = list(unique.values())
+        if len(members) < 2 or len({m["stage"] for m in members}) < 2:
+            continue
+        declared = {m["declared"] for m in members if m["declared"]}
+        # Một họ đã khai thống nhất thì không còn gợi ý. Xung đột khai báo vẫn được đưa ra để người kiểm tra.
+        if len(declared) == 1 and all(m["declared"] for m in members):
+            continue
+        spots = json.loads(sig)
+        out.append({"place_ids": sorted(unique), "spots": spots,
+                    "family": next(iter(declared)) if len(declared) == 1 else None,
+                    "members": sorted(members, key=lambda m: m["place_id"]),
+                    "declared_conflict": len(declared) > 1})
+    return sorted(out, key=lambda g: g["place_ids"])
 
 
 def segments(conn, pid: int) -> List[Dict]:
