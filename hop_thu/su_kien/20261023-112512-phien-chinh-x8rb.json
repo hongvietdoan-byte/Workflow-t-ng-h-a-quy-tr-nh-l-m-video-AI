@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T11:25:12.552462+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-RA-M80B",
+  "to": "codex",
+  "title": "RÀ KỸ nhánh claude/v31-m80b (an toàn tiền), chỉ đọc",
+  "spec": "docs/CODEX_TASKS.md### CX23-RA-M80B",
+  "priority": 1
+}
