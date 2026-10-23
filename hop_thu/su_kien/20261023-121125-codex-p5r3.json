@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T12:11:25.542103+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-RA-M80B",
+  "text": "Đã nhận CX23-RA-M80B (ưu tiên 1); owner phiên Codex hiện tại. Nhánh codex/v31-ra-m80b, worktree D:\\AI-Video-Pipeline\\.codex-wt\\v31-ra-m80b, base origin/main 373231bc. Phạm vi chỉ đọc, không sửa nhánh claude/v31-m80b; đang lấy đúng diff + HANDOFF để rà an toàn tiền theo checklist đề."
+}
