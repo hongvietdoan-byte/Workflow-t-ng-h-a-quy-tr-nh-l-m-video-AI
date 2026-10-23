@@ -235,7 +235,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 ### M5 — Sửa chọn lọc và pilot
 - [ ] M5.1 · Repair router theo mã lỗi, trần ảnh ≤ 3 / video ≤ 2, dừng khi đổi ý đồ · nặng:3 · ✅ · DP5 cloud-C gộp 20/10, cờ repair_router TẮT, chỉ đề xuất (tự gửi = C3-10 để sau)
 - [ ] M5.2 · Release gate: shot duyệt, final QC, đối soát chi phí, lỗi nghiêm trọng mở = 0 hoặc có miễn trừ ký tên · nặng:2 · ✅ · DP6 cloud-C gộp 20/10, cờ release_gate TẮT (chỉ cảnh báo, không chặn xuất)
-- [ ] M5.3 · Pilot vòng A Offline Regression: replay lỗi #31/#33 (payload, continuity, QC, lineage, phục hồi), 0 USD · nặng:2 · 🔄 · DP12 khung tools/pilot_a.py gộp 21/10 (rà nhẹ, 0 USD); còn CHẠY vòng A ở máy chính sau golden đạt
+- [ ] M5.3 · Pilot vòng A Offline Regression: replay lỗi #31/#33 (payload, continuity, QC, lineage, phục hồi), 0 USD · nặng:2 · 🔄 · DP12 khung tools/pilot_a.py gộp 21/10 (rà nhẹ, 0 USD); 23/10 ĐÃ CHẠY vòng A: DAT_OFFLINE (15 ca phai_xanh xanh, golden byte giống, 0 mạng, 0 ghi data/; 0 ca OPEN có test nên c5 trống) — docs/PILOT_A_KET_QUA_2026-10-23.md; còn 7 ca MAY_CHINH (pilot_a.py chưa có tùy chọn đọc dữ liệu máy chính) + 65 mục sổ lỗi chưa có test
 - [ ] M5.4 · Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — C3-11 duyệt nguyên tắc, CHƯA duyệt chi tiêu
 - [ ] M5.5 · Pilot vòng C 20–40 shot: chất lượng, tỉ lệ gen lại, continuity, chi phí, can thiệp tay (Cấp 3) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — C3-12 để sau
 
@@ -279,6 +279,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 
 ## 6. Nhật ký
 
+- 23/10: M5.3 pilot vòng A offline DAT_OFFLINE (801 test, 88 s); còn ca MAY_CHINH. M8.0 an toàn tiền đang làm (agent).
 - 23/10: sửa trạng thái kế hoạch đã cũ — M2.1, M2.4–M2.9, M7.3 ✅ (đã nằm trong main từ 26d0a16d 22/10, cờ TẮT); M2.10 bước 1–2 đã gộp, còn bước 3 trả phí.
 - 23/10 (sáng): phiên chính làm thay CX21-M22 (Codex im từ 22/10 20:29), rà kỹ + vòng sửa, gộp main.
 - 23/10 (rạng sáng): Codex im (không có lịch tự kiểm hộp thư) → phiên chính nhận lại CX21-M23, sửa 5 VỪA + 5 thấp, gộp main; phần dở ghi M2.3b.
