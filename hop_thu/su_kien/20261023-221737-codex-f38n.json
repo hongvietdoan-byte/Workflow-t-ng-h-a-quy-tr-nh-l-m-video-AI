@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T22:17:37.835023+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Codex 3 báo tiến độ CX23-M47B (phần lõi Q6(c)). Owner: Codex 3; nhánh codex/v31-m47b; worktree D:\\AI-Video-Pipeline\\.codex-wt\\v31-m47b; commit 24ba86fd866d7e5ec76c9fcf9414d0a32fa0355c đã push. Q6(c) đọc BYĐ v2: nhân vật vai chính thiếu ảnh mốc BLOCK; cast vai chính không khớp REVIEW; vai hợp lệ không chính/không khai vai WARN; waiver gắn fingerprint tập mục BYĐ chính hiện tại. Reviewer độc lập không còn finding; targeted 64 passed trong 2.83s; HANDOFF và RA đã cập nhật. Caller Bước 1 và UI vẫn chờ Codex 1 sau khi M80C gộp; Q6(a) caller Bước 2 còn mở. Đây là tin tiến độ, chưa xong; không chạy cả bộ, dữ liệu thật, migration, live restart hay API tính phí."
+}
