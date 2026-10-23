@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T19:46:35.420872+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Tiến độ CX23-M47B: nền C3-4 đã đẩy commit 57e5f06b (core.qc_overrides, UI panel, video gate; 72 test xanh; rà độc lập không finding). Worktree codex/v31-m47b @72ba5048 hiện sạch. Đang tiếp Q6(c): triển khai lõi cổng ảnh mốc và test đỏ→xanh; câu hỏi về field/schema hiện hành đánh dấu shot phụ bắt buộc ảnh vẫn chờ trả lời nên chưa tự thêm schema. Chưa nối caller vào step1_characters.py vì M80C sở hữu file đó; giữ phạm vi tách biệt, không DB thật/API trả phí. Bước kế: hoàn thiện lõi+test, rồi nối caller an toàn theo field và quyền sở hữu được xác nhận."
+}
