@@ -1681,3 +1681,34 @@ Việc (tất cả sau cờ `safe_paid_buttons`; cờ TẮT = nhãn + hành vi c
 Gom test liên quan một lệnh, ≤ 3 lần chạy + chạy `tests/test_ui_v2_acceptance.py` một lần cuối. Không chạy cả bộ (phiên chính chạy khi gộp).
 Khai file mới `devsys/areas.json` (không tăng version). Nhánh `codex/v31-m80c`, push sau MỖI commit, HANDOFF.md trên nhánh. XONG hộp thư → phiên chính giao RÀ KỸ
 (Codex nhánh/agent khác, context sạch, chỉ đọc) trước khi gộp.
+### CX23-M47B — M4.7 phần GHI: bảng overrides (C3-4) + siết 3 cổng Q6 (ưu tiên 2; NGƯỜI DÙNG giao 23/10; Cấp 2 + C3-4 DUYỆT CÓ ĐK; 0 USD)
+Phần XEM đã gộp 21/10 (C-M47A, cờ TẮT; xem docs/RA_CLOUD_M47A_2026-10-20.md, docs/CLOUD_TASKS.md quanh dòng 494). Còn: (1) bảng CSDL `overrides`
+theo docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md mục C3-4 (override ↔ mã lỗi/finding, người, revision, lý do, bằng chứng) — điều kiện duyệt: migration
+idempotent + test schema (CSDL mới + CSDL cũ), sao lưu trước, KHÔNG chạy trên data/manifest.sqlite thật trong nhánh; (2) nút override trên thẻ BYĐ/sổ lỗi/gói
+(chỉ người có quyền edit; ghi lý do ≥ câu có nghĩa + bằng chứng; Claude/công cụ không override); (3) "siết 3 cổng" Q6 theo dòng M4.7 trong
+docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + câu Q6 trong docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md — đọc kỹ, phần nào chưa rõ thì HỎI hộp thư. Tất cả sau cờ
+của M4.7 (TẮT = cũ). Test đỏ→xanh. Nhánh `codex/v31-m47b`. Đụng DỮ LIỆU/QUYỀN → phiên chính RÀ KỸ trước gộp.
+
+### CX23-M48-D2 — M4.8 Bàn đạo diễn 3D Đợt 2: N12, N14, N15, N16 (ưu tiên 3; NGƯỜI DÙNG giao 23/10; Cấp 2 đã duyệt EP 21/10 S-A…S-G; 0 USD)
+Kế hoạch: docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md (bảng nút dòng ~130–145, luật "không ghi trước duyệt" ~192/287, Đợt 2 ~248/355, Q-F/Q-G ~345).
+Lõi đã gộp (core/stage_desk.py, cờ stage_desk_ui TẮT; docs/RA_CLOUD_M48_DESK_UI_2026-10-22.md mục 3 = phần chưa có). Làm: N12 tách `stage_previs.run`, N14
+`crew_user_pick` (chỉ chọn trong shot_hist; lần đo lạ → lỗi như validate_review), N15 `world_map.refresh` (cờ world_map TẮT → ẩn), N16 khai họ sân khấu qua
+đường ghi Kho sẵn có (gợi ý VÀNG, không tự gộp) + bảng đối chiếu "đã khai ↔ đo được" nếu kịp. Nút duyệt sân khấu dùng `is_executive_producer` (KHÔNG đụng
+phần vai EP đang làm ở CX22-G1-EP-ROLE — chỉ gọi hàm). Test "không ghi trước duyệt" (sha CSDL không đổi cho N12/N14/N15). Cờ TẮT = cũ. Nhánh `codex/v31-m48-d2`.
+Thử cờ trên #31 = việc của EP, KHÔNG làm.
+
+### CX23-M53-MAY — M5.3 phần còn: pilot_a đọc dữ liệu máy chính CHỈ ĐỌC + 7 ca MAY_CHINH + test cho mục sổ lỗi (ưu tiên 3; NGƯỜI DÙNG giao 23/10; Cấp 1; 0 USD)
+Nền: tools/pilot_a.py + docs/PILOT_A_KET_QUA_2026-10-23.md (vòng A DAT_OFFLINE, 15 ca xanh; 7 ca MAY_CHINH chưa chạy). Làm: tùy chọn `--may-chinh` đọc CSDL bằng
+URI `mode=ro` + file data/ chỉ đọc (không ghi, không mạng, không provider; kiểm sha CSDL trước/sau bằng nhau trong test và lúc chạy); chạy 7 ca trên máy chính
+D:\AI-Video-Pipeline; bổ sung test cho các mục sổ lỗi (65 mục chưa có test) theo thứ tự lỗi tốn tiền / lặp lại nhiều nhất trước — ít nhất 15 mục, mỗi test
+tái hiện lỗi trên dữ liệu giả hoặc fixture; mục không tái hiện được 0 USD → ghi lý do. Cập nhật docs/PILOT_A_KET_QUA (bản mới, không ghi đè) → kết luận vòng A
+đủ/thiếu. Nhánh `codex/v31-m53-may`.
+
+### CX23-M60-AUDIT — M6.0 phần còn: audit nơi gọi tạo job + profiling Dashboard đủ khối (ưu tiên 3; NGƯỜI DÙNG giao 23/10; Cấp 1 CHỈ ĐỌC; 0 USD)
+Kế hoạch: docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 0 (E1–E7 đã đo). Làm: (1) liệt kê MỌI caller tạo job tốn tiền (ảnh/video/TTS/nhạc/Claude) —
+file:dòng, vai thực hiện (người/Đạo diễn/công cụ), có qua sổ chi + ước tính trước + xác nhận người không, đường ghi theo vai; đánh dấu đường "Kỹ sư ghi nội dung
+production" (vi phạm check M6.0); (2) profiling Dashboard đủ khối trên bản sao dữ liệu (thời gian vẽ từng màn/khối, truy vấn CSDL chậm, lineage.summary) →
+bảng top khối chậm + đề xuất; (3) đề xuất check tự động cho sổ quyết định M6 (không tự thêm vào data/decisions.json — trình phiên chính). Báo cáo
+`docs/M6_0_AUDIT_2026-10-2x.md` + script đo nếu cần (khai areas.json). Nhánh `codex/v31-m60-audit`.
+Chung: push sau MỖI commit; HANDOFF.md trên nhánh; chạy song song 2–3 nhánh không trùng file (M47B và M48-D2 có thể cùng đụng dashboard — kiểm trùng trước);
+XONG từng mã qua hộp thư.
