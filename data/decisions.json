@@ -1159,6 +1159,18 @@
    "enforced_by": [],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2310-m81-approved-m82-go-2026-10-23",
+   "date": "2026-10-23",
+   "by": "người dùng (Executive Producer, chat phiên chính 23/10 ~22:15)",
+   "text": "DUYỆT CHÍNH THỨC thiết kế M8.1 (docs/THIET_KE_CHE_DO_DON_GIAN_2026-10-23.md vòng 2 + mockup/che_do_don_gian_m81.html 7 màn). Cho phép M8.2 Cấp 2: Chế độ Cơ bản sau cờ simple_mode mặc định TẮT; Chế độ Nâng cao (giao diện hiện tại) giữ nguyên; giao Codex khi có phiên rảnh, không trùng file với CX23-M80C.",
+   "keeps": "ep-2310-mode-labels-basic-advanced-2026-10-23; ep-2310-qd3-auto-spend-limit-2026-10-23; ep-2310-m81-r2-answers-2026-10-23; ep-2210-qa/qb/qc/qf/e2/e4",
+   "changes": "M8.1 ✅; M8.2 được bắt đầu (cờ TẮT).",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED"
   }
  ]
 }

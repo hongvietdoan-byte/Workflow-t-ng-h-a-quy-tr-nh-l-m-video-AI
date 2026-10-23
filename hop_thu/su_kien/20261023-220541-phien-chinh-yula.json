@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T22:05:41.639374+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-M82",
+  "to": "codex",
+  "title": "M8.2 Chế độ Cơ bản sau cờ simple_mode TẮT — pha A module riêng, pha B sau M80C (0 USD, RÀ KỸ)",
+  "spec": "docs/CODEX_TASKS.md### CX23-M82",
+  "priority": 3
+}
