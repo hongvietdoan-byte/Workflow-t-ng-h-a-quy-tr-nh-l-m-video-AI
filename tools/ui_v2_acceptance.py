@@ -368,7 +368,7 @@ def seed_states(out: str) -> None:
 def child(mode: str, v2: str, extra=()) -> dict:
     # Tiến trình đo chỉ nhận biến hệ thống/Python/cờ cần thiết; tuyệt đối không kế thừa credential hoặc cấu hình ngoài phạm vi.
     allowed = {"PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE"}
-    env = {k: v for k, v in os.environ.items() if k in allowed or k.startswith(("PYTHON", "FEATURE_"))}
+    env = {k: v for k, v in os.environ.items() if k in allowed or k.startswith("PYTHON")}  # bỏ FEATURE_* thừa hưởng (tests/__init__ đặt FEATURE_PROJECT_BUDGET=0 …) — chỉ cờ _env đặt
     env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1", FEATURE_SETTINGS_FILE=os.path.join(tempfile.mkdtemp(), "none.json"),
                FEATURE_BASELINE="0")                                # M7.2: phép đo không theo baseline cờ sản xuất
     if mode == "clicks":
