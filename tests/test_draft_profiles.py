@@ -109,6 +109,17 @@ class DraftProfileTests(unittest.TestCase):
         self.assertNotIn("error", out[1])
         self.assertEqual(assets.get_profile(self.conn, self.kenta)["identity"], "young, not yet 20")
 
+    def test_finalize_a_refused_save_is_reported_not_raised(self):
+        """tools/profile_finalize.py: cùng luật — writer từ chối một mục → save() trả False (mục vào danh sách chưa đủ), không ném lỗi."""
+        import profile_finalize
+        from core import kho_profile
+        obj = {"identity": "female, young, not yet 20", "must_keep": "bob", "forbidden": "x"}
+        kelly = assets.get(self.conn, self.kelly)
+        with mock.patch.object(assets, "set_profile", side_effect=kho_profile.ProfileError("revision đã đổi")):
+            self.assertFalse(profile_finalize.save(self.conn, kelly, {}, obj, object(), approve=False))
+        self.assertTrue(profile_finalize.save(self.conn, kelly, {}, obj, object(), approve=False))
+        self.assertEqual(assets.get_profile(self.conn, self.kelly)["identity"], obj["identity"])
+
 
 if __name__ == "__main__":
     unittest.main()

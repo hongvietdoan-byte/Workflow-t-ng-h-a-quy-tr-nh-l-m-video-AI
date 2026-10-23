@@ -52,6 +52,16 @@ def complete(identity: str) -> bool:
     return bool(GENDER.search(identity or "")) and bool(AGE.search(identity or ""))
 
 
+def save(conn, c: dict, prof: dict, obj: dict, client, approve: bool) -> bool:
+    """Lưu một hồ sơ; writer từ chối (khóa / CAS / hồ sơ hỏng) → báo rõ mục đó và trả False, các mục sau vẫn soạn (rà CX21-M23 23/10)."""
+    try:
+        assets.set_profile(conn, c["id"], obj, approved=approve, reason="soạn lại theo thông tin chính thức + đối chiếu ảnh (02/10)", actor={"kind":"ai", "who":"profile_finalize", "model":getattr(client,"model", "unknown"), "from_text":"profile_finalize"}, expected_revision=prof.get("revision",0))
+    except (assets.AssetError, kho_profile.ProfileError) as e:
+        print(f"  ✗ {c['name']}: chưa lưu — {e}")
+        return False
+    return True
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -112,7 +122,9 @@ def main() -> None:
             left.append(c["name"])
             continue
         good = complete(obj.get("identity", ""))
-        assets.set_profile(conn, c["id"], obj, approved=bool(a.approve and good), reason="soạn lại theo thông tin chính thức + đối chiếu ảnh (02/10)", actor={"kind":"ai", "who":"profile_finalize", "model":getattr(client,"model", "unknown"), "from_text":"profile_finalize"}, expected_revision=prof.get("revision",0))
+        if not save(conn, c, prof, obj, client, approve=bool(a.approve and good)):
+            left.append(c["name"])
+            continue
         ok += good
         if not good:
             left.append(c["name"])
