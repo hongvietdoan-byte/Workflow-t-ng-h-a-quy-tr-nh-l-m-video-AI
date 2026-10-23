@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-23T13:34:49.950518+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX23-DOI-SOAT",
+  "branch": "codex/v31-doi-soat",
+  "commit": "14fc8a36",
+  "report": "docs/DOI_SOAT_KHAU_2026-10-23.md"
+}

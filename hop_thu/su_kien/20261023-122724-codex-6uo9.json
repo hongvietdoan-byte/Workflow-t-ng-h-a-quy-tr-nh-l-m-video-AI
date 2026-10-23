@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T12:27:24.272356+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-RA-M80B",
+  "text": "CX23-RA-M80B đang rà chỉ đọc trên codex/v31-ra-m80b. Kiểm thử mục tiêu 56/56 xanh với os.environ giả; thử dữ liệu giả tái hiện 2 HOLD fail-open: clip chờ cũ không phải bản mới nhất có thể được coi đủ điều kiện, và lỗi đọc lineage ảnh cũng bị coi đủ điều kiện. Nhóm p.retry/p.reject/reopen/restart, voice.generate/preview, music.submit_drafts vẫn ngoài lớp xác nhận M8.0b (HANDOFF nói để M8.0c). Cờ OFF, recheck khi undo, chặn double schedule và luồng tự động/chat_first nhìn chung đúng; đang ghi file:dòng + khuyến nghị để push báo cáo."
+}

@@ -195,7 +195,7 @@ with st.sidebar:
         st.session_state['devsys_page'] = 'Phiếu'
     if not ticket_ui_enabled and st.session_state.get('devsys_page') == 'Phiếu':
         del st.session_state['devsys_page']
-    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "🗺 Sơ đồ tiến độ", "🧭 Sơ đồ dây chuyền", "📕 Sổ lỗi", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
+    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "🗺 Sơ đồ tiến độ", "🧭 Sơ đồ dây chuyền", "🔎 Đối soát", "📕 Sổ lỗi", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
                               "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"] + (["Phiếu"] if ticket_ui_enabled else []), label_visibility="collapsed", **({'key':'devsys_page'} if ticket_ui_enabled else {}))
     st.divider()
     st.markdown("**Test**")
@@ -1122,6 +1122,70 @@ def page_pipeline_maps():
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch") if rows else st.caption("Không ô nào khác mốc.")
 
 
+def page_doi_soat():
+    """Bảng đọc-only đối chiếu màu sơ đồ, lỗi mở và trạng thái việc kế hoạch."""
+    from devsys import doi_soat, errors, pipeline_maps as PM
+
+    st.title("🔎 Đối soát khâu ↔ kế hoạch")
+    st.caption("Đọc từ sổ khâu, bản đồ dây chuyền, kế hoạch chính và sổ lỗi. Trang không tự sửa kế hoạch hay sổ lỗi.")
+    try:
+        model = PM.build_model()
+        error_items = errors.load()["items"]
+        report = doi_soat.build_reconciliation(model, error_items, plan_status=PM.plan_statuses())
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        st.error(f"Không dựng được bảng đối soát: {exc}")
+        return
+
+    titles = {"LOI": "Lỗi mở", "LONG": "Còn lỏng", "THIEU": "Thiếu", "LECH": "Lệch kế hoạch", "KHONG_VIEC": "Chưa có việc"}
+    metrics = st.columns(len(doi_soat.KINDS))
+    for column, kind in zip(metrics, doi_soat.KINDS):
+        column.metric(titles[kind], report["summary"].get(kind, 0))
+    for warning in report.get("warnings") or []:
+        st.warning(warning)
+
+    selected = st.multiselect("Lọc theo loại", list(doi_soat.KINDS), format_func=lambda value: titles[value], key="doi_soat_loai")
+    visible = [row for row in report["rows"] if not selected or set(selected).intersection(row["types"])]
+    display = [{"Mã": row.get("id"), "Dòng": row.get("kind"), "Màu": row.get("color"),
+                "Loại": ", ".join(titles[value] for value in row["types"]) or "—",
+                "Khâu": ", ".join(row.get("khau") or []) or "—",
+                "Lỗi mở": ", ".join(row.get("open_error_ids") or []) or "—",
+                "Việc đề xuất": (row.get("proposal") or {}).get("title", "—")}
+               for row in visible]
+    st.dataframe(pd.DataFrame(display), hide_index=True, width="stretch")
+    st.caption("Chọn từng dòng bên dưới để xem lý do, mã lỗi, trạng thái việc và bằng chứng.")
+    for row in visible:
+        types = ", ".join(titles[value] for value in row["types"]) or "Không có cảnh báo"
+        with st.expander(f"{row.get('id')} · {row.get('kind')} · {row.get('color')} · {types}"):
+            st.write("**Lý do:** " + ("; ".join(row.get("why") or []) or "Không có lý do cảnh báo."))
+            if row.get("tasks"):
+                st.write("**Việc kế hoạch:** " + ", ".join(f"{item['id']} ({item['status']})" for item in row["tasks"]))
+            if row.get("open_errors"):
+                st.dataframe(pd.DataFrame([{"Mã lỗi": item.get("id"), "Trạng thái": item.get("status"),
+                                            "Việc gắn": item.get("plan_task") or "chưa gắn",
+                                            "Trạng thái việc": item.get("plan_task_status") or "—",
+                                            "Tiêu đề": item.get("title", "")}
+                                           for item in row["open_errors"]]), hide_index=True, width="stretch")
+            proposal = row.get("proposal")
+            if proposal:
+                st.info(f"**Đề xuất thêm vào plan:** {proposal['title']}\n\nKhâu: {proposal['stage'] or 'chưa xác định'}\n\n"
+                        f"Lý do: {proposal['reason']}\n\nBằng chứng: {proposal['evidence']}")
+
+    generated_on = datetime.now().date().isoformat()
+    filename = f"DOI_SOAT_KHAU_{generated_on}.md"
+    markdown = doi_soat.render_markdown(report, generated_on=generated_on)
+    st.download_button(f"Tải bản xuất docs/{filename}", data=markdown, file_name=filename,
+                       mime="text/markdown", key="doi_soat_download")
+    report_path = os.path.join(ROOT, "docs", filename)
+    if os.path.exists(report_path):
+        st.caption(f"{report_path} đã tồn tại; nút tải ở trên không ghi đè tệp này.")
+    elif st.button(f"Lưu bản xuất vào docs/{filename}", key="doi_soat_save"):
+        try:
+            doi_soat.write_markdown(report_path, markdown)
+            st.success(f"Đã lưu báo cáo tại docs/{filename}.")
+        except OSError as exc:
+            st.error(f"Không lưu được báo cáo: {exc}")
+
+
 # ---- trang: Hiệu quả (S14.10 Đợt 6b) -----------------------------------------------------------------------------------
 def page_effect():
     st.title("Hiệu quả — điểm devsys ↔ chất lượng đầu ra thật")
@@ -1341,7 +1405,7 @@ def page_running():
 from devsys.errors_page import render as page_errors
 from devsys.tickets_page import render as page_tickets
 
-PAGES = {"📕 Sổ lỗi": page_errors, "Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "🗺 Sơ đồ tiến độ": page_plan_map, "🧭 Sơ đồ dây chuyền": page_pipeline_maps, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
+PAGES = {"📕 Sổ lỗi": page_errors, "Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "🗺 Sơ đồ tiến độ": page_plan_map, "🧭 Sơ đồ dây chuyền": page_pipeline_maps, "🔎 Đối soát": page_doi_soat, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
          "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions, "Làm ↔ Kiểm": page_stages,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()
