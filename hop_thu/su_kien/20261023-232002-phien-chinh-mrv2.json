@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T23:20:02.265433+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-M23B",
+  "to": "codex",
+  "title": "M2.3b phần còn Kho forms (R5, nhiều dạng, standard_set, revision+guard, UI proposals) cờ TẮT, RÀ KỸ (0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX23-M23B",
+  "priority": 3
+}

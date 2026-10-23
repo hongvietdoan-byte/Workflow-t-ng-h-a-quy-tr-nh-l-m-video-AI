@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T23:20:04.377416+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-A2F-ALIAS",
+  "to": "codex",
+  "title": "Bí danh tiếng Anh nơi Kho + tools/kho_place_alias.py trước khi bật A2f (0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX23-A2F-ALIAS",
+  "priority": 3
+}
