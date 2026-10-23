@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T15:30:36.910314+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M81",
+  "text": "Hai đặc tả M81 và R1-AXIS có phần yêu cầu đọc DB/decision/log/ảnh dự án thật; hướng dẫn phiên này lại cấm đọc dữ liệu thật. Xin chốt: có thể cung cấp bản sao đã khử nhạy cảm/synthetic fixture để đo và kiểm chứng không, hay cho phép ngoại lệ chỉ đọc cụ thể? Trước khi chốt, các nhánh chỉ dùng docs/code tĩnh và bằng chứng đã có trong hộp thư; không mở data/ thật."
+}
