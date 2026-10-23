@@ -164,16 +164,16 @@ kiểm giá trị; không đổi `STATUSES`.
 |---|---|---|---|---|---|---|
 | M0 Đóng băng và thiết kế (0 USD) | 12 | 12 | 0 | 0 | 0 | 100 % |
 | M1 Nền tin cậy (0 USD, provider giả) | 9 | 9 | 0 | 0 | 0 | 100 % |
-| M2 Hợp đồng sản xuất có cấu trúc | 10 | 1 | 8 | 0 | 0 | 47,8 % |
+| M2 Hợp đồng sản xuất có cấu trúc | 10 | 2 | 8 | 0 | 0 | 60,9 % |
 | M3 Thế giới và liên tục | 5 | 5 | 0 | 0 | 0 | 100 % |
 | M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 5 | 1 | 0 | 0 | 75 % |
 | M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **75** | **43** | **13** | **0** | **0** | **63,5 %** |
+| **Tổng** | **75** | **44** | **13** | **0** | **0** | **65,5 %** |
 
-Đợt hiện tại: **M2** · việc kế: **M2.2** Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22)
+Đợt hiện tại: **M2** · việc kế: **M5.4** Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3)
 <!-- /tien-do -->
 
 Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · ✅ xong · ✖ bỏ. Mỗi việc xong ghi commit + bằng chứng.
@@ -205,7 +205,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 
 ### M2 — Hợp đồng sản xuất có cấu trúc
 - [ ] M2.1 · BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN · nặng:3 · 🔄 · cloud/v31-m2-tichhop 9746a6ea — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
-- [x] M2.2 · Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22) · nặng:3 · ⬜ · 23/10 gộp CX21-M22 (phiên chính làm thay Codex; nhánh claude/v31-m22 94149b8f; cờ byd_fields + 6 con TẮT; rà kỹ 5 lỗi đã sửa: BYĐ chỉ vào hash shot v2 + lineage.restamp_byd khi bật cờ, tên nơi không lọt tiếng Việt, Setting cùng tên; cả bộ 8136 passed + 1 chập chờn qua khi chạy riêng; docs/RA_CX21_M22_2026-10-23.md) · TRƯỚC KHI BẬT A2f: thêm bí danh tiếng Anh cho nơi trong Kho
+- [x] M2.2 · Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22) · nặng:3 · ✅ · 23/10 gộp CX21-M22 (phiên chính làm thay Codex; nhánh claude/v31-m22 94149b8f; cờ byd_fields + 6 con TẮT; rà kỹ 5 lỗi đã sửa: BYĐ chỉ vào hash shot v2 + lineage.restamp_byd khi bật cờ, tên nơi không lọt tiếng Việt, Setting cùng tên; cả bộ 8136 passed + 1 chập chờn qua khi chạy riêng; docs/RA_CX21_M22_2026-10-23.md) · TRƯỚC KHI BẬT A2f: thêm bí danh tiếng Anh cho nơi trong Kho
 - [x] M2.3 · Triển khai Kho forms/outfit/hair/face (G38) theo thiết kế M0.9 — code Cấp 2, backfill/migration Cấp 3 · nặng:2 · ✅ · 23/10 gộp CX21-M23 (Codex 35d76879 + vòng sửa phiên chính 575d0288; cờ kho_forms_v2 TẮT; rà kỹ 2 vòng, test đỏ khi bỏ sửa 13 ca; cả bộ 8103 passed; docs/RA_CX21_M23_FIX_2026-10-23.md) · CÒN M2.3b: biến thể vật R5, chọn dạng nhiều dạng/theo nhịp + mục VÀNG 'chưa chốt dạng' khi _shot_forms review, standard_set vai/trần ảnh, location_pack/stage_auto tăng revision + guard M0.10, UI duyệt proposals, tools/profile_finalize.py:115 bắt lỗi từng mục · G2-3 duyệt có ĐK (sau M0.9, M0.10, M1.9); backfill = C3-5 chỉ khảo sát + nháp
 - [ ] M2.4 · insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; chỉ mang đạo cụ có trong BYĐ (G6, G21, G1) · nặng:2 · 🔄 · cloud/v31-m24 1971d85f (đã nằm trong m2-tichhop) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật)
 - [ ] M2.5 · Triển khai AUTO/USER_LOCKED/REVIEW_REQUIRED mọi đường ghi theo đặc tả M0.10 (A4), shadow trước — Cấp 2 · nặng:2 · 🔄 · m2-tichhop 9746a6ea (M25+M25B) — gộp main tich-hop-m2 (c80a6d9f), chờ phiên chính đẩy (cờ TẮT/shadow, chưa chạy trên dữ liệu thật) · G2-3 duyệt có ĐK (shadow); enforce = C3-6 để sau
