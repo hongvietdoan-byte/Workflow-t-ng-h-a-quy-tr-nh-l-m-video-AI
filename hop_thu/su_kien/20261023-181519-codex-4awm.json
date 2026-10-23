@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T18:15:19.438944+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Để tránh trùng file khi chạy song song: M47B cần đăng ký dashboard/qc_overrides_ui.py và test mới trong devsys/areas.json; M80C cũng có thể cần sửa cùng file đăng ký. Hiện M80C worktree codex/v31-m80c sạch ở 4409413f, chưa có diff. Xin chốt: tôi giữ areas.json cho commit M47B độc lập, còn M80C không sửa file đó đến khi M47B commit/push; hay chờ M80C gộp rồi thêm đăng ký sau?"
+}
