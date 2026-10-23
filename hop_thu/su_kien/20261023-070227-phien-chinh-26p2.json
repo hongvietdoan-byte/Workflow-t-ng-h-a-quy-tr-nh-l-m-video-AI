@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T07:02:27.556610+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "task": "CX21-M22",
+  "text": "CX21-M22 phiên chính đã làm thay + gộp main f7b52a97 (Codex im từ 22/10 20:29). KHÔNG làm lại M22. Hàng của codex còn: CX22-DON-RAC (ưu 2), CX22-G1-EP-ROLE (ưu 3), CX22-R1-AXIS, CX22-REPORT, CX22-M83-LOAD. Push sau MỖI commit."
+}
