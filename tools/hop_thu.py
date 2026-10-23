@@ -492,6 +492,15 @@ def cmd_gop(args, root):
         raise HopThuError(f"Từ chối: {args.ma} chưa XONG (hiện: {'chưa giao' if t is None else t.status}).")
     p = write_event(root, args.lane, "gop", task=args.ma, commit=args.commit, text=args.text)
     _finish(args, root, p, "gop", args.ma)
+    if not args.giu_worktree and t.branch and t.commit:
+        try:
+            import don_rac
+            result = don_rac.cleanup_merged_branch_worktree(root, t.branch, t.commit)
+        except Exception as exc:
+            # Việc ghi sự kiện GỘP đã hoàn tất; lỗi dọn chỉ là cảnh báo, không đảo trạng thái.
+            print(f"CẢNH BÁO: chưa tự gỡ worktree/nhánh {t.branch}: {exc}", file=sys.stderr)
+        else:
+            print(f"Dọn sau gộp: {result}")
 
 
 def cmd_bo(args, root):
@@ -609,6 +618,7 @@ def build_parser():
     p.add_argument("--lane", required=True)
     p.add_argument("--commit", required=True)
     p.add_argument("--text")
+    p.add_argument("--giu-worktree", action="store_true", help="không tự gỡ worktree sau khi gộp")
 
     p = add("bo", cmd_bo, help_="bỏ việc")
     p.add_argument("ma")
