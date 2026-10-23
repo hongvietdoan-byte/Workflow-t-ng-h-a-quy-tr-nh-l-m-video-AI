@@ -1,3 +1,4 @@
+from tests._flags import pin_off  # M8.0b
 import os
 import shutil
 import struct
@@ -317,6 +318,7 @@ class DashboardTests(Base):
         self.assertFalse(any((b.key or "").startswith(("sr_", "sg_")) for b in at.button))          # no search / preview / per-track buttons
 
     def test_the_ai_button_proposes_and_only_the_kept_rows_are_added(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         wav(os.path.join(self.src, "Sound FX Pack", "Whoosh.wav"), 1.0)
         wav(os.path.join(self.src, "popup", "Pop.wav"), 1.0)
         sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))

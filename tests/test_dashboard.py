@@ -185,6 +185,7 @@ class DashboardSmokeTests(unittest.TestCase):
             self.assertFalse(at.exception, key)
 
     def test_create_image_jobs_and_mode_switch(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         p, pid = self.seed()
         from core.llm_io import lock_character_bible
         self.with_lock(p, pid)
@@ -294,6 +295,7 @@ class DashboardSmokeTests(unittest.TestCase):
             "SELECT COUNT(*) c FROM characters WHERE locked=1").fetchone()["c"], 0)
 
     def test_llm_runner_buttons_with_mock_model(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         p = Pipeline(connect(self.db))
         pid = p.create_project("Demo")
         p.create_scene(pid, 1, "CẢNH 1")
@@ -410,6 +412,7 @@ class DashboardSmokeTests(unittest.TestCase):
         return p, pid, ids
 
     def test_approve_all_asks_yes_or_no_once(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         p, pid, ids = self._pending_images(2)
 
         def states():
@@ -428,6 +431,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual(states(), ["approved", "approved"])
 
     def test_a_new_pending_image_cancels_a_question_already_asked(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         p, pid, ids = self._pending_images(1)
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
@@ -641,6 +645,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertIn("không thấy lỗi", self.notes(at))                 # v2: say("success") = pill + one line + the text in ⓘ
 
     def test_an_outfit_is_picked_in_the_character_bible_and_a_character_set_made_from_it(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         import io
         from PIL import Image
         from core import assets
@@ -886,6 +891,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual([d for d in knowledge.overview("qc")["docs"] if d["source"] == "user"], [])
 
     def test_distilling_the_knowledge_into_a_short_playbook_from_the_settings(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         from core import knowledge
         self.seed()
         knowledge.add_doc("director", "studio.md", ("Tông lạnh, sương mù. " * 300).encode("utf-8"), title="studio")
@@ -1008,6 +1014,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertIsNone(Pipeline(connect(self.db)).project(pid)["qc_reject_floor"])
 
     def test_video_step_with_mock_provider_runs_to_completion(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
         p, pid = self.seed()
         lock_character_bible(p, pid)
@@ -1036,6 +1043,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(os.path.exists(row["result_path"]))
 
     def test_image_step_with_mock_provider_generates_files(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         from core.llm_io import lock_character_bible
         p, pid = self.seed()
         self.with_lock(p, pid)

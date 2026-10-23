@@ -151,6 +151,7 @@ class StoryboardV2Tests(unittest.TestCase):
 
     # -- the buttons still do what they did ----------------------------------------------------------------------------------------
     def test_approve_all_asks_then_approves(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         p, pid, sc = self.seed(2)
         a, b = self.job_in(p, sc[0], "pending_review"), self.job_in(p, sc[1], "pending_review")
         at = self.board()
@@ -158,6 +159,33 @@ class StoryboardV2Tests(unittest.TestCase):
         self.assertEqual({s for _, s in self.states(self.db)}, {"pending_review"})          # a question first
         self.assertTrue(any("Duyệt tất cả 2 ảnh" in w.value for w in at.warning))
         next(x for x in at.button if x.key == "approve_all_yes").click().run()
+        self.assertEqual({s for _, s in self.states(self.db)}, {"approved"})
+
+    def test_m80b_approve_all_previews_then_undo_window(self):
+        """M8.0b E2 cờ BẬT: xem trước từng ảnh + giá → Có → hẹn 30 s (chưa duyệt) → ↩ Hoàn tác = 0 thay đổi; bấm lại → tới hạn mới duyệt."""
+        from dashboard import paid_confirm as P
+        p, pid, sc = self.seed(2)
+        self.job_in(p, sc[0], "pending_review"), self.job_in(p, sc[1], "pending_review")
+        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": "1"}):
+            at = self.board()
+            next(x for x in at.button if x.key == "approve_all").click().run()
+            self.assertFalse(at.exception, at.exception)
+            self.assertTrue(any("Xem trước: duyệt 2/2 ảnh" in w.value and "0 USD" in w.value for w in at.warning))
+            next(x for x in at.button if x.key == "approve_all_yes").click().run()
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual({s for _, s in self.states(self.db)}, {"pending_review"})      # mới hẹn
+            (uid,) = dict(at.session_state[P.UNDO_KEY])
+            next(x for x in at.button if x.key == f"paid_undo_cancel_{uid}").click().run()     # ↩ Hoàn tác
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual(dict(at.session_state[P.UNDO_KEY]), {})
+            next(x for x in at.button if x.key == "approve_all").click().run()
+            next(x for x in at.button if x.key == "approve_all_yes").click().run()
+            items = dict(at.session_state[P.UNDO_KEY])
+            (uid,) = items
+            items[uid] = dict(items[uid], not_before=0)                                       # tới hạn hoàn tác
+            at.session_state[P.UNDO_KEY] = items
+            at.run()
+            self.assertFalse(at.exception, at.exception)
         self.assertEqual({s for _, s in self.states(self.db)}, {"approved"})
 
     def test_a_redraw_is_sent_not_only_queued(self):

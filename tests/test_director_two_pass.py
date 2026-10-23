@@ -549,6 +549,7 @@ class DashboardTests(unittest.TestCase):
         self.db = env["PIPELINE_DB"]
 
     def test_the_button_shows_the_estimate_runs_two_passes_and_shows_the_review(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         from streamlit.testing.v1 import AppTest
         from core import script_parser
         from core.db import connect

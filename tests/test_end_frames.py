@@ -247,6 +247,7 @@ class ManualSendTests(unittest.TestCase):
         return labels, go
 
     def test_stopped_autopilot_clip_can_be_sent_without_its_end_frame(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         from core import autopilot
         end_frames.queue(self.p, self.pid)                                   # the autopilot's own row
         autopilot.stop(self.p, self.pid)
@@ -271,6 +272,7 @@ class ManualSendTests(unittest.TestCase):
         self.assertEqual(end_frames.drawing(self.p, self.pid), 0)
 
     def test_a_new_end_frame_request_ends_the_choice(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0b cờ tắt: bấm là chạy như cũ (cờ bật: test_m80b_* / test_safe_paid_buttons)
         from core import autopilot
         end_frames.queue(self.p, self.pid)
         autopilot.stop(self.p, self.pid)

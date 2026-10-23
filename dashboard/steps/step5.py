@@ -1,6 +1,7 @@
 """Step 5: sound (music, effects, voice) and final render / subtitles / export."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 
 
 def _note(text: str) -> None:
@@ -128,7 +129,8 @@ def step5a(p: Pipeline, pid: int):
                     provider.name + (" · giả lập" if provider.name == "mock-audio" else " · music_v2 · tốn credit"), "b-info"))
                 key = f"mbrief_{pid}"
                 client = llm_client(pid)
-                if st.button("🤖 Claude viết brief nhạc" + cost.llm_tag(cost.llm_estimate(p.conn, "music_brief", 1)), key=f"mbrief_ai_{pid}", disabled=client is None, help=None if client else claude_hint()):
+                if P.paid_button("🤖 Claude viết brief nhạc", key=f"mbrief_ai_{pid}", tag=cost.llm_tag(cost.llm_estimate(p.conn, "music_brief", 1)),
+                                 container=st, disabled=client is None, help=None if client else claude_hint()):
                     with st.spinner("Claude đang viết brief…"):
                         brief = claude_tasks.music_brief(p, pid, client)
                     st.session_state[key] = brief
@@ -374,7 +376,8 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None, auto_ext: bool = None
         if lang != "src" and llm is None:
             st.markdown(colored("warn", f"Dịch sang ngôn ngữ khác cần Claude ({escape(str(claude_hint()))})."), unsafe_allow_html=True)
         key = f"sub_cues_{pid}"
-        if st.button("📝 Tạo danh sách phụ đề" + (cost.llm_tag(cost.llm_estimate(p.conn, "subtitles", 1)) if lang != "src" else ""), key=f"sub_make_{pid}", type="primary", disabled=lang != "src" and llm is None):
+        if P.paid_button("📝 Tạo danh sách phụ đề", key=f"sub_make_{pid}", tag=(cost.llm_tag(cost.llm_estimate(p.conn, "subtitles", 1)) if lang != "src" else ""),
+                         container=st, free=lang == "src", type="primary", disabled=lang != "src" and llm is None):   # giữ ngôn ngữ gốc = 0 USD
             try:
                 cues = delivery.subtitle_cues(p, pid, C.DATA)   # D2: timed on the latest render (its clips, seconds, transition)
                 if not cues:
@@ -456,7 +459,8 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
                 fade = float(st.session_state.get(f"fade_{pid}", 1.0))
                 if motion_on:
                     motion_sfx_ui.render(p, C.DATA, pid, transition, fade)
-                if st.button("🤖 AI tự đề xuất hiệu ứng" + cost.llm_tag(cost.llm_estimate(p.conn, "sfx", 1)), key=f"sfx_ai_go_{pid}", type="primary"):
+                if P.paid_button("🤖 AI tự đề xuất hiệu ứng", key=f"sfx_ai_go_{pid}", tag=cost.llm_tag(cost.llm_estimate(p.conn, "sfx", 1)),
+                                 container=st, type="primary"):
                     try:
                         access.need_edit(p, pid, "lập đề xuất hiệu ứng âm thanh")
                         client = llm_client(pid)
@@ -857,8 +861,8 @@ def editor_review_panel(p: Pipeline, pid: int, measured: dict) -> None:
     n_img = len(measured.get("sheets") or [])
     usd = editor_review.estimate(p.conn, n_img)
     saved = editor_review.load(C.DATA, pid)
-    label = "🎬 Biên tập viên + Đạo diễn duyệt bản thô" + cost.llm_tag(usd, 2) + (f" · trần {editor_review.RUN_CAP_USD:.2f} USD" if usd is not None else "")
-    if st.button(label, key=f"editor_review_{pid}", disabled=not n_img,
+    review_tag = cost.llm_tag(usd, 2) + (f" · trần {editor_review.RUN_CAP_USD:.2f} USD" if usd is not None else "")
+    if P.paid_button("🎬 Biên tập viên + Đạo diễn duyệt bản thô", key=f"editor_review_{pid}", tag=review_tag, container=st, disabled=not n_img,
                  help="Hai lời gọi Claude: Biên tập viên xem ảnh quanh điểm cắt + số đo âm rồi đề xuất; Đạo diễn đọc ý đồ của mình và đồng ý / phản đối. "
                       "Chưa áp gì vào bản dựng. Cùng bản dựng + cùng ý đồ thì lấy lại kết quả đã lưu (không tốn tiền)."):
         client = C.llm_client(pid)
@@ -1134,13 +1138,14 @@ def exports_panel(p: Pipeline, pid: int, preset_ext: str = None) -> None:
 def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦 Xuất bản đầy đủ (dựng → phụ đề → card → các kích thước)") -> None:
     """The one button of the chain: render → subtitles → end card → every size in the export list."""
     sub = subtitles.get_settings(p, pid)                 # S14.2 A2: the only paid part is translating subtitle lines never translated
-    label += (cost.llm_button_tag(p.conn, "subtitles", 1) + " (dịch phụ đề)" if sub["enabled"] and sub["lang"] != "src"
-              else " · ≈ 0.00 USD (ước tính)")
+    translate = sub["enabled"] and sub["lang"] != "src"
+    deliver_tag = cost.llm_button_tag(p.conn, "subtitles", 1) + " (dịch phụ đề)" if translate else " · ≈ 0.00 USD (ước tính)"
     from core import release_gate                        # V3.1 M5.2 (cờ release_gate, TẮT): cổng phát hành — CHỈ cảnh báo, không chặn nút
     if release_gate.enabled():
         gate = release_gate.check(p, pid, C.DATA, cache=st.session_state.setdefault("release_gate_cache", {}))   # rerun không đo lại
         (st.success if gate["ok"] else st.warning)(release_gate.summary(gate))
-    if st.button(label, type="primary", key=f"deliver_{pid}", disabled=not chosen, width="stretch"):
+    if P.paid_button(label, key=f"deliver_{pid}", tag=deliver_tag, container=st, free=not translate,   # không dịch phụ đề = 0 USD
+                     type="primary", disabled=not chosen, width="stretch"):
         _t0 = time.monotonic()
         with st.spinner("Đang xuất bản…"):
             ok = act(lambda: st.session_state.__setitem__(f"deliver_res_{pid}", delivery.deliver(p, pid, C.DATA, llm_client(pid),

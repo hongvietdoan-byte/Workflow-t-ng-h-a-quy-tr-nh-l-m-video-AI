@@ -1,6 +1,7 @@
 """Step 2: image generation + QC."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from dashboard.widgets import auto_poll_images, image_busy
 from dashboard.design.screens.prompt_versions_ui import spin as _spin  # S14.17: spinner khi Đạo diễn viết lại prompt
 from core import image_models
@@ -86,7 +87,6 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                 SB.note("⚠ Tự kiểm tra ảnh đã dừng", f"**Tự kiểm tra ảnh đã dừng**: {problem}", "sb-prog-autoqc", kind="warn")
             else:
                 st.warning(f"⚠ **Tự kiểm tra ảnh đã dừng**: {problem}")
-            from dashboard import paid_confirm as P            # M8.0: gỡ dừng = vòng nền Claude chấm lại các ảnh chưa kiểm → giá + xác nhận
             if P.paid_button("↻ Thử kiểm tra lại", key=f"autoqc_retry_{pid}", tag=_qc_retry_tag(p, pid)):
                 autoqc.clear_error(pid)
                 st.rerun()
@@ -249,9 +249,9 @@ def step2(p: Pipeline, pid: int):
         # D6 + Claude QC — core/cost.estimate_images "total", parts in the box)
         img_price = est.get("total") if est.get("total") is not None else (None if unit is None else unit * est["items"])
         queued = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'", (pid,)).fetchone()[0]
-        if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + (f" · gửi {queued} ảnh đang chờ" if queued else "")   # 07/10: queued
-                     + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",    # redraws waited
-                     disabled=(not est_ok and not queued) or (bool(gates["block"]) and not forced)):
+        if P.paid_button("▶ Gen ảnh các cảnh chưa có / đã cũ" + (f" · gửi {queued} ảnh đang chờ" if queued else ""),   # 07/10: queued
+                         key=f"gen_img_{pid}", tag=cost.price_tag(img_price, est["items"]), container=c1, type="primary",   # redraws waited
+                         disabled=(not est_ok and not queued) or (bool(gates["block"]) and not forced)):
             _step = {}
 
             def go():
@@ -278,6 +278,9 @@ def step2(p: Pipeline, pid: int):
             "SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
         if v2:
             pass                                          # duyệt hàng loạt: thanh hành động dính ở cuối lưới ảnh
+        elif P.enabled():                                 # M8.0b E2: xem trước + giá + HOLD → hẹn 30 s hoàn tác
+            from dashboard import approve_preview as AP
+            AP.approve_all_box(p, pid, "images", "approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", c2)
         elif confirm_all("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?", c2):
             for jid in pending:
                 p.approve(jid, "user", note="gate_bulk")
@@ -698,13 +701,41 @@ def pilot_panel(p: Pipeline, pid: int) -> None:
         left = [] if ready else pilot.unapproved(p, pid)      # lỗi 17: a grey button says why
         if left:
             st.caption(f"Còn {len(left)} ảnh thử chưa duyệt: " + ", ".join(left) + " — duyệt xong mới mở gen cả lô.")
-        if c1.button("✔ Mẫu thử ổn — gen phần còn lại", key=f"pilot_release_{pid}", type="primary", disabled=not ready,
-                     help=("Còn ảnh thử chưa duyệt: " + ", ".join(left)) if left else None):
+        if P.enabled():                                  # M8.0b: giá ảnh còn lại + xác nhận → hẹn 30 s có ↩ Hoàn tác (so lại mẫu thử khi tới hạn)
+            if P.waiting(st.session_state, "pilot_release", pid):
+                c1.caption("⏳ Đã hẹn mở gen cả lô — xem thanh ↩ Hoàn tác trên cùng.")
+            elif P.paid_button("✔ Mẫu thử ổn — gen phần còn lại", key=f"pilot_release_{pid}", tag=_pilot_rest_tag(p, pid), container=c1,
+                               type="primary", disabled=not ready, yes_label="Có, mở gen cả lô",
+                               help=("Còn ảnh thử chưa duyệt: " + ", ".join(left)) if left else None):
+                P.schedule(st.session_state, "pilot_release", pid, "Mở gen cả lô (mẫu thử ổn)", "", actor=p.actor, user=C.access_user(),
+                           scenes=list(state["scenes"]), event="mo_lo_anh", page="storyboard", verb="mở", done="Đã mở gen cả lô",
+                           log="mẫu thử ổn — mở gen cả lô")
+                C.log_ui(p, "hen_mo_lo", page="storyboard", project_id=pid, detail=f"mẫu thử ổn — chờ {P.UNDO_SEC} s hoàn tác")
+                st.rerun()
+        elif c1.button("✔ Mẫu thử ổn — gen phần còn lại", key=f"pilot_release_{pid}", type="primary", disabled=not ready,
+                       help=("Còn ảnh thử chưa duyệt: " + ", ".join(left)) if left else None):
             pilot.release(p, pid)
             st.rerun()
         if c2.button("Bỏ gen thử", key=f"pilot_off_{pid}"):
             pilot.save(p, pid, {"enabled": False, "scenes": [], "released": False})
             st.rerun()
+
+
+def _pilot_rest_tag(p: Pipeline, pid: int) -> str:
+    """M8.0b: giá ảnh các cảnh CÒN LẠI sẽ được gen sau khi mở cả lô (ngoài cảnh thử) — gửi khi bấm ▶ Gen ảnh / chạy tự động."""
+    from core import shots
+    try:
+        fresh = [r["id"] for r in p.conn.execute(
+            "SELECT id FROM scenes WHERE project_id=? AND state='ready' AND id NOT IN"
+            " (SELECT scene_id FROM jobs WHERE type='image_gen' AND state NOT IN ('rejected','cancelled'))", (pid,))]
+        allowed = set(pilot.allowed_scenes(p, pid, fresh))
+        rest = sum(1 for sid in fresh if sid not in allowed and shots.needs_own_image(p.conn, sid))
+        if not rest:
+            return " · 0 ảnh còn chờ gen (0 USD)"
+        unit = image_estimate(p, pid).get("unit_price")
+        return cost.price_tag(None if unit is None else unit * rest, rest) + f" · {rest} ảnh còn lại (gửi khi ▶ Gen ảnh / chạy tự động)"
+    except Exception:  # noqa: BLE001 - nút vẫn hiện, nhãn nói thiếu giá
+        return " · chưa có giá (không ước tính được)"
 
 
 def animatic_box(p: Pipeline, pid: int) -> None:
@@ -809,7 +840,6 @@ def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> No
                 if not v2:
                     c2.caption("Nút duyệt ở thanh hành động cuối lưới ảnh.")
             else:
-                from dashboard import paid_confirm as P         # M8.0: giá + xác nhận + hẹn 30 s có ↩ Hoàn tác trước khi máy gửi
                 board_tag = cost.video_batch_tag(p, pid)
                 if not P.waiting(st.session_state, "resume", pid) and P.paid_button(
                         "✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", tag=board_tag, container=c2, type="primary", yes_label="Có, duyệt & gửi"):
@@ -862,9 +892,9 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
         else:
             st.caption(_about)
         client = llm_client(pid)
-        if st.button(f"🤖 Kiểm tra {approved} ảnh đã duyệt" + cost.llm_tag(cost.llm_estimate(p.conn, "setcheck", 1, images=1,
-                                                                                            ledger_stage="qc"), 1),
-                     key=f"setqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
+        if P.paid_button(f"🤖 Kiểm tra {approved} ảnh đã duyệt", key=f"setqc_{pid}",
+                         tag=cost.llm_tag(cost.llm_estimate(p.conn, "setcheck", 1, images=1, ledger_stage="qc"), 1), container=st,
+                         disabled=client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang so cả bộ ảnh…"):
                 act(lambda: claude_tasks.set_consistency(p, pid, client, C.DATA))
             st.rerun()

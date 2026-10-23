@@ -8,6 +8,7 @@ khung cuối runner đã bỏ lúc gửi thì thẻ nói "đã vẽ nhưng KHÔN
 import os
 
 import streamlit as st
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 
 from core import cost, end_frames, image_models
 
@@ -56,8 +57,8 @@ def _send_without(p, pid: int, scene_id: int, act, runner) -> None:
         tag = cost.price_tag(cost.clip_estimate(p.conn, scene_id))
     except Exception:  # noqa: BLE001 - an estimate never hides the button; the money gate still checks at sending
         tag = " · chưa ước được giá"
-    if st.button("▶ Gửi clip KHÔNG kèm khung cuối" + tag, key=f"efoff_{scene_id}",
-                 help="Chạy tự động đã dừng nên không ai vẽ khung cuối: gửi clip ngay, cảnh kết theo prompt (không theo end_state vẽ). "
+    if P.paid_button("▶ Gửi clip KHÔNG kèm khung cuối", key=f"efoff_{scene_id}", tag=tag, container=st,
+                     help="Chạy tự động đã dừng nên không ai vẽ khung cuối: gửi clip ngay, cảnh kết theo prompt (không theo end_state vẽ). "
                       "Muốn có khung cuối thì bấm “🖼 Vẽ khung cuối” thay vì nút này."):
         who = (C.me().get("email") or None) if C.auth_on() else None
         done = {}

@@ -164,7 +164,7 @@ class QueuedClipsAreSentTests(VideoSeed):
     "0 cảnh sẵn sàng" — 7 paid-for clips waited with no button to send them."""
 
     def test_gen_video_is_enabled_and_sends_the_queued_clips(self):
-        with mock.patch.dict(os.environ, {"VIDEO_PROVIDER": "mock"}):
+        with mock.patch.dict(os.environ, {"VIDEO_PROVIDER": "mock", "FEATURE_SAFE_PAID_BUTTONS": "0"}):   # M8.0b cờ tắt: bấm là gửi như cũ
             at = self.open_video()
             btn = next(b for b in at.button if b.key == f"gen_vid_{self.pid}")
             self.assertFalse(btn.disabled)
@@ -173,6 +173,40 @@ class QueuedClipsAreSentTests(VideoSeed):
             with mock.patch("core.runner.VideoRunner.submit_pending", lambda self_, pid: sent.append(pid) or 1):
                 btn.click().run()
         self.assertEqual(sent, [self.pid])
+
+    def test_m80b_gen_video_asks_once_then_sends(self):
+        """M8.0b cờ BẬT: '▶ Gen video' = giá trên nút + hỏi một lần; chỉ 'Có, chạy' mới gửi."""
+        with mock.patch.dict(os.environ, {"VIDEO_PROVIDER": "mock", "FEATURE_SAFE_PAID_BUTTONS": "1"}):
+            at = self.open_video()
+            sent = []
+            with mock.patch("core.runner.VideoRunner.submit_pending", lambda self_, pid: sent.append(pid) or 1):
+                next(b for b in at.button if b.key == f"gen_vid_{self.pid}").click().run()
+                self.assertFalse(at.exception, at.exception)
+                self.assertEqual(sent, [])                                         # mới hỏi
+                next(b for b in at.button if b.key == f"gen_vid_{self.pid}_yes").click().run()
+                self.assertFalse(at.exception, at.exception)
+        self.assertEqual(sent, [self.pid])
+
+    def test_m80b_approve_all_clips_previews_then_undo_window(self):
+        """M8.0b E2 cờ BẬT: 'Duyệt tất cả' → xem trước danh sách + giá → Có → hẹn 30 s (chưa duyệt) → tới hạn mới duyệt."""
+        pr = self.jobs["pending_review"]
+        # hạt giống không có motion prompt → lineage gọi clip là "cũ" (HOLD, test_m80b_money_rest kiểm); ở đây xem đường duyệt được
+        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": "1"}), mock.patch("dashboard.approve_preview._scan", return_value={}):
+            at = self.open_video()
+            next(b for b in at.button if b.key == f"vid_ok_all_{self.pid}").click().run()
+            self.assertFalse(at.exception, at.exception)
+            self.assertIn("0 USD", md(at) + " ".join(w.value for w in at.warning))
+            next(b for b in at.button if b.key == f"vid_ok_all_{self.pid}_yes").click().run()
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual(Pipeline(connect(self.db)).job(pr)["state"], "pending_review")    # mới hẹn
+            from dashboard import paid_confirm as P
+            items = dict(at.session_state[P.UNDO_KEY])
+            (uid,) = items
+            items[uid] = dict(items[uid], not_before=0)
+            at.session_state[P.UNDO_KEY] = items
+            at.run()
+            self.assertFalse(at.exception, at.exception)
+        self.assertEqual(Pipeline(connect(self.db)).job(pr)["state"], "approved")
 
 
 class KldVideoScreenTests(VideoSeed):

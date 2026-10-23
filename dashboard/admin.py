@@ -2,6 +2,7 @@
 from core import kho_profile
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 import contextlib
 from dashboard import access_ui
 from core import features, lesson_judge  # noqa: E402  (S14.24: agent chấm bài học, chế độ bóng)
@@ -34,7 +35,7 @@ def distill_panel(group: str, ov: dict) -> None:
     client = llm_client()
     if client is not None and inputs:
         price = cost.llm_tokens_tag(knowledge.approx_tokens(src), knowledge.approx_tokens(knowledge.TARGET_CHARS[group]) * 2)  # S14.2 A2
-        if st.button(f"🤖 Chắt lọc bằng {llm_label(client)}" + price, type="primary", key=f"kb_distill_{group}"):
+        if P.paid_button(f"🤖 Chắt lọc bằng {llm_label(client)}", key=f"kb_distill_{group}", tag=price, container=st, type="primary"):
             with st.spinner("Claude đang đọc và tổng kết tài liệu…"):
                 ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_distill(group, client, include)))
             if ok:
@@ -615,7 +616,8 @@ def meshy_panel(p: Pipeline, game: str) -> None:
                     if c1.button("📥 Ảnh 4 hướng vào hộp chờ duyệt", key=f"meshy_lib{r['id']}"):
                         res = meshy.views_to_library(p.conn, r["id"])
                         st.success(f"Thêm {len(res['added'])} ảnh (chờ duyệt)." + (f" Bỏ qua: {res['skipped']}" if res["skipped"] else ""))
-                    if c2.button(f"🦴 Gắn khung xương (≈ {meshy.CREDITS['rig']} credit)", key=f"meshy_rig{r['id']}", disabled=not client):
+                    if P.paid_button("🦴 Gắn khung xương", key=f"meshy_rig{r['id']}", tag=f" (≈ {meshy.CREDITS['rig']} credit)", container=c2,
+                                     disabled=not client):
                         try:
                             rr = meshy.submit_rig(p.conn, client, r["id"])
                             st.success(f"Đã gửi gắn khung xương — mã việc {rr['task_id']}.")
@@ -744,8 +746,8 @@ def lib_video_box(p, game) -> None:
             va_note = st.text_input("Ghi chú thêm cho Claude (tuỳ chọn)", key="va_note",
                                     placeholder="vd: chỉ nhìn skill chủ động, bỏ qua trang phục")
             va_count = st.slider("Số khung hình lấy mẫu", 4, video_analysis.MAX_FRAMES, 8, key="va_count")
-            if st.button("🎬 Phân tích video" + cost.llm_tag(cost.llm_estimate(p.conn, "video_analysis", 1, images=va_count), 1),
-                         key="va_go", disabled=not va_video, type="primary"):
+            if P.paid_button("🎬 Phân tích video", key="va_go", tag=cost.llm_tag(cost.llm_estimate(p.conn, "video_analysis", 1, images=va_count), 1),
+                             container=st, disabled=not va_video, type="primary"):
                 client = llm_client()
                 if client is not None:
                     try:
@@ -1304,8 +1306,8 @@ def lesson_judge_panel(conn, llm) -> None:
         st.caption("Claude chấm mỗi bài học theo 6 tiêu chí (AI ghi khoản trừ + bằng chứng, code tính điểm) và ghi lại ý kiến. Bạn vẫn "
                    "bấm Duyệt/Bỏ như cũ — agent KHÔNG tự duyệt và không đổi bài học hay kiến thức nào. Bài nguồn web và chủ đề tính "
                    "năng đã bỏ được code quyết, không tốn lượt Claude.")
-        if st.button(f"🤖 Chấm {n} bài học" + cost.llm_button_tag(conn, lesson_judge.STAGE, n), key="ls_judge", disabled=llm is None or n == 0,
-                     help=C.claude_hint() if llm is None else
+        if P.paid_button(f"🤖 Chấm {n} bài học", key="ls_judge", tag=cost.llm_button_tag(conn, lesson_judge.STAGE, n), container=st,
+                         disabled=llm is None or n == 0, help=C.claude_hint() if llm is None else
                      (f"Tối đa ≈ {est['usd_max']:.2f} USD nếu phải hỏi lại mọi bài (trả lời sai dạng)." if est["usd_max"] is not None
                       else "Model chưa có giá trong bảng giá — xem ⚙ → Bảng giá.")):
             try:
@@ -1338,15 +1340,15 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
     llm = llm_runner.client_from_env(ledger=C.DB)
     c1, c2 = st.columns(2)
     n_rules = lessons.ready_count(conn) if llm is not None else 0
-    if c1.button("🔎 Rút bài học từ các lỗi đã gặp" + cost.llm_tag(cost.llm_estimate(conn, "lessons", n_rules), n_rules),
-                 key="ls_mine", use_container_width=True):
+    if P.paid_button("🔎 Rút bài học từ các lỗi đã gặp", key="ls_mine", tag=cost.llm_tag(cost.llm_estimate(conn, "lessons", n_rules), n_rules),
+                     container=c1, free=n_rules == 0, use_container_width=True):   # 0 lỗi lặp đủ nhiều → không gọi Claude
         try:
             made = lessons.propose(conn, llm)
             st.success(f"Có {made} đề xuất mới." if made else "Chưa có loại lỗi nào lặp đủ nhiều để đề xuất.")
         except ERRORS as e:
             st.error(str(e))
-    if c2.button("🌐 Nghiên cứu tài liệu mới ngay" + cost.llm_tag(research.estimate(conn)), key="ls_research", use_container_width=True,
-                 disabled=llm is None,
+    if P.paid_button("🌐 Nghiên cứu tài liệu mới ngay", key="ls_research", tag=cost.llm_tag(research.estimate(conn)), container=c2,
+                     use_container_width=True, disabled=llm is None,
                  help=f"Nghiên cứu {llm_runner.API_ONLY_HINT}. Giá trên nút là mức tối đa: token Claude + tối đa {research.MAX_SEARCHES} lượt tìm web "
                       "mỗi chủ đề (0,01 USD/lượt, ghi vào sổ chi)."):
         try:

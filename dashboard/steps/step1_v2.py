@@ -5,6 +5,7 @@ script box, the scene analysis) → 🖼 Tham chiếu (after the analysis, folde
 the bottom of their card. The only composition since S14.14 G-a (06/10: the old one in step1.step1() was removed; step1.step1() calls this)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền = giá + xác nhận một lần, cờ safe_paid_buttons)
 from dashboard.design import components as D
 
 LONG_CAPTION = 110          # characters; a caption longer than this is a P3 explanation (docs/QUY_TAC_BO_CUC_UI_V2.md §5)
@@ -149,21 +150,22 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         from dashboard.steps.step1_checklist import checklist_panel
         checklist_panel(p, pid, "hero")            # S14.23: flag asset_checklist off → draws nothing
         client = llm_client(pid)
-        label = "🤖 Lập kế hoạch"
+        label, plan_tag = "🤖 Lập kế hoạch", ""
         if client is not None:
             from core import director_two_pass
             try:                                                   # the estimate the Director panel shows too — never invented here
                 est = director_two_pass.estimate(p, pid, client)
                 usd = (est.get(est["active"]) or est["single"]).get("usd")
                 if usd is not None:
-                    label += f" (≈ {usd:.2f} USD, ước tính)"
+                    plan_tag = f" (≈ {usd:.2f} USD, ước tính)"
             except Exception:  # noqa: BLE001 - the button stays, only the number is missing
                 pass
         from core import director_lease
         running = director_lease.busy(p.conn, pid)
         if running:
             st.info(running)
-        if st.button(label, type="primary", key=f"script-cta_{pid}", disabled=client is None or bool(running), width="stretch",
+        if P.paid_button(label, key=f"script-cta_{pid}", tag=plan_tag, container=st, type="primary",   # M8.0b: rỗng + cờ BẬT → "chưa có giá"
+                         disabled=client is None or bool(running), width="stretch",
                      help="Chạy Director: Character Bible + thông số, ý đồ, thoại từng cảnh" if client else claude_hint()):
             from dashboard.steps.step1_director import run_director_now
             run_director_now(p, pid, client)
