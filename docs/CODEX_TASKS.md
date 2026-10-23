@@ -1728,3 +1728,17 @@ một dòng đúng schema mỗi bàn giao. Nhánh `codex/v31-m62`.
 Theo kế hoạch M6 mục M6.4 + guard M2.5 (đã ✅). actor = vai (Đạo diễn, Quay phim, Storyboard, VPA, 3D, Sound, Editor, EP, Kỹ sư…), mỗi trường production một vai chủ
 (bảng trong code + test), ghi sai vai → chặn (cờ BẬT) / chỉ ghi cảnh báo (cờ TẮT, shadow). Check "Kỹ sư không ghi nội dung production" vào tests/test_decisions.py nếu
 sổ quyết định đã có mục (không tự thêm mục mới — trình phiên chính). Không đụng file CX22-G1-EP-ROLE (chỉ gọi is_executive_producer). Nhánh `codex/v31-m64`.
+### CX23-DON-RAC-FIX — vòng sửa CX22-DON-RAC-TOOL sau RÀ KỸ phiên chính (ưu tiên 1, chặn gộp; 0 USD)
+Trên chính nhánh `codex/v31-don-rac-tool` (@7297136b). Mỗi lỗi 1 test ĐỎ→XANH, một vòng:
+1. VỪA `don_rac.py:379,444`: `git worktree remove` xóa file bị gitignore (vd data/manifest.sqlite bản sao trong worktree) mà `git status --porcelain` không thấy → dùng
+   `git status --porcelain --ignored`; còn file ignore khác __pycache__/*.pyc/.pytest_cache → BỎ QUA worktree (hoặc chuyển vào _luu_tru có nhật ký). Test: worktree đã gộp có
+   data/x.sqlite bị ignore → giữ.
+2. VỪA `don_rac.py:63` + create_backup: `sao-luu data/manifest.sqlite` bị từ chối → cho phép SAO LƯU riêng manifest bằng `sqlite3.connect(src).backup(dst)` (an toàn WAL); vẫn cấm
+   chuyển manifest và cấm sao lưu dashboard.env. Test: sao lưu manifest đang mở, bản sao mở được, đúng số bảng.
+3. VỪA `stop_redundant_servers:469`, `stop_orphan_pytest:506`: chỉ tắt tiến trình có create_time > 15 phút; pytest thêm điều kiện cwd trong repo. Test psutil giả: 8501/8502 không
+   đụng, còn ESTABLISHED giữ, tiến trình mới giữ.
+4. THẤP `_worktree_is_old:277`: tuổi = mtime lớn nhất của .git/worktrees/<tên>/{index,HEAD,logs/HEAD}.
+5. THẤP `rotate_backups:173`: xếp theo dấu thời gian trong tên, không có thì st_ctime. Test: 4 bản mtime đảo ngược → giữ đúng 3 mới nhất theo tên.
+6. THẤP `find_repo_root:29`: gốc = cha của `git rev-parse --git-common-dir` (chạy trong worktree vẫn ra repo chính).
+7. THẤP `cleanup_merged_branch_worktree:414`, `cleanup_worktrees:306`: `_git` timeout=60; `git fetch --prune origin` một lần trước khi rà.
+Chạy tests/test_don_rac*.py + tests/test_hop_thu.py một lệnh. Push sau MỖI commit; XONG hộp thư (phiên chính đọc diff phần sửa rồi gộp).
