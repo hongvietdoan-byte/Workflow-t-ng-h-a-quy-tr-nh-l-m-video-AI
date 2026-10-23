@@ -22,7 +22,7 @@ from typing import Dict, Optional
 import streamlit as st
 
 FLAG = "stage_desk_ui"
-ORDER = ("N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N10", "N11")
+ORDER = ("N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N10", "N11", "N12", "N14", "N15", "N16")
 SIMPLE = ("N1", "N2", "N3", "N5", "N10")              # nút một chạm: đọc / ghi tệp trong thư mục đoạn, không đổi CSDL
 EP_ONLY = ("N6", "N7")
 CONFIRM = {"N4": "Xác nhận nạp câu trả lời vai (có thể đo K3 + K4 bằng Blender; tới phase xong thì ghi máy các shot)",
@@ -65,6 +65,14 @@ def _show_progress(pr: Optional[Dict]) -> None:
     elif state == "done":
         st.success(f"✓ {lab} xong ({pr.get('updated') or ''}) — {pr.get('step') or ''}")
         res = pr.get("result") or {}
+        if pr.get("action") == "N12" and res.get("ok"):
+            shots = (res.get("summary") or {}).get("shots") or []
+            if shots:
+                st.caption("Các shot đã đưa vào previs: " + ", ".join(map(str, shots)))
+            for title, key in (("Video clay", "path"), ("Video depth", "depth_path"), ("Kế hoạch", "plan_path")):
+                if res.get(key):
+                    st.caption(title)
+                    st.code(str(res[key]))
         for m in list(res.get("missing") or []) + list(res.get("gate") or []):
             st.warning(f"{lab}: {m}")
         for n in res.get("notes") or []:
@@ -206,6 +214,56 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
                     clicked = code
         if clicked:
             run(clicked, calls[clicked])
+
+    if "N12" in codes:
+        st.caption("Previs cục bộ bằng Blender; mặc định dừng nếu đường đi không tìm được lối. Sản phẩm ghi vào thư mục lượt mới, không thay lượt cũ.")
+        selected_shots = st.multiselect("Shot đưa vào previs", options=list(s.get("shots") or []),
+                                        default=list(s.get("shots") or []), key=f"{key}_N12_shots", disabled=busy)
+        uniform_run = st.checkbox("Chạy đều, giữ tổng thời lượng kịch bản", key=f"{key}_N12_uniform", disabled=busy)
+        lens_range = st.slider("Dải tiêu cự (mm)", min_value=24, max_value=35, value=(24, 35),
+                               key=f"{key}_N12_lens", disabled=busy)
+        orbit = st.slider("Góc vòng quanh nhân vật (độ)", min_value=0, max_value=180, value=0,
+                          key=f"{key}_N12_orbit", disabled=busy)
+        if st.button(_label("N12"), key=f"{key}_N12", disabled=busy):
+            if not selected_shots:
+                st.session_state[res_key] = ("N12", {"ok": False, "errors": ["chọn ít nhất một shot có máy đo được"]})
+            else:
+                run("N12", lambda: stage_desk.previs(conn, pid, data_dir, scene, shots=set(selected_shots),
+                                                       opts={"uniform_run": uniform_run,
+                                                             "lens_range": tuple(lens_range), "orbit": float(orbit)},
+                                                       who=who, user=user))
+
+    if "N14" in codes:
+        st.caption("Chỉ chọn trong những lần đo đã ghi cho đúng shot; lựa chọn có hiệu lực ở lượt chốt kế tiếp.")
+        for shot in s.get("shots") or []:
+            history = list((s.get("shot_hist") or {}).get(str(shot)) or [])
+            if not history:
+                continue
+            chosen = (s.get("accepted") or {}).get(str(shot))
+            index = history.index(chosen) if chosen in history else len(history) - 1
+            pick = st.selectbox(f"Lần đo cho shot {shot}", options=history, index=index,
+                                key=f"{key}_N14_pick_{shot}", disabled=busy)
+            if st.button(f"Chọn lần đo cho shot {shot}", key=f"{key}_N14_{shot}", disabled=busy):
+                run("N14", lambda shot=shot, pick=pick: stage_desk.crew_user_pick(
+                    conn, pid, data_dir, scene, shot, pick, who=who, user=user))
+
+    if "N15" in codes and st.button(_label("N15"), key=f"{key}_N15", disabled=busy):
+        run("N15", lambda: stage_desk.refresh_world_map(conn, pid, data_dir, scene, who=who, user=user))
+
+    if "N16" in codes:
+        for i, suggestion in enumerate(s.get("family_suggestions") or []):
+            members = suggestion.get("members") or []
+            evidence = "; ".join(
+                f"Kho #{m['place_id']} ({m.get('stage') or 'chưa rõ'}): đã khai {m.get('declared') or 'chưa khai'}"
+                for m in members)
+            observed = json.dumps(suggestion.get("spots") or {}, ensure_ascii=False, sort_keys=True)
+            st.warning(f"VÀNG — vị trí quan sát trùng nhau ({observed}); {evidence}. Đây chỉ là gợi ý, không tự gộp.")
+            family = st.text_input("Tên họ sân khấu cần khai", value=suggestion.get("family") or "",
+                                   key=f"{key}_N16_family_{i}", disabled=busy)
+            if st.button(f"Khai họ cho {', '.join('#'+str(x) for x in suggestion.get('place_ids') or [])}",
+                         key=f"{key}_N16_{i}", disabled=busy):
+                run("N16", lambda suggestion=suggestion, family=family: stage_desk.set_family(
+                    conn, pid, data_dir, scene, suggestion.get("place_ids") or [], family, who=who, user=user))
 
     if "N4" in codes:
         st.text_area("📥 Câu trả lời vai (JSON) — dán vào đây, hoặc để trống để đọc crew/tra_loi_<phase>.json của đoạn",
