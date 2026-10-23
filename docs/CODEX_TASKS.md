@@ -1667,3 +1667,17 @@ Phát hiện 4 (CAO, ~23 nút retry/reject/reopen/restart/voice/music) KHÔNG l�
 Chạy test liên quan gom một lệnh (test_safe_paid_buttons, test_m80b_money_rest, test_ui_video, test_ui_storyboard, test_ui_v2_acceptance, test_price_label_scan);
 không chạy cả bộ (phiên chính chạy khi gộp). `devsys/areas.json`: được sửa — xung đột với nhánh khác phiên chính gộp bằng `tools/merge_union.py`, KHÔNG cần chờ.
 Push sau MỖI commit. XONG hộp thư kèm commit; phiên chính đọc diff phần sửa rồi gộp.
+### CX23-M80C — M8.0c xác nhận cho ~23 nút tốn tiền còn lại (ưu tiên 1; NGƯỜI DÙNG DUYỆT 23/10 chat; Cấp 2; 0 USD — KHÔNG gọi API trả phí)
+Nền: main @74f46e9e (M8.0b đã gộp e79c1282). Đọc `docs/RA_M80B_2026-10-23.md` phát hiện 4 + HANDOFF_M80.md + `dashboard/paid_confirm.py` (paid_button,
+schedule/undo_bar, begin_run/mark_drawn) + `dashboard/approve_preview.py` + `tests/test_safe_paid_buttons.py` (máy quét AST).
+Việc (tất cả sau cờ `safe_paid_buttons`; cờ TẮT = nhãn + hành vi cũ byte-giống):
+1. Mở rộng máy quét để coi là TỐN TIỀN các lời gọi: `p.retry`, `p.reject` (kèm gen lại), `p.reopen_approved`, `p.restart_job`, `regen.regenerate_video`,
+   `voice.generate` / `voice.preview` (nếu tốn tiền — kiểm provider; 0 USD thì ngoại lệ có lý do), `music.submit_drafts` + mọi đuôi tương tự tìm thêm.
+   Test quét ĐỎ trước (liệt kê đúng các nút: dd_, r_, dretry_, reopen_, vregen_, tts_gen_, mdraft_, reject_all… — chỗ ở step1_characters, step2, step3,
+   step4, step5, storyboard_cards theo báo cáo rà), XANH sau.
+2. Mỗi nút → `paid_button` (giá từ hàm có sẵn + 1 xác nhận). Nút hàng loạt (reject_all, gen lại nhiều) → xem trước danh sách + tổng giá + hẹn hoàn tác 30 s
+   như "Duyệt hết" (tới hạn / "Gửi ngay" kiểm lại trạng thái; đổi thì không chạy). Ngoại lệ chỉ khi có lý do + bằng chứng 0 USD ghi trong test.
+3. Test cũ bấm các nút đổi: giữ tên, chạy cờ TẮT; thêm test cờ BẬT (hỏi → Có → chạy đúng 1 lần; Không → 0 lần). Môi trường test giả hoàn toàn (như CX23-M80B-FIX).
+Gom test liên quan một lệnh, ≤ 3 lần chạy + chạy `tests/test_ui_v2_acceptance.py` một lần cuối. Không chạy cả bộ (phiên chính chạy khi gộp).
+Khai file mới `devsys/areas.json` (không tăng version). Nhánh `codex/v31-m80c`, push sau MỖI commit, HANDOFF.md trên nhánh. XONG hộp thư → phiên chính giao RÀ KỸ
+(Codex nhánh/agent khác, context sạch, chỉ đọc) trước khi gộp.
