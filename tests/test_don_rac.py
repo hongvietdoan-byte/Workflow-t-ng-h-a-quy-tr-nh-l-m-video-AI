@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -40,6 +41,20 @@ def _repo(tmp_path: Path) -> tuple[Path, Path]:
     return seed, remote
 
 
+def _age_worktree_git_metadata(path: Path, timestamp: float) -> None:
+    marker = path / ".git"
+    assert marker.is_file()
+    value = next(line[8:] for line in marker.read_text(encoding="utf-8").splitlines()
+                 if line.startswith("gitdir: "))
+    git_dir = Path(value)
+    if not git_dir.is_absolute():
+        git_dir = (path / git_dir).resolve()
+    for relative in ("index", "HEAD", "logs/HEAD"):
+        metadata = git_dir / relative
+        if metadata.exists():
+            os.utime(metadata, (timestamp, timestamp))
+
+
 def test_backup_rotation_moves_old_files_and_restores_by_journal_id(tmp_path):
     data = tmp_path / "data"
     archive = tmp_path / "_luu_tru" / "backup_cu"
@@ -50,11 +65,15 @@ def test_backup_rotation_moves_old_files_and_restores_by_journal_id(tmp_path):
         path = data / f"feature_settings.backup_202610{i + 1:02d}-120000.json"
         path.write_text(f"backup-{i}\n", encoding="utf-8")
         backups.append(path)
+    # Mtime intentionally contradicts the timestamp embedded in each filename.
+    base = datetime.now(timezone.utc).timestamp()
+    for index, path in enumerate(backups):
+        os.utime(path, (base + len(backups) - index, base + len(backups) - index))
 
     result = don_rac.rotate_backups(data, archive, journal, keep=3, dry_run=False)
 
     assert result["moved"] == 2
-    assert backups[-3] in [Path(item) for item in result["kept"]]
+    assert set(map(Path, result["kept"])) == set(backups[-3:])
     records = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines() if line]
     completed = [row for row in records if row.get("status") == "moved"]
     assert len(completed) == 2
@@ -131,7 +150,7 @@ def test_directory_sizes_aggregates_nested_folders_and_skips_data(tmp_path):
     assert all(not path.startswith("data") for path in sizes)
 
 
-@pytest.mark.parametrize("name", ["manifest.sqlite", "manifest.sqlite.backup_20261023.sqlite", "dashboard.env",
+@pytest.mark.parametrize("name", ["manifest.sqlite.backup_20261023.sqlite", "dashboard.env",
                                    "nested/dashboard.env", "backup_dashboard.env.before_20261023"])
 def test_sensitive_files_are_never_accepted_for_backup(tmp_path, name):
     repo = tmp_path / "repo"
@@ -144,6 +163,103 @@ def test_sensitive_files_are_never_accepted_for_backup(tmp_path, name):
     assert set(target.parent.iterdir()) == before
 
 
+def test_manifest_backup_uses_sqlite_online_backup_while_source_is_open(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    source = data / "manifest.sqlite"
+    live_db = sqlite3.connect(source)
+    live_db.execute("PRAGMA journal_mode=WAL")
+    live_db.execute("CREATE TABLE fixture_items (id INTEGER PRIMARY KEY, value TEXT)")
+    live_db.execute("INSERT INTO fixture_items(value) VALUES ('synthetic')")
+    live_db.commit()
+
+    result = don_rac.create_backup(source, dry_run=False, repo_root=tmp_path)
+
+    assert result["created"] is True
+    backup = sqlite3.connect(result["destination"])
+    try:
+        source_tables = live_db.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type='table'"
+        ).fetchone()[0]
+        backup_tables = backup.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type='table'"
+        ).fetchone()[0]
+        assert backup_tables == source_tables
+        assert backup.execute("SELECT value FROM fixture_items").fetchall() == [("synthetic",)]
+    finally:
+        backup.close()
+        live_db.close()
+
+
+def test_manifest_backup_is_limited_to_canonical_repo_data_path(tmp_path):
+    repo = tmp_path / "repo"
+    source = repo / "config" / "manifest.sqlite"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"synthetic database placeholder")
+
+    with pytest.raises(don_rac.SafetyError):
+        don_rac.create_backup(source, dry_run=False, repo_root=repo)
+
+    assert source.read_bytes() == b"synthetic database placeholder"
+    assert list(source.parent.glob("manifest.backup_*.sqlite")) == []
+
+
+def test_cli_allows_manifest_backup_through_the_scoped_guard(tmp_path, capsys):
+    root, _remote = _repo(tmp_path)
+    source = root / "data" / "manifest.sqlite"
+    source.parent.mkdir()
+    live_db = sqlite3.connect(source)
+    live_db.execute("CREATE TABLE fixture_items (id INTEGER PRIMARY KEY)")
+    live_db.commit()
+
+    rc = don_rac.main([
+        "--goc", str(root), "--output", str(tmp_path / "output"),
+        "sao-luu", str(source),
+    ])
+
+    assert rc == 0
+    assert "Sao lưu đã tạo" in capsys.readouterr().out
+    backups = list(source.parent.glob("manifest.backup_*.sqlite"))
+    assert len(backups) == 1
+    copy_db = sqlite3.connect(backups[0])
+    try:
+        assert copy_db.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type='table'"
+        ).fetchone()[0] == 1
+    finally:
+        copy_db.close()
+        live_db.close()
+
+
+def test_manifest_is_still_rejected_by_move_guard(tmp_path):
+    repo = tmp_path / "repo"
+    source = repo / "data" / "manifest.sqlite"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"synthetic db placeholder")
+    with pytest.raises(don_rac.SafetyError):
+        don_rac._guard_path(source, repo)
+
+
+def test_manifest_cannot_be_restored_from_move_archive(tmp_path):
+    repo = tmp_path / "repo"
+    source = repo / "data" / "manifest.sqlite"
+    stored = tmp_path / "archive" / "manifest.sqlite"
+    source.parent.mkdir(parents=True)
+    stored.parent.mkdir(parents=True)
+    source.write_bytes(b"source database placeholder")
+    stored.write_bytes(b"archived placeholder")
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(json.dumps({
+        "id": "manifest-move", "action": "move", "status": "moved",
+        "source": str(source), "stored": str(stored), "sha256": don_rac._sha256(stored),
+    }) + "\n", encoding="utf-8")
+
+    with pytest.raises(don_rac.SafetyError):
+        don_rac.restore_item("manifest-move", journal, repo_root=repo)
+    assert source.read_bytes() == b"source database placeholder"
+    assert stored.read_bytes() == b"archived placeholder"
+
+
 def test_worktree_cleanup_removes_only_merged_old_codex_handoff(tmp_path):
     root, remote = _repo(tmp_path)
     wt = root / ".codex-wt" / "old-handoff"
@@ -151,7 +267,7 @@ def test_worktree_cleanup_removes_only_merged_old_codex_handoff(tmp_path):
     _git(root, "worktree", "add", "-b", "codex/old-handoff", str(wt), "origin/main")
     (wt / "HANDOFF.md").write_text("handoff", encoding="utf-8")
     old = datetime.now(timezone.utc).timestamp() - 5 * 86400
-    os.utime(wt, (old, old))
+    _age_worktree_git_metadata(wt, old)
     now = datetime.fromtimestamp(datetime.now(timezone.utc).timestamp(), timezone.utc)
 
     dry = don_rac.cleanup_worktrees(root, dry_run=True, now=now)
@@ -174,6 +290,62 @@ def test_worktree_cleanup_removes_only_merged_old_codex_handoff(tmp_path):
     )
 
 
+def test_gop_keeps_merged_worktree_with_ignored_data_file(tmp_path, monkeypatch):
+    root, _remote = _repo(tmp_path)
+    (root / ".gitignore").write_text("data/*.sqlite\n", encoding="utf-8")
+    _git(root, "add", ".gitignore")
+    _git(root, "commit", "-q", "-m", "ignore local sqlite fixtures")
+    _git(root, "push", "-q", "origin", "HEAD:main")
+    _git(root, "fetch", "-q", "origin")
+
+    wt = root / ".codex-wt" / "merged-with-ignored-data"
+    wt.parent.mkdir()
+    _git(root, "worktree", "add", "-b", "codex/merged-with-ignored-data", str(wt), "origin/main")
+    _git(wt, "config", "user.name", "test")
+    _git(wt, "config", "user.email", "test@example.invalid")
+    (wt / "change.py").write_text("merged\n", encoding="utf-8")
+    _git(wt, "add", "change.py")
+    _git(wt, "commit", "-q", "-m", "feature")
+    tip = _git(wt, "rev-parse", "HEAD")
+    ignored_db = wt / "data" / "x.sqlite"
+    ignored_db.parent.mkdir()
+    ignored_db.write_bytes(b"synthetic ignored data")
+    _git(root, "merge", "-q", "--no-ff", "codex/merged-with-ignored-data", "-m", "merge feature")
+    _git(root, "push", "-q", "origin", "HEAD:main")
+    _write_xong_events(root, "codex/merged-with-ignored-data", tip)
+
+    rc, _out, err = _run_hop_thu(root, "gop", "CX22-T", "--lane", "phien-chinh", "--commit", "merge-sha")
+
+    assert rc == 0, err
+    assert wt.exists()
+    assert ignored_db.read_bytes() == b"synthetic ignored data"
+
+
+def test_worktree_status_ignores_only_harmless_python_caches(tmp_path):
+    root, _remote = _repo(tmp_path)
+    (root / ".gitignore").write_text(
+        ".pytest_cache/\n__pycache__/\n*.pyc\ndata/*.sqlite\n", encoding="utf-8"
+    )
+    _git(root, "add", ".gitignore")
+    _git(root, "commit", "-q", "-m", "ignore local fixtures")
+    _git(root, "push", "-q", "origin", "HEAD:main")
+    _git(root, "fetch", "-q", "origin")
+    wt = root / ".codex-wt" / "status-check"
+    wt.parent.mkdir()
+    _git(root, "worktree", "add", "-b", "codex/status-check", str(wt), "origin/main")
+    (wt / ".pytest_cache").mkdir()
+    (wt / ".pytest_cache" / "nodeids").write_text("fixture", encoding="utf-8")
+    (wt / "src" / "__pycache__").mkdir(parents=True)
+    (wt / "src" / "__pycache__" / "module.pyc").write_bytes(b"fixture")
+    (wt / "src" / "__pycache__" / "payload.sqlite").write_bytes(b"synthetic ignored payload")
+    (wt / "data").mkdir()
+    (wt / "data" / "x.sqlite").write_bytes(b"synthetic ignored db")
+
+    assert don_rac._worktree_status(wt) == [
+        "!! data/x.sqlite", "!! src/__pycache__/payload.sqlite",
+    ]
+
+
 def test_worktree_cleanup_keeps_dirty_new_and_unmerged(tmp_path):
     root, _remote = _repo(tmp_path)
     old = datetime.now(timezone.utc).timestamp() - 5 * 86400
@@ -182,7 +354,7 @@ def test_worktree_cleanup_keeps_dirty_new_and_unmerged(tmp_path):
     dirty.parent.mkdir()
     _git(root, "worktree", "add", "-b", "codex/dirty", str(dirty), "origin/main")
     (dirty / "code.py").write_text("uncommitted", encoding="utf-8")
-    os.utime(dirty, (old, old))
+    _age_worktree_git_metadata(dirty, old)
 
     fresh = root / ".codex-wt" / "fresh"
     _git(root, "worktree", "add", "-b", "codex/fresh", str(fresh), "origin/main")
@@ -190,18 +362,220 @@ def test_worktree_cleanup_keeps_dirty_new_and_unmerged(tmp_path):
     locked = root / ".codex-wt" / "locked"
     _git(root, "worktree", "add", "-b", "codex/locked", str(locked), "origin/main")
     _git(root, "worktree", "lock", str(locked), "--reason", "fixture")
-    os.utime(locked, (old, old))
+    _age_worktree_git_metadata(locked, old)
 
     unmerged = root / ".codex-wt" / "unmerged"
     _git(root, "worktree", "add", "-b", "codex/unmerged", str(unmerged), "origin/main")
     (unmerged / "new.py").write_text("unmerged", encoding="utf-8")
     _git(unmerged, "add", "new.py")
     _git(unmerged, "commit", "-q", "-m", "unmerged")
-    os.utime(unmerged, (old, old))
+    _age_worktree_git_metadata(unmerged, old)
 
     result = don_rac.cleanup_worktrees(root, dry_run=False)
     assert result["removed"] == 0
     assert dirty.exists() and fresh.exists() and unmerged.exists() and locked.exists()
+
+
+def test_worktree_age_uses_latest_git_admin_metadata_mtime(tmp_path):
+    root, _remote = _repo(tmp_path)
+    wt = root / ".codex-wt" / "age-check"
+    wt.parent.mkdir()
+    _git(root, "worktree", "add", "-b", "codex/age-check", str(wt), "origin/main")
+    old = datetime.now(timezone.utc).timestamp() - 5 * 86400
+    _age_worktree_git_metadata(wt, old)
+    git_dir = Path(next(line[8:] for line in (wt / ".git").read_text(encoding="utf-8").splitlines()
+                        if line.startswith("gitdir: ")))
+    recent = datetime.now(timezone.utc).timestamp() - 3600
+    os.utime(git_dir / "logs" / "HEAD", (recent, recent))
+    os.utime(wt, (old, old))
+
+    assert not don_rac._worktree_is_old(wt, 3, datetime.now(timezone.utc))
+
+    _age_worktree_git_metadata(wt, old)
+    assert don_rac._worktree_is_old(wt, 3, datetime.now(timezone.utc))
+
+
+def test_find_repo_root_from_linked_worktree_returns_common_repo(tmp_path):
+    root, _remote = _repo(tmp_path)
+    wt = root / ".codex-wt" / "root-check"
+    wt.parent.mkdir()
+    _git(root, "worktree", "add", "-b", "codex/root-check", str(wt), "origin/main")
+    nested = wt / "nested"
+    nested.mkdir()
+
+    assert don_rac.find_repo_root(nested) == root.resolve()
+
+
+def test_git_helper_sets_default_timeout_and_handles_timeout(tmp_path, monkeypatch):
+    calls = []
+    def complete(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+    monkeypatch.setattr(don_rac.subprocess, "run", complete)
+
+    result = don_rac._git(tmp_path, "status")
+
+    assert result.stdout == "ok"
+    assert calls[0][1]["timeout"] == 60
+
+    def timeout(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+    monkeypatch.setattr(don_rac.subprocess, "run", timeout)
+    timed_out = don_rac._git(tmp_path, "fetch", check=False)
+    assert timed_out.returncode == 124
+
+
+def test_worktree_cleanup_fetches_pruned_remote_once(tmp_path, monkeypatch):
+    root, _remote = _repo(tmp_path)
+    original = don_rac._git
+    fetch_calls = []
+    def record_fetch(path, *args, **kwargs):
+        if args == ("fetch", "--prune", "origin"):
+            fetch_calls.append(args)
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(don_rac, "_git", record_fetch)
+
+    don_rac.cleanup_worktrees(root, dry_run=True)
+
+    assert len(fetch_calls) == 1
+
+
+def test_merged_worktree_cleanup_fetches_pruned_remote_once(tmp_path, monkeypatch):
+    root, _remote = _repo(tmp_path)
+    wt = root / ".codex-wt" / "merged-fetch-check"
+    wt.parent.mkdir()
+    _git(root, "worktree", "add", "-b", "codex/merged-fetch-check", str(wt), "origin/main")
+    _git(wt, "config", "user.name", "test")
+    _git(wt, "config", "user.email", "test@example.invalid")
+    (wt / "change.py").write_text("merged\n", encoding="utf-8")
+    _git(wt, "add", "change.py")
+    _git(wt, "commit", "-q", "-m", "feature")
+    tip = _git(wt, "rev-parse", "HEAD")
+    _git(root, "merge", "-q", "--no-ff", "codex/merged-fetch-check", "-m", "merge feature")
+    _git(root, "push", "-q", "origin", "HEAD:main")
+    original = don_rac._git
+    fetch_calls = []
+    def record_fetch(path, *args, **kwargs):
+        if args == ("fetch", "--prune", "origin"):
+            fetch_calls.append(args)
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(don_rac, "_git", record_fetch)
+
+    result = don_rac.cleanup_merged_branch_worktree(
+        root, "codex/merged-fetch-check", tip, journal=tmp_path / "journal.jsonl"
+    )
+
+    assert len(fetch_calls) == 1
+    assert "đã gỡ" in result
+
+
+def test_stop_redundant_servers_respects_age_and_protected_ports(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    now = datetime.now(timezone.utc).timestamp()
+    class FakeError(Exception):
+        pass
+    class FakeTimeout(FakeError):
+        pass
+    class FakeProcess:
+        def __init__(self, pid, created):
+            self.pid = pid
+            self.created = created
+            self.terminated = False
+        def cmdline(self):
+            return ["python", "-m", "streamlit", "run", "app.py", f"--server.port={ports[self.pid]}"]
+        def create_time(self):
+            return self.created
+        def terminate(self):
+            self.terminated = True
+        def wait(self, timeout=None):
+            return None
+
+    ports = {1: 8501, 2: 8502, 3: 8503, 4: 8504, 5: 8505}
+    processes = {
+        1: FakeProcess(1, now - 2000), 2: FakeProcess(2, now - 2000),
+        3: FakeProcess(3, now - 901), 4: FakeProcess(4, now - 899),
+        5: FakeProcess(5, now - 2000),
+    }
+    connections = [SimpleNamespace(laddr=SimpleNamespace(port=port), pid=pid, status="LISTEN")
+                   for pid, port in ports.items()]
+    connections.append(SimpleNamespace(laddr=SimpleNamespace(port=8505), pid=5, status="ESTABLISHED"))
+    class FakePsutil:
+        Error = FakeError
+        TimeoutExpired = FakeTimeout
+        CONN_ESTABLISHED = "ESTABLISHED"
+        CONN_LISTEN = "LISTEN"
+        @staticmethod
+        def net_connections(kind="tcp"):
+            return connections
+        @staticmethod
+        def Process(pid):
+            return processes[pid]
+
+    monkeypatch.setattr(don_rac, "_processes", lambda: FakePsutil)
+
+    stopped = don_rac.stop_redundant_servers(tmp_path)
+
+    assert stopped == 1
+    assert processes[3].terminated is True
+    assert processes[1].terminated is False and processes[2].terminated is False
+    assert processes[4].terminated is False and processes[5].terminated is False
+
+
+def test_stop_orphan_pytest_requires_old_process_inside_repo(tmp_path, monkeypatch):
+    now = datetime.now(timezone.utc).timestamp()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    class FakeError(Exception):
+        pass
+    class FakeNoSuchProcess(FakeError):
+        pass
+    class FakeTimeout(FakeError):
+        pass
+    class FakeProcess:
+        def __init__(self, pid, created, cwd, ppid=404):
+            self.info = {"pid": pid, "name": "python.exe", "cmdline": ["python", "-m", "pytest"], "ppid": ppid}
+            self.created = created
+            self.path = cwd
+            self.terminated = False
+        def create_time(self):
+            return self.created
+        def cwd(self):
+            return str(self.path)
+        def terminate(self):
+            self.terminated = True
+        def wait(self, timeout=None):
+            return None
+
+    old_inside = FakeProcess(1, now - 901, repo)
+    recent_inside = FakeProcess(2, now - 899, repo)
+    old_outside = FakeProcess(3, now - 901, outside)
+    parent_alive = FakeProcess(4, now - 901, repo, ppid=42)
+    processes = [old_inside, recent_inside, old_outside, parent_alive]
+    class FakePsutil:
+        Error = FakeError
+        NoSuchProcess = FakeNoSuchProcess
+        TimeoutExpired = FakeTimeout
+        @staticmethod
+        def process_iter(_attrs):
+            return processes
+        @staticmethod
+        def Process(pid):
+            if pid == 42:
+                return object()
+            raise FakeNoSuchProcess()
+
+    monkeypatch.setattr(don_rac, "_processes", lambda: FakePsutil)
+
+    stopped = don_rac.stop_orphan_pytest(repo)
+
+    assert stopped == 1
+    assert old_inside.terminated is True
+    assert recent_inside.terminated is False
+    assert old_outside.terminated is False
+    assert parent_alive.terminated is False
 
 
 def test_quick_report_is_one_line_and_does_not_stop_processes_by_default(tmp_path, monkeypatch, capsys):

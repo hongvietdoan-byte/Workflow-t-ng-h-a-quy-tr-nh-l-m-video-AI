@@ -10,9 +10,12 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
+import sqlite3
 import subprocess
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,17 +33,30 @@ def find_repo_root(start: Path | None = None) -> Path:
     here = (start or Path.cwd()).resolve()
     if here.is_file():
         here = here.parent
-    for candidate in (here, *here.parents):
-        if (candidate / ".git").exists():
-            return candidate
-    raise SafetyError(f"Không tìm thấy gốc Git từ {here}.")
+    try:
+        common_dir = Path(_git(here, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip())
+        root = common_dir.resolve().parent
+    except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        raise SafetyError(f"Không tìm thấy gốc Git từ {here}.") from exc
+    if not (root / ".git").exists():
+        raise SafetyError(f"Không tìm thấy gốc Git từ {here}.")
+    return root
 
 
-def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        ["git", *args], cwd=str(root), capture_output=True, text=True,
-        encoding="utf-8", errors="replace",
-    )
+def _git(
+    root: Path, *args: str, check: bool = True, timeout: float = 60,
+) -> subprocess.CompletedProcess[str]:
+    command = ["git", *args]
+    try:
+        result = subprocess.run(
+            command, cwd=str(root), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        detail = f"vượt quá {timeout:g} giây"
+        if check:
+            raise RuntimeError(f"git {args[0] if args else ''} {detail}.") from exc
+        return subprocess.CompletedProcess(command, 124, "", detail)
     if check and result.returncode:
         detail = (result.stderr or result.stdout).strip()
         raise RuntimeError(f"git {args[0] if args else ''} lỗi: {detail}")
@@ -55,12 +71,18 @@ def _inside(path: Path, parent: Path) -> bool:
         return False
 
 
-def _guard_path(path: Path, repo_root: Path | None = None) -> Path:
+def _guard_path(
+    path: Path, repo_root: Path | None = None, *, allow_manifest_backup: bool = False,
+) -> Path:
     target = path.expanduser().resolve()
     lowered = [part.casefold() for part in target.parts]
     if target.name.casefold() == "dashboard.env" or "dashboard.env" in target.name.casefold():
         raise SafetyError("Từ chối: dashboard.env luôn nằm ngoài phạm vi công cụ.")
-    if target.name.casefold().startswith("manifest.sqlite"):
+    canonical_manifest = False
+    if allow_manifest_backup and repo_root is not None:
+        expected = (Path(repo_root).resolve() / "data" / "manifest.sqlite").resolve()
+        canonical_manifest = os.path.normcase(str(target)) == os.path.normcase(str(expected))
+    if target.name.casefold().startswith("manifest.sqlite") and not canonical_manifest:
         raise SafetyError("Từ chối: manifest.sqlite luôn nằm ngoài phạm vi công cụ.")
     protected_dirs = {"projects", "models3d", "_plates3d", ".codex-runtime"}
     if any(part in protected_dirs for part in lowered):
@@ -97,7 +119,14 @@ def create_backup(
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """Tạo bản sao cạnh file nguồn; không bao giờ ghi đè bản sao đã có."""
-    source = _guard_path(Path(source), repo_root)
+    source = Path(source).expanduser().resolve()
+    is_manifest = (
+        repo_root is not None
+        and os.path.normcase(str(source)) == os.path.normcase(
+            str((Path(repo_root).resolve() / "data" / "manifest.sqlite").resolve())
+        )
+    )
+    source = _guard_path(source, repo_root, allow_manifest_backup=is_manifest)
     if not source.is_file():
         raise SafetyError("Tệp nguồn không tồn tại hoặc không phải tệp thường.")
     stamp = (now or datetime.now(timezone.utc)).astimezone().strftime("%Y%m%d-%H%M%S")
@@ -110,16 +139,31 @@ def create_backup(
         raise SafetyError("Bản sao lưu cùng tên đã tồn tại; không ghi đè.")
     record = {
         "id": uuid.uuid4().hex[:12], "action": "backup", "kind": label,
-        "source": str(source), "stored": str(destination), "sha256": _sha256(source),
+        "source": str(source), "stored": str(destination),
         "bytes": source.stat().st_size, "ts": datetime.now(timezone.utc).isoformat(),
     }
     if dry_run:
+        record["sha256"] = _sha256(source)
         return {"created": False, "source": str(source), "destination": str(destination), "record": record}
     temporary = destination.with_name(destination.name + ".tmp")
     try:
-        shutil.copy2(source, temporary)
-        if _sha256(temporary) != record["sha256"]:
-            raise OSError("SHA-256 bản sao không khớp nguồn; đã hủy.")
+        if is_manifest:
+            source_db = sqlite3.connect(str(source))
+            try:
+                destination_db = sqlite3.connect(str(temporary))
+                try:
+                    source_db.backup(destination_db)
+                finally:
+                    destination_db.close()
+            finally:
+                source_db.close()
+        else:
+            source_digest = _sha256(source)
+            shutil.copy2(source, temporary)
+            if _sha256(temporary) != source_digest:
+                raise OSError("SHA-256 bản sao không khớp nguồn; đã hủy.")
+        record["sha256"] = _sha256(temporary)
+        record["bytes"] = temporary.stat().st_size
         os.replace(temporary, destination)
         if journal:
             _append_journal(journal, record)
@@ -138,6 +182,21 @@ def _backup_kind(path: Path) -> str | None:
     if name.startswith("backup_") and ".before_" in name:
         return name.split(".before_", 1)[0]
     return None
+
+
+_BACKUP_TIMESTAMP = re.compile(r"(?<!\d)(20\d{6})(?:[-_]?([0-2]\d[0-5]\d[0-5]\d))?(?!\d)")
+
+
+def _backup_sort_key(path: Path) -> tuple[float, str]:
+    match = _BACKUP_TIMESTAMP.search(path.name)
+    if match:
+        date, clock = match.groups()
+        try:
+            embedded = datetime.strptime(date + (clock or "000000"), "%Y%m%d%H%M%S")
+            return embedded.timestamp(), path.name.casefold()
+        except ValueError:
+            pass
+    return path.stat().st_ctime, path.name.casefold()
 
 
 def rotate_backups(
@@ -170,7 +229,7 @@ def rotate_backups(
     move_plan: list[tuple[Path, Path]] = []
     kept: list[str] = []
     for kind, paths in sorted(groups.items()):
-        ordered = sorted(paths, key=lambda p: (p.stat().st_mtime_ns, p.name.casefold()), reverse=True)
+        ordered = sorted(paths, key=_backup_sort_key, reverse=True)
         kept.extend(str(p) for p in ordered[:keep])
         for source in ordered[keep:]:
             destination = archive_root / stamp_day / source.name
@@ -268,16 +327,58 @@ def _porcelain_worktrees(root: Path) -> list[dict[str, Any]]:
 
 
 def _worktree_status(path: Path) -> list[str]:
-    result = _git(path, "status", "--porcelain", "--untracked-files=all", check=False)
+    result = _git(path, "--no-optional-locks", "status", "--porcelain", "--untracked-files=all", "--ignored", check=False)
     if result.returncode:
         return ["<không đọc được git status>"]
-    return [line for line in result.stdout.splitlines() if line]
+    status: list[str] = []
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        code, _, raw_path = line.partition(" ")
+        path_text = raw_path.strip().strip('"').replace("\\", "/").rstrip("/")
+        parts = {part.casefold() for part in path_text.split("/") if part}
+        harmless = ".pytest_cache" in parts or (
+            "__pycache__" in parts
+            and path_text.casefold().endswith(".pyc")
+        )
+        if code == "!!" and not harmless and "__pycache__" in parts:
+            cache_path = (path / Path(path_text)).resolve()
+            if _inside(cache_path, path) and cache_path.is_dir():
+                contents = list(cache_path.rglob("*"))
+                harmless = all(
+                    item.is_dir() or (item.is_file() and item.suffix.casefold() == ".pyc")
+                    for item in contents
+                )
+        if code == "!!" and harmless:
+            continue
+        status.append(line)
+    return status
 
 
 def _worktree_is_old(path: Path, days: int, now: datetime) -> bool:
     try:
-        age = now.timestamp() - path.stat().st_mtime
-    except OSError:
+        marker = path / ".git"
+        if marker.is_file():
+            git_dir_text = next(
+                (line[8:] for line in marker.read_text(encoding="utf-8").splitlines()
+                 if line.startswith("gitdir: ")),
+                None,
+            )
+            if not git_dir_text:
+                return False
+            git_dir = Path(git_dir_text)
+            if not git_dir.is_absolute():
+                git_dir = (path / git_dir).resolve()
+        elif marker.is_dir():
+            git_dir = marker
+        else:
+            return False
+        metadata = [git_dir / name for name in ("index", "HEAD", "logs/HEAD")]
+        timestamps = [item.stat().st_mtime for item in metadata if item.is_file()]
+        if not timestamps:
+            return False
+        age = now.timestamp() - max(timestamps)
+    except (OSError, StopIteration):
         return False
     return age > days * 86400
 
@@ -320,6 +421,13 @@ def cleanup_worktrees(
 ) -> dict[str, Any]:
     root = Path(root).resolve()
     now = now or datetime.now(timezone.utc)
+    fetched = _git(root, "fetch", "--prune", "origin", check=False)
+    if fetched.returncode:
+        return {
+            "candidates": 0, "removed": 0, "plan": [],
+            "skipped": [{"path": str(root), "branch": "", "reason": "không fetch được origin; bỏ qua rà dọn"}],
+            "dry_run": dry_run,
+        }
     current = Path(_git(root, "rev-parse", "--show-toplevel").stdout.strip()).resolve()
     candidates: list[dict[str, str]] = []
     skipped: list[dict[str, str]] = []
@@ -411,7 +519,7 @@ def cleanup_merged_branch_worktree(
     root = Path(root).resolve()
     if not branch or branch.startswith("-") or not merged_commit:
         return "bỏ qua: thiếu nhánh hoặc commit"
-    fetched = _git(root, "fetch", "origin", "main:refs/remotes/origin/main", check=False)
+    fetched = _git(root, "fetch", "--prune", "origin", check=False)
     if fetched.returncode:
         return "bỏ qua: không cập nhật được origin/main để kiểm tra an toàn"
     contained = _git(root, "merge-base", "--is-ancestor", merged_commit, "origin/main", check=False)
@@ -484,6 +592,8 @@ def stop_redundant_servers(_root: Path) -> int:
             continue
         try:
             process = psutil.Process(pid)
+            if time.time() - process.create_time() <= 15 * 60:
+                continue
             command_args = [str(arg).casefold() for arg in process.cmdline()]
             command = " ".join(command_args)
             if "streamlit" not in command or not any(
@@ -504,16 +614,21 @@ def stop_redundant_servers(_root: Path) -> int:
 
 
 def stop_orphan_pytest(_root: Path) -> int:
-    """Dừng pytest còn sống chỉ khi tiến trình cha không còn tồn tại."""
+    """Dừng pytest mồ côi đã cũ trong repo; giữ tiến trình mới hoặc ngoài repo."""
     psutil = _processes()
     if psutil is None:
         return 0
+    root = Path(_root).resolve()
     stopped = 0
     for process in psutil.process_iter(["pid", "name", "cmdline", "ppid"]):
         try:
             cmd = " ".join(process.info.get("cmdline") or []).casefold()
             name = str(process.info.get("name") or "").casefold()
             if "pytest" not in cmd or not (name.startswith("python") or "pytest" in name):
+                continue
+            if time.time() - process.create_time() <= 15 * 60:
+                continue
+            if not _inside(Path(process.cwd()), root):
                 continue
             parent_pid = process.info.get("ppid")
             if not parent_pid:
@@ -528,7 +643,7 @@ def stop_orphan_pytest(_root: Path) -> int:
                 except psutil.TimeoutExpired:
                     continue
                 stopped += 1
-        except (OSError, psutil.Error):
+        except (OSError, RuntimeError, ValueError, psutil.Error):
             continue
     return stopped
 
@@ -678,7 +793,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "sao-luu":
             source = Path(args.file).resolve()
             if args.goc:
-                _guard_path(source, root)
+                _guard_path(
+                    source, root,
+                    allow_manifest_backup=source.name.casefold() == "manifest.sqlite",
+                )
             result = create_backup(source, args.loai, dry_run=args.dry_run, journal=journal, repo_root=root)
             print(f"Sao lưu {'dry-run' if args.dry_run else 'đã tạo'}: {result['destination']}")
             if not args.dry_run:
