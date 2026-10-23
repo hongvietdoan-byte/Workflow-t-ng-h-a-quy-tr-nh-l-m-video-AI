@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T15:39:09.257465+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX23-M81",
+  "branch": "codex/v31-m81",
+  "commit": "2f260c76984e0e65f42281883e8737821ea5ca5a",
+  "report": "docs/RA_CX23_M81_CODEX_2026-10-23.md",
+  "text": "Hoàn tất thiết kế tài liệu + mockup tĩnh. Tần suất/thời gian sử dụng thực tế ghi chưa đo; không mở DB/decision/log/ảnh thật. Q-C vẫn pending verification; M8.2 cần EP duyệt."
+}
