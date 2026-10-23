@@ -78,13 +78,21 @@ def test_skip_on_a_failure_finding_does_not_call_claude(db):
     assert at.session_state["_states"][-1] == "failed"                      # không đưa về chờ rà (không tốn Claude)
 
 
-def test_rerun_button_puts_the_change_back_in_the_queue(db):
+@pytest.mark.parametrize("safe", [False, True])
+def test_rerun_button_puts_the_change_back_in_the_queue(db, safe, monkeypatch):
+    if not safe:
+        monkeypatch.setenv("FEATURE_SAFE_PAID_BUTTONS", "0")             # M8.0 cờ tắt: bấm là rà lại như cũ
     at = AppTest.from_function(_page, args=(db,)).run()
     conn = connect(db)
     fail_id = conn.execute("SELECT id FROM change_findings WHERE source=?", (CR.FAIL_SOURCE,)).fetchone()[0]
     conn.close()
     at.button(key=f"cr_rerun_{fail_id}").click().run()
     assert not at.exception
+    if safe:                                                             # M8.0 cờ bật: mới hỏi (giá trên nút Có), chưa đưa lại hàng chờ
+        assert at.session_state["_states"][-1] != "pending"
+        assert "USD" in at.button(key=f"cr_rerun_{fail_id}_yes").label or "chưa có giá" in at.button(key=f"cr_rerun_{fail_id}_yes").label
+        at.button(key=f"cr_rerun_{fail_id}_yes").click().run()
+        assert not at.exception
     assert at.session_state["_states"][-1] == "pending"                     # chỉ khi NGƯỜI bấm nút có giá
 
 

@@ -376,6 +376,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "Người dùng 07/10 (Khủng Long Đỏ mục 10, Đợt 1): code + test ở cloud, chưa thử trên Dashboard thật. Không đổi gì gửi tới "
                "model trả phí; bật để thử bố cục mới, tắt = màn cũ y nguyên",
     },
+    "safe_paid_buttons": {"default_on": True, "costs": False,
+        "label": "An toàn tiền (M8.0): nút tốn tiền = giá + xác nhận một lần; chat không tự gửi Claude khi Enter (nút “📨 Gửi · ≈ X USD”); "
+                 "“✔ Duyệt storyboard → gửi video” / “✔ Đã duyệt — tiếp tục” hẹn 30 giây có “↩ Hoàn tác” trước khi máy gửi",
+        "verified": False, "safety": True,          # chỉ thêm hỏi/hoàn tác → preset Ổn định vẫn BẬT (_state)
+        "why": "Sổ quyết định ep-2210-qf-money-safety-first (làm trước mọi luồng tự động trả phí M8). Chỉ THÊM bước hỏi / hoàn tác ở thao "
+               "tác bấm tay, không đổi gì gửi tới model, không chạm luồng tự động → mặc định BẬT (người dùng 12/10: cờ an toàn / có lợi "
+               "bật mặc định); tắt = nút cũ bấm là chạy",
+    },
     "idea_to_script": {
         "label": "💡 Ý tưởng thô → kịch bản ở Bước 1: Biên kịch (Claude) hỏi lại ≤ 5 câu → 3 hướng → dàn ý theo giây → kịch bản đúng khuôn, "
                  "code kiểm, người duyệt từng lượt + màn 2 cột tô phần thêm (S11.1)",
@@ -1342,7 +1350,7 @@ def _state(name: str, s: Dict) -> str:
     verified = bool(meta["verified"])
     env = _env(name)
     if s["preset"] == "stable":
-        return "on" if verified else "off"
+        return "on" if verified or meta.get("safety") else "off"          # M8.0: cờ an toàn (chỉ thêm bước hỏi) giữ BẬT ở Ổn định
     if s["preset"] == "experimental":
         if env in _NO:
             return "off"
@@ -1426,7 +1434,8 @@ def _why_state(name: str) -> str:
     if name in s["flags"] or name in (s.get("modes") or {}):
         return "bạn chọn trên màn này"
     if s["preset"] == "stable":
-        return "preset Ổn định: " + ("đã thử thật" if FEATURES[name]["verified"] else "chưa thử thật → tắt")
+        return "preset Ổn định: " + ("đã thử thật" if FEATURES[name]["verified"] else
+                                     "cờ an toàn → bật" if FEATURES[name].get("safety") else "chưa thử thật → tắt")
     if s["preset"] == "experimental":
         return "preset Thử nghiệm" + ((" (cờ từng gây hại → tắt)" if name in HARMFUL and on(name) is False else
                                      " (hậu kỳ tùy chọn → chỉ bật khi chọn riêng)" if name == 'shot_popup' and on(name) is False else

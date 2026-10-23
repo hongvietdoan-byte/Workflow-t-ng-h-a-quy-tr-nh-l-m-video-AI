@@ -85,6 +85,12 @@ class StoryboardPanelTest(unittest.TestCase):
     """Step 2 shows the waiting checkpoint, the flags and the approve button; the button resumes the run."""
 
     def test_panel_flags_and_approve_button(self):
+        self._panel(safe=False)                                   # M8.0 cờ tắt: bấm là gửi như cũ
+
+    def test_m80_approve_button_asks_then_waits_for_undo_then_starts_once(self):
+        self._panel(safe=True)                                    # M8.0 cờ bật: hỏi → Có → hẹn 30 s (hoàn tác được) → tới hạn mới chạy
+
+    def _panel(self, safe):
         import os
         import tempfile
         from unittest import mock
@@ -93,6 +99,8 @@ class StoryboardPanelTest(unittest.TestCase):
         db = os.path.join(tmp, "m.sqlite")
         env = {"PIPELINE_DB": db, "PIPELINE_DATA": os.path.join(tmp, "projects"), "KNOWLEDGE_USER_DIR": os.path.join(tmp, "k"),
                "FEATURE_UI_V2": "0"}         # S14.14 G-a: ui_v2 ON by default — this is the classic Storyboard panel (nhóm nặng, G-b)
+        if not safe:
+            env["FEATURE_SAFE_PAID_BUTTONS"] = "0"
         with mock.patch.dict(os.environ, env):
             p = Pipeline(connect(db))
             pid = p.create_project("Board", operating_mode="auto", threshold=0.5)
@@ -117,8 +125,22 @@ class StoryboardPanelTest(unittest.TestCase):
             self.assertFalse(at.exception)
             text = " ".join(m.value for m in at.markdown)
             self.assertIn("nhân vật 0.30 dưới mức sàn", text)
-            with mock.patch("dashboard.steps.step2.autopilot_manager") as mgr:
+            with mock.patch("dashboard.common.autopilot_manager") as mgr:        # paid_confirm.schedule_resume gọi qua dashboard.common
                 at.button(key=f"board_ok_{pid}").click().run()
+                if safe:
+                    self.assertFalse(at.exception)
+                    at.button(key=f"board_ok_{pid}_yes").click().run()          # Có → chỉ hẹn, chưa gửi
+                    self.assertFalse(at.exception)
+                    mgr.return_value.start.assert_not_called()
+                    self.assertEqual(autopilot.get_gates(Pipeline(connect(db)), pid)["waiting_for"], "storyboard")
+                    from dashboard import paid_confirm as P
+                    items = dict(at.session_state[P.UNDO_KEY])
+                    (uid,) = items                                                        # đúng MỘT mục hẹn
+                    items[uid] = dict(items[uid], not_before=0)       # tới hạn hoàn tác
+                    at.session_state[P.UNDO_KEY] = items
+                    at.run()
+                    self.assertFalse(at.exception)
+                    at.run()                                                         # vẽ lại: không gửi lần hai
             self.assertFalse(at.exception)
             mgr.return_value.start.assert_called_once_with(pid, user=None)                # the background run is started again
             gates = autopilot.get_gates(Pipeline(connect(db)), pid)

@@ -170,8 +170,8 @@ kiểm giá trị; không đổi `STATUSES`.
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 6 | 0 | 0 | 0 | 81,2 % |
-| M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **75** | **52** | **5** | **0** | **0** | **71 %** |
+| M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 5 | 1 | 0 | 0 | 0 | 16,7 % |
+| **Tổng** | **75** | **53** | **5** | **0** | **0** | **72,3 %** |
 
 Đợt hiện tại: **M2** · việc kế: **M5.4** Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3)
 <!-- /tien-do -->
@@ -270,7 +270,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 ### M8 — Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10)
 > Mục tiêu: người ít kiến thức video AI vẫn dùng được; 10 người mở Dashboard cùng lúc vẫn nhanh, không khóa nhau. Song song với build, không đợi xong V3.1.
 > Nối: M6.10 (Dashboard điều phối EP), M6.11 (tốc độ theo profiling — lineage.summary #31 đo 7,6–11,3 s/lần vẽ), sơ đồ "Làm phim qua Dashboard" + ghi bước bấm (C-DEVSYS-MAPS).
-- [ ] M8.0 · An toàn tiền (= "M8.4" trong docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md mục cuối): giá + xác nhận cho 6 chỗ bấm tốn tiền còn thiếu, chat không tự gửi, hoàn tác "Duyệt hết", test quét nút tốn tiền (`safe_paid_buttons`) — có lợi cả chế độ Chuyên gia · nặng:2 · ⬜ · EP 22/10 Q-F: làm TRƯỚC mọi luồng tự động trả phí của M8 (sổ ep-2210-qf-money-safety-first) · Cấp 2 — trình phạm vi gói
+- [x] M8.0 · An toàn tiền (= "M8.4" trong docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md mục cuối): giá + xác nhận cho 6 chỗ bấm tốn tiền còn thiếu, chat không tự gửi, hoàn tác "Duyệt hết", test quét nút tốn tiền (`safe_paid_buttons`) — có lợi cả chế độ Chuyên gia · nặng:2 · ✅ · EP 22/10 Q-F: làm TRƯỚC mọi luồng tự động trả phí của M8 (sổ ep-2210-qf-money-safety-first) · Cấp 2 — trình phạm vi gói · 23/10 GỘP (nhánh worktree-agent-af45e0b6 @517f1cf2): dashboard/paid_confirm.py, cờ safe_paid_buttons BẬT mặc định + safety (Ổn định vẫn bật); 6 chỗ giá + xác nhận, chat chỉ gửi bằng nút, Duyệt storyboard/tiếp tục hẹn 30 s hoàn tác, test quét safe_paid_buttons; rà kỹ 1 vòng (2 CAO, 2 VỪA, 3 THẤP đã sửa); cả bộ 8166 passed (2 chập chờn); còn M8.6: E2 preview/HOLD Duyệt hết, hoàn tác pilot_release, khóa paid_ask treo, ~35 nút chỉ có giá
 - [ ] M8.1 · Audit thao tác + thiết kế CHẾ ĐỘ ĐƠN GIẢN: đếm màn/nút/bước bắt buộc/thuật ngữ từ sơ đồ dây chuyền + nhật ký bước bấm; gộp nút, ẩn nút chuyên gia, wizard theo bước, chữ thường thay thuật ngữ, mặc định an toàn; bản vẽ màn + bảng nút giữ/gộp/ẩn — trình EP · nặng:2 · ⬜ · Cấp 1 (tài liệu) · EP 22/10 TRẢ LỜI Q-A…Q-F + E2 (sổ ep-2210-q*-2026-10-22): Q-A tự chọn 1/3 hướng có truy vết; Q-B xem M6.5; Q-C tự upscale 1080p trong phạm vi đã duyệt, không thay bản gốc (PENDING_VERIFICATION); Q-D XUNG ĐỘT chính sách tiền D01b → chờ EP; Q-E mặc định Đơn giản cho tài khoản mới, chế độ không đổi quyền; Q-F M8.0 trước; E2 'Duyệt hết' phải preview + đúng quyền + HOLD mục chưa đủ · EP 22/10 21:30 Q-D GIẢI: hard stop ngân sách phim CHỈ chặn luồng tự động, thao tác tay chỉ cảnh báo (sổ ep-2210-qd2-hard-stop-automated-only, giữ v31-d01b)
 - [ ] M8.2 · Triển khai chế độ Đơn giản (cờ simple_mode TẮT; chế độ Chuyên gia giữ nguyên) theo thiết kế M8.1 đã duyệt · nặng:3 · ⬜ · Cấp 2 sau khi EP duyệt M8.1 · EP 22/10 P1/P2: Tiểu Nhị vào đây, dùng gói (không API trả phí), bài học ≥ 2 có bằng chứng độc lập; không hệ thống Đơn giản song song / không bỏ guard Chuyên gia
 - [ ] M8.3 · Đo tải 10 người cùng lúc (0 USD, provider giả, bản sao dữ liệu): 10 phiên trình duyệt tự động mở dự án, xem, duyệt, bấm gen (giả); đo thời gian vẽ từng màn, CPU/RAM tiến trình Streamlit, chờ khóa SQLite, luồng nền nhân bản theo phiên, khóa Blender, hàng đợi Claude CLI → bảng giới hạn (ở bao nhiêu người thì chậm/khóa, khâu nào nghẽn) · nặng:2 · ⬜ · máy chính
@@ -279,6 +279,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 
 ## 6. Nhật ký
 
+- 23/10: M8.0 an toàn tiền ✅ gộp main.
 - 23/10: M5.3 pilot vòng A offline DAT_OFFLINE (801 test, 88 s); còn ca MAY_CHINH. M8.0 an toàn tiền đang làm (agent).
 - 23/10: sửa trạng thái kế hoạch đã cũ — M2.1, M2.4–M2.9, M7.3 ✅ (đã nằm trong main từ 26d0a16d 22/10, cờ TẮT); M2.10 bước 1–2 đã gộp, còn bước 3 trả phí.
 - 23/10 (sáng): phiên chính làm thay CX21-M22 (Codex im từ 22/10 20:29), rà kỹ + vòng sửa, gộp main.

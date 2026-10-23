@@ -45,9 +45,12 @@ def autopilot_progress(pid: int) -> None:
             label += f" · phần còn lại ≈ {cost.estimate_run(p, pid)['total']:.2f} USD (ước tính)"
         except Exception:  # noqa: BLE001 - the button stays; the label says the price is missing
             label += " · chưa có giá (không ước tính được phần còn lại)"
-        if st.button(label, key=f"ap_resume_{pid}", type="primary"):
-            autopilot.resume(p, pid, p.actor)
-            autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
+        from dashboard import paid_confirm as P              # M8.0: giá + xác nhận + hẹn 30 s có ↩ Hoàn tác trước khi máy chạy tiếp
+        head, _, tag = label.partition(" · ")
+        if not P.waiting(st.session_state, "resume", pid) and P.paid_button(
+                head, key=f"ap_resume_{pid}", tag=" · " + tag, type="primary", yes_label="Có, chạy tiếp"):
+            P.schedule_resume(p, pid, head.lstrip("✔▶ ").strip() or "Tiếp tục chạy tự động", " · " + tag,
+                              "tiếp tục chạy tự động", with_fp=False)
             st.rerun()
     if state == "done":
         out = os.path.join(C.DATA, str(pid), "output", "FINAL_VIDEO.mp4")

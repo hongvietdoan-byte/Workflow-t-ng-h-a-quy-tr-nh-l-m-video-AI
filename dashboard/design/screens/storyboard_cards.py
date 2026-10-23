@@ -439,10 +439,12 @@ def action_bar(p, pid: int) -> None:
                         board_tag = cost.video_batch_tag(p, pid)
                     except Exception:  # noqa: BLE001 - the button stays; the label says the price is missing
                         board_tag = " · chưa có giá (không ước tính được)"
-                    if st.button("✔ Duyệt storyboard → gửi video" + board_tag, key=f"board_ok_{pid}", type="secondary" if pending else "primary", width="stretch"):
-                        autopilot.resume(p, pid, p.actor)
-                        autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
-                        C.log_ui(p, "gen_video", page="storyboard", project_id=pid, detail="duyệt storyboard → gửi video (tự chạy)")
+                    from dashboard import paid_confirm as P   # M8.0: giá + xác nhận + hẹn 30 s có ↩ Hoàn tác trước khi máy gửi video
+                    if P.waiting(st.session_state, "resume", pid):
+                        st.caption("⏳ Đã hẹn gửi video — xem thanh ↩ Hoàn tác trên cùng.")
+                    elif P.paid_button("✔ Duyệt storyboard → gửi video", key=f"board_ok_{pid}", tag=board_tag, container=st,
+                                       type="secondary" if pending else "primary", width="stretch", yes_label="Có, duyệt & gửi"):
+                        P.schedule_resume(p, pid, "Duyệt storyboard → gửi video", board_tag, "duyệt storyboard → gửi video (tự chạy)")
                         st.rerun()
             with right:
                 if _confirm_all_primary("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?",

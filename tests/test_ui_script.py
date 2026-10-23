@@ -367,10 +367,26 @@ class ScriptBoxTests(unittest.TestCase):
         self.assertEqual(I.get_state(self.p.conn, pid), {})                      # chat_input never starts / pays anything
 
     def test_s1447_free_chat_calls_once_and_survives_rerun(self):
+        with mock.patch.dict(os.environ, {"FEATURE_SAFE_PAID_BUTTONS": "0"}):     # M8.0 cờ tắt: Enter là gửi như cũ
+            self._free_chat_once(safe=False)
+
+    def test_m80_free_chat_waits_for_send_button_then_calls_once(self):
+        self._free_chat_once(safe=True)                                          # M8.0 cờ bật: Enter chỉ giữ chữ, "📨 Gửi" mới gọi
+
+    def _free_chat_once(self, safe):
         from core import script_chat, llm_runner
         pid = self.p.create_project("Hội thoại")
         with mock.patch.object(llm_runner.MockLlm, "complete", return_value=llm_runner.LlmReply("Nên giữ nhịp ngắn.")) as complete:
             at = self.say(self.app(pid), "Bạn nghĩ nhịp thế nào?")
+            if safe:
+                self.assertEqual(complete.call_count, 0)                         # chưa gửi, chưa tốn tiền
+                self.assertEqual([m["role"] for m in script_chat.history(self.p, pid)], ["user"])
+                at.run()
+                self.assertEqual(complete.call_count, 0)                         # vẽ lại không tự gửi
+                self.assertIn("USD", at.button(key=f"box_chatsend_go_{pid}").label)
+                at.button(key=f"box_chatsend_go_{pid}").click().run()
+                self.assertFalse(at.exception, at.exception)
+                self.assertNotIn(f"box_chatsend_go_{pid}", {b.key for b in at.button})
             self.assertEqual(complete.call_count, 1)
             self.assertIn("Nên giữ nhịp ngắn.", self.html(at))
             at.run()

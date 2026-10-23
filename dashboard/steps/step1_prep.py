@@ -330,6 +330,25 @@ def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
         cap("Chạy Director (1d) để chia các cảnh thành shot.")
 
 
+def _previz_tags(p: Pipeline, pid: int) -> tuple:
+    """M8.0: giá trên "🎬 Dựng storyboard" / "🔍 Claude rà storyboard" (luật chi phí: báo TRƯỚC khi bấm), bằng cost.llm_estimate có sẵn —
+    tính dư: mọi ảnh nền coi như CHƯA đọc (set_analysis, 1 ảnh / lượt) + một lượt dựng layout (≤ MAX_BACKGROUNDS_PER_CALL ảnh);
+    rà = một lượt kèm ảnh storyboard. Lỗi ước tính → nhãn nói "chưa có giá", nút vẫn hiện."""
+    try:
+        pics = {img["id"] for s in previz._scenes(p, pid) for img in previz.scene_backgrounds(p, pid, s)}
+        shown = min(len(pics), previz.MAX_BACKGROUNDS_PER_CALL)
+        parts = [cost.llm_estimate(p.conn, "set_analysis", len(pics), images=1), cost.llm_estimate(p.conn, "layout", 1, images=shown)]
+        plan = None if any(x is None for x in parts) else sum(parts) * cost.LLM_MARGIN
+        plan_tag = cost.llm_tag(plan, 1)
+    except Exception:  # noqa: BLE001 - an estimate problem must not hide the button
+        plan_tag = " · Claude: chưa có giá (không ước tính được)"
+    try:
+        review_tag = cost.llm_button_tag(p.conn, "storyboard_review", 1, images=1)
+    except Exception:  # noqa: BLE001
+        review_tag = " · Claude: chưa có giá (không ước tính được)"
+    return plan_tag, review_tag
+
+
 def storyboard_panel(p: Pipeline, pid: int) -> None:
     """Previz 2D: lay out every shot on its background (people placed by perspective, by code), put them on one storyboard and let
     Claude check continuity. Nothing to approve: Step 2 simply follows the layouts; the sheet is there to look at."""
@@ -342,8 +361,10 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
                    "Chỉ cảnh đã có Background (ảnh bối cảnh trong kho) mới dựng được. Không phải duyệt: sửa blocking rồi dựng lại nếu muốn.")
         client = llm_client(pid)
         c1, c2 = st.columns(2)
-        if c1.button("🎬 Dựng storyboard", key=f"pv_plan_{pid}", disabled=client is None, type="primary",
-                     help=None if client else C.claude_hint()):
+        from dashboard import paid_confirm as P
+        plan_tag, review_tag = _previz_tags(p, pid)
+        if P.paid_button("🎬 Dựng storyboard", key=f"pv_plan_{pid}", tag=plan_tag, container=c1, disabled=client is None, type="primary",
+                         help=None if client else C.claude_hint()):
             with st.spinner("Claude đang đọc ảnh nền và dựng layout…"):
                 if act(lambda: st.session_state.__setitem__("pv_res", previz.plan_layouts(p, pid, client, C.DATA))):
                     r = st.session_state.pop("pv_res")
@@ -353,7 +374,8 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
                     st.toast(msg)
                     if r["moved"]:
                         st.session_state[f"pv_moved_{pid}"] = r["moved"]
-        if c2.button("🔍 Claude rà storyboard", key=f"pv_review_{pid}", disabled=client is None or not os.path.exists(board)):
+        if P.paid_button("🔍 Claude rà storyboard", key=f"pv_review_{pid}", tag=review_tag, container=c2,
+                         disabled=client is None or not os.path.exists(board)):
             with st.spinner("Claude đang rà lỗi liên tục…"):
                 act(lambda: previz.review_storyboard(p, pid, client, C.DATA))
         if client is None:

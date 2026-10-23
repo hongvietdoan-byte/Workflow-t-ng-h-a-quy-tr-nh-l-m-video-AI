@@ -178,7 +178,8 @@
       "byd_fields_a2c": false,
       "byd_fields_a2d": false,
       "byd_fields_a2e": false,
-      "byd_fields_a2f": false
+      "byd_fields_a2f": false,
+      "safe_paid_buttons": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -366,7 +367,8 @@
       "byd_fields_a2c": false,
       "byd_fields_a2d": false,
       "byd_fields_a2e": false,
-      "byd_fields_a2f": false
+      "byd_fields_a2f": false,
+      "safe_paid_buttons": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"
