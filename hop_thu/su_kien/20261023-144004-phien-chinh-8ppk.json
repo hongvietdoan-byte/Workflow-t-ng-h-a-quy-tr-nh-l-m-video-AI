@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T14:40:04.287846+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-M47B",
+  "to": "codex",
+  "title": "M4.7 phần GHI: bảng overrides C3-4 + siết 3 cổng Q6 (0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX23-M47B",
+  "priority": 2
+}

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-23T14:40:05.662318+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX23-M60-AUDIT",
+  "to": "codex",
+  "title": "M6.0 audit caller tạo job + profiling Dashboard, chỉ đọc (0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX23-M60-AUDIT",
+  "priority": 3
+}
