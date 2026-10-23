@@ -87,10 +87,12 @@ def test_real_map_expired_loose_and_verified_evidence_are_corrected():
         assert colors[item_id] != "vang", item_id
     # BYĐ chưa hiển thị trên Dashboard là khoảng trống thật và phải còn đỏ.
     assert colors["kb.byd"] == "do"
-    # Hai dấu bằng chứng này phải trỏ tới tên thật đang có trong mã, không giữ nhãn cũ sai.
+    # t.forms: BYĐ dạng nối thật qua kho_profile → character_forms.names_match (bằng chứng phải trỏ chỗ ĐỌC ý đồ, không chỉ hàm tồn tại).
     doc = PM.load()
     nodes = {n["id"]: n for n in doc["truong"]["nodes"]}
-    assert all(PM._evidence_ok(PM.ROOT, e, {}) for key in ("t.forms", "t.plate") for e in nodes[key]["evidence"])
+    assert all(PM._evidence_ok(PM.ROOT, e, {}) for e in nodes["t.forms"]["evidence"])
+    # t.plate: landmark_facts (số đo máy) CHƯA so với khung.moc_nen (ý đồ) — lỗ thật, phải còn đỏ (phiên chính 23/10).
+    assert colors["t.plate"] == "do"
 
 
 def test_live_mismatches_are_explained_and_never_auto_edit_the_plan():
