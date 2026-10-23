@@ -140,6 +140,8 @@ def main():
     start_background_watch()                             # 08/10: jobs at the provider are polled + downloaded even with every tab closed
     # 11/10: before the project check — the home screen (no project chosen) also starts it; dashboard/serve.py starts it with the server
     pid = global_bar(p)
+    from dashboard import paid_confirm                 # M8.0: việc đã duyệt đang chờ hết hạn "↩ Hoàn tác" — hiện ở MỌI màn (cả ⌂)
+    paid_confirm.undo_bar()
     if pid is None:
         return
     C.periodic("purge_trash", lambda: purge_trash(DATA))              # V4 5.3: housekeeping every 60 s, not on every click

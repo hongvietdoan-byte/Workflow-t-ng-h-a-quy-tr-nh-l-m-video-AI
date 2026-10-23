@@ -47,7 +47,10 @@ EXCEPTIONS = {
     "steps/step5.py::f'deliver_{pid}'": _PRICE_ONLY + " ('📦 Xuất bản' — Claude chỉ khi dịch phụ đề)",
     "steps/step5.py::f'mbrief_ai_{pid}'": _PRICE_ONLY, "steps/step5.py::f'sub_make_{pid}'": _PRICE_ONLY,
     "steps/step5.py::f'sfx_ai_go_{pid}'": _PRICE_ONLY, "steps/step5.py::f'editor_review_{pid}'": _PRICE_ONLY,
-    "steps/step5.py::f'sub_burn_{pid}'": "0 USD: in phụ đề với cues đã dịch truyền vào (delivery.subtitle_layer không gọi localize khi có cues)",
+    "quality_ui.py::f'qfinal_new_{scene_id}'": "giá + xác nhận có sẵn: nhãn/câu hỏi do new_final_texts dựng (chứa _usd_text) + confirm_all",
+    "quality_ui.py::f'qfinal_allnew_{pid}'": "giá + xác nhận có sẵn: nhãn/câu hỏi do new_final_texts dựng (chứa _usd_text) + confirm_all",
+    "design/screens/money_days.py::'md_new_go'": "0 USD: mở đợt ngân sách mới; `llm` ở đây là trần USD (số), không phải client",
+    "steps/step5.py::f'sub_burn_{pid}'":"0 USD: in phụ đề với cues đã dịch truyền vào (delivery.subtitle_layer không gọi localize khi có cues)",
 }
 # 6 chỗ thiếu giá + xác nhận (kế hoạch dòng 21) + nút duyệt gửi tiền (mục 8.4): phải có GIÁ + XÁC NHẬN, không được là ngoại lệ.
 M80_SPOTS = [("steps/step1_prep.py", "pv_plan_"), ("steps/step1_prep.py", "pv_review_"), ("change_review_ui.py", "_rerun_"),

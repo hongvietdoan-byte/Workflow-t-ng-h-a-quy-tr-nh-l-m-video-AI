@@ -13,6 +13,7 @@ S14.43 mục 5: a script with headings but thin (idea_to_script.sparse) → Clau
 "viết kịch bản chi tiết từ dàn ý này" typed in the chat (idea_to_script.expand_request, by rule) → the Biên kịch path with that outline."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard.steps.step1_v2 import cap, say  # noqa: F401
+from dashboard import paid_confirm as _P
 
 _SHOW_LINES, _SHOW_CHARS = 6, 400
 _KIND_TEXT = {"script": "KỊCH BẢN", "idea": "Ý TƯỞNG"}
@@ -22,7 +23,7 @@ def _keys(pid: int) -> dict:
     return {"text": f"box_text_{pid}", "mode": f"in_mode_{pid}", "wish": f"box_wish_{pid}", "file": f"box_file_{pid}",
             "pending": f"box_pending_{pid}", "ask": f"box_ask_{pid}", "chat": f"box_in_{pid}",
             "expand": f"box_expand_{pid}", "expand_off": f"box_expand_off_{pid}", "expand_msg": f"box_expand_msg_{pid}",
-            "chatask": f"box_chatask_{pid}"}
+            "chatask": f"box_chatask_{pid}", "chatsend": f"box_chatsend_{pid}"}
 
 
 def _take(p: Pipeline, pid: int, got) -> None:
@@ -188,7 +189,7 @@ def _command(p: Pipeline, pid: int, cmd: str, typed=None) -> None:
             return say_(f"✂ Đã phân tích và tách {_scene_count(p, pid)} cảnh (0 USD, code đọc tiêu đề cảnh — không gọi model).")
         return say_("Chưa tách được — xem lỗi ngay dưới. Chưa tốn gì.")
     if cmd == "cancel":
-        if ss.pop(k["chatask"], None) is not None:
+        if ss.pop(k["chatask"], None) is not None or ss.pop(k["chatsend"], None) is not None:
             return say_("Đã bỏ qua tin vừa rồi — chưa làm gì.")
         if typed is not None and not Chat.hard_cancel(typed) and (waiting_choice(pid) or text or file):
             # rà 09/10: "thôi" / "bỏ qua" không xóa kịch bản đang chờ — chỉ gõ đúng "hủy" (typed None = gọi cũ, giữ như trước)
@@ -336,6 +337,8 @@ def _cards(p: Pipeline, pid: int) -> None:
     pend, ask = ss.get(k["pending"]), ss.get(k["ask"])
     if ss.get(k["chatask"]):
         _chat_ask(p, pid)
+    if ss.get(k["chatsend"]):
+        _chat_send(p, pid)
     if pend:
         n = I.classify(pend).get("scenes", 0)
         with st.chat_message("assistant"):
@@ -360,17 +363,18 @@ def _cards(p: Pipeline, pid: int) -> None:
 def _chat_ask(p: Pipeline, pid: int) -> None:
     """Người dùng 06/10: tin nhắn chưa rõ ý (vd một ý tưởng ngắn không kèm câu yêu cầu) → HỎI LẠI bằng nút, chưa làm gì (0 USD).
     Chỉ nút 💬 gọi Claude (giá trên nhãn); 💡 / 📜 đi đúng luồng cũ (ý tưởng → Biên kịch với nút có giá; kịch bản → ▶ Phân tích)."""
-    from core import script_chat as Chat, cost
+    from core import script_chat as Chat
+    from dashboard import paid_confirm as P
     k, ss = _keys(pid), st.session_state
     text = ss.get(k["chatask"]) or ""
-    est = cost.llm_estimate(p.conn, Chat.STAGE, 1) or 0.0
+    est = _chat_tag(p)                                                 # M8.0: chưa có giá → nói "chưa có giá", không in 0.00
     with st.chat_message("assistant"):
         st.markdown("**Bạn muốn làm gì với tin này?** Mình chưa chắc nên hỏi lại — chưa có gì chạy, chưa tốn tiền.")
         a, b, c, d = st.columns([1.3, 1.3, 1.1, 0.7])
         if a.button("💡 Dùng làm ý tưởng", key=f"box_chatask_idea_{pid}", width="stretch"):
             _chat_choose(p, pid, "idea")
             st.rerun()
-        if b.button(f"💬 Hỏi Claude · ≈ ${est:.2f}", key=f"box_chatask_chat_{pid}", width="stretch"):
+        if P.paid_button("💬 Hỏi Claude", f"box_chatask_chat_{pid}", est, b, ask=False, width="stretch"):   # bước 2 của tin đã gõ
             ss.pop(k["chatask"], None)
             act(lambda: Chat.send(p, pid, text, llm_client(pid), record_user=False))
             st.rerun()
@@ -381,6 +385,39 @@ def _chat_ask(p: Pipeline, pid: int) -> None:
             ss.pop(k["chatask"], None)
             Chat.append(p, pid, "assistant", "Đã bỏ qua tin này — chưa làm gì.")
             st.rerun()
+
+
+def _chat_tag(p: Pipeline) -> str:
+    """Giá MỘT lượt chat Kịch bản (cost.llm_button_tag stage script_chat, tính dư) — trên nút "📨 Gửi" / "💬 Hỏi Claude"."""
+    from core import script_chat as Chat
+    try:
+        return cost.llm_button_tag(p.conn, Chat.STAGE, 1)
+    except Exception:  # noqa: BLE001 - nút vẫn hiện, nhãn nói thiếu giá
+        return " · Claude: chưa có giá (không ước tính được)"
+
+
+def _chat_send(p: Pipeline, pid: int) -> None:
+    """M8.0 (kế hoạch mục 8.5, cờ safe_paid_buttons): tin chat tự do KHÔNG tự gửi Claude khi Enter — chữ được giữ, gửi khi bấm
+    "📨 Gửi · ≈ X USD" (một lượt Claude, qua sổ chi); "Hủy" = bỏ, 0 USD. Cờ tắt: như cũ — Enter là gửi (không vẽ thẻ)."""
+    from core import script_chat as Chat
+    from dashboard import paid_confirm as P
+    k, ss = _keys(pid), st.session_state
+    safe = P.enabled()
+    row = None
+    if safe:
+        box = st.chat_message("assistant")
+        box.markdown("**Gửi tin này cho Claude?** Enter chỉ giữ chữ — chưa gửi, chưa tốn tiền.")
+        row = box.container(horizontal=True)
+    if not safe or P.paid_button("📨 Gửi", f"box_chatsend_go_{pid}", _chat_tag(p), row, ask=False, type="primary"):   # bước 2 của tin đã gõ
+        text = ss.pop(k["chatsend"], None)
+        if text:
+            with st.spinner("Claude đang trả lời…"):
+                act(lambda: Chat.send(p, pid, text, llm_client(pid), record_user=False))
+        st.rerun()
+    if row.button("Hủy", key=f"box_chatsend_no_{pid}"):
+        ss.pop(k["chatsend"], None)
+        Chat.append(p, pid, "assistant", "Đã bỏ tin này — chưa gửi Claude, 0 USD.")
+        st.rerun()
 
 
 def _chat_choose(p: Pipeline, pid: int, mode: str) -> None:
@@ -446,9 +483,9 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
             elif kind == "ask":                                       # người dùng 06/10: không chắc → hỏi lại, chưa làm gì, 0 USD
                 Chat.append(p, pid, "user", incoming)
                 ss[k["chatask"]] = incoming
-            elif kind == "chat":
-                with st.spinner("Claude đang trả lời…"):
-                    act(lambda: Chat.send(p, pid, incoming, llm_client(pid)))
+            elif kind == "chat":                                      # M8.0 (cờ safe_paid_buttons): Enter chỉ giữ chữ — gửi khi bấm
+                Chat.append(p, pid, "user", incoming)                  # "📨 Gửi · ≈ X USD" ở thẻ ngay dưới (_chat_send); cờ tắt: gửi ngay
+                ss[k["chatsend"]] = incoming
             else:
                 Chat.append(p, pid, "user", incoming or f"📎 {files[0].name}")
                 if kind == "edit":
@@ -490,7 +527,8 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         if not file and not text.strip() and not state.get("inputs") and not ss.get(k["pending"]) and not ss.get(k["ask"]) and not recent:
             with st.chat_message("assistant"):
                 st.markdown("Dán kịch bản (có tiêu đề **CẢNH 1 - …**) hoặc gõ vài dòng ý tưởng vào khung bên dưới; file thì thả vào khung. "
-                            "Kịch bản và ý tưởng được nhận diện miễn phí; chat tự do gửi ngay tới Claude (chi phí ở 💵).")
+                            "Kịch bản và ý tưởng được nhận diện miễn phí; chat tự do "
+                            + ("chỉ gửi Claude khi bấm “📨 Gửi” (giá ghi trên nút)." if _P.enabled() else "gửi ngay tới Claude (chi phí ở 💵)."))
         elif file or text.strip() or state.get("inputs"):
             with st.chat_message("assistant"):
                 c = I.classify(text if text.strip() else (state.get("inputs") or {}).get("idea", ""))

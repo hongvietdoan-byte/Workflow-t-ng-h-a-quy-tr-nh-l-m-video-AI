@@ -86,7 +86,8 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                 SB.note("⚠ Tự kiểm tra ảnh đã dừng", f"**Tự kiểm tra ảnh đã dừng**: {problem}", "sb-prog-autoqc", kind="warn")
             else:
                 st.warning(f"⚠ **Tự kiểm tra ảnh đã dừng**: {problem}")
-            if st.button("↻ Thử kiểm tra lại", key=f"autoqc_retry_{pid}"):
+            from dashboard import paid_confirm as P            # M8.0: gỡ dừng = vòng nền Claude chấm lại các ảnh chưa kiểm → giá + xác nhận
+            if P.paid_button("↻ Thử kiểm tra lại", f"autoqc_retry_{pid}", _qc_retry_tag(p, pid)):
                 autoqc.clear_error(pid)
                 st.rerun()
         if queued + running == 0:
@@ -108,6 +109,14 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
         else:
             st.info(queued_text(p, pid, queued))         # lỗi A (08/10): the real reason + "sẽ tự gửi khi …", never "bấm ▶ Gen"
             plate_retry_buttons(p, pid)
+
+
+def _qc_retry_tag(p: Pipeline, pid: int) -> str:
+    """M8.0: giá "↻ Thử kiểm tra lại" ảnh — mỗi ảnh chưa kiểm một lượt Claude QC (cost.llm_button_tag, tính dư)."""
+    try:
+        return cost.llm_button_tag(p.conn, "qc", max(1, autoqc.waiting(p.conn, pid)), images=2)
+    except Exception:  # noqa: BLE001 - nút vẫn hiện, nhãn nói thiếu giá
+        return " · Claude: chưa có giá (không ước tính được)"
 
 
 def plate_retry_buttons(p: Pipeline, pid: int) -> None:
@@ -799,11 +808,13 @@ def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> No
             if not gate_button:
                 if not v2:
                     c2.caption("Nút duyệt ở thanh hành động cuối lưới ảnh.")
-            elif c2.button("✔ Duyệt storyboard — gen video" + cost.video_batch_tag(p, pid), key=f"board_ok_{pid}", type="primary"):
-                autopilot.resume(p, pid, p.actor)
-                autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
-                C.log_ui(p, "gen_video", page="storyboard", project_id=pid, detail="duyệt storyboard → gen video (tự chạy)")
-                st.rerun()
+            else:
+                from dashboard import paid_confirm as P         # M8.0: giá + xác nhận + hẹn 30 s có ↩ Hoàn tác trước khi máy gửi
+                board_tag = cost.video_batch_tag(p, pid)
+                if not P.waiting(st.session_state, "resume", pid) and P.paid_button(
+                        "✔ Duyệt storyboard — gen video", f"board_ok_{pid}", board_tag, c2, type="primary", yes_label="Có, duyệt & gửi"):
+                    P.schedule_resume(p, pid, "Duyệt storyboard → gen video", board_tag, "duyệt storyboard → gen video (tự chạy)")
+                    st.rerun()
         per_row = 6
         for k in range(0, len(rows), per_row):
             cols = st.columns(per_row)

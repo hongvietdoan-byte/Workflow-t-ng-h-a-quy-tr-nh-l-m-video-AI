@@ -3,6 +3,7 @@ sửa + nút "✓ Đã sửa" / "Bỏ qua" (mục rà LỖI: "↻ Rà lại · �
 import streamlit as st
 
 from core import change_review as CR
+from dashboard import paid_confirm as P
 
 SOURCE_LABEL = {"claude": "Claude", CR.FAIL_SOURCE: "rà soát lỗi"}
 
@@ -46,8 +47,8 @@ def render(p, pid: int, who=None, read_only: bool = False, key: str = "cr") -> N
             if b.button("Bỏ qua", key=f"{key}_skip_{r['id']}", help="Chấp nhận lệch này — shot không bị giữ gen vì mục này nữa"):
                 CR.close(p.conn, r["id"], "dismissed", who)
                 st.rerun()
-            if fail and c.button("↻ Rà lại" + rerun_tag, key=f"{key}_rerun_{r['id']}",
-                                 help="G35: đã nạp tiền / hết lỗi — rà lại thay đổi này (giữ gen tới khi rà xong; một lời gọi Claude)"):
+            if fail and P.paid_button("↻ Rà lại", f"{key}_rerun_{r['id']}", rerun_tag, c,     # M8.0: giá + xác nhận một lần
+                                      help="G35: đã nạp tiền / hết lỗi — rà lại thay đổi này (giữ gen tới khi rà xong; một lời gọi Claude)"):
                 try:
                     CR.rerun_failed(p.conn, r["id"], who)
                     st.rerun()
