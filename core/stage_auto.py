@@ -1044,7 +1044,7 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
         return out
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         st = json.load(f)
-    bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+    bl = round_blocking(obj["blocking"], inputs)
     solve, v2 = tool().v2_run(bl, obj["shot_specs"], rd, k1, m3=seg["entry"], reach=True, log=log)
     draw_beats(rd, log)
     try:
@@ -1181,6 +1181,29 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
     return out_res
 
 
+def round_blocking(bl: Dict, inputs: Dict) -> Dict:
+    """blocking.json của một lượt (dạng mọi người đọc: world_map, change_review, shot_lessons, stage_solver): dàn cảnh + place / spot /
+    aspect của đầu vào."""
+    return dict(bl, place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+
+
+def fill_round_files(rd: str) -> List[str]:
+    """Bù blocking.json + shot_specs.json còn thiếu của một lượt TỪ answer.json + inputs.json của chính lượt đó (23/10: crew/final
+    trước bản sửa không ghi hai tệp này → cảnh rơi khỏi bản đồ 3D). Không ghi đè tệp đã có. Trả tên tệp đã ghi."""
+    with open(os.path.join(rd, "answer.json"), encoding="utf-8") as f:
+        ans = json.load(f)
+    with open(os.path.join(rd, "inputs.json"), encoding="utf-8") as f:
+        inputs = json.load(f)
+    wrote = []
+    for fn, data in (("blocking.json", round_blocking(ans["blocking"], inputs)), ("shot_specs.json", {"shots": ans["shot_specs"]})):
+        path = os.path.join(rd, fn)
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+            wrote.append(fn)
+    return wrote
+
+
 # ---- CHIA VAI (cờ stage_crew — docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md) ----------------------------------------------------
 CREW_DIR = "crew"
 
@@ -1226,7 +1249,7 @@ def _crew_measure(ctx: Dict, log: Callable[[str], None]):
         rd = os.path.join(ctx["crew"], f"m{n}")
         os.makedirs(rd, exist_ok=True)
         inputs = ctx["inputs"]
-        full = dict(bl, place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+        full = round_blocking(bl, inputs)
         for fn, data in (("answer.json", {"blocking": bl, "shot_specs": specs}), ("blocking.json", full),
                          ("shot_specs.json", {"shots": specs}), ("inputs.json", inputs)):
             with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
@@ -1448,7 +1471,11 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
     picked_spec = {e["shot"]: e.get("spec") for e in v2["shots"] if e.get("spec")}
     specs_ = [{k: v for k, v in (picked_spec.get(sp["shot"]) or sp).items() if k not in ("_near", "doi_phia")}
               for sp in state["specs"]]                   # rà 16/10: đặc tả của LẦN ĐO ĐƯỢC CHỌN (rerender giải lại đúng máy đã chốt)
-    for fn, data in (("answer.json", {"blocking": _sc.measure_blocking(state), "shot_specs": specs_}), ("inputs.json", inputs),
+    bl_ = _sc.measure_blocking(state)
+    # 23/10: final là lượt result.json trỏ tới → phải có blocking.json + shot_specs.json như lượt đo m<n> (world_map / change_review /
+    # shot_lessons đọc; thiếu thì cảnh chốt qua chia vai rơi khỏi bản đồ 3D — #31 cảnh 3)
+    for fn, data in (("answer.json", {"blocking": bl_, "shot_specs": specs_}), ("inputs.json", inputs),
+                     ("blocking.json", round_blocking(bl_, inputs)), ("shot_specs.json", {"shots": specs_}),
                      ("v2.json", {"shots": [{k: v for k, v in e.items() if not k.startswith("_")} for e in v2["shots"]],
                                   "picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}})):
         with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:

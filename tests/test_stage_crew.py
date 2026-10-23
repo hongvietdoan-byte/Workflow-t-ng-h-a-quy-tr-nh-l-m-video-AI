@@ -226,6 +226,52 @@ class CrewDbTests(Base):
         self.assertEqual(res["round"], "crew/final")
         self.assertTrue(stage_auto.result_round(self.data, pid, seg).replace(os.sep, "/").endswith("crew/final"))
 
+    def test_final_round_has_blocking_and_specs_for_world_map(self):
+        # 23/10 (#31 cảnh 3): crew/final là lượt result.json trỏ tới nhưng thiếu blocking.json + shot_specs.json → world_map không
+        # dựng 3D. Final phải ghi cùng dạng lượt đo m<n>: blocking đã chốt + place/spot/aspect, specs của lần đo được chọn.
+        from core import world_map as W
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        for obj in (blocking(), specs(), review(*[{"shot": n, "ket_luan": "khop"} for n in (1, 2, 3)])):
+            stage_auto.crew_answer(self.p.conn, pid, seg, self.data, obj)
+        stage_auto.crew_user_verdict(self.p.conn, pid, seg, self.data, approve=True)
+        out = os.path.join(stage_auto.base_dir(self.data, pid, seg["stage"]), "doan_1")
+        fin = os.path.join(out, "crew", "final")
+        m1 = os.path.join(out, "crew", "m1")
+        rd = lambda d, fn: json.load(open(os.path.join(d, fn), encoding="utf-8"))
+        self.assertEqual(rd(fin, "blocking.json"), rd(m1, "blocking.json"))       # cùng dạng nhánh m<n> (một lần đo)
+        self.assertEqual([s["shot"] for s in rd(fin, "shot_specs.json")["shots"]], [1, 2, 3])
+        inputs = rd(fin, "inputs.json")
+        self.assertEqual({k: rd(fin, "blocking.json")[k] for k in ("place", "spot", "aspect")},
+                         {k: inputs[k] for k in ("place", "spot", "aspect")})
+        self.assertEqual(stage_auto.fill_round_files(fin), [])                    # đã đủ: không ghi đè
+        got, why = W.round_dir(out)
+        self.assertIsNone(why)
+        self.assertEqual(os.path.normpath(got), os.path.normpath(fin))
+        k1 = stage_auto._crew_ctx(self.p.conn, pid, seg, self.data)["k1"]   # khung giả không chép stage.json vào lần đo
+        m = W.build(1, k1_dir=k1, seg_dir=out)
+        self.assertEqual(m["kind"], "3d")
+        self.assertTrue(any(e["entity_id"] == "kelly" for e in m["entities"]))
+
+    def test_fill_round_files_from_answer_and_inputs(self):
+        # bù dữ liệu cũ (crew/final trước bản sửa): dựng từ answer.json + inputs.json của CHÍNH lượt, không ghi đè tệp đã có
+        import tempfile
+        d = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, d, True)
+        bl = blocking()["blocking"]
+        sp = specs()["shot_specs"]
+        inputs = {"place": "kho", "spot": "giua", "aspect": "9:16"}
+        json.dump({"blocking": bl, "shot_specs": sp}, open(os.path.join(d, "answer.json"), "w", encoding="utf-8"))
+        json.dump(inputs, open(os.path.join(d, "inputs.json"), "w", encoding="utf-8"))
+        self.assertEqual(stage_auto.fill_round_files(d), ["blocking.json", "shot_specs.json"])
+        got = json.load(open(os.path.join(d, "blocking.json"), encoding="utf-8"))
+        self.assertEqual(got, dict(bl, **inputs))
+        self.assertEqual(json.load(open(os.path.join(d, "shot_specs.json"), encoding="utf-8")), {"shots": sp})
+        open(os.path.join(d, "shot_specs.json"), "w", encoding="utf-8").write('{"shots": []}')
+        os.remove(os.path.join(d, "blocking.json"))
+        self.assertEqual(stage_auto.fill_round_files(d), ["blocking.json"])
+        self.assertEqual(json.load(open(os.path.join(d, "shot_specs.json"), encoding="utf-8")), {"shots": []})
+
     def test_user_returns_twice_db_untouched(self):
         pid = self.project()
         seg = stage_auto.segments(self.p.conn, pid)[0]

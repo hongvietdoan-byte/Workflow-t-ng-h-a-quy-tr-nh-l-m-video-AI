@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T18:25:30.224662+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Tiến độ M47B: thêm UI override độc lập dashboard/qc_overrides_ui.py (xác minh session + quyền xem/sửa, cờ OFF no-op, không tự migration) và cổng video: khi qc_overrides bật thì lý do ≥15 ký tự, thiếu token/ghi audit lỗi thì không mở cổng; flag OFF giữ ngưỡng cũ 3 ký tự. Vòng test đỏ→xanh: module UI thiếu lúc đầu và 2 regression mới đỏ; targeted core/UI + video_gate + evidence + M47A hiện 71 passed/13.68s, DB :memory:/tmp, 0 USD. Chưa sửa step1/step2/step4 hay tích hợp callers khi M80C chưa gộp; chưa commit code."
+}
