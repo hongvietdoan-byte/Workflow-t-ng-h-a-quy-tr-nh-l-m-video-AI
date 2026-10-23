@@ -337,16 +337,19 @@ def resend_block(entry: Dict, by_person: bool = False) -> Optional[str]:
 
 
 def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True, slow=None, by_person: bool = False,
-             settle: bool = True, p=None) -> Dict:
+             settle: bool = True, p=None, plan_only: bool = False) -> Dict:
     """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers],
     "held": [why a failed line was not resent]}. slow: scene ids whose lines are sent with a trailing "…" (a redo of a line whose end
     was cut). A failed line with unchanged text/voice is resent only as `resend_block` allows (the automatic run used to delete and
-    resend it on every tick, uncounted)."""
-    if p is not None:
+    resend it on every tick, uncounted).
+    M8.0c `plan_only=True`: KHÔNG gửi, KHÔNG sửa thư viện âm thanh — trả thêm "plan" = đúng các câu lượt này sẽ gửi (xem trước lô 🎙 của
+    Dashboard dùng chính vòng lọc này, không tính song song)."""
+    plan = [] if plan_only else None
+    if p is not None and not plan_only:
         access.need_edit(p, project_id, "tạo giọng")
     from . import features, voice_casting, voice_direction
     directory = audio_lib.assets_dir(data_dir, project_id)
-    if settle:                                                # a redo decided since (voice_check.settle_redos): old voice back / gone
+    if settle and not plan_only:                              # a redo decided since (voice_check.settle_redos): old voice back / gone
         from . import voice_check
         voice_check.settle_redos(directory)
     have = {(e["scene_id"], e.get("line")): (i, e) for i, e in _line_items(directory)}
@@ -371,6 +374,9 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             if (e.get("profile_speed") or None) != own_speed:  # 14/10: the profile's speed changed -> the old voice is stale, but
                 # rà 14/10: only the person's 🎙 click re-reads it (autopilot / pilot_run call here for OTHER missing lines: no re-pay)
                 same = same and not by_person and e["state"] in ("running", "succeeded")
+            if same and plan_only and e["state"] in ("running", "succeeded"):
+                skipped += 1                                 # (đổi cao độ = ffmpeg 0 USD, không phải câu gửi TTS)
+                continue
             if same and e["state"] in ("running", "succeeded") and (e.get("pitch_semitones") or None) != (pitch or None):
                 # S14.26: only the variant's pitch changed (or was lost) — ffmpeg from the kept original, 0 USD, never a new TTS
                 e["pitch_semitones"] = pitch or None
@@ -389,6 +395,11 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
                     held.append(f"S{ln['idx']:02d} {ln['speaker'] or ''}: {why}")
                     continue
                 resends = int(e.get("resends") or 0) + (0 if e.get("refused") else 1)
+        if plan_only:
+            plan.append({"scene_id": ln["scene_id"], "idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
+                         "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "new": old is None})
+            continue
+        if old is not None:
             audio_lib.remove(directory, i)                  # the line or the voice changed (or an allowed resend): make it again
             have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
@@ -412,7 +423,10 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
                              model, None, ledger=(conn, project_id) if ledger else None,
                              extra=extra, params=line_params(how, model, ln["voice"]))
         sent += 1
-    return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice), "held": held}
+    out = {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice), "held": held}
+    if plan_only:
+        out["plan"] = plan
+    return out
 
 
 def scene_seconds(conn, project_id: int, data_dir: str) -> Dict[int, float]:

@@ -278,7 +278,6 @@ def _fit_review(p: Pipeline, pid: int, col) -> None:
 
 def voice_panel(p: Pipeline, pid: int) -> None:
     """Character voices for the dialogue (TTS is the main path for Vietnamese lines): make them, hear them, size the clips."""
-    from core import audio_lib, voice
     stat = voice.status(p.conn, pid, C.DATA)
     if not stat["total"]:
         return
@@ -307,23 +306,13 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                           "(làm lại clip), shot thường xem nút ⏱ thời lượng bên dưới." if clipped else ""))
         c1, c2, c3 = st.columns(3)
         todo = stat["missing"] + stat.get("failed", 0) + stat.get("speed_changed", 0)
-        planned = voice.planned_lines(p.conn, pid)
-        entries = {(e.get("scene_id"), e.get("line")): e for e in audio_lib.load(audio_lib.assets_dir(C.DATA, pid))
-                   if e.get("kind") == "tts" and e.get("scene_id") and e.get("state") != "superseded"}
-        voice_items = []
-        for line in planned:
-            entry = entries.get((line["scene_id"], line["line"]))
-            stale = entry is None or entry.get("text") != line["text"] or entry.get("state") == "failed"
-            if not stale and entry.get("state") in ("running", "succeeded") and line.get("voice"):
-                stale = (entry.get("profile_speed") or None) != voice.profile_speed(line["voice"])
-            if stale:
-                reason = "chưa chọn giọng" if not line.get("voice") else "câu thiếu/lỗi/đổi tốc độ"
-                voice_items.append(f"S{line['idx']:02d} · {line.get('speaker') or 'chưa rõ vai'} · {reason}: {line['text']}")
         from dashboard import paid_batch_preview as BP
-        if BP.paid_batch_button(f"🎙 Tạo giọng cho {todo} câu", key=f"tts_gen_{pid}",
-                     tag=budget.audio_tag(p.conn, todo, "eleven_v3"), container=c1, p=p, pid=pid,
+        voice_items = BP.voice_items(p.conn, pid, C.DATA) if P.enabled() else []   # rà M8.0c: đúng tập generate sẽ gửi
+        n_tts = len(voice_items) if P.enabled() else todo                          # cờ TẮT: nhãn + giá như cũ
+        if BP.paid_batch_button(f"🎙 Tạo giọng cho {n_tts} câu", key=f"tts_gen_{pid}",
+                     tag=budget.audio_tag(p.conn, n_tts, "eleven_v3"), container=c1, p=p, pid=pid,
                      action="voice", items=voice_items, preview=voice_items,
-                     type="primary", disabled=provider is None or not todo,
+                     type="primary", disabled=provider is None or not n_tts,
                      help="Mỗi câu một lần gọi TTS (tốn credit âm thanh; âm thanh chưa có giá nên trần đợt thử tính theo số lượt). "
                           "Câu đã có giọng và không đổi thì bỏ qua. Câu LỖI được gửi lại y nguyên — chỉ có ích khi lỗi do nhà cung cấp; "
                           "lỗi do câu/giọng thì sửa trước."):

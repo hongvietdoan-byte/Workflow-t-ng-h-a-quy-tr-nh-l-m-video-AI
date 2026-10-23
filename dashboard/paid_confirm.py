@@ -100,8 +100,8 @@ def schedule(ss, action: str, pid: int, what: str, tag: str = "", now: Optional[
     """Ghi một việc chờ hết hạn hoàn tác vào `ss` (session_state). Cùng việc + cùng dự án đang chờ → giữ mục cũ (bấm hai lần không
     gửi hai lần). Trả id mục."""
     items = ss.setdefault(UNDO_KEY, {})
-    for uid, it in items.items():
-        if it["action"] == action and it["pid"] == pid:
+    for uid, it in items.items():          # rà M8.0c: lô trả phí khác loại (ảnh / clip / giọng / nhạc) cùng dự án là việc KHÁC
+        if it["action"] == action and it["pid"] == pid and it.get("batch_action") == extra.get("batch_action"):
             return uid
     uid = uuid.uuid4().hex[:10]
     items[uid] = dict(extra, action=action, pid=pid, what=what, tag=tag, not_before=(now or time.time()) + UNDO_SEC)

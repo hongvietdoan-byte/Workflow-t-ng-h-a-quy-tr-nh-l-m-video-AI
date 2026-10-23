@@ -16,7 +16,8 @@ DASH = os.path.join(ROOT, "dashboard")
 PAID_CALLS = {"autopilot.resume", "previz.plan_layouts", "previz.review_storyboard", "CR.rerun_failed", "autoqc.clear_error",
               "autoqc.clear_video_error", "Chat.send", "P.schedule_resume", "paid_confirm.schedule_resume", "autopilot.start",
               "C.llm", "llm_client", "p.retry", "p.reject", "p.reopen_approved", "p.restart_job",
-              "regen.regenerate_video", "voice.generate", "voice.preview", "music.submit_drafts"}
+              "regen.regenerate_video", "voice.generate", "voice.preview", "music.submit_drafts",
+              "end_frames.redo"}   # rà M8.0c: vẽ (lại) khung cuối = gen ảnh trả phí
 # Đuôi tên lời gọi tốn tiền bất kể gốc: nhả việc đã xếp hàng, khởi chạy autopilot nền.
 PAID_SUFFIXES = (".submit_pending", "autopilot_manager().start")
 MONEY_ARGS = {"client", "llm", "runner"}
@@ -69,6 +70,7 @@ M80C_SPOTS = [
     ("steps/step4.py", "btn_bad_retry"), ("steps/step4.py", "stale_requeue_"), ("steps/step4.py", "f'vregen_{jid}'"),
     ("steps/step4.py", "f'vr_rej_{jid}'"), ("steps/step4.py", "f'vrs_{jid}'"),
     ("steps/step3.py", "tts_gen_"), ("steps/step1_characters.py", "vprev_"), ("steps/step5.py", "mdraft_"),
+    ("end_frame_ui.py", "efr_"),                     # rà M8.0c: nút vẽ khung cuối còn sót (chỉ có giá, chưa xác nhận)
 ]
 # M8.0b E2: nút "Duyệt tất cả" (duyệt hết) — (file, khóa, loại approve_preview.KINDS)
 APPROVE_SITES = [("steps/step2.py", "approve_all", "images"), ("design/screens/storyboard_cards.py", "approve_all", "images"),
@@ -638,6 +640,86 @@ class PaidBatchButtonApp(unittest.TestCase):
         self.assertIn("đã đổi", message)
         eligible.assert_not_called()
         pipeline.retry.assert_not_called()
+
+
+class M80cReviewFixes(unittest.TestCase):
+    """Rà kỹ M8.0c (phiên chính 23/10): xem trước 🎙 = đúng tập voice.generate gửi; lô khác loại không bị nuốt; nhạc không bị chặn
+    nhầm khi người dùng đã rời màn."""
+
+    def _voice_project(self):
+        import json as _json
+        import shutil
+        import tempfile
+        from core import audio_lib, music, voice
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("m80c")
+        for i, (who, text) in enumerate([("KELLY", "Đi thôi."), ("KELLY", "Nhanh lên."), ("BOB", "Chờ đã.")], 1):
+            sid = p.create_scene(pid, i, f"s{i}")
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                           (_json.dumps({"shot_no": i, "dialogue": [{"speaker": who, "text": text}]}, ensure_ascii=False), sid))
+        for name in ("KELLY", "BOB"):
+            p.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?, ?, 'x')", (pid, name))
+        p.conn.commit()
+        voice.set_profile(p.conn, pid, "KELLY", {"voice_id": 71, "voice_name": "Kelly"})
+        data = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, data, True)
+        audio = music.MockAudioProvider()
+        voice.generate(p.conn, pid, audio, data, ledger=False, scene_ids=[p.conn.execute(
+            "SELECT id FROM scenes WHERE project_id=? AND idx=1", (pid,)).fetchone()["id"]])
+        audio_lib.refresh(audio, audio_lib.assets_dir(data, pid))
+        return p, pid, data, audio
+
+    def test_voice_preview_is_exactly_what_generate_sends(self):
+        from core import audio_lib, voice
+        from dashboard import paid_batch_preview as B
+        p, pid, data, audio = self._voice_project()
+        before = audio_lib.load(audio_lib.assets_dir(data, pid))
+        sent = mock.Mock(side_effect=AssertionError("plan_only không được gọi nhà cung cấp"))
+        with mock.patch.object(audio_lib, "submit_tts", sent):
+            items = B.voice_items(p.conn, pid, data)
+        self.assertEqual(audio_lib.load(audio_lib.assets_dir(data, pid)), before, "xem trước không được sửa thư viện âm thanh")
+        self.assertEqual(len(items), 1, items)                 # BOB chưa có giọng → không gửi, không nằm trong xem trước
+        self.assertIn("Nhanh lên.", items[0])
+        r = voice.generate(p.conn, pid, audio, data, ledger=False, by_person=True)
+        self.assertEqual(r["sent"], len(items))
+
+    def test_voice_batch_refuses_when_list_changed(self):
+        from core import access, audio_lib, music
+        from dashboard import paid_batch_preview as B
+        p, pid, data, audio = self._voice_project()
+        it = {"pid": pid, "batch_action": "voice", "data_dir": data, "fp": "x", "items": ["câu khác"], "params": {}}
+        with mock.patch.object(access, "need_edit"), mock.patch.object(B, "fingerprint", return_value="x"),                 mock.patch.object(music, "audio_provider", return_value=audio),                 mock.patch.object(audio_lib, "submit_tts") as sent:
+            msg = B.run(p, it)
+            self.assertIn("đã đổi", msg)
+            sent.assert_not_called()
+            it["items"] = B.voice_items(p.conn, pid, data)          # đúng tập đã xem → gửi đúng 1 câu
+            self.assertEqual(B.run(p, it), "")
+            self.assertEqual(sent.call_count, 1)
+
+    def test_two_batch_kinds_same_project_both_scheduled(self):
+        from dashboard import paid_confirm as P
+        ss = {}
+        a = P.schedule(ss, "paid_batch", 7, "ảnh", batch_action="retry_images", items=[1])
+        b = P.schedule(ss, "paid_batch", 7, "giọng", batch_action="voice", items=["x"])
+        self.assertNotEqual(a, b, "lô giọng không được bị nuốt vào lô ảnh đang chờ")
+        self.assertEqual(P.schedule(ss, "paid_batch", 7, "ảnh", batch_action="retry_images", items=[1]), a)   # bấm 2 lần = 1 mục
+        self.assertEqual(P.schedule(ss, "resume", 7, "r"), P.schedule(ss, "resume", 7, "r"))
+
+    def test_music_not_refused_after_leaving_screen(self):
+        from core import access, music
+        from dashboard import paid_batch_preview as B
+        it = {"pid": 7, "batch_action": "music", "data_dir": "d", "fp": "x", "items": ["b"],
+              "params": {"prompt": "p", "length_ms": 3000, "instrumental": True, "count": 1,
+                         "settings": {"prompt": "p"}, "session_keys": {"prompt": "mprompt_7"}}}
+        pipe = mock.Mock(actor="ep")
+        with mock.patch.object(access, "need_edit"), mock.patch.object(B, "fingerprint", return_value="x"),                 mock.patch.object(music, "audio_provider", return_value=object()),                 mock.patch.object(music, "project_dirs", return_value=("dr", "x")),                 mock.patch.object(music, "submit_drafts") as sub, mock.patch.object(B.st, "session_state", {}):
+            self.assertEqual(B.run(pipe, it), "")
+        sub.assert_called_once()
+        with mock.patch.object(access, "need_edit"), mock.patch.object(B, "fingerprint", return_value="x"),                 mock.patch.object(music, "audio_provider", return_value=object()),                 mock.patch.object(music, "submit_drafts") as sub2, mock.patch.object(B.st, "session_state", {"mprompt_7": "khác"}):
+            self.assertIn("đã đổi", B.run(pipe, it))
+        sub2.assert_not_called()
 
 
 if __name__ == "__main__":

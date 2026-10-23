@@ -27,6 +27,14 @@ def fingerprint(p, pid, action, data_dir):
     return hashlib.sha256(raw).hexdigest()
 
 
+def voice_items(conn, pid, data_dir):
+    """Đúng các câu 🎙 sẽ gửi TTS — từ chính vòng lọc của voice.generate (plan_only), không tính song song (rà M8.0c)."""
+    from core import voice
+    plan = voice.generate(conn, pid, None, data_dir, by_person=True, plan_only=True)["plan"]
+    return [f"S{ln['idx']:02d} · {ln.get('speaker') or 'chưa rõ vai'} · {'câu mới' if ln['new'] else 'đọc lại (đổi/lỗi/tốc độ)'}: "
+            f"{ln['text']}" for ln in plan]
+
+
 def paid_batch_button(label, key, tag, container=None, *, p, pid, action, items, preview=None, params=None, **kwargs):
     """True chỉ nhánh OFF để caller chạy nguyên code cũ. ON luôn hẹn, không chạy caller."""
     if not P.enabled():
@@ -46,6 +54,12 @@ def paid_batch_button(label, key, tag, container=None, *, p, pid, action, items,
             box.caption(str(item))
         box.caption(f"Tổng {len(items)} mục{tag or ' · chưa có giá'}")
     if P.paid_button(label, key=key, tag=tag, container=box, **kwargs):
+        same = [it for it in P.pending(ss, pid) if it["action"] == "paid_batch" and it.get("batch_action") == action]
+        if same and (same[0].get("items"), same[0].get("params")) != (items, params):
+            # rà M8.0c: lô cùng loại đang chờ hoàn tác → KHÔNG thay im lặng; nói rõ, người dùng hoàn tác lô cũ rồi bấm lại
+            ss["_paid_undo_note"] = f"Chưa hẹn lô mới “{label.strip()}”: lô cùng loại đang chờ hoàn tác — bấm ↩ Hoàn tác rồi xác nhận lại."
+            ss.pop(saved_key, None)
+            st.rerun()
         P.schedule(ss, "paid_batch", pid, label, tag, actor=p.actor, user=C.access_user(),
                    batch_action=action, items=items, params=params, fp=fp, data_dir=C.DATA,
                    event="hen_gui_lo", page="storyboard", done="Đã xử lý lô")
@@ -90,15 +104,20 @@ def run(p, it):
         if action == "music":
             keys = a.get("session_keys") or {}
             settings = a.get("settings") or {}
-            if any(st.session_state.get(key) != settings.get(name) for name, key in keys.items()):
+            # ô đã rời màn (đổi bước) thì Streamlit xóa khóa → không coi là "đã đổi"; ô còn trên màn mà khác → dừng
+            if any(key in st.session_state and st.session_state[key] != settings.get(name) for name, key in keys.items()):
                 return "Không tạo nhạc: brief hoặc số bản đã đổi trong lúc chờ hoàn tác — xem lại và xác nhận lại."
         provider = music.audio_provider()
         if provider is None:
             return "Không gửi: chưa cấu hình nhà cung cấp âm thanh."
         if action == "voice":
-            voice.generate(p.conn, pid, provider, data_dir, by_person=True, p=p)
-        else:
-            drafts, _ = music.project_dirs(data_dir, pid)
-            music.submit_drafts(provider, drafts, a["prompt"], a["length_ms"], a["instrumental"], a["count"],
-                                ledger=(p.conn, pid), p=p, project_id=pid)
+            from core import audio_lib, voice_check
+            voice_check.settle_redos(audio_lib.assets_dir(data_dir, pid))     # như generate(settle=True), làm TRƯỚC khi so danh sách
+            if voice_items(p.conn, pid, data_dir) != it["items"]:
+                return "Không gửi: danh sách câu sẽ tạo giọng đã đổi — xem lại và xác nhận lại."
+            voice.generate(p.conn, pid, provider, data_dir, by_person=True, p=p, settle=False)
+            return ""
+        drafts, _ = music.project_dirs(data_dir, pid)
+        music.submit_drafts(provider, drafts, a["prompt"], a["length_ms"], a["instrumental"], a["count"],
+                            ledger=(p.conn, pid), p=p, project_id=pid)
     return ""
