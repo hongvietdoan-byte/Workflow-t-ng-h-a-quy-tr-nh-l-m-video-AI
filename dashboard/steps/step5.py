@@ -157,7 +157,21 @@ def step5a(p: Pipeline, pid: int):
                 instrumental = c2.checkbox("Không lời (instrumental)", brief["instrumental"], key=f"minst_{pid}")
                 count = c3.number_input("Số bản nháp", 1, 5, 3, key=f"mcount_{pid}")
                 b1, b2 = st.columns(2)
-                if b1.button(f"✨ Tạo {int(count)} bản nháp" + budget.audio_tag(p.conn, int(count), "music_v2"), type="primary", disabled=not prompt.strip(), key=f"mdraft_{pid}"):
+                from dashboard import paid_batch_preview as BP
+                music_settings = {"prompt": prompt, "length_seconds": int(seconds),
+                                  "instrumental": bool(instrumental), "count": int(count)}
+                music_items = [f"Bản nháp {i + 1} · {int(seconds)} giây · "
+                               + ("không lời" if instrumental else "có lời") + f" · {prompt.strip()}"
+                               for i in range(int(count))]
+                if BP.paid_batch_button(f"✨ Tạo {int(count)} bản nháp", key=f"mdraft_{pid}",
+                                     tag=budget.audio_tag(p.conn, int(count), "music_v2"), type="primary",
+                                     disabled=not prompt.strip(), container=b1, p=p, pid=pid, action="music",
+                                     items=music_items, preview=music_items,
+                                     params={"prompt": prompt, "length_ms": int(seconds) * 1000,
+                                             "instrumental": bool(instrumental), "count": int(count),
+                                             "settings": music_settings,
+                                             "session_keys": {"prompt": f"mprompt_{pid}", "length_seconds": f"mlen_{pid}",
+                                                              "instrumental": f"minst_{pid}", "count": f"mcount_{pid}"}}):
                     n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count), ledger=(p.conn, pid),
                                              p=p, project_id=pid)
                     st.toast(f"Đã gửi {n} bản")

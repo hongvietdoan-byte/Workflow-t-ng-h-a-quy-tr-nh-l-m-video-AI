@@ -306,7 +306,13 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                           "(làm lại clip), shot thường xem nút ⏱ thời lượng bên dưới." if clipped else ""))
         c1, c2, c3 = st.columns(3)
         todo = stat["missing"] + stat.get("failed", 0) + stat.get("speed_changed", 0)
-        if c1.button(f"🎙 Tạo giọng cho {todo} câu" + budget.audio_tag(p.conn, todo, "eleven_v3"), key=f"tts_gen_{pid}", type="primary", disabled=provider is None or not todo,
+        from dashboard import paid_batch_preview as BP
+        voice_items = BP.voice_items(p.conn, pid, C.DATA) if P.enabled() else []   # rà M8.0c: đúng tập generate sẽ gửi
+        n_tts = len(voice_items) if P.enabled() else todo                          # cờ TẮT: nhãn + giá như cũ
+        if BP.paid_batch_button(f"🎙 Tạo giọng cho {n_tts} câu", key=f"tts_gen_{pid}",
+                     tag=budget.audio_tag(p.conn, n_tts, "eleven_v3"), container=c1, p=p, pid=pid,
+                     action="voice", items=voice_items, preview=voice_items,
+                     type="primary", disabled=provider is None or not n_tts,
                      help="Mỗi câu một lần gọi TTS (tốn credit âm thanh; âm thanh chưa có giá nên trần đợt thử tính theo số lượt). "
                           "Câu đã có giọng và không đổi thì bỏ qua. Câu LỖI được gửi lại y nguyên — chỉ có ích khi lỗi do nhà cung cấp; "
                           "lỗi do câu/giọng thì sửa trước."):

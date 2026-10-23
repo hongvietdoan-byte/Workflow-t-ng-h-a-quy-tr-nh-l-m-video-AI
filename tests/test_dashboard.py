@@ -206,6 +206,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual(Pipeline(connect(self.db)).project(pid)["paused"], 1)
 
     def test_music_step_with_mock_audio_creates_and_selects_draft(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0c cờ tắt: bấm là chạy như cũ (cờ bật: tests/test_safe_paid_buttons.py)
         self.seed()
         os.environ["AUDIO_PROVIDER"] = "mock"
         try:
@@ -483,6 +484,7 @@ class DashboardSmokeTests(unittest.TestCase):
         return p, pid, vid, clip
 
     def test_regenerate_button_replaces_delete_for_a_finished_video(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0c cờ tắt: bấm là chạy như cũ (cờ bật: tests/test_safe_paid_buttons.py)
         p, pid, vid, clip = self._finished_video()
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
@@ -834,6 +836,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertIn("Rồng lửa", names)
 
     def test_escalated_image_offers_a_restart_and_an_approved_one_can_be_reopened(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0c cờ tắt: bấm là chạy như cũ (cờ bật: tests/test_safe_paid_buttons.py)
         from core.llm_io import lock_character_bible
         p, pid = self.seed()
         lock_character_bible(p, pid)
@@ -976,6 +979,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible
 
     def test_music_can_be_previewed_over_the_clips(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0c cờ tắt: bấm là chạy như cũ (cờ bật: tests/test_safe_paid_buttons.py)
         from unittest import mock
         self.seed()
         videos = os.path.join(self.tmp, "projects", "1", "videos")

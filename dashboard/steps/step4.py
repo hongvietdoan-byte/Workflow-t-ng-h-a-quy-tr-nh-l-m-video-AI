@@ -219,7 +219,10 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     failed = batch.provider_failures(p, pid)
     prices = [cost.clip_estimate(p.conn, p.job(j)["scene_id"], parent_job_id=j) for j in failed]   # p.retry: giữ bậc của job (bản cao = nâng 1080p)
     total = None if any(x is None for x in prices) else sum(prices)
-    if P.paid_button(f"↻ Gửi lại clip lỗi ({len(failed)})", key="btn_bad_retry", tag=cost.price_tag(total, len(failed)), container=c2,
+    from dashboard import paid_batch_preview as BP
+    failed_preview = [f"Clip job {jid}" for jid in failed]
+    if BP.paid_batch_button(f"↻ Gửi lại clip lỗi ({len(failed)})", key="btn_bad_retry", tag=cost.price_tag(total, len(failed)), container=c2,
+                     p=p, pid=pid, action="retry_videos", items=failed, preview=failed_preview,
                      free=not failed, disabled=not failed,
                  help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải). Clip bị bộ lọc nội dung chặn "
                       "hoặc hỏng vì đầu vào đã cũ / thiếu không nằm trong nút này."):
@@ -234,8 +237,11 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
                    + "; ".join(f"{C.unit_code(p, pid, r['idx'])} ({escape((r['note'] or '')[:80])})" for r in stale_failed))
         s_prices = [cost.clip_estimate(p.conn, r["scene_id"]) for r in stale_failed]
         s_total = None if any(x is None for x in s_prices) else sum(s_prices)
-        if P.paid_button(f"↻ Xếp hàng lại từ đầu vào mới ({len(stale_failed)})", key=f"stale_requeue_{pid}",
+        stale_ids = [r["id"] for r in stale_failed]
+        stale_preview = [f"{C.unit_code(p, pid, r['idx'])} · {(r['note'] or '')[:100]}" for r in stale_failed]
+        if BP.paid_batch_button(f"↻ Xếp hàng lại từ đầu vào mới ({len(stale_failed)})", key=f"stale_requeue_{pid}",
                          tag=cost.price_tag(s_total, len(stale_failed)), container=st, disabled=runner is None,
+                         p=p, pid=pid, action="stale_videos", items=stale_ids, preview=stale_preview,
                      help="Job cũ đóng lại (chưa từng gửi, không tốn tiền); job mới dùng ảnh + motion prompt đang duyệt. Shot chưa duyệt "
                           "đủ đầu vào thì chỉ báo, không gửi."):
             out = {}
@@ -319,8 +325,9 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
                                      (pid, it["idx"])).fetchone()
                 if job and not (it.get("fix") or "").strip():
                     c2.caption("QC không nêu câu sửa — sửa motion prompt ở tab Motion (Storyboard)")
-                elif job and c2.button("↻ Gen lại clip này" + cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"], parent_job_id=job["id"])),
-                                       key=f"clipqc_redo_{pid}_{n}", help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
+                elif job and P.paid_button("↻ Gen lại clip này", key=f"clipqc_redo_{pid}_{n}",
+                                       tag=cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"], parent_job_id=job["id"])),
+                                       container=c2, help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
                     act(_spin(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it['problem']}", fix=it["fix"],
                                                              reason="chuyen_dong_sai")),   # C2: the clip-set QC's fault is the motion
                         "Đã xếp hàng gen lại")
@@ -619,8 +626,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
                      result=act(lambda: quality_ui.approve_clip(p, jid)))      # 13/10: a final of an older draft is retired, said in a toast
             st.rerun()
         if can_resend:
-            if r2.button(("↻ Gen lại với câu sửa" if vfix.strip() else "↻ Gửi lại") + tag, key=f"vr_{jid}", width="stretch",
-                         help="Lỗi do nhà cung cấp: gửi lại, có thể kèm câu sửa."):
+            if P.paid_button("↻ Gen lại với câu sửa" if vfix.strip() else "↻ Gửi lại", key=f"vr_{jid}", width="stretch",
+                         help="Lỗi do nhà cung cấp: gửi lại, có thể kèm câu sửa.", tag=tag, container=r2):
                 _ok = act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if vfix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=vfix, by_user=True))
                 C.log_ui(p, "gen_lai_video", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid, result=_ok,
                          detail="câu sửa: " + ("có" if vfix.strip() else "không"))
@@ -628,9 +635,9 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
         elif clip and state in ("succeeded", "pending_review", "approved"):
             from dashboard import reject_reason_ui                 # C2: a redo of a clip that is not outdated needs a reason
             gcode, gtext, gerr = vpick = ("khong_phai_loi", None, None) if stale_reason else reject_reason_ui.pick(f"v{jid}")
-            if r2.button(("↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video") + tag, key=f"vregen_{jid}", width="stretch",
+            if P.paid_button("↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video", key=f"vregen_{jid}", width="stretch",
                          disabled=bool(gerr),
-                         help=gerr or "Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt trước."):
+                         help=gerr or "Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt trước.", tag=tag, container=r2):
                 _why = []                                    # C-DEVSYS-MAPS-FIX: lý do từ chối THẬT của lượt này (mã bước)
 
                 def _regen():
@@ -684,8 +691,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
                         st.rerun()
                     elif found:
                         st.toast("Không thấy task nào khớp prompt — có thể ClipAI thật sự chưa tạo; bấm Gen lại")
-                if can_restart and st.button("↺ Làm lại từ đầu" + tag, key=f"vrs_{jid}",
-                                             help="Đã hết số lần thử: bắt đầu lại với một job video mới"):
+                if can_restart and P.paid_button("↺ Làm lại từ đầu", key=f"vrs_{jid}",
+                                             help="Đã hết số lần thử: bắt đầu lại với một job video mới", tag=tag, container=st):
                     _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
                     _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng video mới")
                     C.log_over_limit(p, "video", j["project_id"], j, _ok, _ex)   # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
