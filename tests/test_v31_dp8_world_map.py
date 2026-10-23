@@ -152,7 +152,12 @@ def test_nothing_in_the_gen_path_reads_the_map():
     # C-3D-GOC-B (22/10): nguồn bố cục chung core/layout_facts (positions) + bất biến R1 core/position_invariants chỉ ĐỌC map để báo —
     # không đưa vào gói gửi / mệnh đề QC, không ghi / dựng map
     read_only_views = {"dashboard/stage_view_ui.py", "core/layout_facts.py", "core/position_invariants.py"}
-    assert [u for u in users if u.replace("\\", "/") not in read_only_views] == []
+    # M4.8 N15 (24/10): Bàn đạo diễn 3D được DỰNG LẠI map theo yêu cầu người có quyền sửa, CHỈ khi cờ world_map BẬT — vẫn không thuộc đường gen
+    flag_gated_editors = {"core/stage_desk.py"}
+    assert [u for u in users if u.replace("\\", "/") not in read_only_views | flag_gated_editors] == []
+    for ed in flag_gated_editors:
+        src = (root / ed).read_text(encoding="utf-8")
+        assert src.count("world_map.refresh(") == 1 and "if not world_map.enabled():" in src, ed
     for view in read_only_views:
         src = (root / view).read_text(encoding="utf-8")
         for word in ("world_map.refresh(", "world_map.save(", "world_map.build", "world_map._write("):

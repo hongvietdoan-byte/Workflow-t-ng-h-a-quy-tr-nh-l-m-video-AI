@@ -166,12 +166,12 @@ kiểm giá trị; không đổi `STATUSES`.
 | M1 Nền tin cậy (0 USD, provider giả) | 9 | 9 | 0 | 0 | 0 | 100 % |
 | M2 Hợp đồng sản xuất có cấu trúc | 10 | 9 | 0 | 1 | 0 | 87 % |
 | M3 Thế giới và liên tục | 5 | 5 | 0 | 0 | 0 | 100 % |
-| M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
+| M4 QC có bằng chứng và Dashboard | 8 | 7 | 1 | 0 | 0 | 90,6 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 6 | 0 | 0 | 0 | 81,2 % |
 | M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 5 | 2 | 0 | 0 | 0 | 33,3 % |
-| **Tổng** | **75** | **54** | **4** | **1** | **0** | **72,6 %** |
+| **Tổng** | **75** | **55** | **3** | **1** | **0** | **73,5 %** |
 
 Đợt hiện tại: **M2** · việc kế: **M5.4** Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3)
 <!-- /tien-do -->
@@ -230,7 +230,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M4.5 · Sửa báo nhầm A5 (qua vai), A6 (thiếu ref_video_path) + regression · nặng:1 · ✅ · DP1 cloud-C gộp 20/10, cờ qc_false_alarm_fix TẮT (bật = xin người dùng sau C-FIX-THAP-1)
 - [ ] M4.6 · Benchmark độc lập theo mã lỗi (≥ 20 lỗi + 20 đạt mỗi nhóm luật) · nặng:2 · ✅ · gộp 21/10 (14a65fd4), cờ TẮT, rà nhẹ (báo cáo cloud/codex + test xanh)
 - [ ] M4.7 · Dashboard: BYĐ, thẻ gói sẽ gửi, sổ lỗi, overrides + siết 3 cổng (Q6) · nặng:3 · 🔄 · 23/10 phần GHI giao Codex CX23-M47B · phần XEM (C-M47A cloud-C) gộp 21/10, cờ TẮT; overrides = C3-4 chờ
-- [ ] M4.8 · Bàn đạo diễn 3D trên Dashboard (thêm 21/10 — người dùng hỏi vì sao V3.1 thiếu): (a) màn XEM chỉ đọc cờ stage_view_ui (C-STAGE-VIEW cloud-E); (b) phương án + nút thao tác (chia vai, duyệt/trả lại, previs, render lại nền, chọn phương án máy) — kế hoạch riêng chờ duyệt Cấp 2 · nặng:3 · 🔄 · 23/10 Đợt 2 giao Codex CX23-M48-D2 · claude/v31-fix6-desk d50b0ac2 (C-M48-DESK-CORE + C-FIX6 A) — lõi ĐÃ GỘP main 26d0a16d 22/10 (cờ TẮT); còn Đợt 2 N14–N16 + thử cờ trên #31 (EP) · EP 21/10 chốt S-A…S-G (sổ v31-ep-stage-desk-actions-2026-10-21): phương án A theo đợt — Đợt 1 nút 0 USD làm được, nút API = Cấp 3 · K5 'Claude/người dùng xem tấm ghép trên Dashboard' đã duyệt 15/10 (stage-auto-plan Q3) nhưng chưa từng làm · EP 22/10 G1: duyệt sân khấu = vai EP ĐƯỢC PHÂN QUYỀN theo dự án, không hardcode Owner — code hiện coi chủ dự án là EP → cần gói phân quyền EP/dự án (Cấp 2, sổ ep-2210-g1-ep-role-per-project PENDING_VERIFICATION); E3 Đạo diễn ngoại tuyến hợp lệ có điều kiện · EP 22/10 21:30 G1 GIẢI: DUYỆT gói Cấp 2 vai EP theo dự án → Codex CX22-G1-EP-ROLE (sổ ep-2210-g1b-ep-role-package-approved) · 22/10 tối: C-M48-DESK-UI GỘP 0f49b328 (cờ stage_desk_ui TẮT, OPT_IN_ONLY; rà kỹ 9 lỗi đã sửa; câu hỏi EP: N9 sau duyệt có EP-only?)
+- [x] M4.8 · Bàn đạo diễn 3D trên Dashboard (thêm 21/10 — người dùng hỏi vì sao V3.1 thiếu): (a) màn XEM chỉ đọc cờ stage_view_ui (C-STAGE-VIEW cloud-E); (b) phương án + nút thao tác (chia vai, duyệt/trả lại, previs, render lại nền, chọn phương án máy) — kế hoạch riêng chờ duyệt Cấp 2 · nặng:3 · ✅ · 24/10 Đợt 2 N12/N14/N15/N16 GỘP main (Codex c5d522a0, rà độc lập 2 vòng Codex + phiên chính rà nhẹ; cờ stage_desk_ui TẮT; cả bộ 8265 passed, 2 test cũ theo kịp N15/executemany) — CHƯA kiểm Dashboard thật · claude/v31-fix6-desk d50b0ac2 (C-M48-DESK-CORE + C-FIX6 A) — lõi ĐÃ GỘP main 26d0a16d 22/10 (cờ TẮT); còn Đợt 2 N14–N16 + thử cờ trên #31 (EP) · EP 21/10 chốt S-A…S-G (sổ v31-ep-stage-desk-actions-2026-10-21): phương án A theo đợt — Đợt 1 nút 0 USD làm được, nút API = Cấp 3 · K5 'Claude/người dùng xem tấm ghép trên Dashboard' đã duyệt 15/10 (stage-auto-plan Q3) nhưng chưa từng làm · EP 22/10 G1: duyệt sân khấu = vai EP ĐƯỢC PHÂN QUYỀN theo dự án, không hardcode Owner — code hiện coi chủ dự án là EP → cần gói phân quyền EP/dự án (Cấp 2, sổ ep-2210-g1-ep-role-per-project PENDING_VERIFICATION); E3 Đạo diễn ngoại tuyến hợp lệ có điều kiện · EP 22/10 21:30 G1 GIẢI: DUYỆT gói Cấp 2 vai EP theo dự án → Codex CX22-G1-EP-ROLE (sổ ep-2210-g1b-ep-role-package-approved) · 22/10 tối: C-M48-DESK-UI GỘP 0f49b328 (cờ stage_desk_ui TẮT, OPT_IN_ONLY; rà kỹ 9 lỗi đã sửa; câu hỏi EP: N9 sau duyệt có EP-only?)
 
 ### M5 — Sửa chọn lọc và pilot
 - [ ] M5.1 · Repair router theo mã lỗi, trần ảnh ≤ 3 / video ≤ 2, dừng khi đổi ý đồ · nặng:3 · ✅ · DP5 cloud-C gộp 20/10, cờ repair_router TẮT, chỉ đề xuất (tự gửi = C3-10 để sau)
