@@ -1,3 +1,18 @@
+# HANDOFF — M8.0b phần còn M8.0 An toàn tiền (nhánh worktree-agent-a76909ef8d083efe1, 23/10)
+
+- ĐÃ XONG (0 USD, sau cờ safe_paid_buttons; cờ TẮT = nhãn/hành vi như cũ):
+  1. ~35 nút chỉ-giá → P.paid_button (giá + 1 xác nhận); _PRICE_ONLY bỏ; test quét đỏ khi nút tốn tiền mới thiếu xác nhận.
+  2. "Duyệt hết" ảnh/storyboard/motion/clip: dashboard/approve_preview.py — xem trước danh sách + HOLD (lineage cũ) + giá bước kế,
+     rồi hẹn 30 s hoàn tác (paid_confirm.schedule/undo_bar); tới hạn chạy lại kiểm tập chờ/OK trước khi duyệt.
+  3. pilot_release hẹn 30 s; tới hạn kiểm lại pilot (bật, chưa mở, cùng cảnh, đã xong) rồi mới release.
+  4. Khóa paid_ask_* treo: begin_run (đếm lượt app.py) + mark_drawn; xóa khóa không vẽ ở lượt trước.
+- Test: tests/test_m80b_money_rest.py (mới), test_safe_paid_buttons, test_price_label_scan, test_ui_video/test_ui_storyboard test_m80b_*;
+  test cũ bấm nút đã đổi → pin_off("safe_paid_buttons"). tools/ui_v2_acceptance.py: phép đếm click đo với cờ TẮT (xác nhận là cố ý).
+- DỞ / RỦI RO: bộ quét PAID_CALLS chưa có p.retry/p.reject/regen.regenerate_video/p.restart_job/p.reopen_approved/voice.*/music.submit_drafts
+  (~23 nút từng thẻ: dd_, r_, dretry_, reopen_, vregen_, tts_gen_, mdraft_, reject_all…) — chưa đổi; chat_first: duyệt hết 1-click
+  nay thành xem trước khi cờ bật; chưa kiểm tay trên Dashboard thật.
+- BƯỚC KẾ: rà + gộp main (phiên chính), khởi động lại Dashboard 8501, kiểm tay; mở rộng PAID_CALLS cho nhóm nút trên (M8.0c).
+
 # HANDOFF — C-M48-DESK-UI (nhánh claude/v31-m48-desk-ui, 22/10)
 
 - XONG code + test; chưa gộp main, chưa ghi hộp thư/TODO (phiên chính làm). Báo cáo: docs/RA_CLOUD_M48_DESK_UI_2026-10-22.md.
