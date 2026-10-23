@@ -69,3 +69,11 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
 1. Cổng gen ẢNH: 1 ảnh khung đầu (giá mục 5) → duyệt.
 2. Cổng gen VIDEO riêng: nháp 480p → duyệt → 1080p.
 3. Hậu kỳ (0 USD): ghép 2 mèo tách phông xanh góc dưới, chữ 2 dòng trên cùng (font UTM Impact như #33), nhạc gốc TikTok.
+
+## 8. Đổi góc nền (người dùng 23/10, sau mục 5)
+- Người dùng hỏi góc chính diện đoạn đường dài ở Cổng Trời → shot 1 đổi chỗ đứng `trung_tam_me_cung` → **`duong_truoc_cong`**
+  (nhìn 89,8° dọc đường về biệt thự, biệt thự giữa khung cuối đường, hàng cây cao hai bên; con rối đứng trên bãi đá nứt đầu đường).
+  Thời tiết `fog` → `cloudy` (sương che mất biệt thự ở xa). Sửa image_prompt + motion theo nền mới (bỏ hàng rào mê cung).
+  Render 0 USD: `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/so_sanh_2_goc.jpg` (trái cũ, phải mới).
+- `pregen_check --project 34` lần 2: vẫn **1 ảnh ≈ 0.22 usd (tối đa 0.88)**, video bản cao ≈ 7.84 USD, cổng không có, nền 3D sẵn;
+  mã thoát 1 vì Tổ rà soát đang rà thay đổi #1767 (nếu lại lỗi OAuth → đăng nhập `claude` rồi ↻ Rà lại).
