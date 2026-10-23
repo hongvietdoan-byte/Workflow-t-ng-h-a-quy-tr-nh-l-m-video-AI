@@ -14,7 +14,10 @@ DASH = os.path.join(ROOT, "dashboard")
 
 # Hàm tốn tiền gián tiếp (không nhận client/runner trong lời gọi ở nút): gỡ chặn vòng nền Claude, nhả autopilot gửi video…
 PAID_CALLS = {"autopilot.resume", "previz.plan_layouts", "previz.review_storyboard", "CR.rerun_failed", "autoqc.clear_error",
-              "autoqc.clear_video_error", "Chat.send", "P.schedule_resume", "paid_confirm.schedule_resume"}
+              "autoqc.clear_video_error", "Chat.send", "P.schedule_resume", "paid_confirm.schedule_resume", "autopilot.start",
+              "C.llm", "llm_client"}
+# Đuôi tên lời gọi tốn tiền bất kể gốc: nhả việc đã xếp hàng, khởi chạy autopilot nền.
+PAID_SUFFIXES = (".submit_pending", "autopilot_manager().start")
 MONEY_ARGS = {"client", "llm", "runner"}
 CONFIRM_FUNCS = ("paid_button", "confirm_all", "_confirm_all_primary")
 PRICE_RE = re.compile(r"tag|price|estimate|usd|credit", re.I)
@@ -50,6 +53,9 @@ EXCEPTIONS = {
     "quality_ui.py::f'qfinal_new_{scene_id}'": "giá + xác nhận có sẵn: nhãn/câu hỏi do new_final_texts dựng (chứa _usd_text) + confirm_all",
     "quality_ui.py::f'qfinal_allnew_{pid}'": "giá + xác nhận có sẵn: nhãn/câu hỏi do new_final_texts dựng (chứa _usd_text) + confirm_all",
     "design/screens/money_days.py::'md_new_go'": "0 USD: mở đợt ngân sách mới; `llm` ở đây là trần USD (số), không phải client",
+    "steps/step1_director.py::f'llm_dir_{pid}'": _PRICE_ONLY + " (nhãn cộng ' · Claude ≈ X USD'; đã khóa → confirm_all)",
+    "steps/step4.py::f'gen_vid_{pid}'": _PRICE_ONLY + " (nhãn cộng cost.video_batch_tag / batch.picked_tag)",
+    "steps/step4.py::f'stale_requeue_{pid}'": _PRICE_ONLY + " (nhãn có cost.price_tag)",
     "steps/step5.py::f'sub_burn_{pid}'":"0 USD: in phụ đề với cues đã dịch truyền vào (delivery.subtitle_layer không gọi localize khi có cues)",
 }
 # 6 chỗ thiếu giá + xác nhận (kế hoạch dòng 21) + nút duyệt gửi tiền (mục 8.4): phải có GIÁ + XÁC NHẬN, không được là ngoại lệ.
@@ -73,24 +79,27 @@ def dotted(n) -> str:
 
 def _is_button(call: ast.Call) -> bool:
     name = dotted(call.func)
-    return name.endswith(".button") or name in ("button", "cta", "D.cta") or name.split(".")[-1] in CONFIRM_FUNCS
+    last = name.split(".")[-1]
+    return last in ("button", "form_submit_button", "cta") or last in CONFIRM_FUNCS
 
 
 def _paid_calls(body) -> set:
+    """Lời gọi tốn tiền trong thân nút: tên ở PAID_CALLS / PAID_SUFFIXES, hoặc tên client/llm/runner xuất hiện ở BẤT KỲ đâu trong lời
+    gọi — kể cả làm gốc (`runner.submit_images(pid)`) — và `llm_client()`."""
     hits = set()
     for stmt in body:
         for n in ast.walk(stmt):
             if not isinstance(n, ast.Call):
                 continue
             name = dotted(n.func)
-            if name in PAID_CALLS:
+            if name in PAID_CALLS or name.endswith(PAID_SUFFIXES):
                 hits.add(name)
-            for a in list(n.args) + [k.value for k in n.keywords]:
+            for a in [n.func] + list(n.args) + [k.value for k in n.keywords]:
                 for m in ast.walk(a):
                     if isinstance(m, ast.Name) and m.id in MONEY_ARGS:
                         hits.add(f"{name}({m.id})")
-                    if isinstance(m, ast.Call) and dotted(m.func) == "llm_client":
-                        hits.add(f"{name}(llm_client)")
+                    if isinstance(m, ast.Call) and dotted(m.func) in ("llm_client", "C.llm"):
+                        hits.add(f"{name}({dotted(m.func)})")
     return hits
 
 
@@ -122,6 +131,33 @@ def _key(call: ast.Call) -> str:
     return ast.unparse(k) if k is not None else "?"
 
 
+def _scopes(tree):
+    return [tree] + [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+
+
+def _scope_of(tree, node):
+    """Hàm trong cùng chứa `node` (module nếu không có)."""
+    cache = getattr(tree, "_scope_cache", None)
+    if cache is None:
+        cache = {}
+        for sc in _scopes(tree):                       # duyệt từ ngoài vào trong → hàm trong cùng ghi đè sau
+            for n in ast.walk(sc):
+                cache[id(n)] = sc
+        tree._scope_cache = cache
+    return cache.get(id(node), tree)
+
+
+def _assigned_buttons(tree) -> dict:
+    """`go = st.button(...)` → {(id phạm vi, "go"): lời gọi nút} để `if go:` được tính là nút."""
+    out = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call) and _is_button(n.value):
+            for t in n.targets:
+                if isinstance(t, ast.Name):
+                    out[(id(_scope_of(tree, n)), t.id)] = n.value
+    return out
+
+
 def scan(root: str = DASH) -> list:
     """[{file, line, key, calls, priced, confirmed, ask_false}] cho mọi `if <nút>:` có thân gọi đường tốn tiền."""
     out = []
@@ -133,10 +169,13 @@ def scan(root: str = DASH) -> list:
             rel = os.path.relpath(path, root).replace(os.sep, "/")
             with open(path, encoding="utf-8") as fh:
                 tree = ast.parse(fh.read())
+            assigned = _assigned_buttons(tree)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.If):
                     continue
                 buttons = [c for c in ast.walk(node.test) if isinstance(c, ast.Call) and _is_button(c)]
+                buttons += [assigned[(id(_scope_of(tree, node)), m.id)] for m in ast.walk(node.test)
+                            if isinstance(m, ast.Name) and (id(_scope_of(tree, node)), m.id) in assigned]
                 if not buttons:
                     continue
                 calls = _paid_calls(node.body)
@@ -189,6 +228,27 @@ class PaidButtonScan(unittest.TestCase):
             for r in (r for r in self.rows if r["file"] == file and frag in r["key"]):
                 self.assertNotIn("autopilot.resume", r["calls"], f"{file}:{r['line']}")
                 self.assertTrue({"P.schedule_resume", "paid_confirm.schedule_resume"} & r["calls"], f"{file}:{r['line']}")
+
+
+class ScannerCatchesPatterns(unittest.TestCase):
+    """Rà kỹ M8.0: máy quét cũ bắt 0/5 mẫu dưới — mỗi mẫu phải ra đúng một hàng."""
+    SAMPLES = {
+        "a_root.py": "def f(st, runner, pid):\n    if st.button('Gen', key='a'):\n        runner.submit_images(pid)\n",
+        "b_assigned.py": ("def f(st, previz, p, pid, client):\n    go = st.button('Dựng', key='b')\n    if go:\n"
+                          "        previz.plan_layouts(p, pid, client)\n"),
+        "c_form.py": "def f(st, runner, pid):\n    if st.form_submit_button('Gửi'):\n        runner.submit_pending(pid)\n",
+        "d_manager.py": "def f(st, C, pid):\n    if st.button('Chạy', key='d'):\n        C.autopilot_manager(C.DB, C.DATA).start(pid)\n",
+        "e_llm.py": "def f(st, llm_io, C, p, pid):\n    if st.button('Hỏi', key='e'):\n        llm_io.x(p, pid, C.llm(pid))\n",
+    }
+
+    def test_scanner_reports_all_five_patterns(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            for name, src in self.SAMPLES.items():
+                with open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+                    fh.write(src)
+            rows = scan(d)
+        self.assertEqual(sorted(r["file"] for r in rows), sorted(self.SAMPLES))
 
 
 class ChatNoSendOnEnter(unittest.TestCase):

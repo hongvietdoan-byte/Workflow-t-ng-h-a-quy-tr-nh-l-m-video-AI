@@ -47,7 +47,7 @@ def render(p, pid: int, who=None, read_only: bool = False, key: str = "cr") -> N
             if b.button("Bỏ qua", key=f"{key}_skip_{r['id']}", help="Chấp nhận lệch này — shot không bị giữ gen vì mục này nữa"):
                 CR.close(p.conn, r["id"], "dismissed", who)
                 st.rerun()
-            if fail and P.paid_button("↻ Rà lại", f"{key}_rerun_{r['id']}", rerun_tag, c,     # M8.0: giá + xác nhận một lần
+            if fail and P.paid_button("↻ Rà lại", key=f"{key}_rerun_{r['id']}", tag=rerun_tag, container=c,     # M8.0: giá + xác nhận một lần
                                       help="G35: đã nạp tiền / hết lỗi — rà lại thay đổi này (giữ gen tới khi rà xong; một lời gọi Claude)"):
                 try:
                     CR.rerun_failed(p.conn, r["id"], who)

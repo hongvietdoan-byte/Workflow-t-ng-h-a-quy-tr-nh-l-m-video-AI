@@ -274,7 +274,7 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
             vqc_tag = cost.llm_button_tag(p.conn, "clipcheck", max(1, len(claude_tasks.unchecked_videos(p, pid))), images=2, ledger_stage="qc")
         except Exception:  # noqa: BLE001 - nút vẫn hiện, nhãn nói thiếu giá
             vqc_tag = " · Claude: chưa có giá (không ước tính được)"
-        if P.paid_button("↻ Thử kiểm tra lại", f"vqc_retry_{pid}", vqc_tag):
+        if P.paid_button("↻ Thử kiểm tra lại", key=f"vqc_retry_{pid}", tag=vqc_tag):
             autoqc.clear_video_error(pid)
             st.rerun()
 

@@ -374,7 +374,7 @@ def _chat_ask(p: Pipeline, pid: int) -> None:
         if a.button("💡 Dùng làm ý tưởng", key=f"box_chatask_idea_{pid}", width="stretch"):
             _chat_choose(p, pid, "idea")
             st.rerun()
-        if P.paid_button("💬 Hỏi Claude", f"box_chatask_chat_{pid}", est, b, ask=False, width="stretch"):   # bước 2 của tin đã gõ
+        if P.paid_button("💬 Hỏi Claude", key=f"box_chatask_chat_{pid}", tag=est, container=b, ask=False, width="stretch"):   # bước 2 của tin đã gõ
             ss.pop(k["chatask"], None)
             act(lambda: Chat.send(p, pid, text, llm_client(pid), record_user=False))
             st.rerun()
@@ -408,7 +408,7 @@ def _chat_send(p: Pipeline, pid: int) -> None:
         box = st.chat_message("assistant")
         box.markdown("**Gửi tin này cho Claude?** Enter chỉ giữ chữ — chưa gửi, chưa tốn tiền.")
         row = box.container(horizontal=True)
-    if not safe or P.paid_button("📨 Gửi", f"box_chatsend_go_{pid}", _chat_tag(p), row, ask=False, type="primary"):   # bước 2 của tin đã gõ
+    if not safe or P.paid_button("📨 Gửi", key=f"box_chatsend_go_{pid}", tag=_chat_tag(p), container=row, ask=False, type="primary"):   # bước 2 của tin đã gõ
         text = ss.pop(k["chatsend"], None)
         if text:
             with st.spinner("Claude đang trả lời…"):

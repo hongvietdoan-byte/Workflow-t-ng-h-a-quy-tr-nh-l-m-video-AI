@@ -363,7 +363,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
         c1, c2 = st.columns(2)
         from dashboard import paid_confirm as P
         plan_tag, review_tag = _previz_tags(p, pid)
-        if P.paid_button("🎬 Dựng storyboard", f"pv_plan_{pid}", plan_tag, c1, disabled=client is None, type="primary",
+        if P.paid_button("🎬 Dựng storyboard", key=f"pv_plan_{pid}", tag=plan_tag, container=c1, disabled=client is None, type="primary",
                          help=None if client else C.claude_hint()):
             with st.spinner("Claude đang đọc ảnh nền và dựng layout…"):
                 if act(lambda: st.session_state.__setitem__("pv_res", previz.plan_layouts(p, pid, client, C.DATA))):
@@ -374,7 +374,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
                     st.toast(msg)
                     if r["moved"]:
                         st.session_state[f"pv_moved_{pid}"] = r["moved"]
-        if P.paid_button("🔍 Claude rà storyboard", f"pv_review_{pid}", review_tag, c2,
+        if P.paid_button("🔍 Claude rà storyboard", key=f"pv_review_{pid}", tag=review_tag, container=c2,
                          disabled=client is None or not os.path.exists(board)):
             with st.spinner("Claude đang rà lỗi liên tục…"):
                 act(lambda: previz.review_storyboard(p, pid, client, C.DATA))

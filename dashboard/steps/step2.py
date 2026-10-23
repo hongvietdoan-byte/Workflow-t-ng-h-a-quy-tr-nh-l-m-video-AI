@@ -87,7 +87,7 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
             else:
                 st.warning(f"⚠ **Tự kiểm tra ảnh đã dừng**: {problem}")
             from dashboard import paid_confirm as P            # M8.0: gỡ dừng = vòng nền Claude chấm lại các ảnh chưa kiểm → giá + xác nhận
-            if P.paid_button("↻ Thử kiểm tra lại", f"autoqc_retry_{pid}", _qc_retry_tag(p, pid)):
+            if P.paid_button("↻ Thử kiểm tra lại", key=f"autoqc_retry_{pid}", tag=_qc_retry_tag(p, pid)):
                 autoqc.clear_error(pid)
                 st.rerun()
         if queued + running == 0:
@@ -812,7 +812,7 @@ def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> No
                 from dashboard import paid_confirm as P         # M8.0: giá + xác nhận + hẹn 30 s có ↩ Hoàn tác trước khi máy gửi
                 board_tag = cost.video_batch_tag(p, pid)
                 if not P.waiting(st.session_state, "resume", pid) and P.paid_button(
-                        "✔ Duyệt storyboard — gen video", f"board_ok_{pid}", board_tag, c2, type="primary", yes_label="Có, duyệt & gửi"):
+                        "✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", tag=board_tag, container=c2, type="primary", yes_label="Có, duyệt & gửi"):
                     P.schedule_resume(p, pid, "Duyệt storyboard → gen video", board_tag, "duyệt storyboard → gen video (tự chạy)")
                     st.rerun()
         per_row = 6

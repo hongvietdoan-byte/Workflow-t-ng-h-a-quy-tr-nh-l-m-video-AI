@@ -48,7 +48,7 @@ def autopilot_progress(pid: int) -> None:
         from dashboard import paid_confirm as P              # M8.0: giá + xác nhận + hẹn 30 s có ↩ Hoàn tác trước khi máy chạy tiếp
         head, _, tag = label.partition(" · ")
         if not P.waiting(st.session_state, "resume", pid) and P.paid_button(
-                head, f"ap_resume_{pid}", " · " + tag, type="primary", yes_label="Có, chạy tiếp"):
+                head, key=f"ap_resume_{pid}", tag=" · " + tag, type="primary", yes_label="Có, chạy tiếp"):
             P.schedule_resume(p, pid, head.lstrip("✔▶ ").strip() or "Tiếp tục chạy tự động", " · " + tag,
                               "tiếp tục chạy tự động", with_fp=False)
             st.rerun()
