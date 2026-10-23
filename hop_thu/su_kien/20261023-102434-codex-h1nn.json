@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T10:24:34.765345+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Tiến độ CX22-DON-RAC: nhóm 3 đã chuyển có kiểm SHA-256 vào D:\\\\AI-Video-Output\\\\_luu_tru; 35 backup cũ + 11 lock cũ không bị giữ + 102 file _plates3d gốc (195,877,789 bytes). Nhật ký khôi phục từng file: D:\\\\AI-Video-Output\\\\_luu_tru\\\\NHAT_KY_DON_RAC_2026-10-23.log. Giữ manifest.sqlite.bgpoll.lock do còn handle; giữ nguyên file rỗng 22 vì không phải thư mục như mô tả. Bắt đầu audit điều kiện nhóm 1 và 2; chưa xóa worktree/nhánh nào."
+}
