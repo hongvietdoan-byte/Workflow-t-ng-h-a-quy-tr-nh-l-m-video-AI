@@ -207,6 +207,7 @@
 - *(07/10, người dùng: xóa hẳn các mục cũ 09/2026–03/10 ở đây — việc đang mở nằm ở đầu file (việc để sau Khủng Long Đỏ), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` và mục 🐞 bên dưới; nội dung cũ xem lịch sử git trước commit này)*
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
+- [ ] **23/10 tối · M8.1 vòng 2 trình EP duyệt chính thức** — `docs/THIET_KE_CHE_DO_DON_GIAN_2026-10-23.md` (nhãn Cơ bản/Nâng cao; Q-D qd3 'hạn mức chi của luồng tự động'; tổng tiền 1 chỗ; cổng M8.4 trước luồng tự động trả phí; chỉ số ≤ 8 hành động tới video đầu tiên ĐÃ GHÉP, không tính tải) + mockup 7 màn `mockup/che_do_don_gian_m81.html`, PNG `docs/images/m81/`. EP trả lời 5 câu mục 14 (nghĩa M8.4, điểm kết thúc chỉ số, ngưỡng 80 %, chia hạn mức theo khâu, báo EP khi người tạo dự án vượt tay).
 - [ ] **21/10 · M6 — EP đã trả lời Q1/Q2/Q4/Q5/Q6** (nâng 1080p không tính lượt; EP bấm có trừ lượt; cho lùi model trong danh sách duyệt; M6.11 tốc độ chờ M1–M5 xong; thứ tự ưu tiên 1–13, Gói M6-A = M6.1 + M6.3 + M6.9). **Còn Q3:** chọn cách đặt ngân sách tự sửa — đề xuất B = 40 % tiền lượt đầu (mục 4d `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`, số #27 37 % / #31 29 %). Chốt Q3 → trình Gói M6-A (Cấp 2).
 - *(07/10, người dùng: xóa hẳn các mục cũ 09/2026–03/10 ở đây — việc đang mở nằm ở đầu file (việc để sau Khủng Long Đỏ), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` và mục 🐞 bên dưới; nội dung cũ xem lịch sử git trước commit này)*
 
