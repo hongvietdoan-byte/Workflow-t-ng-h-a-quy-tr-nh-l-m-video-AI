@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T10:39:46.109168+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX22-G1-EP-ROLE",
+  "text": "Schema hiện tại core/db.py:project_watchers.level có CHECK chỉ cho 'view','edit'. Để cấp EP riêng cần lưu quyền bền vững. Đề CX22-G1-EP-ROLE yêu cầu dừng hỏi nếu phải đổi schema/CHECK CSDL thật. Xin chốt hướng: (A) cho phép thêm trường/bảng EP kèm migration được kiểm soát; hay (B) tạm hoãn CX22-G1-EP-ROLE. Chưa sửa code hay CSDL."
+}
