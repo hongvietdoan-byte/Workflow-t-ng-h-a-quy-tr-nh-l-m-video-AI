@@ -1,0 +1,11 @@
+{
+  "ts": "2026-10-25T00:41:20.120422+07:00",
+  "lane": "phien-chinh",
+  "kind": "gop",
+  "task": "CX24-HOP-THU-FLUSH",
+  "commit": "68a3e005",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}
