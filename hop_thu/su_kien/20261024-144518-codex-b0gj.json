@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T14:45:18.995084+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-G4-QUYET-DINH",
+  "branch": "codex/v31-quyet-dinh-check",
+  "commit": "a08f24b4",
+  "report": "docs/RA_CX24_G4_QUYET_DINH_CODEX_2026-10-24.md",
+  "text": "Codex 3: G4 hoàn tất trên nhánh riêng, đã nhập origin/main tới d76d3588 (merge c33aaf53), push a08f24b4. M82 pha A đã gộp nên bỏ pending QD3; py -m core.decisions check → Khớp; tests/test_decisions.py → 43 passed/25.18s. Báo cáo nêu 52 quyết định còn lại và đề xuất check; chỉ fixture tạm, 0 USD, không ghi dữ liệu dự án thật."
+}
