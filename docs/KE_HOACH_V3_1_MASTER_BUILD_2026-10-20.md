@@ -171,8 +171,8 @@ kiểm giá trị; không đổi `STATUSES`.
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % | 0 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 6 | 0 | 0 | 0 | 81,2 % | 0 % |
 | M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 5 | 2 | 1 | 0 | 0 | 45,8 % | 0 % |
-| M9 Giám sát và tối ưu theo mốc (người dùng 24/10) | 13 | 5 | 1 | 0 | 1 | 36,1 % | 0 % |
-| **Tổng** | **88** | **59** | **6** | **1** | **1** | **69,9 %** | **9,2 %** |
+| M9 Giám sát và tối ưu theo mốc (người dùng 24/10) | 13 | 7 | 1 | 0 | 1 | 47,2 % | 0 % |
+| **Tổng** | **88** | **61** | **6** | **1** | **1** | **71,1 %** | **9,2 %** |
 
 Đợt hiện tại: **M2** · việc kế: **M7.8** Kiểm tuyến QC thay thế rồi trình tắt scene_qc_claude (Cấp 3 riêng)
 <!-- /tien-do -->
@@ -290,9 +290,9 @@ Lớp cổng khởi tạo theo báo cáo giám sát 24/10 §3; M0.8 giữ ⬜ do
 - [ ] M9.3 · Đồng bộ sổ lỗi với kế hoạch: gộp việc ✅ thì mã lỗi liên quan → FIXED_UNVERIFIED + tests hoặc ghi lý do (73 mục mở dưới việc ✅); phân loại 41 ca golden BOTH_FAIL; hộp thư cảnh báo ĐANG LÀM > 12 giờ không commit (#3, #10, #11) · nặng:2 · ⬜ · Codex CX24-G3-SO-LOI (+ CX23-M53-MAY phần test sổ lỗi)
 - [x] M9.4 · Test devsys đỏ trên main + ghi "cả bộ xanh" sai (#4) · nặng:1 · ✅ · CX24-DEVSYS-FIX gộp 0aeef4c6 (cả bộ 8274 passed, 1 chập chờn cũ); ghi chú M4.8 đã sửa đúng số
 - [x] M9.5 · M4.6 ✅ khi chưa có dữ liệu benchmark (#5) · nặng:1 · ✅ · 24/10 tách M4.6a KHUNG ✅ / M4.6b DỮ LIỆU ⬜
-- [ ] M9.6 · Gom bằng chứng khóa từng cờ V3.1 (~25 cờ TẮT; K1/K2/K7…) để EP quyết M7.7 theo lô (#7) · nặng:1 · ⬜ · Codex CX24-M77-EVID (ưu 2, tài liệu); quyết bật = Cấp 3 EP
+- [x] M9.6 · Gom bằng chứng khóa từng cờ V3.1 (~25 cờ TẮT; K1/K2/K7…) để EP quyết M7.7 theo lô (#7) · nặng:1 · ✅ · Codex CX24-M77-EVID (ưu 2, tài liệu); quyết bật = Cấp 3 EP · 24/10 GỘP a6c19618 (docs/M7_7_BANG_CHUNG_CO_2026-10-24.md)
 - [ ] M9.7 · Người không chuyên dùng được: thử thật send_preview_panel trên #34 lấy bằng chứng cổng M4.7; giữ thứ tự M8.0c → M8.2 pha A (#8) · nặng:1 · 🔄 · EP duyệt 24/10, cờ BẬT (sao lưu backup_20261024-123622); chờ #34 tới Bước 4
-- [ ] M9.8 · Quyết định tiền kiểm được phải có check: nối ep-2210-qf… với test_safe_paid_buttons, qd3 ghi pending; 55/74 mục thiếu enforced_by (#9) · nặng:1 · ⬜ · Codex CX24-G4-QUYET-DINH
+- [x] M9.8 · Quyết định tiền kiểm được phải có check: nối ep-2210-qf… với test_safe_paid_buttons, qd3 ghi pending; 55/74 mục thiếu enforced_by (#9) · nặng:1 · ✅ · Codex CX24-G4-QUYET-DINH · 24/10 GỘP a6c19618
 - [ ] M9.9 · Hộp thư gọn: một dòng/việc theo trạng thái mới nhất, con trỏ đã đọc từng làn, câu hỏi chưa trả lời không bao giờ bị lưu trữ, tin cũ → hop_thu/luu_tru/, gom commit (#12) · nặng:2 · ⬜ · EP 24/10 duyệt; Codex 3 CX24-HOP-THU-GON (sau G3), RÀ KỸ
 - [x] M9.10 · Hai nghĩa "M8.4" (#14) · nặng:1 · ✅ · EP 24/10: M8.4 = tối ưu tải (kế hoạch chính); KH 21/10 đã ghi chú M8.4 = M8.0
 - [x] M9.11 · Làn cloud HẾT VIỆC (#16) · nặng:1 · ✖ · EP 24/10: chỉ 3 Codex, không dùng lại cloud-D/E
