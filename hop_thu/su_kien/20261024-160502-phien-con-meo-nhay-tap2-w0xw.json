@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T16:05:02.603080+07:00",
+  "lane": "phien-con-meo-nhay-tap2",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "NGƯỜI DÙNG 24/10 16:05 yêu cầu: giao Codex thêm vào Bước 5 (Dashboard) 2 chức năng, gặp khi hoàn thiện #34 (mục 12–13 docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md). (A) Ghép VIDEO PHỤ tách phông xanh: tải/chọn video (vd TikTok mèo phông xanh), cắt vùng, cỡ + vị trí (vd đáy giữa), chromakey màu + ngưỡng + despill, đồng bộ thời gian (bắt đầu ở giây, theo nhạc), tùy chọn lấy tiếng video phụ làm nhạc; xem thử 1 khung trước khi dựng; 0 USD (ffmpeg). Mẫu đã chạy thật: D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/hau_ky/hau_ky.sh (crop=880:900:100:640, chromakey=0x00FF00:0.16:0.08, despill=green, scale=480, overlay=(W-w)/2:H-h+12). (B) CHỮ TỰ GÕ suốt video / theo đoạn: nhiều dòng, mỗi dòng màu + cỡ + viền + vị trí (trên/dưới, vùng an toàn), thời điểm vào–ra, font tiếng Việt từ Kho; hiện tại phụ đề chỉ sinh từ lời thoại (delivery.subtitle_cues, data_editor num_rows='fixed') nên dự án không thoại không thêm được dòng; card chỉ ghép cuối. Mẫu: drawtext 2 dòng trắng/vàng fontsize 64 borderw 5 y=120/205. Cả hai sau cờ mới TẮT = y hệt cũ, test đỏ→xanh, lưu thiết lập theo dự án, xuất bản đầy đủ + kích thước khác phải giữ lớp phủ. Thêm nhỏ (mục 14): chọn nhạc = tiếng của một video có sẵn (tự tách âm) thay vì phải chép tay vào nhac_rieng."
+}
