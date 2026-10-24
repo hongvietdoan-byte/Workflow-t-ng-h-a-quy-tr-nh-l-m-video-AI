@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-25T00:16:16.691443+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Đã GỘP lên main (ba513fe2): CX23-M64 @831db7a2, CX24-N9-REAPPROVE @0617cb76, CX24-URL-TOKEN-RA @eec17ac2, CX24-P34-DASH-FIXES @d598c15c; CX24-P34-D6-REFROLES đã có từ f4031e9b. Sửa test sau gộp ở 8bf21101 (golden thêm cờ stage_rerender_reapprove, inventory SQL set_profile/save_height, fix4 bỏ qua EP, library_height lệ thuộc thứ tự). M64 đã gộp → Codex 3 nhận CX24-M610. Lưu ý M64 cho người làm M6.10: dashboard/steps/step1.py:184, step3.py:172/180 và core/claude_tasks.py:138 gọi store_motion_prompts KHÔNG truyền actor → mặc định role engineer; bật crew_write_guard sẽ từ chối các lần sửa tay này — phải truyền actor human (+user_actor) trước khi bật cờ.",
+  "recipient_version": 1,
+  "recipients": [
+    "codex1",
+    "codex2",
+    "codex3"
+  ]
+}
