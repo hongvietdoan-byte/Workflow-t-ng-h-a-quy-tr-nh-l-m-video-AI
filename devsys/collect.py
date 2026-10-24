@@ -640,11 +640,22 @@ def _features_rule(root: str, from_file: Dict[str, str]):
     environment still wins, as core/adapters/check.load_dashboard_env does). None when that file has no `on()` (another repo / a test
     repo) — the caller then keeps the ast reading."""
     import importlib.util
+    import types
     path = os.path.join(root, "core", "features.py")
     try:
         tag = hashlib.sha1(os.path.abspath(path).encode("utf-8")).hexdigest()[:10]
-        spec = importlib.util.spec_from_file_location(f"_devsys_features_{tag}", path)
+        # features dùng relative import (ví dụ .before_run): giữ package riêng cho repo
+        # đang đo, không mượn core của app. Nạp lại cả dependency khi snapshot đổi.
+        package_name = f"_devsys_core_{tag}"
+        for name in tuple(sys.modules):
+            if name.startswith(package_name + "."):
+                del sys.modules[name]
+        package = types.ModuleType(package_name)
+        package.__path__ = [os.path.dirname(path)]
+        sys.modules[package_name] = package
+        spec = importlib.util.spec_from_file_location(f"{package_name}.features", path)
         mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
         spec.loader.exec_module(mod)
         on, why, state_of = mod.on, getattr(mod, "why_state", None), getattr(mod, "state", None)
     except (OSError, ImportError, SyntaxError, AttributeError, ValueError, TypeError) as e:

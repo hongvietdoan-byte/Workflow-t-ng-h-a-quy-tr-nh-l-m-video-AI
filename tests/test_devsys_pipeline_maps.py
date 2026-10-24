@@ -233,13 +233,50 @@ def test_export_writes_three_svgs(tmp_path):
     assert all(open(os.path.join(tmp_path, n), encoding="utf-8").read().startswith("<svg") for n in names)
 
 
+def test_measured_flag_rule_resolves_relative_imports_from_its_own_repo(tmp_path):
+    from devsys import collect
+    core_dir = tmp_path / "core"
+    core_dir.mkdir()
+    (core_dir / "before_run.py").write_text("PAID_FLAGS = {'fixture_paid'}\n", encoding="utf-8")
+    (core_dir / "features.py").write_text(
+        "def on(name):\n    from . import before_run\n    return name not in before_run.PAID_FLAGS\n",
+        encoding="utf-8")
+    with mock.patch.object(os, "environ", {}):
+        rule, problem = collect._features_rule(str(tmp_path), {})
+        assert not problem
+        assert rule("fixture_paid")[0] is False
+        assert rule("fixture_free")[0] is True
+
+
+def test_measured_flag_rule_refreshes_relative_dependency_after_edit(tmp_path):
+    from devsys import collect
+    core_dir = tmp_path / "core"
+    core_dir.mkdir()
+    dependency = core_dir / "before_run.py"
+    dependency.write_text("PAID_FLAGS = {'fixture_paid'}\n", encoding="utf-8")
+    (core_dir / "features.py").write_text(
+        "def on(name):\n    from . import before_run\n    return name not in before_run.PAID_FLAGS\n",
+        encoding="utf-8")
+    with mock.patch.object(os, "environ", {}):
+        first, _ = collect._features_rule(str(tmp_path), {})
+        assert first("fixture_paid")[0] is False
+        dependency.write_text("PAID_FLAGS = {}\n", encoding="utf-8")
+        second, _ = collect._features_rule(str(tmp_path), {})
+        assert second("fixture_paid")[0] is True
+
+
 def test_devsys_page_renders_four_tabs_and_three_maps(tmp_path):
     from streamlit.testing.v1 import AppTest
     with mock.patch.object(PM, "HISTORY_FILE", str(tmp_path / "h.jsonl")), \
-            mock.patch.dict(os.environ, {"PIPELINE_DB": str(tmp_path / "khong_co.sqlite")}):
+            mock.patch.object(os, "environ", {"PIPELINE_DB": str(tmp_path / "khong_co.sqlite"),
+                                            "HOME": str(tmp_path), "USERPROFILE": str(tmp_path),
+                                            "TEMP": str(tmp_path), "TMP": str(tmp_path)}):
         at = AppTest.from_file(os.path.join(ROOT, "devsys", "app.py"), default_timeout=120)
         at.run()
-        at.radio[0].set_value("🧭 Sơ đồ dây chuyền").run()
+        assert not at.exception, [e.value for e in at.exception]
+        # Trang kế hoạch có radio trả lời trong thân trang, đứng trước sidebar trong AppTest.
+        navigation = next(r for r in at.sidebar.radio if r.label == "Trang")
+        navigation.set_value("🧭 Sơ đồ dây chuyền").run()
     assert not at.exception, [e.value for e in at.exception]
     assert [t.value for t in at.title] == ["🧭 Sơ đồ dây chuyền"]
     assert len(at.tabs) == 4 and sum("<svg" in md.value for md in at.markdown) == 3
