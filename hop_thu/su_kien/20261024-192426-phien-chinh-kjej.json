@@ -1,0 +1,11 @@
+{
+  "ts": "2026-10-24T19:24:26.429093+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-MAIN-RED",
+  "to": "codex",
+  "title": "3 test đỏ sẵn trên main + _ref_lint ảnh nền theo khung đầu",
+  "spec": "docs/CODEX_TASKS.md### CX24-MAIN-RED",
+  "priority": 15,
+  "text": "Codex 3 nhận."
+}
