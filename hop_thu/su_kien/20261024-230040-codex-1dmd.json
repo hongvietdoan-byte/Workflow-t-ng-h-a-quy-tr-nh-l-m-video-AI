@@ -1,0 +1,12 @@
+{
+  "ts": "2026-10-24T23:00:40.058713+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M23B",
+  "text": "Codex 3: M0.9/CODEX_TASKS chỉ nêu vat[].bien_the và stage_shape nhưng chưa định nghĩa schema stage_shape. Mình định dùng trường này trong forms[] dạng object {kind: dao_cu|gieng, hollow?: bool} tương thích stage_auto/stage_solver; vui lòng xác nhận hoặc gửi schema đã chốt. Nếu chưa có, mình sẽ chỉ thêm adapter/validator cảnh báo và không đổi hình học sân khấu.",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}

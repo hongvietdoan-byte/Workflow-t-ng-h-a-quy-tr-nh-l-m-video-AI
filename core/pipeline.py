@@ -1,5 +1,7 @@
 import os
 import sqlite3
+from contextlib import contextmanager
+from copy import copy
 from datetime import datetime, timezone
 from typing import Mapping, Optional
 
@@ -105,7 +107,59 @@ class PipelinePaused(Exception):
     pass
 
 
+class _BatchConnection:
+    """Defer helper commits for the audited targeted-image batch call tree only."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        raise RuntimeError("Targeted batch helper requested rollback")
+
+    def execute(self, sql, *args):
+        if sql.lstrip().split(None, 1)[0].upper() in {"BEGIN", "COMMIT", "END", "ROLLBACK", "SAVEPOINT", "RELEASE"}:
+            raise RuntimeError("Transaction control belongs to targeted batch")
+        return self._conn.execute(sql, *args)
+
+    def executescript(self, *args):
+        raise RuntimeError("Scripts are not allowed inside targeted batch")
+
+
 class Pipeline:
+    @contextmanager
+    def atomic_image_batch(self):
+        """Clone Pipeline context; helper commits cannot expose half-created image jobs.
+
+        Never replace the original Pipeline's connection. Preserve an outer caller
+        transaction; otherwise acquire the SQLite writer lock before selecting jobs.
+        """
+        conn = self.conn
+        outer = conn.in_transaction
+        if outer:
+            conn.execute("SAVEPOINT targeted_image_batch")
+        else:
+            conn.execute("BEGIN IMMEDIATE")
+        scoped = copy(self)
+        scoped.conn = _BatchConnection(conn)
+        try:
+            yield scoped
+            if outer:
+                conn.execute("RELEASE targeted_image_batch")
+            else:
+                conn.commit()
+        except BaseException:
+            if outer:
+                conn.execute("ROLLBACK TO targeted_image_batch")
+                conn.execute("RELEASE targeted_image_batch")
+            else:
+                conn.rollback()
+            raise
+
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
         self.actor: Optional[str] = None   # who is working (dashboard user name); stamped on the jobs created through this object
@@ -273,8 +327,11 @@ class Pipeline:
         self.conn.commit()
 
     def reopen_approved(self, job_id: int, note: Optional[str] = None, respawn: bool = True, fix: Optional[str] = None,
-                        auto: bool = False, reason: Optional[str] = None, reason_text: Optional[str] = None) -> str:
+                        auto: bool = False, reason: Optional[str] = None, reason_text: Optional[str] = None,
+                        return_job_id: bool = False):
         """The user changed their mind about an approved IMAGE: reject it and (by default) queue a new one.
+        return_job_id=True returns the exact inserted child (None if no respawn),
+        while the default keeps the legacy rejected/escalated status string.
         Videos already made from it are not touched. `fix`: the words the model gets (English); None = the person's `note` itself,
         "" = nothing (the input already changed — e.g. the scene was edited — so a Vietnamese system note must not reach the model).
         `auto`: the run redoes it by itself (set-check autofix) — counted on AUTO_REGEN_LIMIT; at the limit nothing is reopened, the
@@ -289,18 +346,19 @@ class Pipeline:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, not approved")
         if auto and respawn and self._retries_exhausted(job):
             self._escalate(job, limit=True)
-            return "escalated"
+            return None if return_job_id else "escalated"
         reason = note if fix is None else (fix.strip() or None)
         plan = self._rewrite_before_retry(job, reason, note=note, by="qc" if auto else "user") if respawn else _KeepReason(reason)
         review_id = self._log_review(job_id, "user", "reject", note or "bỏ duyệt", reason=why_code,   # S14.17: after Claude answered
                                      reason_text=reason_text)
         self.transition(job_id, JobState.REJECTED, actor="user", note=note or "bỏ duyệt")
         self._keep_reject_reason(job_id, review_id, why_code, reason_text, note, quiet=auto)
+        child_id = None
         if respawn:  # a person asking for another take: never capped, the automatic count starts again (S14.16)
-            self._insert_job(job["project_id"], job["scene_id"], "image_gen", parent_job_id=job_id,
+            child_id = self._insert_job(job["project_id"], job["scene_id"], "image_gen", parent_job_id=job_id,
                              retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=plan.apply(),
                              origin="auto" if auto else None)
-        return "rejected"
+        return child_id if return_job_id else "rejected"
 
     def restart_job(self, job_id: int) -> int:
         """Escalated job (retries used up): start the scene's image/video over with a fresh job (retry count 0).

@@ -28,6 +28,12 @@ def enabled() -> bool:
         return False
 
 
+def minimum_skip_reason_length() -> int:
+    """M4.7 yêu cầu lý do dài hơn; khi cờ tắt giữ nguyên ngưỡng cũ để tương thích."""
+    from . import qc_overrides
+    return 15 if qc_overrides.enabled() else 3
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -44,19 +50,41 @@ def skipped(conn, image_job_id: int, group: bool = False) -> Optional[Dict]:
     return dict(row) if row else None
 
 
-def skip(conn, image_job_id: int, reason: str, who: Optional[str] = None, group: bool = False) -> None:
+def skip(conn, image_job_id: int, reason: str, who: Optional[str] = None, group: bool = False,
+         session_token: Optional[str] = None) -> None:
     """Người chấp nhận nền của ảnh này dù kiểm nền ĐỎ — bắt buộc có lý do (không bỏ qua im lặng). group=True (R11 rà S4): gửi clip của
-    shot có ảnh này mà KHÔNG chờ cả nhóm liền mạch duyệt ảnh (lý do ghi kèm GROUP_MARK)."""
+    shot có ảnh này mà KHÔNG chờ cả nhóm liền mạch duyệt ảnh (lý do ghi kèm GROUP_MARK). Khi cờ M4.7 bật, yêu cầu phiên đăng nhập xác thực
+    và ghi audit revision trước khi mở cổng; `who` từ caller không được tin."""
+    from . import qc_overrides
     reason = (reason or "").strip()
-    if len(reason) < 3:
-        raise ValueError("Cần ghi lý do bỏ qua " + ("chờ nhóm liền mạch" if group else "kiểm nền") + " (ít nhất vài chữ)")
-    if group:
-        reason = GROUP_MARK + reason
-    row = conn.execute("SELECT scene_id FROM jobs WHERE id=? AND type='image_gen'", (image_job_id,)).fetchone()
+    minimum = minimum_skip_reason_length()
+    if len(reason) < minimum:
+        suffix = "tối thiểu 15 ký tự" if minimum >= 15 else "ít nhất vài chữ"
+        raise ValueError("Cần ghi lý do bỏ qua " + ("chờ nhóm liền mạch" if group else "kiểm nền") + f" ({suffix})")
+    row = conn.execute("SELECT scene_id, project_id FROM jobs WHERE id=? AND type='image_gen'", (image_job_id,)).fetchone()
     if row is None:
         raise ValueError(f"không có ảnh job #{image_job_id}")
+    stored_reason = GROUP_MARK + reason if group else reason
+    if qc_overrides.enabled():
+        def write_legacy_skip(tx, audit):
+            tx.execute("INSERT INTO video_gate_skips(image_job_id, scene_id, reason, who, at) VALUES (?,?,?,?,?)",
+                       (image_job_id, row["scene_id"], stored_reason, audit["actor_email"], _now()))
+
+        qc_overrides.record_with_effect(
+            conn,
+            effect=write_legacy_skip,
+            project_id=row["project_id"],
+            target_kind="gate",
+            target_ref=f"video_gate:image:{image_job_id}:{'group' if group else 'plate'}",
+            error_code="VIDEO_GROUP_WAIT" if group else "PLATE_LAYOUT",
+            session_token=session_token,
+            reason=reason,
+            evidence={"type": "video_gate_override", "gate": "group_wait" if group else "plate_layout",
+                      "image_job_id": image_job_id},
+        )
+        return
     conn.execute("INSERT INTO video_gate_skips(image_job_id, scene_id, reason, who, at) VALUES (?,?,?,?,?)",
-                 (image_job_id, row["scene_id"], reason, who, _now()))
+                 (image_job_id, row["scene_id"], stored_reason, who, _now()))
     conn.commit()
 
 

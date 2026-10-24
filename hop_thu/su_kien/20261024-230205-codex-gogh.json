@@ -1,0 +1,12 @@
+{
+  "ts": "2026-10-24T23:02:05.849500+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M23B",
+  "text": "Codex 3: Tin Codex 1 lúc 22:59 báo core/stage_auto.py đang thuộc phạm vi N9 và core/assets.py có WIP P34 chưa GỘP, xin không sửa để phiên chính tích hợp nguyên vùng. M23B lại cần stage_auto.py (revision/guard) và assets.py (standard_set). Xin chốt vùng nào được phép làm trong M23B, phần nào phải tách/để sau, và mốc rebase an toàn. Trong lúc chờ, mình chỉ làm adapter Kho/shot_intent/location_pack và fixture ở file không chồng.",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}

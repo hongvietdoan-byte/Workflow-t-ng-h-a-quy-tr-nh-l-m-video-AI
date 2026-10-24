@@ -29,3 +29,8 @@ Chưa nghiệm thu GUI/Blender/dự án thật. Test EP đi qua `crew_user_verdi
 `apply` kế thừa chưa nguyên tử xuyên nhiều shot và tệp. Lỗi DB/ghi log/công bố tệp sau một phần ghi có thể để DB và result lệch, dù pending chưa được bỏ. Nhánh này không tạo API giao dịch mới và **không tuyên bố rollback nguyên tử**. Lỗi đo có thể để thư mục đề xuất dở, không xóa asset. Khi tích hợp cần giữ các guard/cổng quyền từ main mới, chạy hồi quy/cả bộ theo quy trình phiên chính trước gộp và giữ cờ OFF đến nghiệm thu được phép.
 
 Nhánh: `codex/v31-n9-reapprove`. Không sửa vùng profile/revision của M23B, không gộp main, không khởi động lại máy live.
+
+
+## Đồng bộ sau thư GỘP 231006-kphf
+
+N9 đồng bộ main5d72cf7d sau thư231006-kphf; giữ guard pending/G1 EP/BEATS assemble, hợp danh mục areas hai bên/version92. Root39 passed,127deselected/3,11s trên nền mới; rà tích hợp độc lập0P1/P2 và rootđọc2lượt. Không rewrite/force, không cả bộ/mainmerge/dữ liệu thật/CU; cờ vẫn OFF.

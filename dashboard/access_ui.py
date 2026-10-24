@@ -86,7 +86,8 @@ def read_only(on: bool = True):
 
 
 def level_text(level) -> str:
-    return {"admin": "Owner", "own": "chủ dự án", "edit": "theo dõi · được sửa", "view": "theo dõi · chỉ xem"}.get(level, "không có quyền")
+    return {"admin": "Owner", "own": "chủ dự án", "ep": "Executive Producer", "edit": "theo dõi · được sửa",
+            "view": "theo dõi · chỉ xem"}.get(level, "không có quyền")
 
 
 def banner(p, pid: int) -> None:
@@ -105,19 +106,24 @@ def banner(p, pid: int) -> None:
     if lvl == "view":
         st.warning(f"👁 Chế độ CHỈ XEM — dự án của {creator}; mọi nút ghi (duyệt, gen, sửa, cất) bị khóa. "
                    "Nhờ chủ dự án hoặc Owner nâng lên “Được sửa” nếu cần làm.")
+    elif lvl == "ep":
+        st.info(f"Dự án của {creator} — bạn được cấp vai Executive Producer: có quyền xem, sửa và duyệt sân khấu; không cất, xóa hoặc quản lý thành viên.")
     else:
         st.info(f"Dự án của {creator} — bạn được cấp quyền SỬA (theo dõi): duyệt, gen, sửa như chủ; không cất / xóa / đổi người theo dõi.")
 
 
 def watchers_editor(p, pid: int, key: str = "w") -> None:
-    """List of the project's watchers with a level each; add / change / remove. Owner and the project's creator only."""
+    """Manage project watchers and project-scoped Executive Producers. Owner and project creator only."""
     from dashboard import common as C
     conn = p.conn
     user = C.access_user()
+    current_eps = access.list_project_eps(conn, pid)
     if not access.can_manage(conn, pid, user):
         st.caption("Chỉ Owner hoặc chủ dự án đổi danh sách người theo dõi.")
         for w in access.list_watchers(conn, pid):
             st.caption(f"• {w['email']} — {access.LEVEL_LABEL[w['level']]}")
+        for ep in current_eps:
+            st.caption(f"• {ep['email']} — Executive Producer theo dự án")
         return
     current = access.list_watchers(conn, pid)
     if not current:
@@ -134,15 +140,33 @@ def watchers_editor(p, pid: int, key: str = "w") -> None:
     taken = {w["email"] for w in current}
     creator = (p.project(pid)["created_by"] or "").strip().lower()
     candidates = [u["email"] for u in _users(conn) if u["role"] != "owner" and u["active"] and u["email"] not in taken and u["email"] != creator]
-    if not candidates:
-        st.caption("Không còn tài khoản nào để thêm (Owner mời người mới ở 👥 Nhóm).")
-        return
-    a1, a2, a3 = st.columns([3, 1.6, 1], vertical_alignment="bottom")
-    who = a1.selectbox("Thêm người theo dõi", candidates, key=f"{key}_new_{pid}")
-    lvl = a2.selectbox("Mức", list(access.LEVELS), format_func=access.LEVEL_LABEL.get, key=f"{key}_newlvl_{pid}",
-                       help="Chỉ xem: thấy dự án nhưng mọi nút ghi bị khóa. Được sửa: duyệt, gen, sửa như chủ (không cất / xóa).")
-    if a3.button("Thêm", key=f"{key}_add_{pid}", type="primary"):
-        _try(lambda: access.set_watcher(conn, user, pid, who, lvl), f"Đã thêm {who} — {access.LEVEL_LABEL[lvl]}")
+    if candidates:
+        a1, a2, a3 = st.columns([3, 1.6, 1], vertical_alignment="bottom")
+        who = a1.selectbox("Thêm người theo dõi", candidates, key=f"{key}_new_{pid}")
+        lvl = a2.selectbox("Mức", list(access.LEVELS), format_func=access.LEVEL_LABEL.get, key=f"{key}_newlvl_{pid}",
+                           help="Chỉ xem: thấy dự án nhưng mọi nút ghi bị khóa. Được sửa: duyệt, gen, sửa như chủ (không cất / xóa).")
+        if a3.button("Thêm", key=f"{key}_add_{pid}", type="primary"):
+            _try(lambda: access.set_watcher(conn, user, pid, who, lvl), f"Đã thêm {who} — {access.LEVEL_LABEL[lvl]}")
+    else:
+        st.caption("Không còn tài khoản nào để thêm vào danh sách theo dõi.")
+
+    st.markdown("**Vai trò Executive Producer (EP)**")
+    st.caption("EP được xem, sửa và duyệt sân khấu trong dự án này; không được cất, xóa hoặc quản lý thành viên.")
+    for ep in current_eps:
+        c1, c2 = st.columns([3, 1], vertical_alignment="center")
+        c1.caption(f"{ep['email']} · cấp bởi {ep['added_by'] or 'không rõ'} · {ep['added_at']}")
+        if c2.button("Thu vai EP", key=f"{key}_ep_rm_{pid}_{ep['email']}"):
+            _try(lambda email=ep["email"]: access.remove_project_ep(conn, user, pid, email), f"Đã thu vai EP của {ep['email']}")
+    granted = {ep["email"] for ep in current_eps}
+    ep_candidates = [u["email"] for u in _users(conn) if u["role"] != "owner" and u["active"]
+                     and u["email"] != creator and u["email"] not in granted]
+    if ep_candidates:
+        a1, a2 = st.columns([3, 1], vertical_alignment="bottom")
+        ep_email = a1.selectbox("Cấp vai trò EP", ep_candidates, key=f"{key}_ep_new_{pid}")
+        if a2.button("Cấp vai EP", key=f"{key}_ep_add_{pid}", type="primary"):
+            _try(lambda: access.set_project_ep(conn, user, pid, ep_email), f"Đã cấp vai EP cho {ep_email}")
+    else:
+        st.caption("Không còn tài khoản phù hợp để cấp vai EP.")
 
 
 def _users(conn) -> list:

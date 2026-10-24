@@ -1978,3 +1978,18 @@ Giao 24/10 22:20 (EP câu 7: giữ quyền hiện tại + xác minh duyệt lạ
 - Xác minh: sau dự án/shot "xong", render lại có đưa sân khấu/sản phẩm về trạng thái chờ EP duyệt không.
 - Nếu đổi sản phẩm đã duyệt mà không về chờ duyệt → sửa bắt duyệt lại; test đỏ→xanh; cờ mới (nếu đổi hành vi) TẮT.
 - Báo cáo ngắn kết quả xác minh; không dữ liệu thật, không Computer Use.
+
+### CX24-M610 — M6.10 Dashboard điều phối EP: phiếu lỗi theo vai (ưu tiên 10; Cấp 2; cờ TẮT; 0 USD)
+Giao 24/10 23:15 (EP duyệt hướng TẬP TRUNG, sổ ep-2410-focus-no-new-features-2026-10-24: M6 khung trách nhiệm ƯU TIÊN CAO). Phụ thuộc CX23-M62, CX23-M64 GỘP main.
+- Đọc trước: docs/THIET_KE_GOI_M6B_2026-10-24.md (§ M6.2/M6.4, handoff/rollback), core/crew.py (owner_of_error, owner_of, can_write, roles, role), core/handoff.py (record, latest, cờ crew_handoff_shadow), core/continuity_validator.py (read_evidence, run), core/repair_router.py (plan, observe).
+- Màn Dashboard: danh sách phiếu lỗi theo vai (vai chủ, mã QC, shot, trạng thái, nguồn bằng chứng), lọc theo vai/shot/trạng thái; gán/chuyển vai kèm lý do bắt buộc, ghi qua API handoff M6.2 có sẵn (sau gộp) — KHÔNG tạo registry/bảng/JSONL trùng.
+- Định tuyến vai chủ dùng crew.owner_of_error (M6.9); hiện rõ fallback Director + owner_cannot_fix.
+- Quyền: xem theo access.need_view; gán/chuyển theo access.need_edit / EP dự án (project_executive_producers); không hardcode Owner.
+- Cờ mới mặc định TẮT (TẮT = Dashboard byte-y-hệt cũ); AppTest đỏ→xanh (lọc, chuyển vai có lý do, từ chối khi thiếu quyền); không dữ liệu thật, không Computer Use, 0 USD.
+
+### CX24-M610B — M6.10b nối khung trách nhiệm vào dự án thật: QC/cổng → phiếu → vai chủ (ưu tiên 12; Cấp 2; shadow cờ TẮT; 0 USD)
+Giao 24/10 23:15 (sổ ep-2410-focus-no-new-features-2026-10-24). Phụ thuộc CX24-M610 (và CX23-M62, CX23-M64 GỘP).
+- Khi QC/cổng bắt lỗi (continuity_validator.run, repair_router.observe, cổng trước gen) → tạo phiếu theo vai qua core/handoff.record (from/to_role, qc_evidence, approval_state), vai chủ theo crew.owner_of_error; dedup theo vai+snapshot+validator như thiết kế M6B.
+- Hiện phiếu trên màn CX24-M610; vai chủ xử lý / trả lại có lý do; không ghi trường production ngoài quyền vai (write guard M6.4).
+- Shadow: cờ mới TẮT trước (TẮT = không I/O); chỉ bật trong lượt nghiệm thu dự án thật khi EP duyệt.
+- Test đỏ→xanh: lỗi QC → đúng một phiếu đúng vai; fallback Director có note; cờ TẮT không ghi gì. Không dữ liệu thật, không Computer Use, 0 USD.

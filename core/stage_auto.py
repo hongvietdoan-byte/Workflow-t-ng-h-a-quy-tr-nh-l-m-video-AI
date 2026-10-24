@@ -1648,6 +1648,55 @@ def crew_preview(data_dir: str, pid: int, seg: Dict) -> Optional[Dict]:
     return {"dir": rd, "picked": picked, "notes": notes}
 
 
+def render_beats_sheet(data_dir: str, pid: int, seg: Dict, output: str,
+                       log: Callable[[str], None] = lambda m: None) -> Dict:
+    """Vẽ tấm ghép N5/CLI từ cùng lượt crew preview hoặc lượt đã lưu hiện hành (0 USD, không ghi CSDL)."""
+    try:
+        preview = crew_preview(data_dir, pid, seg)
+    except Exception as exc:  # noqa: BLE001 - trạng thái crew không hợp lệ phải lỗi theo cảnh, không dừng CLI/N5
+        return {"ok": False, "errors": [f"không ghép được lần đo từng shot của lượt chia vai "
+                                          f"({type(exc).__name__}) — không dựng tấm ghép bằng lần đo khác"]}
+
+    notes: List[str] = []
+    picked = None
+    if preview is not None:
+        source_dir, picked = preview["dir"], preview["picked"]
+        notes.extend(preview["notes"])
+        if picked:
+            notes.append("lần đo từng shot (máy N6 sẽ chốt): "
+                         + ", ".join(f"shot {shot} ← {picked[shot]}" for shot in sorted(picked)))
+    else:
+        source_dir = result_round(data_dir, pid, seg)
+    if source_dir is None or not os.path.isdir(source_dir):
+        return {"ok": False, "errors": ["chưa có lượt đã lưu / lần đo nào để dựng tấm ghép"]}
+
+    renderer = tool()
+    if not os.path.exists(os.path.join(source_dir, "top_cut.png")):
+        log("cắt mái (Blender)")
+        try:
+            renderer.top_cut(source_dir, log=log)
+        except Exception as exc:  # noqa: BLE001 - vẫn vẽ trên ảnh chưa cắt (như CLI/N5)
+            notes.append(f"không cắt được mái ({type(exc).__name__}: {exc}) — vẽ trên ảnh từ trên thường")
+    try:
+        log("vẽ nhịp + ghép")
+        renderer.draw_beats(source_dir)
+        os.makedirs(os.path.dirname(output), exist_ok=True)
+        title = (f"#{pid} cảnh {seg['scene']} — {seg['id']} "
+                 f"(shot {seg['shots'][0]['idx']}–{seg['shots'][-1]['idx']})")
+        if picked:
+            title += " · lần đo: " + ", ".join(
+                f"{shot}←{os.path.basename(picked[shot])}" for shot in sorted(picked)
+            )
+        path = renderer.stage_sheet(source_dir, title, output)
+    except Exception as exc:  # noqa: BLE001 - một cảnh lỗi không chặn các cảnh khác ở CLI
+        return {"ok": False, "errors": [f"không vẽ được tấm ghép ({type(exc).__name__}: {exc})"]}
+    result = {"ok": True, "path": path if isinstance(path, str) else output,
+              "notes": notes, "nguon": "crew_preview" if preview is not None else "luot_hien_tai"}
+    if picked is not None:
+        result["lan_do"] = {str(shot): round_name for shot, round_name in sorted(picked.items())}
+    return result
+
+
 def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: str, log: Callable[[str], None],
                    apply_now: bool, who: Optional[Dict] = None, expected_revs: Optional[Dict] = None) -> Dict:
     """Máy chốt TỪNG SHOT (tối ưu 16/10): lần đo Quay phim đã duyệt, không có thì lần đo ít lỗi nhất của shot; shot đạt Blender + luật
