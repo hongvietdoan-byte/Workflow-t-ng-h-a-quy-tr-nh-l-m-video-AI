@@ -101,3 +101,9 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   Làm lại 3 lần từ Đạo diễn: (−0,45; −0,25) → biệt thự chính diện nhưng RỐI ĐỎ sát máy hơn TÍM, bị cắt mép phải (thấy 39–54 %, sửa máy
   không cứu được); (0,1; −0,45) → máy về lại phía tây-bắc, ĐỎ vẫn nhỏ; **chốt (−0,3; −0,05)**, cách TÍM ~0,6 m: ĐỎ 15 % khung, thấy trọn,
   máy 0,75 m chúc 7,8°, biệt thự nửa trái phía sau. Quay phim "khop". Ảnh `ban_dao_dien_roi_do_gan.png`. Chờ EP duyệt.
+- 24/10 người dùng **"duyệt"** (EP, trong chat) → `stage_auto.py --project 34 --scene 1 --crew-approve`: phase `xong`, máy shot 1 từ `crew/m1`.
+  Render lại nền (`location_pack.py render`, 0 USD): máy 0,75 m trên chỗ đứng, pitch −7,8°, yaw 119,7°, 24 mm →
+  `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/nen3d_ban_dao_dien.jpg`.
+- `pregen_check` lần 4 (`pregen_check_4.txt`): 1 ảnh ≈ 0.22 usd (tối đa 0.88); video bản cao 1 shot ≈ 7.84 USD; cổng không có; nền 3D 0 shot
+  chưa sẵn; **CÒN CHẶN** duy nhất: Tổ rà soát lỗi OAuth Claude Code hết hạn. Còn phải khóa Character Bible trước khi gen
+  (`image_model` CSDL = gpt-image-2.5-sunburst; "Ảnh: deepix" trên Dashboard là nhà cung cấp).
