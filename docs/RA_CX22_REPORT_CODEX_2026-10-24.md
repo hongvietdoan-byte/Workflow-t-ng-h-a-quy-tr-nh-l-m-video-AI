@@ -36,3 +36,19 @@ Nguồn phiên và CSDL phải chỉ định rõ bằng `--session-dir` và `--d
 5. Dữ liệu token thiếu cache/role có thể làm tổng UNKNOWN dù có phần đếm đọc được. Không đoán zero, không suy số token từ hạn mức tài khoản.
 
 Không gộp main, không restart live, 0 USD.
+
+## Nghiệm thu root trên máy Windows — nguồn thật chỉ đọc
+
+- Code `fcb8816e`, merge origin/main `4ced4688`; root đã đọc fixdiff lần hai. Rà độc lập chốt ba P2 (hardlink đích, cutoff lịch sử, activity thiếu coverage) và đọc lại bản sửa không còn finding chặn. Nhóm cuối **26 passed / 1 skipped / 4,04 giây**; focused caption mới **1 passed / 0,59 giây**, không cộng thành một lượt cả bộ.
+- Đã chạy tool với root là worktree, manifest thật chỉ định rõ và **đúng một** thư mục phiên Claude của dự án; không tự glob home/sibling. Tiến trình thay OBJECT môi trường bằng dict giả trước import target, native whitelist/HOME/profile riêng. Không API/provider/credential loader/migration hoặc ghi dữ liệu sản xuất.
+- SQLite thật được mở bằng URI mode=ro/query_only/read transaction. Fixture WAL giữ writer mở, thấy dòng committed chỉ trong WAL và hash DB/WAL giả không đổi. Không dùng immutable, không khẳng định hash CSDL live bất biến khi có writer khác.
+- Snapshot **24/10/2026 15:18:45 Asia/Saigon**: code 71,1%, cổng 9,2%; 1.865 commit trong kỳ 7 ngày, 7.261 hàm test tĩnh (không phải số cases xanh), 14 artifact final, 6.363 dòng ledger. Chất lượng lịch sử có mẫu số: ảnh 84/182, video 38/122; tổng 122/304 ≈40,13% đạt ở phán quyết đầu theo event, không thay nghiệm thu chất lượng video.
+- Nguồn token: 37 file/7.640 bản ghi, 75 message ID xung đột, 6 mẫu thiếu trường và 1 dòng hỏng. Tổng token, số phiên/ngày hoàn chỉnh vì vậy UNKNOWN; bảng tháng/model/vai chỉ là phần quan sát được, không gán toàn bộ JSONL vào xây công cụ. Không suy token từ hạn mức tài khoản, không quy đổi thành USD.
+- USD chi thực tế UNKNOWN vì schema sổ chỉ có lượng dùng/model; dự toán tổng UNKNOWN khi chưa đủ snapshot hợp lệ. Giữ chỗ LLM snapshot =0 USD, không gọi đó là tổng giữ chỗ mọi job. Không sửa nguồn thật để lấp chỗ thiếu.
+- CLI lần đầu đã tạo artifact nhưng exit1 ở thông báo cuối vì wrapper đặt UTF-8 sau startup không đổi codec cp1252; chạy lại với **Python -X utf8=1 từ startup: exit0**. Không có giá trị môi trường thật/credential trong wrapper hoặc log chẩn đoán.
+- PDF native từ pandoc và Edge headless, profile tạm riêng, env whitelist/CSP/no headers/DNS deny. Visual đầu 9 trang co hẹp vì CSS Pandoc; root sửa vị trí/ưu tiên CSS, reviewer rà nhẹ không finding. Bản cuối **7 trang**, đủ 7 mục, không clipping/chồng chữ hoặc đường dẫn riêng tư trong extracted text. Không dùng Computer Use/desktop capture.
+- Có Markdown, JSON sidecar và PDF cùng snapshot. Sửa None→UNKNOWN ở bảng dự án giữ đúng số 0; tái xuất từ sidecar, không đọc lại DB/log cho sửa trình bày. Ảnh QA chỉ tạm, không đưa profile/cache/ảnh tạm vào commit.
+
+### Trạng thái bàn giao
+
+Đủ phạm vi CX22-REPORT để báo XONG/chờ phiên chính gộp. Chưa gộp main, chưa chạy cả bộ Windows, chưa restart Dashboard. Không gọi các chỉ số UNKNOWN là 0 hoặc đã xác minh. Cần artifact test kết quả có cấu trúc, linkage loại tác vụ/token và nguồn USD thực thu nếu muốn bổ sung các phần còn thiếu dữ liệu; đó là giới hạn nguồn, không tự tạo dữ liệu.

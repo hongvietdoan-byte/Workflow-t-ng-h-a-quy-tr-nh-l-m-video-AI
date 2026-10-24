@@ -450,7 +450,7 @@ def render_markdown(report):
             for g in report["token_groups"]:
                 lines.append("| " + " | ".join(cell(g[k] if g[k] is not None else "UNKNOWN") for k in ("month", "model", "role", *TOKEN_FIELDS)) + " |")
             lines += ["", "Chi sản xuất theo dự án (không tự gán chi xây công cụ vào video):", "", "| Dự án | Dự toán USD | Chi thực USD |", "|---|---|---|"]
-            lines += [f"| {p['project']} | {p.get('estimated_usd', 'UNKNOWN')} | {p.get('actual_usd', 'UNKNOWN')} |" for p in report["project_costs"]]
+            lines += [f"| {p['project']} | {p.get('estimated_usd') if p.get('estimated_usd') is not None else 'UNKNOWN' } | {p.get('actual_usd') if p.get('actual_usd') is not None else 'UNKNOWN' } |" for p in report["project_costs"]]
         if i == 5:
             lines += ["", f"Nguồn: jobs + job_events snapshot mode=ro; ngày đo {report['measured_at']}. So kỳ trước từng loại: UNKNOWN."]
             lines += ["", "Lịch sử đạt lần đầu: mẫu số gồm shot đã có phán quyết approved/rejected; tử số approved ngay phán quyết đầu, đúng một running, không failed trước đó; thiếu lịch sử ⇒ UNKNOWN.", "", "| Loại | Đạt lần đầu | Đã phán quyết đủ lịch sử | Thiếu lịch sử | Có gen lại |", "|---|---|---|---|---|"]
@@ -562,8 +562,8 @@ def render_pdf(markdown, root):
             if "<head>" not in text:
                 return None, "PDF: HTML thiếu head để đặt chính sách không mạng"
             csp = '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;unsafe-inline&#39;; img-src data:; font-src &#39;none&#39;; connect-src &#39;none&#39;">'
-            css = "<style>@page{size:A4 landscape;margin:12mm}body{font:9pt Arial,sans-serif}table{width:100%;table-layout:fixed;border-collapse:collapse}th,td{overflow-wrap:anywhere;word-break:break-word;padding:3px;border:1px solid #aaa;font-size:8pt}thead{display:table-header-group}tr{break-inside:avoid}pre,code{white-space:pre-wrap;overflow-wrap:anywhere}</style>"
-            html.write_text(text.replace("<head>", "<head>" + csp + css, 1), encoding="utf-8")
+            css = "<style>@page{size:A4 landscape;margin:12mm}html,body{max-width:none!important;width:auto!important;margin:0!important;padding:0!important;font:9pt Arial,sans-serif!important}table{width:100%;table-layout:fixed;border-collapse:collapse}th,td{overflow-wrap:anywhere;word-break:break-word;padding:3px;border:1px solid #aaa;font-size:8pt}thead{display:table-header-group}tr{break-inside:avoid}pre,code{white-space:pre-wrap;overflow-wrap:anywhere}</style>"
+            html.write_text(text.replace("<head>", "<head>" + csp, 1).replace("</head>", css + "</head>", 1), encoding="utf-8")
             success = _browser_process(commands[1], env, temp)
             generated = temp / "report.pdf"
             if not success or not generated.is_file() or not generated.read_bytes().startswith(b"%PDF-"):
