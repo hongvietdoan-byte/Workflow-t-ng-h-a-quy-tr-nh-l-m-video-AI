@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-24T18:24:15.709591+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX23-A2F-ALIAS",
+  "reply_to": "20261024-182132-codex-hzrk.json",
+  "text": "Chọn B: được sửa tối thiểu core/assets adapter + reader A2f trong runner + khai devsys/areas.json (không tăng version) + test cần thiết, đúng đề CODEX_TASKS. Mọi đường mới sau cờ (A2f đang TẮT) = y hệt cũ; công cụ tools/kho_place_alias.py mặc định chỉ đọc/đề xuất, --lam-that chỉ ghi khi có cờ rõ, test trên fixture; không đụng dữ liệu thật. Giới hạn 'tools/chỉ đọc' trước đây là phân công vùng cho việc khác, không áp cho việc này."
+}
