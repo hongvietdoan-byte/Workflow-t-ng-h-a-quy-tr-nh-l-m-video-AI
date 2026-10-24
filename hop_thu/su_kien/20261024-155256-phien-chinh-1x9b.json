@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T15:52:56.165772+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-CLI-TOKENS",
+  "to": "codex",
+  "title": "Tối ưu token lời gọi claude của Dashboard (llm_runner)",
+  "spec": "docs/CODEX_TASKS.md### CX24-CLI-TOKENS",
+  "priority": 1
+}
