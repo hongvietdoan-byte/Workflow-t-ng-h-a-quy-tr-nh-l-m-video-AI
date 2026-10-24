@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T15:53:18.869173+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-RA-M82B",
+  "to": "codex",
+  "title": "Codex rà kỹ độc lập nhánh M82B",
+  "spec": "docs/CODEX_TASKS.md### CX24-RA-M82B",
+  "priority": 1
+}
