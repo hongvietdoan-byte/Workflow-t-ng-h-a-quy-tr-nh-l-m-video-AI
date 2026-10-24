@@ -213,6 +213,43 @@ def _cli_proposal_controls(conn, pid, data_dir, scene, key, who, user, busy):
             st.error("; ".join(result.get("errors") or ["Không tạo được đề xuất CLI."]))
 
 
+def _height_fix_panel(conn, pid, shots, key, user, busy):
+    from core import assets, library_height
+    from dashboard import common
+    import hashlib
+    if not common.allowed('assets'):
+        return
+    try:
+        entries, problems = library_height.missing_heights(conn, pid, shots)
+    except Exception:
+        st.caption('Không đọc được chiều cao Kho cho cảnh này; mở Kho để kiểm tra hồ sơ.')
+        return
+    for problem in problems:
+        st.caption(problem)
+    if not entries:
+        return
+    with st.expander('Bổ sung chiều cao còn thiếu — sửa Kho CHUNG'):
+        st.caption('Nhập số đo theo mét. Lưu vào hồ sơ Kho chung, ảnh hưởng mọi dự án dùng hồ sơ này; không tạo bản sao dự án.')
+        for entry in entries:
+            revision = hashlib.sha256(entry['snapshot'].encode('utf-8')).hexdigest()[:24]
+            prefix = f"{key}_height_{entry['id']}_{revision}"
+            height = st.number_input(f"Chiều cao {entry['name']} — Kho #{entry['id']} (m)", min_value=0.0,
+                                     max_value=30.0, value=0.0, step=0.01, key=prefix, disabled=busy)
+            confirmed = st.checkbox('Tôi xác nhận sửa Kho CHUNG, ảnh hưởng mọi dự án dùng hồ sơ này',
+                                    key=f'{prefix}_confirm', disabled=busy)
+            if st.button('Lưu chiều cao vào Kho chung', key=f'{prefix}_save', disabled=busy or not confirmed or height < .2):
+                try:
+                    library_height.save_height(conn, entry['id'], height, user=user, confirmed=confirmed,
+                                               expected_profile_snapshot=entry['snapshot'])
+                except assets.AssetError as error:
+                    st.error(str(error))
+                except Exception:
+                    st.error('Không lưu được chiều cao; tải lại để kiểm tra quyền và hồ sơ Kho.')
+                else:
+                    st.success('Đã lưu chiều cao vào Kho chung.')
+                    st.rerun()
+
+
 def render_scene(p, pid: int, data_dir: str, scene) -> None:
     """Hàng nút của MỘT cảnh, vẽ trong expander của màn XEM. Cờ tắt → không đọc / không vẽ gì."""
     if not enabled():
@@ -256,6 +293,7 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
         st.warning("Sau làm lại, máy đổi ở shot " + ", ".join(map(str, rs["plates_stale"])) + " — nền 3D cũ (bấm ↻ Render lại nền 3D)"
                    + (f"; ảnh đã vẽ cũ: shot {', '.join(map(str, rs['images_stale']))}" if rs.get("images_stale") else ""))
     busy = bool(h and not h.get("stale")) or bool(s.get("running")) or (pr or {}).get("state") == "running"
+    _height_fix_panel(conn, pid, s.get('shots') or [], key, user, busy)
     codes = [c for c in ORDER if c in (s.get("buttons") or [])]
     if any(c in codes for c in EP_ONLY) and not (s.get("user_approves") and not is_claude
                                                  and stage_desk.is_executive_producer(conn, pid, user)):

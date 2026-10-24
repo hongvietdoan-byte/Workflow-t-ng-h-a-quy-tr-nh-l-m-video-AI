@@ -1,6 +1,6 @@
 # CX24-P34-DASH-FIXES — checkpoint Codex 1 (24/10/2026)
 
-**ĐANG LÀM, chưa XONG toàn task.** Nhánh `codex/v31-p34-dash-fixes`, worktree cùng tên dưới `.codex-wt`, nền `origin/main` a700ead8. Nhận `20261024-175930-codex-9fnb.json`, báo phạm vi `20261024-180037-codex-g8re.json`. Không tự gộp/restart live.
+**ĐANG LÀM, chưa XONG toàn task.** Nhánh `codex/v31-p34-dash-fixes`, worktree cùng tên dưới `.codex-wt`, nền ban đầu `origin/main` a700ead8, đã đồng bộ CLI/D6 bằng merge2ce7ea95. Nhận `20261024-175930-codex-9fnb.json`, báo phạm vi `20261024-180037-codex-g8re.json`. Không tự gộp/restart live.
 
 ## Đã làm trong checkpoint
 
@@ -18,19 +18,19 @@ RED **1 error collection/0,56s** trước helper → GREEN **9 passed/0,31s**; h
 
 Root đọc hai phần sửa, chạy nhóm unit serial nhẹ bằng OBJECT os.environ giả, HOME/TEMP giả, keyring giả và winreg.OpenKey bị mock trước pytest/import/call: **28 passed/0,77s** (hai test mới + test_change_audit, số ca chồng nhóm child, không cộng trùng). `--tb=no`, không plugin tự nạp/xdist/server. areas.version92, khai helper/tests ở step2 và plates3d.
 
-## Còn phải làm trước báo XONG
+## Trạng thái hiện tại trước báo XONG
 
-| Mục | Bước tiếp |
+| Mục | Đã có / việc còn lại |
 |---|---|
-|1|UI không nói “không mục lệch” khi change_events failed/code_only quota. Tạo mục đỏ ngay cả chưa gọi blocking, idempotent, giữ cổng; Rà lại có dự toán/xác nhận, Bỏ qua chỉ EP + lý do/audit + chống bỏ qua lỗi mới chưa xem. Dùng API quyền canonical sau dependency G1, không tạo vai EP thứ hai.|
-|2|Trạng thái/email tài khoản Claude CLI của pipeline, cache ngắn, clean_env dùng chung, fakebinary tests, thông điệp đăng nhập lỗi; không chạy claude auth thật trong QA. Đối chiếu dependency CLI-TOKENS trước refactor env.|
-|3|Nút giao vai Claude tại N4 gọi llm_runner đúng dự án/stage rồi validate/load_answer; giữ dán tay, quyền và xác nhận. API thật/phí chỉ theo dự toán và EP, QA provider giả.|
-|4|Chỗ sửa height_m trên Dashboard có xác nhận, quyền sửa Kho, actor/revision/CAS. Kiểm core.kho_profile.save(conn,asset_id,changes,actor,expected_revision,reason=...) và tương thích schema1 trước dùng, không backfill/migration thật.|
-|7|Chọn phía máy theo trục và ép ngưỡng vật phụ qua stage_solver; giữ m/world axes và geometry nguồn A, unit hình học fake, không mở Blender.|
-|10|Giữ đăng nhập khi đổi URL. header.require_login hiện dùng session_state/token s trong query, chưa thấy cookie helper; ưu tiên dùng cơ chế có sẵn, không nạp token vào log/test thật, kiểm logout/revocation/Owner khác máy. Chưa đổi luồng auth.|
-|8/9|Chỉ thiết kế trong báo cáo (nháp bên dưới), không tự triển khai.|
+|1|Code EP/lý do/audit/snapshot + materializer, root100test; chưa tích hợp G1 được gán riêng sau khi main GỘP, chưa AppTest/ca thật.|
+|2|Ô CLI + cache/email/ownedtree cleanup và câu lỗi login, mock xanh; chưa CLI/native/cây con khi OS từ chối.|
+|3|Proposal CLI theo project/ledger/budget, xác nhận rồi draft ghim, N4 riêng có validator; root76test + manual4/budget7; chưa CLI/AppTest thật.|
+|4|Theo thư18:54 chỉ Kho CHUNG, sửa ngay height_m + quyền mới/CAS, giữ v1/v2, root34test; không clone. Chưa UI/ca thật.|
+|6/7/11|Code auditID/camera_side+thay_min/nhãn model và unit/mock đã push; camera/Blender/ca thật chưa nghiệm thu.|
+|10|Theo thư18:54 giữ s sau identity+cổng máy, thiếu phiên báo đăng nhập lại; root12test; không cookie/SSO, chưa browser/AppTest.|
+|8/9|Chỉ thiết kế trong RA, không triển khai.|
 
-G1-EP-ROLE6d647212 và CLI-TOKENS296fc658 **chưa là ancestor HEAD a700ead8** lúc tạo task (merge-base exit1 riêng từng dependency); không chép lại API của nhánh khác. Đã hỏi phiên chính qua `20261024-180630-codex-j3np.json` về nhánh tích hợp và lượt AppTest nặng; kiểm thư mới trước sửa các mục phụ thuộc. Không coi chưa trả lời là duyệt, vẫn có thể chuẩn bị unit/callback nhẹ độc lập.
+Toàn task vẫn ĐANG LÀM. Bước kế: đọc mail/G1 main mới, chờ thư TĂNG TỐC và slot sau22h cho AppTest được điều phối. Không nhận nhánh lẻ làm dependency, không test nặng/cả bộ hoặc tự mở server/CU; chưa phát xong.
 
 ## Thiết kế nháp mục8/9 (chưa triển khai)
 
@@ -144,3 +144,12 @@ Theo185416-4j0w: giữ auth.identity/revocation/machine_auth và nguồn ưu ti�
 RED3 failed/8 passed/0,55s → child12xanh/0,62s; root đọc source/caller/fix hai lượt, **0 P1/P2 trong phạm vi**, chạy riêng12xanh/0,61s với AST hàm thật + auth/UI giả, mạng/process bị chặn. Test validlink, session ưu tiên, thiếu phiên, revoke, Ownerremote, machinerefusal, authOFF, logout và callback giữ s. Không GUI/AppTest/browser/account thật; chưa nghiệm thu ca #34. Cookie HttpOnly/transport tự phục hồi URL không token chỉ là đề xuất cần EP duyệt riêng; không code trong task này. Khai test dashboard_ui, version92 giữ nguyên.
 
 Hồi quy thêm mục3: LoadAnswerTests nhập tay cũ **4 passed/2,62s**, CLI budget cờON/OFF/argv/model/image policy **7 passed,26 deselected/1,25s**; toàn bộ dùng fakeenv/process, không cộng thành số test duy nhất với các nhóm đã chạy.
+
+
+## Mục4 — bổ sung chiều cao Kho chung và bảo toàn hồ sơ
+
+Theo185447-cupd, panel trong bàn đạo diễn dùng đúng shot idx của scene_status và resolver linkedID canonical từ audit. Nhân vật/thú thiếu height có ô số mặc định0 (chưa khai, không đoán) + xác nhận rõ Kho CHUNG ảnh hưởng mọi dự án. Widget mang assetID/hashsnapshot; lưu dùng snapshot lúc vẽ, lỗi/thiếu quyền/malformed/xung đột báo rõ và không ghi. Hồ sơ riêng dự án chỉ báo giới hạn, không clone/link/move asset. Không thay chính sách/cổng thiếu chiều cao hiện hành.
+
+`library_height.save_height` yêu cầu xác nhận, số hữu hạn0,2–30m, đọc users.active/role/perms mới và auth.can assets dưới BEGIN IMMEDIATE; localOFF theo đủ alias canonical. Từ chối pending transaction của caller trước mở transaction riêng. Writer v1 deepcopy giữ mọi unknown/nestedfield, giữ textkeys/approved/history khi chỉ sửa height; optional rawsnapshotCAS trong writer hiện có, stale rollback/release savepoint không mắc write lock hoặc rollback caller. V2 giữ writer actor/revision/audit cũ, không nâng schema v1/migration. Không API transaction/clone mới.
+
+RED đầu writer2failed; helper mới16failed/2passed. Rà gom P2: staleCAS để implicittransaction mở (RED1failed/1passed), helper commit transaction caller (RED1failed), authOFF thiếu alias → sửa savepoint/refusepending/canonicalalias. Thêm actual scenes/refID fixture và mock panel xác nhận→save→rerun, v2 revision/provenance, malformed/scope/knownheight readonly. Builder cuối **34 passed,51 deselected/0,41s**; root chạy31test mới +3hồi quy writer v1/v2/audit rollback **34 passed/0,28s**. Reviewer độc lập đọc fix/core/UI/callers hai lượt **0 P1/P2 trong phạm vi**; root đọc hai lượt. Đăng ký helper/test assets, version92 giữ nguyên. Chưa AppTest/GUI/#34/data thật, không thay kết luận thành nghiệm thu production.
