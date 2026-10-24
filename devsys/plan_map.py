@@ -20,7 +20,8 @@ ERRORS_FILE = os.path.join(ROOT, "devsys", "errors.json")
 
 BG, PANEL, TEXT, MUTED = "#0f1720", "#16212c", "#e8eef5", "#8a99a8"
 STATUS_COLOR = {"✅": "#4dff6a", "🔄": "#ffb020", "⏸": "#b388ff", "⬜": "#5b6b7a", "✖": "#3a4450"}
-STATUS_NAME = {"✅": "xong", "🔄": "đang làm", "⏸": "chờ người dùng", "⬜": "chưa làm", "✖": "bỏ"}
+CODE_DONE_COLOR = "#65b9ff"
+STATUS_NAME = {"✅": "cổng đạt", "🔄": "đang làm", "⏸": "chờ người dùng", "⬜": "chưa làm", "✖": "bỏ"}
 STAGE_COLOR = {"thieu": "#ff5a5a", "tu_do": "#ffb020", "ok": "#22e5ff"}
 NEN = "NEN"
 
@@ -74,9 +75,12 @@ def model(plan: Dict, stage_rows: List[Dict], khau: Dict[str, List[str]], errors
         r["done"] = sum(t["status"] == "✅" for t in counted)
         r["n"] = len(counted)
         r["pct"] = plan_progress.percent(mine)
+        r["pct_gate"] = plan_progress.gate_percent(mine)
         r["open_errors"] = None if errors is None else errors.get(r["id"], 0)
-    return {"total": s["total"], "current": s["current"], "next": s["next"],
+    return {"total": s["total"], "total_gate": s["total_gate"], "gate_warnings": s["gate_warnings"],
+            "current": s["current"], "next": s["next"],
             "waves": [{"id": w["id"], "name": w["name"], "tasks": w["tasks"], "pct": pct[w["id"]]["pct"],
+                       "pct_gate": pct[w["id"]]["pct_gate"],
                        "done": pct[w["id"]]["done"], "n": pct[w["id"]]["n"]} for w in plan["waves"]],
             "rows": rows, "unmapped": unmapped, "stale": stale, "unknown_stage": unknown_stage}
 
@@ -104,42 +108,52 @@ def _legend(y: int, width: int) -> str:
         out.append(f'<rect x="{x}" y="{y}" width="18" height="14" rx="3" fill="{STATUS_COLOR[st]}"/>'
                    f'<text x="{x + 26}" y="{y + 12}" fill="{MUTED}" font-size="13">{escape(name)}</text>')
         x += 150
+    out.append(f'<rect x="{x}" y="{y}" width="18" height="14" rx="3" fill="{CODE_DONE_COLOR}"/>'
+               f'<text x="{x + 26}" y="{y + 12}" fill="{MUTED}" font-size="13">code xong, cổng chưa đạt</text>')
     return "".join(out)
+
+
+def _task_color(task: Dict) -> str:
+    if task["status"] == "✅" and task.get("gate_status") != "✅":
+        return CODE_DONE_COLOR
+    return STATUS_COLOR[task["status"]]
 
 
 def roadmap_svg(m: Dict, title: str) -> str:
     """Sơ đồ 1: cột milestone, mỗi việc một ô màu theo trạng thái, đầu cột có % và thanh tiến độ."""
     waves = m["waves"]
-    col_w, gap, top = 300, 18, 150
+    col_w, gap, top = 300, 18, 180
     width = 40 * 2 + len(waves) * col_w + (len(waves) - 1) * gap
-    box_h = 62
+    box_h = 78
     height = top + max((len(w["tasks"]) for w in waves), default=0) * (box_h + 10) + 60
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="100%" font-family="Segoe UI, Arial">',
            f'<rect width="{width}" height="{height}" fill="{BG}"/>',
            f'<text x="{width / 2}" y="40" fill="{TEXT}" font-size="26" font-weight="700" text-anchor="middle">{escape(title)}</text>',
-           f'<text x="{width / 2}" y="66" fill="{MUTED}" font-size="14" text-anchor="middle">Tổng {_pct(m["total"])} · đợt hiện tại '
+           f'<text x="{width / 2}" y="66" fill="{MUTED}" font-size="14" text-anchor="middle">Tổng code {_pct(m["total"])} / cổng {_pct(m["total_gate"])} · đợt hiện tại '
            f'{escape(m["current"] or "—")} · việc kế {escape(m["next"]["id"] if m["next"] else "—")} — màu tính lại từ file kế hoạch mỗi lần mở</text>',
            _legend(84, width)]
     for i, w in enumerate(waves):
         x = 40 + i * (col_w + gap)
         cur = w["id"] == m["current"]
         border = "#22e5ff" if cur else "#2c3a48"
-        out.append(f'<rect x="{x}" y="112" width="{col_w}" height="30" rx="6" fill="{PANEL}" stroke="{border}" stroke-width="{3 if cur else 1}"/>')
+        out.append(f'<rect x="{x}" y="112" width="{col_w}" height="54" rx="6" fill="{PANEL}" stroke="{border}" stroke-width="{3 if cur else 1}"/>')
         name = w["name"].split("(")[0].strip()
         out.append(f'<text x="{x + 10}" y="132" fill="{TEXT}" font-size="14" font-weight="700">{escape(w["id"] + " " + name[:28])}</text>')
-        out.append(f'<text x="{x + col_w - 10}" y="132" fill="{TEXT}" font-size="14" text-anchor="end">{_pct(w["pct"])}</text>')
+        out.append(f'<text x="{x + 10}" y="155" fill="{TEXT}" font-size="13">code {_pct(w["pct"])} / cổng {_pct(w["pct_gate"])}</text>')
         frac = (w["pct"] or 0) / 100.0
-        out.append(f'<rect x="{x}" y="144" width="{col_w}" height="4" fill="#2c3a48"/>'
-                   f'<rect x="{x}" y="144" width="{col_w * frac:.1f}" height="4" fill="#4dff6a"/>')
+        out.append(f'<rect x="{x}" y="168" width="{col_w}" height="4" fill="#2c3a48"/>'
+                   f'<rect x="{x}" y="168" width="{col_w * frac:.1f}" height="4" fill="{CODE_DONE_COLOR}"/>'
+                   f'<rect x="{x}" y="174" width="{col_w * (w["pct_gate"] or 0) / 100:.1f}" height="4" fill="{STATUS_COLOR["✅"]}"/>')
         for j, t in enumerate(w["tasks"]):
             y = top + 10 + j * (box_h + 10)
-            c = STATUS_COLOR[t["status"]]
+            c = _task_color(t)
             out.append(f'<rect x="{x}" y="{y}" width="{col_w}" height="{box_h}" rx="7" fill="{PANEL}" stroke="{c}" stroke-width="2"/>'
                        f'<rect x="{x}" y="{y}" width="6" height="{box_h}" rx="3" fill="{c}"/>')
             out.append(f'<text x="{x + 14}" y="{y + 19}" fill="{c}" font-size="13" font-weight="700">{escape(t["id"])} · '
-                       f'{escape(STATUS_NAME[t["status"]])}{" · " + escape(t["commit"]) if t["commit"] else ""}</text>')
+                       f'{escape("code xong" if t["status"] == "✅" else STATUS_NAME[t["status"]])}{" · " + escape(t["commit"]) if t["commit"] else ""}</text>')
             for k, line in enumerate(_wrap(t["title"], 44)[:2]):
                 out.append(f'<text x="{x + 14}" y="{y + 37 + k * 16}" fill="{TEXT}" font-size="12">{escape(line)}</text>')
+            out.append(f'<text x="{x + 14}" y="{y + 70}" fill="{c}" font-size="11">cổng {escape(t.get("gate_status", "⬜"))}</text>')
     out.append("</svg>")
     return "".join(out)
 
@@ -156,7 +170,7 @@ def stages_svg(m: Dict, title: str) -> str:
            f'vàng = kết luận đọc chữ tự do · xanh = có kiểm (devsys/stages.json theo cờ thật). Chip = việc V3.1 sửa khâu đó.</text>',
            _legend(80, width)]
     hx = [40, 470, 1290, 1400]
-    for x, h in zip(hx, ["KHÂU", "VIỆC V3.1 (màu = trạng thái)", "TIẾN ĐỘ", "LỖI MỞ"]):
+    for x, h in zip(hx, ["KHÂU", "VIỆC V3.1 (màu = code/cổng)", "% CODE / CỔNG", "LỖI MỞ"]):
         out.append(f'<text x="{x}" y="{top - 4}" fill="{MUTED}" font-size="12" font-weight="700">{h}</text>')
     for i, r in enumerate(rows):
         y = top + 6 + i * (row_h + 8)
@@ -167,7 +181,7 @@ def stages_svg(m: Dict, title: str) -> str:
             out.append(f'<text x="110" y="{y + 22 + k * 17}" fill="{TEXT}" font-size="13">{escape(line)}</text>')
         cx = hx[1]
         for n, t in enumerate(r["tasks"]):
-            tc = STATUS_COLOR[t["status"]]
+            tc = _task_color(t)
             wpx = 8 * len(t["id"]) + 18
             if cx + wpx > hx[2] - 60:
                 out.append(f'<text x="{cx}" y="{y + 32}" fill="{MUTED}" font-size="12">+{len(r["tasks"]) - n}</text>')
@@ -181,7 +195,8 @@ def stages_svg(m: Dict, title: str) -> str:
         frac = (r["pct"] or 0) / 100.0
         out.append(f'<rect x="{hx[2]}" y="{y + 22}" width="90" height="8" rx="4" fill="#2c3a48"/>'
                    f'<rect x="{hx[2]}" y="{y + 22}" width="{90 * frac:.1f}" height="8" rx="4" fill="#4dff6a"/>'
-                   f'<text x="{hx[2]}" y="{y + 46}" fill="{MUTED}" font-size="11">{r["done"]}/{r["n"]} · {_pct(r["pct"])}</text>')
+                   f'<text x="{hx[2]}" y="{y + 38}" fill="{MUTED}" font-size="10">code {_pct(r["pct"])}</text>'
+                   f'<text x="{hx[2]}" y="{y + 50}" fill="{MUTED}" font-size="10">cổng {_pct(r["pct_gate"])}</text>')
         err = "chưa có sổ" if r["open_errors"] is None else str(r["open_errors"])
         ec = MUTED if r["open_errors"] in (None, 0) else "#ff5a5a"
         out.append(f'<text x="{hx[3]}" y="{y + 32}" fill="{ec}" font-size="13">{escape(err)}</text>')

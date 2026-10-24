@@ -64,8 +64,14 @@ WAVE_RE = re.compile(r"^###\s+(?P<id>[A-Z]+\d*)\s+[—-]\s+(?P<name>.+?)\s*$")
 CAP_RE = re.compile(r"Trần đợt:\s*(?P<usd>[\d.,]+)\s*USD\s*·\s*Claude\s*(?P<llm>[\d.,]+)\s*USD\s*·\s*từ\s*(?P<since>\S+)")
 FOCUS_RE = re.compile(r"^\s*>?\s*Đợt ưu tiên:\s*\**(?P<id>[A-Z]+\d*)\**", re.M)     # "Đợt ưu tiên: S13" = the person says which wave is current
 MARK_START, MARK_END = "<!-- tien-do -->", "<!-- /tien-do -->"
-DASHBOARD_TASKS = {"M4.7", "M4.8", "M6.10", "M8.0", "M8.1", "M8.2", "M8.3", "M8.4"}
+DASHBOARD_TASKS = {"M0.8", "M4.7", "M4.8", "M6.10", "M8.0", "M8.1", "M8.2", "M8.3", "M8.4"}
 UI_EVIDENCE_RE = re.compile(r"\bui_step\b|\S+\.(?:png|jpe?g|webp)\b", re.I)
+EVIDENCE_REFERENCE_RE = re.compile(
+    r"\bcommit\s+[0-9a-f]{7,40}\b|\bui_step\s+(?:#\d+|[a-z0-9_-]+:\S+)"
+    r"|(?:[\w.-]+[/\\])+[\w.-]+\.(?:png|jpe?g|webp|jsonl?|log|md|txt)(?::\d+)?", re.I)
+UNVERIFIED_EVIDENCE_RE = re.compile(
+    r"\bchưa\b|\bkhông\s+(?:có|dùng|chạy|kiểm)\b|\bmockup\b|\bfixture\b|\bapptest\b"
+    r"|\boffline\b|\btest\s+giả\b|chỉ\s+có\s+(?:unit|test)", re.I)
 
 
 def _gate(parts: List[str], tid: str, title: str, code_status: str) -> Dict:
@@ -81,11 +87,11 @@ def _gate(parts: List[str], tid: str, title: str, code_status: str) -> Dict:
     accepted = declared == "✅"
     if accepted:
         low = evidence.casefold()
-        real_evidence = bool(re.search(r"chạy thật|máy chính|ui_step|sổ chi|commit\s+[0-9a-f]{7,40}\b", low)
-                             or UI_EVIDENCE_RE.search(evidence))
-        if not real_evidence or re.search(r"chưa\s+(?:kiểm|chạy|đo|có)|chỉ\s+có\s+(?:unit|test)", low):
+        real_evidence = bool(EVIDENCE_REFERENCE_RE.search(evidence))
+        if not real_evidence or UNVERIFIED_EVIDENCE_RE.search(low):
             warning = f"{tid}: cổng ✅ thiếu bằng chứng chạy thật (commit/ảnh/ui_step/sổ chi)"
-        elif (tid in DASHBOARD_TASKS or re.search(r"dashboard|giao diện", title, re.I)) and not UI_EVIDENCE_RE.search(evidence):
+        elif (tid in DASHBOARD_TASKS or re.search(r"dashboard|giao diện", title, re.I)) and not (
+                UI_EVIDENCE_RE.search(evidence) and re.search(r"ui_step|dùng thật|chạy thật|nghiệm thu", evidence, re.I)):
             warning = f"{tid}: cổng Dashboard thiếu ảnh chụp hoặc nhật ký ui_step dùng thật"
         elif code_status != "✅":
             warning = f"{tid}: cổng ✅ trong khi code chưa ✅"

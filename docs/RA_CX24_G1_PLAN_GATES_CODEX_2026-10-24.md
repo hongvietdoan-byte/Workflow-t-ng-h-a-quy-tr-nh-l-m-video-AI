@@ -1,4 +1,4 @@
-# CX24-G1-PLAN-GATES — Codex 1, pha parser/tooling
+# CX24-G1-PLAN-GATES — Codex 1
 
 - Nhánh `codex/v31-plan-gates`, nền `d9c06243` từ origin/main. Đề `docs/CODEX_TASKS.md` CX24-G1; nguồn cổng: `docs/GIAM_SAT_KE_HOACH_V31_2026-10-24.md` §3 và §4.
 - Acceptance: giữ status/commit/trọng số/% code cũ; thêm lớp cổng độc lập, dòng cũ mặc định ⬜; cổng Dashboard cần ảnh/ui_step; việc kế bỏ CHỜ PHỤ THUỘC/⏸; CLI hai cột; thêm cổng M0–M8 mà không sửa ✅ code.
@@ -23,8 +23,18 @@
 - Tự rà phần đổi: status/commit/weight cũ nguyên vẹn; tránh coi unit test là cổng thật; parser không mở path evidence (chỉ kiểm khai báo), không thay quyền/luồng gen/cờ. Root rà nhẹ diff trước gộp.
 - `related_areas.py` xác nhận khu vực devsys + step2 (step2 chỉ docstring); không có caller khu vực khác. Test chậm bắt buộc ở bước gộp: test_devsys.py, test_devsys_v2.py, test_hop_thu.py.
 
-## Còn mở — chưa XONG toàn task
+## Pha UI và vòng sửa sau root rà
 
-- **Chưa nối** hai lớp trên trang 📋 Kế hoạch và 🗺 Sơ đồ tiến độ, chưa tô màu code/cổng khác nhau, chưa GUI QA. `devsys/app.py` chờ CX24-DEVSYS-FIX được gộp; tránh tranh app với CX24-GIAM-SAT.
+- Dependency CX24-DEVSYS-FIX đã gộp `0aeef4c6`; merge main sạch trên nhánh tại **04476791**, không cherry-pick lại code.
+- Root rà ra hai P2: khai báo chung chung/phủ định/mockup vẫn có thể được cộng cổng, và M0.8 thiếu danh sách màn UI. Đã yêu cầu reference cụ thể (commit SHA, event ui_step có id, đường dẫn báo cáo/log/ảnh); loại khai báo chưa/không có/mockup/fixture/AppTest/offline; thêm M0.8. Chỉ kiểm khai báo, không tự đi tìm/chạy dữ liệu live.
+- Bằng chứng UI phải có ảnh hoặc ui_step cùng dấu dùng thật/nghiệm thu, không nâng cổng từ ảnh mockup hoặc AppTest. Dòng cổng cũ thiếu proof vẫn ⬜.
+- Nối cả 📋 Kế hoạch và 🗺 Sơ đồ tiến độ: tổng/đợt có % code, % cổng và cảnh báo; chip việc code/cổng; cả hai SVG dùng xanh dương cho code xong chưa đạt cổng, xanh lá cho cổng đạt. Giữ widget keys/legacy status và % code.
+- **ĐỎ trước sửa pha UI:** 9 fail / **14,77 giây**, gồm bảy counterexample, model/màu và thiếu hai thẻ trên trang.
+- **XANH sau sửa:** **40 passed / 16,71 giây**: fixture parser/counterexamples, PlanProgressTests, PlanFocusTests, PlanMapTests; AppTest thực thi hai hàm trang với kế hoạch giả và một AppTest toàn trang sơ đồ dây chuyền hồi quy sau dependency. Không chạy cả bộ; không GUI ngoài desktop khi công cụ đang bị chặn.
+- AppTest fixture đọc AST đúng các hàm trang từ source để tránh startup/auth/collect dữ liệu ngoài fixture; không giả lại logic render trang. AppTest hồi quy toàn trang dùng DB không tồn tại và history trong thư mục tạm. Không gọi provider hay đụng credential thật.
+
+## Giới hạn bàn giao
+
+- Hai trang đã nối và kiểm AppTest; **chưa nghiệm thu UI live/người không chuyên**. Root đọc diff vòng sửa lần hai trước khi push/báo xong hộp thư; phần gắn giám sát Codex 2 chưa thuộc nhánh này.
 - Source bằng chứng hiện là khai báo trong kế hoạch, không tự chứng minh file ảnh là ca dùng thật: phiên chính/giám sát kiểm chứng nội dung nguồn, không dùng bảng để tự bật cờ.
 - Bên gộp chạy checks theo related_areas và full Windows phù hợp; sau nối/gộp code devsys phiên chính restart 8502, health 8501/8502. Codex 1 không thao tác live.
