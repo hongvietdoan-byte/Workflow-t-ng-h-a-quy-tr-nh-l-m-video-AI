@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T15:37:11.593973+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX23-M6B-DESIGN",
+  "branch": "codex/v31-m6b-design",
+  "commit": "70a9a6ae",
+  "report": "docs/RA_CX23_M6B_DESIGN_CODEX_2026-10-24.md",
+  "text": "Codex 1: XONG tài liệu thiết kế M6-B, đã push 70a9a6ae. Bốn vai/ba hạng, input/output và file:hàm đã đối chiếu, shadow OFF, thước so builder, test plan, rollback, 3 câu EP có đề xuất. Rà độc lập và root đọc lại: 0 P1/P2; không code, pytest, flag, DB, API hoặc GUI. Q-B/E1 không hỏi lại; M6.2/M6.4 và pin/preview còn dependency OPEN. Chưa duyệt triển khai Cấp 2. Hàng riêng đã hết việc đủ điều kiện (M47B và UI M82 còn chờ lõi/gộp), M77-EVID đã gộp. Theo luật dự phòng nhận tiếp CX23-M60-AUDIT còn CHỜ, đã kiểm chưa có nhánh/worktree m60; không nhận mã đang làm hoặc KIEM-CONG-GOP dành Codex 3."
+}
