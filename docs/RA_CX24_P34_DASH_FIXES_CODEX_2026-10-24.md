@@ -1,6 +1,6 @@
 # CX24-P34-DASH-FIXES — checkpoint Codex 1 (24/10/2026)
 
-**ĐANG LÀM, chưa XONG toàn task.** Nhánh `codex/v31-p34-dash-fixes`, worktree cùng tên dưới `.codex-wt`, nền ban đầu `origin/main` a700ead8, đã đồng bộ CLI/D6 bằng merge2ce7ea95. Nhận `20261024-175930-codex-9fnb.json`, báo phạm vi `20261024-180037-codex-g8re.json`. Không tự gộp/restart live.
+**XONG phần code + unit + AppTest fixture theo thư PHÂN CÔNG TỔNG 223827-en7n; chờ phiên chính tích hợp.** Nhánh `codex/v31-p34-dash-fixes`, worktree cùng tên dưới `.codex-wt`, nền ban đầu `origin/main` a700ead8, đã đồng bộ CLI/D6 bằng merge2ce7ea95. Nhận `20261024-175930-codex-9fnb.json`, báo phạm vi `20261024-180037-codex-g8re.json`. Không tự gộp/restart live.
 
 ## Đã làm trong checkpoint
 
@@ -18,19 +18,19 @@ RED **1 error collection/0,56s** trước helper → GREEN **9 passed/0,31s**; h
 
 Root đọc hai phần sửa, chạy nhóm unit serial nhẹ bằng OBJECT os.environ giả, HOME/TEMP giả, keyring giả và winreg.OpenKey bị mock trước pytest/import/call: **28 passed/0,77s** (hai test mới + test_change_audit, số ca chồng nhóm child, không cộng trùng). `--tb=no`, không plugin tự nạp/xdist/server. areas.version92, khai helper/tests ở step2 và plates3d.
 
-## Trạng thái hiện tại trước báo XONG
+## Trạng thái chốt theo phân công 23:00
 
-| Mục | Đã có / việc còn lại |
+| Mục | Bằng chứng / giới hạn |
 |---|---|
-|1|Code EP/lý do/audit/snapshot + materializer, root100test; chưa tích hợp G1 được gán riêng sau khi main GỘP, chưa AppTest/ca thật.|
-|2|Ô CLI + cache/email/ownedtree cleanup và câu lỗi login, mock xanh; chưa CLI/native/cây con khi OS từ chối.|
-|3|Proposal CLI theo project/ledger/budget, xác nhận rồi draft ghim, N4 riêng có validator; root76test + manual4/budget7; chưa CLI/AppTest thật.|
-|4|Theo thư18:54 chỉ Kho CHUNG, sửa ngay height_m + quyền mới/CAS, giữ v1/v2, root34test; không clone. Chưa UI/ca thật.|
-|6/7/11|Code auditID/camera_side+thay_min/nhãn model và unit/mock đã push; camera/Blender/ca thật chưa nghiệm thu.|
-|10|Theo thư18:54 giữ s sau identity+cổng máy, thiếu phiên báo đăng nhập lại; root12test; không cookie/SSO, chưa browser/AppTest.|
-|8/9|Chỉ thiết kế trong RA, không triển khai.|
+|1|EP/lý do/audit/snapshot/hash, materializer, root100unit; AppTest mới kiểm banner/EP skip/nonEP. Canonical G1 API đã dùng nhưng assignedEP phải kiểm lại sau khi main GỘP.|
+|2|Ô CLI/cache/email/ownedtree cleanup và thông điệp login: unit/mock và AppTest email/runtime/refresh/settingsdenied xanh; không gọi auth status thật. OS từ chối kill cây chưa chứng minh dọn hết con.|
+|3|Proposal theo project/ledger/budget, xác nhận hai bước rồi draft ghim, N4 riêng; root76unit+manual4+budget7 và AppTest consent/draft/pin/reset/noingest. Chưa Claude CLI thật.|
+|4|Kho CHUNG theo thư18:54, quyền mới/CAS/v1unknown/v2guard: root34unit; AppTest số0/xác nhận/snapshot/save→rerun. Không clone dự án.|
+|6/7/11|AuditID/camera_side+thay_min/nhãn model: unit/mock đã push, AppTest bàn đạo diễn cũ29 xanh. Chưa Blender/ca #34 thật.|
+|10|Giữ s sau identity+cổng máy, thiếu phiên báo đăng nhập lại: root12unit/mock. Không cookie/SSO. Rà token URL là task mới CX24-URL-TOKEN-RA.|
+|8/9|Chỉ thiết kế, đúng phạm vi đề bài.|
 
-Toàn task vẫn ĐANG LÀM. Bước kế: đọc mail/G1 main mới, chờ thư TĂNG TỐC và slot sau22h cho AppTest được điều phối. Không nhận nhánh lẻ làm dependency, không test nặng/cả bộ hoặc tự mở server/CU; chưa phát xong.
+Không gộp code main, không restart live; bàn giao phiên chính chạy cả bộ/tích hợp G1 và nghiệm thu thực tế. Các mô tả CHƯA AppTest ở checkpoint bên dưới là lịch sử trước lượt chốt này.
 
 ## Thiết kế nháp mục8/9 (chưa triển khai)
 
@@ -153,3 +153,12 @@ Theo185447-cupd, panel trong bàn đạo diễn dùng đúng shot idx của scen
 `library_height.save_height` yêu cầu xác nhận, số hữu hạn0,2–30m, đọc users.active/role/perms mới và auth.can assets dưới BEGIN IMMEDIATE; localOFF theo đủ alias canonical. Từ chối pending transaction của caller trước mở transaction riêng. Writer v1 deepcopy giữ mọi unknown/nestedfield, giữ textkeys/approved/history khi chỉ sửa height; optional rawsnapshotCAS trong writer hiện có, stale rollback/release savepoint không mắc write lock hoặc rollback caller. V2 giữ writer actor/revision/audit cũ, không nâng schema v1/migration. Không API transaction/clone mới.
 
 RED đầu writer2failed; helper mới16failed/2passed. Rà gom P2: staleCAS để implicittransaction mở (RED1failed/1passed), helper commit transaction caller (RED1failed), authOFF thiếu alias → sửa savepoint/refusepending/canonicalalias. Thêm actual scenes/refID fixture và mock panel xác nhận→save→rerun, v2 revision/provenance, malformed/scope/knownheight readonly. Builder cuối **34 passed,51 deselected/0,41s**; root chạy31test mới +3hồi quy writer v1/v2/audit rollback **34 passed/0,28s**. Reviewer độc lập đọc fix/core/UI/callers hai lượt **0 P1/P2 trong phạm vi**; root đọc hai lượt. Đăng ký helper/test assets, version92 giữ nguyên. Chưa AppTest/GUI/#34/data thật, không thay kết luận thành nghiệm thu production.
+
+
+## Chốt AppTest serial sau 22:00 — theo 223827-en7n
+
+Main cho hết giảm tải qua220214-snqu/222504-g99z, tối đa2phiên test nặng. Codex1 giữ một slot bên cạnh lượt tích hợp của main, không tạo slot thứ ba. Root chạy `tests/test_v31_m48_desk_ui.py`: **29 passed/35,06s**. Thêm `tests/test_p34_ui_apptest.py` dùng Streamlit AppTest thật, backend/identity/status/ledger/model giả, không AST: **6 passed/14,22s**, lượt fixture ổn định cuối **6 passed/13,77s**. Không cần chạy lặp lại sau đó.
+
+Sáu ca: height số0+xác nhận KhoCHUNG+snapshot/save/rerun; proposal consent và paid_confirm thật hai bước tạo draft/pin/resetN4, không tự ingest; CLI email/runtime/refreshforce; settingsdenied không resolve/status; review failed banner + EP reason/snapshot; nonEP không skip. Fixture thay OBJECTenv trước imports, fake HOME/TEMP/config, block registry/keyring/native subprocess/model. Socket ứng dụng bị chặn; riêng Windows asyncio self-pipe chỉ cho loopback trong threadlocal lúc socketpair tạo cặp, không mở Streamlit server/browser hay kết nối ngoài. Các lượt lỗi đầu là fixture chặn sai API ask/ask_json và self-pipe, **không phải RED lỗi production**; sau sửa fixture không phát hiện finding production mới. Các RED→GREEN sửa chức năng nằm trong unit từng mục đã ghi riêng.
+
+Root đọc test/source/callers hai lượt, không P1/P2 mới trong phạm vi. Khai AppTest ở step2/dashboard_ui, version92 giữ nguyên. Không ảnh chụp Computer Use, không native CLI/Blender/account/#34 thật, không API tốn tiền/DB thật/migration. G1 chưa main lần kiểm cuối; không cherry-pick nhánh riêng, không rebase/forcepush nhánh đã công bố. Phiên chính tích hợp với G1 sau tin GỘP và kiểm assignedEP; branch P34 code kết thúc tại code3e3917a7 + commit chốt test/báo cáo này. Xóa HANDOFF WIP theo yêu cầu và báo XONG kèm SHA chốt qua helper; tiếp URL-TOKEN-RA rồi N9 theo phân công mới.
