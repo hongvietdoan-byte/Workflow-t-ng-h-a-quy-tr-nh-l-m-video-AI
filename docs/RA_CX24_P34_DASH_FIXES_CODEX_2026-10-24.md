@@ -90,3 +90,23 @@ Thêm `failed_review_summary` chỉ đọc: cùng cờ scene/motion/quota, đún
 RED ba ca summary **3 failed/0,36s** → GREEN12/0,41s; bổ sung hai mock screen không import Streamlit/AppTest. Reviewer phát hiện **1 P2**: cả scenes/change_events có state nhưng query dùng field không alias. Fixture thêm scenes.state như production: **4 failed,10 passed/0,32s** → sửa rõ e.state/e.note → **14 passed/0,35s**. Rà vòng2 **0 P1/P2** trong summary/caller, root đọc fix hai lượt. Không nới schema/test; giữ API đọc không commit.
 
 Đây là phần hiển thị, chưa hoàn tất toàn mục1: mục đỏ materializer chưa nối UI trước khi đường Bỏ qua EP/lý do/audit/chống lỗi mới được kiểm; nút Rà lại có dự toán vẫn phải nối/kiểm. Không tuyên bố người dùng đã gỡ được mọi cổng trên Dashboard. Module CLI status đang hoàn thiện riêng, chưa dùng API/model/credential thật.
+
+## Checkpoint mục 2 — tài khoản Claude CLI của pipeline
+
+`core/cli_auth_status.py` dùng duy nhất `ClaudeCliClient.clean_env()` public (đã đối chiếu API296fc658, không sao chép bộ lọc env/token, không sửa llm_runner). Chỉ chạy `auth status` khi người có quyền Cài đặt mở dialog qua ⚙ Hệ thống; dự án không chọn claude_cli không gọi lệnh. Hiện trạng thái/email allowlist, binary/config path của đúng môi trường pipeline, hướng dẫn đăng nhập bằng đúng runtime; email thiếu/sai không bị bịa và được ghi chưa xác định. Không đọc file credential, không trả stdout/stderr/ngoại lệ/payload thô. Đệm30giây theo runtime/config/HOME/env hash, nút Kiểm lại bỏ cache; không spawn mỗi lần rerun khi dialog đóng.
+
+Popen có nhóm/session riêng; timeout8giây dừng cây đúng PID sở hữu (Windows taskkill /T /F, Unix killpg), thu hồi cha, đóng pipe thành công/timeout/lỗi. Không kill theo tên process. Nếu OS từ chối dừng cây, fallback chỉ xử lý cha; **chưa chứng minh cây con hết trên máy thật**. Thu hồi có timeout riêng nên tổng thời gian lỗi có thể dài hơn8giây, không phải cam kết HTTP8giây.
+
+RED helper **1 collection error/0,61s** →20unitxanh/0,88s. Rà gom hai nhóm P2: (a) thiếu dlg_cli_auth trong DIALOG_FLAGS nên nút không mở; thêm workflow fake dùng open_dialog thực, **1 failed,20 passed/12,88s** →21xanh/0,59s; (b) run() timeout chỉ dừng shim.cmd, chuyển ownedtreePopen, **1 failed,21 passed/0,60s** →24xanh/0,67s. Vòng rà cleanup bổ sung communicate OSError không thu hồi + pipe chưa đóng: **3 failed,24 passed/0,71s** →27xanh/0,68s. Reviewer cuối **0 P1/P2 còn lại trong phạm vi đã gom**, root đọc fix hai lượt.
+
+Root chạy chung đúng nhóm mới + hồi quy change_review bằng OBJECT môi trường/HOME/temp giả, keyring/registry giả trước import: **54 passed,52 deselected/3,35s** serial. Trong test CLI, Popen/run thật bị chặn, chỉ fakeprocess; Windows/Unix cleanup đều mock. Không AppTest/CLI/native/account thật/server/headless/Blender/CU/API trả phí. Không coi mock là bằng chứng đã đăng nhập được trên máy thật. Đăng ký helper/test ở core_infra, giữ areas.version nền92.
+
+Phần lỗi khâu CLI cần thông báo rõ trong luồng job/giao vai vẫn phải đối chiếu khi nối mục3 và tích hợp main; hiện runner chỉ có hint auth cũ, chưa sửa ở checkpoint này. Mục2 mới có ô chẩn đoán tài khoản, chưa nghiệm thu CLI thật.
+
+## Phụ thuộc / bước kế cập nhật lúc 18:40
+
+- Phiên chính đã GỘP CLI-TOKENS và D6 ở **f4031e9b** (183108-z58j/183035-af16); G1 vẫn chưa GỘP lúc kiểm. Không cherry-pick nhánh lẻ; trước nối giao vai cần cập nhật nền từ main đã công bố. Nhánh task đã push nên không tự force-push để rebase; nếu đồng bộ bằng merge main vào nhánh task phải giữ đủ đăng ký areas/test và báo rõ.
+- Mục10 đã hỏi **183043-codex-1f60**: hiện chỉ querys/session_state, không có cookie helper; cần xác định transport phục hồi token cho tab/URL mới, giữ auth.identity/machine_auth/revocation. Chưa có câu trả lời lúc kiểm, không tự tạo registry quyền khác.
+- Mục4 khảo sát API hiện có: set_profile v1 chỉ biết PROFILE_KEYS, không giữ mọi unknownfield; set_profile v2 dùng CAS/actor đúng; không có cloneasset nguyên tử. create/set_profile/set_character_link tự commit riêng nên UI không được ghép chuỗi tạo bản riêng có thể mồ côi/mất ảnh. Cần backend clone+profile/image mapping+projectlink/ACL/CAS chung transaction từ vùng Kho đang do Codex3 giữ; chưa tự viết writer cạnh tranh.
+- Tin183413-zii9 giao việc main-red cho Codex rảnh: phiên này đang P34, chưa nhận/chưa sửa runner/tools/dependency ấy để tránh chồng phiên khác.
+- Toàn task vẫn **ĐANG LÀM**: còn1 EP/lý do/audit/Rà lại,3 giao vai,4 height_m(shared/private),10 cookie/token transport, hoàn thiện2 lỗi job và QA sau điều phối. Code6/7/11 không làm lại;8/9 chỉ thiết kế. Không phát eventxong sớm.

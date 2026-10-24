@@ -402,6 +402,8 @@ def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
             if pid is not None and allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
                 open_dialog("dlg_lessons")
         with t_sys:
+            if allowed("settings") and st.button("🔑 Claude CLI của pipeline", key="settings_cli_auth", width="stretch"):
+                open_dialog("dlg_cli_auth")
             if st.toggle("🌙 Nền tối", value=ui.dark_on(), key="dark_toggle", help="Đổi nền sang tối cho đỡ chói; nhớ trong địa chỉ trang (?theme=dark). "
                                                                                     "Bảng dữ liệu vẫn nền sáng.") != ui.dark_on():
                 ui.set_dark(not ui.dark_on())
@@ -441,6 +443,8 @@ def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
         _dialog_knowledge()
     if st.session_state.get("dlg_limits"):
         _dialog_limits(p)
+    if st.session_state.get("dlg_cli_auth"):
+        _dialog_cli_auth(p, pid)
     if pid is not None and st.session_state.get("dlg_history"):
         _dialog_history(p, pid)
     if pid is not None and st.session_state.get("dlg_lessons"):
@@ -823,6 +827,43 @@ def _own(p: Pipeline) -> Pipeline:
     fresh = C.scoped(Pipeline(connect(C.DB)))
     fresh.actor = p.actor
     return fresh
+
+
+def _pipeline_cli_status(p, pid):
+    # Tài khoản/path của máy pipeline chỉ dành cho Owner/quyền cài đặt; kiểm
+    # trước cả resolve provider và subprocess, kể cả gọi trực tiếp từ dialog.
+    if not allowed("settings"):
+        return
+    from core import llm_provider, cli_auth_status
+    provider, _ = llm_provider.resolve(p.conn, pid)
+    if provider != "claude_cli":
+        st.caption("Dự án/môi trường đang chọn provider khác Claude CLI; không chạy kiểm đăng nhập CLI.")
+        return
+    force = st.button("Kiểm lại", key=f"pipeline_cli_auth_refresh_{pid}")
+    result = cli_auth_status.get_status(provider, force=force)
+    statuses = {"logged_in": "Đã đăng nhập", "logged_out": "Chưa đăng nhập hoặc đăng nhập đã hết hạn",
+                "not_installed": "Không tìm thấy lệnh Claude CLI", "timeout": "Lệnh kiểm đăng nhập quá thời gian chờ",
+                "command_failed": "Không chạy được lệnh kiểm đăng nhập", "invalid_response": "Lệnh kiểm trả dữ liệu không hợp lệ",
+                "invalid_config": "Thư mục cấu hình CLI phải là đường dẫn tuyệt đối"}
+    st.text("Claude Code của pipeline: " + statuses.get(result["status"], "Chưa xác định"))
+    st.text("Email: " + (result["email"] or "chưa xác định"))
+    st.caption("Lệnh đang dùng trên máy pipeline")
+    st.code(result["command"] or "chưa tìm thấy", language=None)
+    st.caption("Thư mục cấu hình từ môi trường CLI của pipeline")
+    st.code(result["config_dir"] or "chưa xác định", language=None)
+    st.caption("Kết quả nhớ tối đa 30 giây; Kiểm lại lấy trạng thái mới. Không đọc tệp credential. "
+               "Đăng nhập ứng dụng desktop không đổi tài khoản CLI này.")
+    if result["status"] != "logged_in" and result["command"]:
+        st.caption("Đăng nhập lại ở terminal trên máy pipeline, với đúng thư mục cấu hình ở trên, rồi bấm Kiểm lại:")
+        st.code(f'& "{result["command"]}" auth login', language="powershell")
+
+
+@st.dialog("🔑 Claude CLI của pipeline", on_dismiss=lambda: close_dialog("dlg_cli_auth"))
+def _dialog_cli_auth(p: Pipeline, pid) -> None:
+    if not allowed("settings"):
+        st.error("Chỉ Owner hoặc người có quyền Cài đặt được xem trạng thái CLI của máy pipeline.")
+        return
+    _pipeline_cli_status(_own(p), pid)
 
 
 @st.dialog("📁 Kho tài nguyên", width="large", on_dismiss=lambda: close_dialog("dlg_assets"))
