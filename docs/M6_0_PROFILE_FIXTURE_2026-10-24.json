@@ -1,0 +1,8350 @@
+{
+  "fixture": {
+    "projects": 5,
+    "shots_per_project": 40,
+    "copied": true
+  },
+  "screens": [
+    {
+      "screen": "home",
+      "cold_ms": 3817.329,
+      "warm_ms": 587.581,
+      "exception_count": 0,
+      "sql_execute": [
+        {
+          "label": "SELECT motion_prompts",
+          "calls": 802,
+          "total_ms": 22.21,
+          "max_ms": 0.285
+        },
+        {
+          "label": "SELECT jobs",
+          "calls": 1059,
+          "total_ms": 20.477,
+          "max_ms": 1.564
+        },
+        {
+          "label": "SELECT scenes",
+          "calls": 1249,
+          "total_ms": 18.691,
+          "max_ms": 0.258
+        },
+        {
+          "label": "SELECT projects",
+          "calls": 1370,
+          "total_ms": 18.487,
+          "max_ms": 0.245
+        },
+        {
+          "label": "PRAGMA",
+          "calls": 374,
+          "total_ms": 15.339,
+          "max_ms": 3.605
+        },
+        {
+          "label": "SELECT usage_events",
+          "calls": 79,
+          "total_ms": 3.334,
+          "max_ms": 0.292
+        },
+        {
+          "label": "SELECT deliveries",
+          "calls": 50,
+          "total_ms": 2.19,
+          "max_ms": 0.219
+        },
+        {
+          "label": "SELECT app_settings",
+          "calls": 62,
+          "total_ms": 1.973,
+          "max_ms": 0.127
+        },
+        {
+          "label": "SELECT diag_events",
+          "calls": 24,
+          "total_ms": 1.444,
+          "max_ms": 0.145
+        },
+        {
+          "label": "SELECT characters",
+          "calls": 20,
+          "total_ms": 1.43,
+          "max_ms": 0.177
+        },
+        {
+          "label": "SELECT change_findings",
+          "calls": 40,
+          "total_ms": 0.815,
+          "max_ms": 0.074
+        },
+        {
+          "label": "SELECT outputs",
+          "calls": 22,
+          "total_ms": 0.551,
+          "max_ms": 0.103
+        },
+        {
+          "label": "SELECT content_moderation_failures",
+          "calls": 3,
+          "total_ms": 0.276,
+          "max_ms": 0.118
+        },
+        {
+          "label": "SELECT asset_images",
+          "calls": 2,
+          "total_ms": 0.221,
+          "max_ms": 0.111
+        },
+        {
+          "label": "SELECT story_scenes",
+          "calls": 2,
+          "total_ms": 0.163,
+          "max_ms": 0.094
+        },
+        {
+          "label": "SELECT users",
+          "calls": 2,
+          "total_ms": 0.099,
+          "max_ms": 0.053
+        },
+        {
+          "label": "SELECT sounds",
+          "calls": 2,
+          "total_ms": 0.066,
+          "max_ms": 0.041
+        },
+        {
+          "label": "INSERT diag_events",
+          "calls": 1,
+          "total_ms": 0.063,
+          "max_ms": 0.063
+        },
+        {
+          "label": "SELECT sqlite_master",
+          "calls": 2,
+          "total_ms": 0.057,
+          "max_ms": 0.034
+        },
+        {
+          "label": "CREATE",
+          "calls": 5,
+          "total_ms": 0.054,
+          "max_ms": 0.013
+        },
+        {
+          "label": "SELECT sound_sources",
+          "calls": 1,
+          "total_ms": 0.045,
+          "max_ms": 0.045
+        },
+        {
+          "label": "SELECT asset_sources",
+          "calls": 1,
+          "total_ms": 0.043,
+          "max_ms": 0.043
+        }
+      ]
+    },
+    {
+      "screen": "1",
+      "cold_ms": 4355.061,
+      "warm_ms": 1298.914,
+      "exception_count": 0,
+      "sql_execute": [
+        {
+          "label": "PRAGMA",
+          "calls": 1335,
+          "total_ms": 272.182,
+          "max_ms": 3.466
+        },
+        {
+          "label": "SELECT motion_prompts",
+          "calls": 2043,
+          "total_ms": 55.82,
+          "max_ms": 0.462
+        },
+        {
+          "label": "SELECT projects",
+          "calls": 3356,
+          "total_ms": 44.006,
+          "max_ms": 2.152
+        },
+        {
+          "label": "SELECT scenes",
+          "calls": 2972,
+          "total_ms": 43.214,
+          "max_ms": 0.388
+        },
+        {
+          "label": "SELECT jobs",
+          "calls": 1972,
+          "total_ms": 33.822,
+          "max_ms": 0.32
+        },
+        {
+          "label": "CREATE",
+          "calls": 9,
+          "total_ms": 21.446,
+          "max_ms": 7.443
+        },
+        {
+          "label": "SELECT usage_events",
+          "calls": 137,
+          "total_ms": 4.345,
+          "max_ms": 0.217
+        },
+        {
+          "label": "SELECT app_settings",
+          "calls": 91,
+          "total_ms": 3.516,
+          "max_ms": 0.371
+        },
+        {
+          "label": "SELECT characters",
+          "calls": 51,
+          "total_ms": 2.673,
+          "max_ms": 0.158
+        },
+        {
+          "label": "SELECT diag_events",
+          "calls": 35,
+          "total_ms": 2.193,
+          "max_ms": 0.278
+        },
+        {
+          "label": "SELECT assets",
+          "calls": 12,
+          "total_ms": 1.718,
+          "max_ms": 0.308
+        },
+        {
+          "label": "SELECT change_findings",
+          "calls": 33,
+          "total_ms": 1.07,
+          "max_ms": 0.18
+        },
+        {
+          "label": "SELECT outputs",
+          "calls": 33,
+          "total_ms": 1.007,
+          "max_ms": 0.181
+        },
+        {
+          "label": "SELECT deliveries",
+          "calls": 30,
+          "total_ms": 0.896,
+          "max_ms": 0.154
+        },
+        {
+          "label": "SELECT story_scenes",
+          "calls": 6,
+          "total_ms": 0.487,
+          "max_ms": 0.106
+        },
+        {
+          "label": "SELECT leases",
+          "calls": 3,
+          "total_ms": 0.459,
+          "max_ms": 0.302
+        },
+        {
+          "label": "SELECT change_events",
+          "calls": 3,
+          "total_ms": 0.452,
+          "max_ms": 0.179
+        },
+        {
+          "label": "SELECT asset_images",
+          "calls": 2,
+          "total_ms": 0.446,
+          "max_ms": 0.261
+        },
+        {
+          "label": "SELECT content_moderation_failures",
+          "calls": 4,
+          "total_ms": 0.35,
+          "max_ms": 0.142
+        },
+        {
+          "label": "SELECT users",
+          "calls": 3,
+          "total_ms": 0.209,
+          "max_ms": 0.105
+        },
+        {
+          "label": "SELECT sound_sources",
+          "calls": 1,
+          "total_ms": 0.135,
+          "max_ms": 0.135
+        },
+        {
+          "label": "SELECT asset_sources",
+          "calls": 1,
+          "total_ms": 0.123,
+          "max_ms": 0.123
+        },
+        {
+          "label": "SELECT sounds",
+          "calls": 2,
+          "total_ms": 0.115,
+          "max_ms": 0.077
+        },
+        {
+          "label": "UPDATE diag_events",
+          "calls": 1,
+          "total_ms": 0.063,
+          "max_ms": 0.063
+        },
+        {
+          "label": "UPDATE projects",
+          "calls": 1,
+          "total_ms": 0.04,
+          "max_ms": 0.04
+        }
+      ]
+    },
+    {
+      "screen": "2",
+      "cold_ms": 1737.893,
+      "warm_ms": 792.21,
+      "exception_count": 0,
+      "sql_execute": [
+        {
+          "label": "SELECT projects",
+          "calls": 3012,
+          "total_ms": 30.326,
+          "max_ms": 0.161
+        },
+        {
+          "label": "SELECT jobs",
+          "calls": 1339,
+          "total_ms": 25.541,
+          "max_ms": 0.271
+        },
+        {
+          "label": "PRAGMA",
+          "calls": 488,
+          "total_ms": 24.908,
+          "max_ms": 2.583
+        },
+        {
+          "label": "SELECT scenes",
+          "calls": 2293,
+          "total_ms": 24.448,
+          "max_ms": 0.229
+        },
+        {
+          "label": "SELECT motion_prompts",
+          "calls": 808,
+          "total_ms": 18.505,
+          "max_ms": 0.249
+        },
+        {
+          "label": "SELECT characters",
+          "calls": 114,
+          "total_ms": 4.304,
+          "max_ms": 0.232
+        },
+        {
+          "label": "SELECT usage_events",
+          "calls": 70,
+          "total_ms": 2.093,
+          "max_ms": 0.169
+        },
+        {
+          "label": "SELECT diag_events",
+          "calls": 24,
+          "total_ms": 1.388,
+          "max_ms": 0.267
+        },
+        {
+          "label": "SELECT app_settings",
+          "calls": 38,
+          "total_ms": 1.038,
+          "max_ms": 0.087
+        },
+        {
+          "label": "SELECT outputs",
+          "calls": 22,
+          "total_ms": 0.549,
+          "max_ms": 0.115
+        },
+        {
+          "label": "SELECT deliveries",
+          "calls": 20,
+          "total_ms": 0.439,
+          "max_ms": 0.085
+        },
+        {
+          "label": "SELECT change_findings",
+          "calls": 20,
+          "total_ms": 0.373,
+          "max_ms": 0.064
+        },
+        {
+          "label": "SELECT sound_sources",
+          "calls": 1,
+          "total_ms": 0.223,
+          "max_ms": 0.223
+        },
+        {
+          "label": "SELECT asset_images",
+          "calls": 2,
+          "total_ms": 0.172,
+          "max_ms": 0.105
+        },
+        {
+          "label": "SELECT content_moderation_failures",
+          "calls": 3,
+          "total_ms": 0.171,
+          "max_ms": 0.08
+        },
+        {
+          "label": "SELECT sounds",
+          "calls": 2,
+          "total_ms": 0.165,
+          "max_ms": 0.14
+        },
+        {
+          "label": "SELECT assets",
+          "calls": 2,
+          "total_ms": 0.147,
+          "max_ms": 0.074
+        },
+        {
+          "label": "SELECT story_scenes",
+          "calls": 2,
+          "total_ms": 0.132,
+          "max_ms": 0.081
+        },
+        {
+          "label": "SELECT users",
+          "calls": 2,
+          "total_ms": 0.079,
+          "max_ms": 0.042
+        },
+        {
+          "label": "UPDATE diag_events",
+          "calls": 1,
+          "total_ms": 0.038,
+          "max_ms": 0.038
+        },
+        {
+          "label": "SELECT asset_sources",
+          "calls": 1,
+          "total_ms": 0.029,
+          "max_ms": 0.029
+        }
+      ]
+    },
+    {
+      "screen": "4",
+      "cold_ms": 1446.515,
+      "warm_ms": 510.472,
+      "exception_count": 0,
+      "sql_execute": [
+        {
+          "label": "SELECT motion_prompts",
+          "calls": 1054,
+          "total_ms": 19.047,
+          "max_ms": 0.207
+        },
+        {
+          "label": "SELECT projects",
+          "calls": 2120,
+          "total_ms": 18.864,
+          "max_ms": 0.198
+        },
+        {
+          "label": "SELECT scenes",
+          "calls": 1797,
+          "total_ms": 17.245,
+          "max_ms": 0.249
+        },
+        {
+          "label": "SELECT jobs",
+          "calls": 1027,
+          "total_ms": 15.665,
+          "max_ms": 0.206
+        },
+        {
+          "label": "PRAGMA",
+          "calls": 374,
+          "total_ms": 12.993,
+          "max_ms": 2.56
+        },
+        {
+          "label": "SELECT usage_events",
+          "calls": 70,
+          "total_ms": 2.257,
+          "max_ms": 0.364
+        },
+        {
+          "label": "SELECT characters",
+          "calls": 24,
+          "total_ms": 1.509,
+          "max_ms": 0.214
+        },
+        {
+          "label": "SELECT app_settings",
+          "calls": 40,
+          "total_ms": 1.416,
+          "max_ms": 0.107
+        },
+        {
+          "label": "SELECT diag_events",
+          "calls": 24,
+          "total_ms": 1.119,
+          "max_ms": 0.165
+        },
+        {
+          "label": "SELECT outputs",
+          "calls": 22,
+          "total_ms": 0.441,
+          "max_ms": 0.104
+        },
+        {
+          "label": "SELECT change_findings",
+          "calls": 20,
+          "total_ms": 0.38,
+          "max_ms": 0.072
+        },
+        {
+          "label": "SELECT content_moderation_failures",
+          "calls": 5,
+          "total_ms": 0.299,
+          "max_ms": 0.091
+        },
+        {
+          "label": "SELECT deliveries",
+          "calls": 20,
+          "total_ms": 0.283,
+          "max_ms": 0.054
+        },
+        {
+          "label": "SELECT asset_images",
+          "calls": 2,
+          "total_ms": 0.237,
+          "max_ms": 0.158
+        },
+        {
+          "label": "SELECT story_scenes",
+          "calls": 2,
+          "total_ms": 0.147,
+          "max_ms": 0.104
+        },
+        {
+          "label": "SELECT users",
+          "calls": 2,
+          "total_ms": 0.079,
+          "max_ms": 0.04
+        },
+        {
+          "label": "SELECT sound_sources",
+          "calls": 1,
+          "total_ms": 0.053,
+          "max_ms": 0.053
+        },
+        {
+          "label": "SELECT sounds",
+          "calls": 2,
+          "total_ms": 0.05,
+          "max_ms": 0.033
+        },
+        {
+          "label": "SELECT asset_sources",
+          "calls": 1,
+          "total_ms": 0.047,
+          "max_ms": 0.047
+        },
+        {
+          "label": "UPDATE diag_events",
+          "calls": 1,
+          "total_ms": 0.043,
+          "max_ms": 0.043
+        }
+      ]
+    },
+    {
+      "screen": "5",
+      "cold_ms": 1628.423,
+      "warm_ms": 616.942,
+      "exception_count": 0,
+      "sql_execute": [
+        {
+          "label": "SELECT scenes",
+          "calls": 1805,
+          "total_ms": 22.07,
+          "max_ms": 0.246
+        },
+        {
+          "label": "SELECT projects",
+          "calls": 1888,
+          "total_ms": 21.468,
+          "max_ms": 0.296
+        },
+        {
+          "label": "PRAGMA",
+          "calls": 376,
+          "total_ms": 19.246,
+          "max_ms": 4.534
+        },
+        {
+          "label": "SELECT jobs",
+          "calls": 1227,
+          "total_ms": 18.426,
+          "max_ms": 0.19
+        },
+        {
+          "label": "SELECT motion_prompts",
+          "calls": 802,
+          "total_ms": 17.105,
+          "max_ms": 0.186
+        },
+        {
+          "label": "SELECT usage_events",
+          "calls": 68,
+          "total_ms": 2.208,
+          "max_ms": 0.137
+        },
+        {
+          "label": "SELECT outputs",
+          "calls": 46,
+          "total_ms": 1.716,
+          "max_ms": 0.276
+        },
+        {
+          "label": "SELECT app_settings",
+          "calls": 38,
+          "total_ms": 1.336,
+          "max_ms": 0.18
+        },
+        {
+          "label": "SELECT characters",
+          "calls": 22,
+          "total_ms": 1.308,
+          "max_ms": 0.158
+        },
+        {
+          "label": "SELECT sounds",
+          "calls": 12,
+          "total_ms": 1.218,
+          "max_ms": 0.154
+        },
+        {
+          "label": "SELECT diag_events",
+          "calls": 24,
+          "total_ms": 1.062,
+          "max_ms": 0.147
+        },
+        {
+          "label": "SELECT asset_images",
+          "calls": 2,
+          "total_ms": 0.461,
+          "max_ms": 0.292
+        },
+        {
+          "label": "SELECT change_findings",
+          "calls": 20,
+          "total_ms": 0.426,
+          "max_ms": 0.076
+        },
+        {
+          "label": "SELECT deliveries",
+          "calls": 20,
+          "total_ms": 0.391,
+          "max_ms": 0.066
+        },
+        {
+          "label": "SELECT story_scenes",
+          "calls": 2,
+          "total_ms": 0.231,
+          "max_ms": 0.161
+        },
+        {
+          "label": "SELECT content_moderation_failures",
+          "calls": 3,
+          "total_ms": 0.191,
+          "max_ms": 0.099
+        },
+        {
+          "label": "SELECT asset_sources",
+          "calls": 1,
+          "total_ms": 0.118,
+          "max_ms": 0.118
+        },
+        {
+          "label": "SELECT users",
+          "calls": 2,
+          "total_ms": 0.085,
+          "max_ms": 0.043
+        },
+        {
+          "label": "SELECT sound_sources",
+          "calls": 1,
+          "total_ms": 0.043,
+          "max_ms": 0.043
+        },
+        {
+          "label": "UPDATE diag_events",
+          "calls": 1,
+          "total_ms": 0.042,
+          "max_ms": 0.042
+        }
+      ]
+    },
+    {
+      "screen": "team",
+      "cold_ms": 1416.215,
+      "warm_ms": 544.931,
+      "exception_count": 0,
+      "sql_execute": [
+        {
+          "label": "SELECT motion_prompts",
+          "calls": 802,
+          "total_ms": 17.513,
+          "max_ms": 0.308
+        },
+        {
+          "label": "SELECT projects",
+          "calls": 1370,
+          "total_ms": 16.699,
+          "max_ms": 0.327
+        },
+        {
+          "label": "SELECT jobs",
+          "calls": 983,
+          "total_ms": 15.061,
+          "max_ms": 0.208
+        },
+        {
+          "label": "SELECT scenes",
+          "calls": 1229,
+          "total_ms": 14.441,
+          "max_ms": 0.166
+        },
+        {
+          "label": "PRAGMA",
+          "calls": 352,
+          "total_ms": 13.136,
+          "max_ms": 2.976
+        },
+        {
+          "label": "SELECT usage_events",
+          "calls": 72,
+          "total_ms": 2.656,
+          "max_ms": 0.246
+        },
+        {
+          "label": "SELECT app_settings",
+          "calls": 32,
+          "total_ms": 1.185,
+          "max_ms": 0.186
+        },
+        {
+          "label": "SELECT characters",
+          "calls": 20,
+          "total_ms": 1.125,
+          "max_ms": 0.14
+        },
+        {
+          "label": "SELECT diag_events",
+          "calls": 24,
+          "total_ms": 1.1,
+          "max_ms": 0.168
+        },
+        {
+          "label": "SELECT users",
+          "calls": 8,
+          "total_ms": 0.608,
+          "max_ms": 0.257
+        },
+        {
+          "label": "SELECT outputs",
+          "calls": 22,
+          "total_ms": 0.6,
+          "max_ms": 0.127
+        },
+        {
+          "label": "SELECT project_watchers",
+          "calls": 2,
+          "total_ms": 0.59,
+          "max_ms": 0.337
+        },
+        {
+          "label": "SELECT deliveries",
+          "calls": 20,
+          "total_ms": 0.471,
+          "max_ms": 0.081
+        },
+        {
+          "label": "SELECT change_findings",
+          "calls": 20,
+          "total_ms": 0.378,
+          "max_ms": 0.061
+        },
+        {
+          "label": "SELECT limit_requests",
+          "calls": 2,
+          "total_ms": 0.322,
+          "max_ms": 0.187
+        },
+        {
+          "label": "SELECT machine_approvals",
+          "calls": 2,
+          "total_ms": 0.265,
+          "max_ms": 0.134
+        },
+        {
+          "label": "SELECT audit_log",
+          "calls": 2,
+          "total_ms": 0.238,
+          "max_ms": 0.132
+        },
+        {
+          "label": "SELECT asset_images",
+          "calls": 2,
+          "total_ms": 0.215,
+          "max_ms": 0.12
+        },
+        {
+          "label": "SELECT content_moderation_failures",
+          "calls": 3,
+          "total_ms": 0.175,
+          "max_ms": 0.089
+        },
+        {
+          "label": "SELECT story_scenes",
+          "calls": 2,
+          "total_ms": 0.082,
+          "max_ms": 0.042
+        },
+        {
+          "label": "UPDATE diag_events",
+          "calls": 1,
+          "total_ms": 0.056,
+          "max_ms": 0.056
+        },
+        {
+          "label": "SELECT sounds",
+          "calls": 2,
+          "total_ms": 0.049,
+          "max_ms": 0.033
+        },
+        {
+          "label": "SELECT sound_sources",
+          "calls": 1,
+          "total_ms": 0.038,
+          "max_ms": 0.038
+        },
+        {
+          "label": "SELECT asset_sources",
+          "calls": 1,
+          "total_ms": 0.029,
+          "max_ms": 0.029
+        }
+      ]
+    },
+    {
+      "screen": "monitor",
+      "cold_ms": 1177.715,
+      "warm_ms": 455.357,
+      "exception_count": 0,
+      "sql_execute": [
+        {
+          "label": "SELECT motion_prompts",
+          "calls": 802,
+          "total_ms": 17.375,
+          "max_ms": 0.199
+        },
+        {
+          "label": "SELECT jobs",
+          "calls": 1051,
+          "total_ms": 15.271,
+          "max_ms": 0.209
+        },
+        {
+          "label": "SELECT projects",
+          "calls": 1384,
+          "total_ms": 14.53,
+          "max_ms": 0.251
+        },
+        {
+          "label": "SELECT scenes",
+          "calls": 1237,
+          "total_ms": 14.006,
+          "max_ms": 0.224
+        },
+        {
+          "label": "PRAGMA",
+          "calls": 352,
+          "total_ms": 10.916,
+          "max_ms": 1.737
+        },
+        {
+          "label": "SELECT diag_events",
+          "calls": 36,
+          "total_ms": 2.23,
+          "max_ms": 0.229
+        },
+        {
+          "label": "SELECT usage_events",
+          "calls": 76,
+          "total_ms": 1.996,
+          "max_ms": 0.202
+        },
+        {
+          "label": "SELECT job_events",
+          "calls": 30,
+          "total_ms": 1.149,
+          "max_ms": 0.187
+        },
+        {
+          "label": "SELECT characters",
+          "calls": 20,
+          "total_ms": 1.059,
+          "max_ms": 0.111
+        },
+        {
+          "label": "SELECT app_settings",
+          "calls": 32,
+          "total_ms": 0.893,
+          "max_ms": 0.158
+        },
+        {
+          "label": "SELECT outputs",
+          "calls": 22,
+          "total_ms": 0.548,
+          "max_ms": 0.128
+        },
+        {
+          "label": "SELECT effectiveness_snapshots",
+          "calls": 2,
+          "total_ms": 0.488,
+          "max_ms": 0.26
+        },
+        {
+          "label": "SELECT change_findings",
+          "calls": 20,
+          "total_ms": 0.422,
+          "max_ms": 0.06
+        },
+        {
+          "label": "SELECT deliveries",
+          "calls": 20,
+          "total_ms": 0.375,
+          "max_ms": 0.05
+        },
+        {
+          "label": "SELECT llm_calls",
+          "calls": 2,
+          "total_ms": 0.342,
+          "max_ms": 0.191
+        },
+        {
+          "label": "SELECT review_log",
+          "calls": 2,
+          "total_ms": 0.34,
+          "max_ms": 0.183
+        },
+        {
+          "label": "SELECT asset_images",
+          "calls": 2,
+          "total_ms": 0.308,
+          "max_ms": 0.208
+        },
+        {
+          "label": "SELECT content_moderation_failures",
+          "calls": 7,
+          "total_ms": 0.281,
+          "max_ms": 0.094
+        },
+        {
+          "label": "SELECT story_scenes",
+          "calls": 2,
+          "total_ms": 0.156,
+          "max_ms": 0.101
+        },
+        {
+          "label": "UPDATE diag_events",
+          "calls": 1,
+          "total_ms": 0.091,
+          "max_ms": 0.091
+        },
+        {
+          "label": "SELECT users",
+          "calls": 2,
+          "total_ms": 0.065,
+          "max_ms": 0.033
+        },
+        {
+          "label": "SELECT sounds",
+          "calls": 2,
+          "total_ms": 0.052,
+          "max_ms": 0.032
+        },
+        {
+          "label": "SELECT sound_sources",
+          "calls": 1,
+          "total_ms": 0.041,
+          "max_ms": 0.041
+        },
+        {
+          "label": "SELECT asset_sources",
+          "calls": 1,
+          "total_ms": 0.038,
+          "max_ms": 0.038
+        }
+      ]
+    }
+  ],
+  "functions_inclusive": [
+    {
+      "label": "dashboard/app.py:1:<module>",
+      "calls": 15,
+      "total_ms": 13406.841,
+      "max_ms": 2999.469
+    },
+    {
+      "label": "dashboard/app.py:129:main",
+      "calls": 15,
+      "total_ms": 12365.783,
+      "max_ms": 1965.187
+    },
+    {
+      "label": "dashboard/header.py:994:global_bar",
+      "calls": 15,
+      "total_ms": 5365.842,
+      "max_ms": 856.754
+    },
+    {
+      "label": "dashboard/header.py:1054:_global_bar_v2",
+      "calls": 15,
+      "total_ms": 5356.548,
+      "max_ms": 855.812
+    },
+    {
+      "label": "dashboard/header.py:528:money_card",
+      "calls": 15,
+      "total_ms": 4368.956,
+      "max_ms": 753.752
+    },
+    {
+      "label": "core/cost.py:929:estimate_run",
+      "calls": 49,
+      "total_ms": 4181.636,
+      "max_ms": 370.21
+    },
+    {
+      "label": "core/cost.py:936:_estimate_run",
+      "calls": 49,
+      "total_ms": 4178.074,
+      "max_ms": 370.125
+    },
+    {
+      "label": "core/project_budget.py:257:propose",
+      "calls": 32,
+      "total_ms": 3154.75,
+      "max_ms": 463.064
+    },
+    {
+      "label": "dashboard/steps/step1.py:140:step1",
+      "calls": 3,
+      "total_ms": 2741.062,
+      "max_ms": 1038.592
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:221:step1_v2",
+      "calls": 3,
+      "total_ms": 2736.101,
+      "max_ms": 1036.683
+    },
+    {
+      "label": "core/model_router.py:385:plan",
+      "calls": 54,
+      "total_ms": 2404.429,
+      "max_ms": 113.49
+    },
+    {
+      "label": "core/project_budget.py:279:estimate_view",
+      "calls": 15,
+      "total_ms": 2294.977,
+      "max_ms": 272.389
+    },
+    {
+      "label": "dashboard/steps/step1.py:124:script_views",
+      "calls": 3,
+      "total_ms": 1494.046,
+      "max_ms": 511.124
+    },
+    {
+      "label": "dashboard/steps/step1.py:407:scene_list",
+      "calls": 3,
+      "total_ms": 1482.825,
+      "max_ms": 505.914
+    },
+    {
+      "label": "core/model_router.py:169:scene_choice",
+      "calls": 2160,
+      "total_ms": 1466.481,
+      "max_ms": 49.817
+    },
+    {
+      "label": "core/features.py:1333:state",
+      "calls": 14670,
+      "total_ms": 1302.318,
+      "max_ms": 0.71
+    },
+    {
+      "label": "core/features.py:1380:on",
+      "calls": 13871,
+      "total_ms": 1277.817,
+      "max_ms": 0.742
+    },
+    {
+      "label": "core/memo.py:51:cached",
+      "calls": 2748,
+      "total_ms": 1184.822,
+      "max_ms": 246.619
+    },
+    {
+      "label": "core/project_budget.py:514:cost_summary",
+      "calls": 15,
+      "total_ms": 1155.219,
+      "max_ms": 140.171
+    },
+    {
+      "label": "core/model_router.py:288:_scene_choice",
+      "calls": 2160,
+      "total_ms": 1102.43,
+      "max_ms": 49.496
+    },
+    {
+      "label": "core/shots.py:856:needs_own_image",
+      "calls": 4280,
+      "total_ms": 1083.186,
+      "max_ms": 61.092
+    },
+    {
+      "label": "core/features.py:1106:settings",
+      "calls": 14670,
+      "total_ms": 821.124,
+      "max_ms": 0.602
+    },
+    {
+      "label": "core/cost.py:168:estimate_images",
+      "calls": 51,
+      "total_ms": 777.768,
+      "max_ms": 196.723
+    },
+    {
+      "label": "core/cost.py:808:video_need",
+      "calls": 1960,
+      "total_ms": 730.781,
+      "max_ms": 2.821
+    },
+    {
+      "label": "core/memo.py:74:read_json",
+      "calls": 2436,
+      "total_ms": 713.865,
+      "max_ms": 2.071
+    },
+    {
+      "label": "dashboard/app.py:89:shell_header",
+      "calls": 15,
+      "total_ms": 675.958,
+      "max_ms": 110.402
+    },
+    {
+      "label": "core/quality_tier.py:124:enabled",
+      "calls": 6528,
+      "total_ms": 675.078,
+      "max_ms": 4.176
+    },
+    {
+      "label": "core/model_router.py:150:price_per_sec",
+      "calls": 2160,
+      "total_ms": 642.775,
+      "max_ms": 1.22
+    },
+    {
+      "label": "core/model_router.py:22:load_profiles",
+      "calls": 2185,
+      "total_ms": 631.811,
+      "max_ms": 2.093
+    },
+    {
+      "label": "dashboard/app.py:80:storyboard",
+      "calls": 2,
+      "total_ms": 612.489,
+      "max_ms": 342.594
+    },
+    {
+      "label": "core/db.py:748:connect",
+      "calls": 160,
+      "total_ms": 609.594,
+      "max_ms": 20.497
+    },
+    {
+      "label": "core/cost.py:137:pending_image_units",
+      "calls": 51,
+      "total_ms": 597.955,
+      "max_ms": 101.175
+    },
+    {
+      "label": "core/shots.py:840:group_of",
+      "calls": 4280,
+      "total_ms": 586.25,
+      "max_ms": 1.12
+    },
+    {
+      "label": "dashboard/steps/step2.py:176:step2",
+      "calls": 2,
+      "total_ms": 550.615,
+      "max_ms": 311.058
+    },
+    {
+      "label": "core/cost.py:147:<genexpr>",
+      "calls": 2091,
+      "total_ms": 547.695,
+      "max_ms": 61.101
+    },
+    {
+      "label": "dashboard/steps/step1.py:342:scene_editor_box",
+      "calls": 120,
+      "total_ms": 534.343,
+      "max_ms": 7.415
+    },
+    {
+      "label": "dashboard/common.py:1:<module>",
+      "calls": 1,
+      "total_ms": 533.031,
+      "max_ms": 533.031
+    },
+    {
+      "label": "dashboard/ui.py:238:inject_css",
+      "calls": 15,
+      "total_ms": 430.094,
+      "max_ms": 303.534
+    },
+    {
+      "label": "dashboard/header.py:1130:status_line",
+      "calls": 15,
+      "total_ms": 428.359,
+      "max_ms": 68.019
+    },
+    {
+      "label": "dashboard/header.py:1177:_status_line_v2",
+      "calls": 15,
+      "total_ms": 425.96,
+      "max_ms": 67.951
+    },
+    {
+      "label": "dashboard/steps/step5.py:540:step5",
+      "calls": 2,
+      "total_ms": 393.008,
+      "max_ms": 262.1
+    },
+    {
+      "label": "core/features.py:1337:_state",
+      "calls": 14670,
+      "total_ms": 388.823,
+      "max_ms": 0.347
+    },
+    {
+      "label": "core/seedance_refs.py:256:uses_refs",
+      "calls": 4360,
+      "total_ms": 388.212,
+      "max_ms": 1.129
+    },
+    {
+      "label": "dashboard/steps/step4.py:31:step4",
+      "calls": 2,
+      "total_ms": 384.714,
+      "max_ms": 304.931
+    },
+    {
+      "label": "dashboard/steps/step5.py:591:step5_v2",
+      "calls": 2,
+      "total_ms": 384.19,
+      "max_ms": 256.659
+    },
+    {
+      "label": "dashboard/steps/step2.py:373:grid_v2",
+      "calls": 2,
+      "total_ms": 380.476,
+      "max_ms": 197.928
+    },
+    {
+      "label": "dashboard/steps/step4.py:43:step4_v2",
+      "calls": 2,
+      "total_ms": 377.652,
+      "max_ms": 298.557
+    },
+    {
+      "label": "core/model_router.py:82:recommend",
+      "calls": 2160,
+      "total_ms": 374.736,
+      "max_ms": 29.432
+    },
+    {
+      "label": "core/seedance_refs.py:47:enabled",
+      "calls": 8694,
+      "total_ms": 374.344,
+      "max_ms": 0.819
+    },
+    {
+      "label": "dashboard/header.py:375:settings_menu",
+      "calls": 15,
+      "total_ms": 369.955,
+      "max_ms": 44.951
+    },
+    {
+      "label": "dashboard/steps/step2.py:799:shot_storyboard_panel",
+      "calls": 2,
+      "total_ms": 353.614,
+      "max_ms": 183.778
+    },
+    {
+      "label": "core/cost.py:818:<lambda>",
+      "calls": 600,
+      "total_ms": 348.338,
+      "max_ms": 2.332
+    },
+    {
+      "label": "core/cost.py:821:_video_need",
+      "calls": 600,
+      "total_ms": 343.854,
+      "max_ms": 2.318
+    },
+    {
+      "label": "dashboard/app.py:37:step_done",
+      "calls": 15,
+      "total_ms": 338.058,
+      "max_ms": 47.641
+    },
+    {
+      "label": "dashboard/steps/step1_run.py:191:autopilot_panel",
+      "calls": 2,
+      "total_ms": 332.087,
+      "max_ms": 169.775
+    },
+    {
+      "label": "dashboard/header.py:1274:code_changed_since_start",
+      "calls": 15,
+      "total_ms": 303.457,
+      "max_ms": 33.552
+    },
+    {
+      "label": "dashboard/before_run_ui.py:9:box",
+      "calls": 3,
+      "total_ms": 283.456,
+      "max_ms": 248.128
+    },
+    {
+      "label": "core/before_run.py:413:collect",
+      "calls": 3,
+      "total_ms": 280.04,
+      "max_ms": 246.637
+    },
+    {
+      "label": "core/before_run.py:417:<lambda>",
+      "calls": 3,
+      "total_ms": 278.992,
+      "max_ms": 246.24
+    },
+    {
+      "label": "core/before_run.py:420:_collect",
+      "calls": 3,
+      "total_ms": 278.935,
+      "max_ms": 246.202
+    },
+    {
+      "label": "dashboard/steps/step4.py:25:_model_notes",
+      "calls": 2,
+      "total_ms": 261.498,
+      "max_ms": 221.691
+    },
+    {
+      "label": "dashboard/steps/step4.py:376:model_plan_panel",
+      "calls": 2,
+      "total_ms": 261.44,
+      "max_ms": 221.656
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:118:project_hero",
+      "calls": 9,
+      "total_ms": 247.211,
+      "max_ms": 64.501
+    },
+    {
+      "label": "core/lineage.py:344:summary",
+      "calls": 38,
+      "total_ms": 241.301,
+      "max_ms": 29.377
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:171:project_format_panel",
+      "calls": 3,
+      "total_ms": 236.858,
+      "max_ms": 96.557
+    },
+    {
+      "label": "core/lineage.py:347:<lambda>",
+      "calls": 15,
+      "total_ms": 235.213,
+      "max_ms": 29.08
+    },
+    {
+      "label": "core/lineage.py:350:_summary",
+      "calls": 15,
+      "total_ms": 235.073,
+      "max_ms": 29.066
+    },
+    {
+      "label": "core/stage_map.py:22:build",
+      "calls": 20,
+      "total_ms": 223.836,
+      "max_ms": 20.151
+    },
+    {
+      "label": "dashboard/glow_ui.py:9:targets",
+      "calls": 18,
+      "total_ms": 223.319,
+      "max_ms": 31.358
+    },
+    {
+      "label": "dashboard/app.py:98:run_startup_sync",
+      "calls": 14,
+      "total_ms": 212.089,
+      "max_ms": 140.159
+    },
+    {
+      "label": "dashboard/app.py:100:work",
+      "calls": 14,
+      "total_ms": 211.946,
+      "max_ms": 140.151
+    },
+    {
+      "label": "core/quality_tier.py:510:final_source_problem",
+      "calls": 1960,
+      "total_ms": 195.64,
+      "max_ms": 1.78
+    },
+    {
+      "label": "core/skill_dossier.py:159:route_reason",
+      "calls": 2160,
+      "total_ms": 195.063,
+      "max_ms": 0.728
+    },
+    {
+      "label": "dashboard/header.py:287:new_project_control",
+      "calls": 15,
+      "total_ms": 189.524,
+      "max_ms": 19.134
+    },
+    {
+      "label": "core/skill_dossier.py:20:enabled",
+      "calls": 2160,
+      "total_ms": 188.625,
+      "max_ms": 0.721
+    },
+    {
+      "label": "core/project_budget.py:183:remaining",
+      "calls": 32,
+      "total_ms": 185.909,
+      "max_ms": 91.759
+    },
+    {
+      "label": "core/shots.py:804:setups_on",
+      "calls": 4280,
+      "total_ms": 181.981,
+      "max_ms": 0.451
+    },
+    {
+      "label": "core/lipsync.py:33:enabled",
+      "calls": 2211,
+      "total_ms": 180.328,
+      "max_ms": 0.505
+    },
+    {
+      "label": "core/quality_tier.py:435:_video_jobs",
+      "calls": 3920,
+      "total_ms": 167.237,
+      "max_ms": 1.67
+    },
+    {
+      "label": "dashboard/steps/step1_run.py:122:project_budget_panel",
+      "calls": 2,
+      "total_ms": 160.665,
+      "max_ms": 81.824
+    },
+    {
+      "label": "dashboard/home.py:194:home",
+      "calls": 2,
+      "total_ms": 157.527,
+      "max_ms": 84.467
+    },
+    {
+      "label": "dashboard/steps/step1_run.py:61:_budget_summary",
+      "calls": 2,
+      "total_ms": 153.999,
+      "max_ms": 78.747
+    },
+    {
+      "label": "core/shots.py:866:image_scene",
+      "calls": 600,
+      "total_ms": 149.638,
+      "max_ms": 0.882
+    },
+    {
+      "label": "dashboard/app.py:156:<lambda>",
+      "calls": 7,
+      "total_ms": 148.354,
+      "max_ms": 135.708
+    },
+    {
+      "label": "dashboard/header.py:15:inbox_card",
+      "calls": 15,
+      "total_ms": 146.606,
+      "max_ms": 20.309
+    },
+    {
+      "label": "core/sound_lib.py:313:listen",
+      "calls": 7,
+      "total_ms": 142.687,
+      "max_ms": 135.39
+    },
+    {
+      "label": "core/sound_ai.py:74:available",
+      "calls": 7,
+      "total_ms": 140.572,
+      "max_ms": 135.376
+    },
+    {
+      "label": "core/memo.py:40:_stamp",
+      "calls": 2748,
+      "total_ms": 135.797,
+      "max_ms": 0.53
+    },
+    {
+      "label": "core/model_router.py:229:_with_resolution",
+      "calls": 2160,
+      "total_ms": 131.522,
+      "max_ms": 0.454
+    },
+    {
+      "label": "dashboard/header.py:452:_settings_project",
+      "calls": 15,
+      "total_ms": 128.657,
+      "max_ms": 20.407
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:57:next_line",
+      "calls": 9,
+      "total_ms": 127.524,
+      "max_ms": 38.083
+    },
+    {
+      "label": "dashboard/model_line.py:119:film_line",
+      "calls": 3,
+      "total_ms": 127.386,
+      "max_ms": 50.528
+    },
+    {
+      "label": "dashboard/header.py:465:_settings_project_body",
+      "calls": 15,
+      "total_ms": 126.015,
+      "max_ms": 20.14
+    },
+    {
+      "label": "core/lineage.py:218:scan",
+      "calls": 57,
+      "total_ms": 124.935,
+      "max_ms": 10.215
+    },
+    {
+      "label": "core/features.py:1283:baseline_state",
+      "calls": 14156,
+      "total_ms": 122.666,
+      "max_ms": 0.2
+    },
+    {
+      "label": "dashboard/design/components.py:198:info",
+      "calls": 186,
+      "total_ms": 122.35,
+      "max_ms": 2.583
+    },
+    {
+      "label": "core/inbox.py:98:items",
+      "calls": 15,
+      "total_ms": 117.42,
+      "max_ms": 15.086
+    },
+    {
+      "label": "core/assets.py:1711:scene_references",
+      "calls": 80,
+      "total_ms": 115.653,
+      "max_ms": 43.203
+    },
+    {
+      "label": "dashboard/glow_ui.py:64:render",
+      "calls": 9,
+      "total_ms": 115.419,
+      "max_ms": 25.253
+    },
+    {
+      "label": "core/before_run.py:434:<lambda>",
+      "calls": 3,
+      "total_ms": 109.529,
+      "max_ms": 109.227
+    },
+    {
+      "label": "core/before_run.py:347:_input_items",
+      "calls": 3,
+      "total_ms": 109.495,
+      "max_ms": 109.201
+    },
+    {
+      "label": "dashboard/design/components.py:223:line",
+      "calls": 58,
+      "total_ms": 108.413,
+      "max_ms": 3.547
+    },
+    {
+      "label": "core/cost.py:19:load_pricing",
+      "calls": 251,
+      "total_ms": 106.326,
+      "max_ms": 1.349
+    },
+    {
+      "label": "dashboard/common.py:231:confirm_all",
+      "calls": 77,
+      "total_ms": 105.966,
+      "max_ms": 18.948
+    },
+    {
+      "label": "dashboard/design/components.py:277:confirm_all",
+      "calls": 77,
+      "total_ms": 102.102,
+      "max_ms": 18.923
+    },
+    {
+      "label": "core/delivery.py:232:status",
+      "calls": 17,
+      "total_ms": 99.891,
+      "max_ms": 26.884
+    },
+    {
+      "label": "dashboard/team_screen.py:224:team_screen",
+      "calls": 2,
+      "total_ms": 98.265,
+      "max_ms": 57.919
+    },
+    {
+      "label": "core/cost.py:551:llm_estimate",
+      "calls": 394,
+      "total_ms": 95.719,
+      "max_ms": 1.028
+    },
+    {
+      "label": "dashboard/steps/step1.py:1:<module>",
+      "calls": 1,
+      "total_ms": 95.705,
+      "max_ms": 95.705
+    },
+    {
+      "label": "core/project_budget.py:219:_byd_repairs",
+      "calls": 32,
+      "total_ms": 94.622,
+      "max_ms": 88.059
+    },
+    {
+      "label": "core/cost.py:506:llm_call_usd",
+      "calls": 390,
+      "total_ms": 94.144,
+      "max_ms": 1.021
+    },
+    {
+      "label": "dashboard/header.py:134:screen_feedback",
+      "calls": 15,
+      "total_ms": 90.764,
+      "max_ms": 13.296
+    },
+    {
+      "label": "core/cost.py:732:_picture_qc_calls",
+      "calls": 183,
+      "total_ms": 90.014,
+      "max_ms": 67.605
+    },
+    {
+      "label": "core/quality_tier.py:444:approved_draft",
+      "calls": 1960,
+      "total_ms": 88.932,
+      "max_ms": 1.686
+    },
+    {
+      "label": "core/memo.py:44:_copy",
+      "calls": 2748,
+      "total_ms": 88.899,
+      "max_ms": 2.237
+    },
+    {
+      "label": "dashboard/header.py:146:_screen_feedback_wrap",
+      "calls": 15,
+      "total_ms": 88.705,
+      "max_ms": 13.105
+    },
+    {
+      "label": "dashboard/steps/step1.py:69:script_input",
+      "calls": 3,
+      "total_ms": 88.557,
+      "max_ms": 79.391
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:112:_hero",
+      "calls": 3,
+      "total_ms": 87.966,
+      "max_ms": 63.017
+    },
+    {
+      "label": "core/features.py:1249:baseline_active",
+      "calls": 14156,
+      "total_ms": 86.395,
+      "max_ms": 0.184
+    },
+    {
+      "label": "dashboard/admin.py:1180:monitor",
+      "calls": 2,
+      "total_ms": 84.72,
+      "max_ms": 52.314
+    },
+    {
+      "label": "dashboard/admin.py:1185:_monitor_v2",
+      "calls": 2,
+      "total_ms": 84.647,
+      "max_ms": 52.263
+    },
+    {
+      "label": "dashboard/header.py:155:_screen_feedback_body",
+      "calls": 15,
+      "total_ms": 81.806,
+      "max_ms": 12.777
+    },
+    {
+      "label": "core/director_byd.py:1:<module>",
+      "calls": 1,
+      "total_ms": 80.87,
+      "max_ms": 80.87
+    },
+    {
+      "label": "dashboard/home.py:175:_grid",
+      "calls": 2,
+      "total_ms": 80.094,
+      "max_ms": 43.799
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:139:_primary_action",
+      "calls": 3,
+      "total_ms": 72.585,
+      "max_ms": 56.026
+    },
+    {
+      "label": "dashboard/steps/step5.py:76:step5a",
+      "calls": 2,
+      "total_ms": 71.759,
+      "max_ms": 46.258
+    },
+    {
+      "label": "dashboard/home.py:158:_card",
+      "calls": 10,
+      "total_ms": 69.685,
+      "max_ms": 9.093
+    },
+    {
+      "label": "dashboard/steps/step1_box.py:444:script_box",
+      "calls": 3,
+      "total_ms": 69.223,
+      "max_ms": 60.271
+    },
+    {
+      "label": "core/lineage.py:223:<lambda>",
+      "calls": 15,
+      "total_ms": 67.683,
+      "max_ms": 8.457
+    },
+    {
+      "label": "core/features.py:1458:on_unverified",
+      "calls": 5,
+      "total_ms": 67.506,
+      "max_ms": 17.963
+    },
+    {
+      "label": "core/lineage.py:267:_scan",
+      "calls": 15,
+      "total_ms": 67.419,
+      "max_ms": 8.42
+    },
+    {
+      "label": "dashboard/steps/step1_run.py:1:<module>",
+      "calls": 1,
+      "total_ms": 66.9,
+      "max_ms": 66.9
+    },
+    {
+      "label": "core/cost.py:243:picture_qc_usd",
+      "calls": 100,
+      "total_ms": 65.791,
+      "max_ms": 2.074
+    },
+    {
+      "label": "core/shot_intent.py:1:<module>",
+      "calls": 1,
+      "total_ms": 62.834,
+      "max_ms": 62.834
+    },
+    {
+      "label": "dashboard/steps/step4.py:161:_video_batch",
+      "calls": 2,
+      "total_ms": 62.642,
+      "max_ms": 40.764
+    },
+    {
+      "label": "core/delivery.py:131:audio_hash",
+      "calls": 17,
+      "total_ms": 59.951,
+      "max_ms": 12.966
+    },
+    {
+      "label": "core/sfx_plan.py:1:<module>",
+      "calls": 1,
+      "total_ms": 58.849,
+      "max_ms": 58.849
+    },
+    {
+      "label": "dashboard/steps/step3.py:22:step3",
+      "calls": 2,
+      "total_ms": 58.519,
+      "max_ms": 29.534
+    },
+    {
+      "label": "dashboard/common.py:182:periodic",
+      "calls": 60,
+      "total_ms": 58.325,
+      "max_ms": 7.148
+    },
+    {
+      "label": "core/features.py:1391:active",
+      "calls": 734,
+      "total_ms": 57.958,
+      "max_ms": 0.336
+    },
+    {
+      "label": "dashboard/app.py:94:<lambda>",
+      "calls": 9,
+      "total_ms": 57.126,
+      "max_ms": 12.562
+    },
+    {
+      "label": "dashboard/header.py:86:level_bar",
+      "calls": 9,
+      "total_ms": 56.994,
+      "max_ms": 12.536
+    },
+    {
+      "label": "dashboard/header.py:951:account_section",
+      "calls": 15,
+      "total_ms": 56.169,
+      "max_ms": 5.761
+    },
+    {
+      "label": "dashboard/steps/step5.py:1284:_final_qc",
+      "calls": 2,
+      "total_ms": 56.146,
+      "max_ms": 45.719
+    },
+    {
+      "label": "dashboard/steps/step1_refs.py:152:inputs_and_refs_v2",
+      "calls": 3,
+      "total_ms": 56.098,
+      "max_ms": 21.013
+    },
+    {
+      "label": "dashboard/ui.py:222:_v2_css",
+      "calls": 15,
+      "total_ms": 55.748,
+      "max_ms": 7.777
+    },
+    {
+      "label": "core/features.py:1199:_env",
+      "calls": 14156,
+      "total_ms": 52.212,
+      "max_ms": 0.138
+    },
+    {
+      "label": "dashboard/steps/step1_refs.py:73:attach_form",
+      "calls": 3,
+      "total_ms": 52.132,
+      "max_ms": 20.14
+    },
+    {
+      "label": "dashboard/steps/step5.py:341:subtitle_panel",
+      "calls": 2,
+      "total_ms": 51.617,
+      "max_ms": 32.038
+    },
+    {
+      "label": "core/takes.py:65:chosen",
+      "calls": 840,
+      "total_ms": 51.514,
+      "max_ms": 0.609
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:1:<module>",
+      "calls": 1,
+      "total_ms": 51.303,
+      "max_ms": 51.303
+    },
+    {
+      "label": "core/final_cut.py:15:collect_clips",
+      "calls": 6,
+      "total_ms": 50.468,
+      "max_ms": 10.959
+    },
+    {
+      "label": "core/before_run.py:430:<lambda>",
+      "calls": 3,
+      "total_ms": 50.445,
+      "max_ms": 22.211
+    },
+    {
+      "label": "core/before_run.py:106:_cost_items",
+      "calls": 3,
+      "total_ms": 50.421,
+      "max_ms": 22.194
+    },
+    {
+      "label": "core/project_budget.py:171:ledger_by_stage",
+      "calls": 92,
+      "total_ms": 48.89,
+      "max_ms": 1.649
+    },
+    {
+      "label": "dashboard/ui.py:312:fold",
+      "calls": 30,
+      "total_ms": 48.797,
+      "max_ms": 4.579
+    },
+    {
+      "label": "core/project_budget.py:152:_ledger",
+      "calls": 92,
+      "total_ms": 48.161,
+      "max_ms": 1.639
+    },
+    {
+      "label": "core/takes.py:29:_data",
+      "calls": 840,
+      "total_ms": 47.481,
+      "max_ms": 0.59
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:84:assets_panel",
+      "calls": 2,
+      "total_ms": 47.375,
+      "max_ms": 26.599
+    },
+    {
+      "label": "core/pipeline.py:163:project",
+      "calls": 438,
+      "total_ms": 46.401,
+      "max_ms": 2.279
+    },
+    {
+      "label": "core/model_router.py:70:_features",
+      "calls": 2160,
+      "total_ms": 46.373,
+      "max_ms": 0.569
+    },
+    {
+      "label": "core/continuity.py:1:<module>",
+      "calls": 1,
+      "total_ms": 45.96,
+      "max_ms": 45.96
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:287:shot_format_controls",
+      "calls": 2,
+      "total_ms": 45.119,
+      "max_ms": 28.702
+    },
+    {
+      "label": "dashboard/header.py:968:user_bar",
+      "calls": 15,
+      "total_ms": 43.493,
+      "max_ms": 4.49
+    },
+    {
+      "label": "core/location_pack.py:1:<module>",
+      "calls": 1,
+      "total_ms": 42.851,
+      "max_ms": 42.851
+    },
+    {
+      "label": "dashboard/common.py:123:llm_client",
+      "calls": 9,
+      "total_ms": 42.428,
+      "max_ms": 9.291
+    },
+    {
+      "label": "core/cost.py:541:claude_free",
+      "calls": 390,
+      "total_ms": 41.024,
+      "max_ms": 0.406
+    },
+    {
+      "label": "core/cost.py:782:_paid_running_groups",
+      "calls": 600,
+      "total_ms": 40.953,
+      "max_ms": 0.4
+    },
+    {
+      "label": "core/model_router.py:452:billed_seconds",
+      "calls": 2160,
+      "total_ms": 40.554,
+      "max_ms": 0.562
+    },
+    {
+      "label": "core/project_budget.py:134:spent_by_stage",
+      "calls": 62,
+      "total_ms": 40.514,
+      "max_ms": 1.712
+    },
+    {
+      "label": "core/script_chat.py:1:<module>",
+      "calls": 1,
+      "total_ms": 40.499,
+      "max_ms": 40.499
+    },
+    {
+      "label": "core/cost.py:535:send_estimate_on",
+      "calls": 390,
+      "total_ms": 39.713,
+      "max_ms": 0.403
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:39:cap",
+      "calls": 27,
+      "total_ms": 39.693,
+      "max_ms": 3.016
+    },
+    {
+      "label": "dashboard/header.py:1263:_other_ports_stale",
+      "calls": 15,
+      "total_ms": 37.704,
+      "max_ms": 32.88
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:209:reset_two_button",
+      "calls": 15,
+      "total_ms": 36.593,
+      "max_ms": 18.972
+    },
+    {
+      "label": "core/batch.py:1:<module>",
+      "calls": 1,
+      "total_ms": 34.763,
+      "max_ms": 34.763
+    },
+    {
+      "label": "dashboard/design/components.py:270:one_click",
+      "calls": 77,
+      "total_ms": 34.061,
+      "max_ms": 17.294
+    },
+    {
+      "label": "dashboard/steps/step2.py:1:<module>",
+      "calls": 1,
+      "total_ms": 32.831,
+      "max_ms": 32.831
+    },
+    {
+      "label": "dashboard/steps/step5.py:680:timeline_panel",
+      "calls": 2,
+      "total_ms": 32.68,
+      "max_ms": 23.975
+    },
+    {
+      "label": "core/voice.py:152:planned_lines",
+      "calls": 23,
+      "total_ms": 32.052,
+      "max_ms": 5.534
+    },
+    {
+      "label": "dashboard/design/components.py:71:card",
+      "calls": 102,
+      "total_ms": 31.69,
+      "max_ms": 1.627
+    },
+    {
+      "label": "dashboard/ui.py:206:v2_on",
+      "calls": 215,
+      "total_ms": 31.607,
+      "max_ms": 0.711
+    },
+    {
+      "label": "dashboard/design/screens/trainee_ui.py:188:render_build_split",
+      "calls": 2,
+      "total_ms": 30.476,
+      "max_ms": 20.095
+    },
+    {
+      "label": "core/dialogue.py:85:scene_lines",
+      "calls": 3080,
+      "total_ms": 30.245,
+      "max_ms": 0.09
+    },
+    {
+      "label": "core/director_lease.py:206:busy",
+      "calls": 3,
+      "total_ms": 30.085,
+      "max_ms": 25.789
+    },
+    {
+      "label": "dashboard/steps/step5.py:701:clips_panel",
+      "calls": 2,
+      "total_ms": 29.998,
+      "max_ms": 17.555
+    },
+    {
+      "label": "core/takes.py:76:used",
+      "calls": 240,
+      "total_ms": 29.561,
+      "max_ms": 0.42
+    },
+    {
+      "label": "dashboard/app.py:148:<lambda>",
+      "calls": 7,
+      "total_ms": 27.959,
+      "max_ms": 6.947
+    },
+    {
+      "label": "dashboard/design/screens/trainee_ui.py:183:build_split",
+      "calls": 2,
+      "total_ms": 27.894,
+      "max_ms": 18.483
+    },
+    {
+      "label": "core/director_lease.py:158:_open",
+      "calls": 3,
+      "total_ms": 27.64,
+      "max_ms": 23.754
+    },
+    {
+      "label": "core/cost.py:150:pending_end_frames",
+      "calls": 51,
+      "total_ms": 27.562,
+      "max_ms": 17.959
+    },
+    {
+      "label": "core/code_version.py:1:<module>",
+      "calls": 1,
+      "total_ms": 27.237,
+      "max_ms": 27.237
+    },
+    {
+      "label": "core/project_budget.py:227:_translate_worst",
+      "calls": 32,
+      "total_ms": 27.147,
+      "max_ms": 1.518
+    },
+    {
+      "label": "dashboard/header.py:123:risk_popover",
+      "calls": 15,
+      "total_ms": 26.758,
+      "max_ms": 3.098
+    },
+    {
+      "label": "dashboard/steps/step5.py:755:render_panel",
+      "calls": 2,
+      "total_ms": 26.629,
+      "max_ms": 15.45
+    },
+    {
+      "label": "dashboard/steps/step5.py:985:end_card_panel",
+      "calls": 2,
+      "total_ms": 26.511,
+      "max_ms": 16.352
+    },
+    {
+      "label": "dashboard/admin.py:1087:effectiveness_panel",
+      "calls": 2,
+      "total_ms": 26.442,
+      "max_ms": 15.441
+    },
+    {
+      "label": "core/batch.py:88:image_gates",
+      "calls": 2,
+      "total_ms": 25.962,
+      "max_ms": 24.681
+    },
+    {
+      "label": "core/lineage.py:164:approved_image_id",
+      "calls": 600,
+      "total_ms": 25.933,
+      "max_ms": 0.344
+    },
+    {
+      "label": "core/code_version.py:64:code_fingerprint",
+      "calls": 1,
+      "total_ms": 25.927,
+      "max_ms": 25.927
+    },
+    {
+      "label": "core/claude_tasks.py:1:<module>",
+      "calls": 1,
+      "total_ms": 25.596,
+      "max_ms": 25.596
+    },
+    {
+      "label": "core/delivery.py:215:_render_hash",
+      "calls": 17,
+      "total_ms": 25.419,
+      "max_ms": 13.316
+    },
+    {
+      "label": "dashboard/paid_confirm.py:35:begin_run",
+      "calls": 15,
+      "total_ms": 25.21,
+      "max_ms": 3.928
+    },
+    {
+      "label": "core/before_run.py:431:<lambda>",
+      "calls": 3,
+      "total_ms": 25.187,
+      "max_ms": 24.07
+    },
+    {
+      "label": "core/before_run.py:230:_review_items",
+      "calls": 3,
+      "total_ms": 25.16,
+      "max_ms": 24.054
+    },
+    {
+      "label": "core/features.py:1477:pending",
+      "calls": 2,
+      "total_ms": 24.664,
+      "max_ms": 15.375
+    },
+    {
+      "label": "core/assets.py:1841:_named_extras",
+      "calls": 80,
+      "total_ms": 24.411,
+      "max_ms": 0.716
+    },
+    {
+      "label": "core/features.py:1302:locked",
+      "calls": 14676,
+      "total_ms": 24.009,
+      "max_ms": 0.104
+    },
+    {
+      "label": "core/inbox_clean.py:47:stale",
+      "calls": 95,
+      "total_ms": 23.834,
+      "max_ms": 1.132
+    },
+    {
+      "label": "core/before_run.py:433:<lambda>",
+      "calls": 3,
+      "total_ms": 23.753,
+      "max_ms": 23.364
+    },
+    {
+      "label": "core/before_run.py:285:_storyboard_items",
+      "calls": 3,
+      "total_ms": 23.728,
+      "max_ms": 23.348
+    },
+    {
+      "label": "core/features.py:1091:settings_path",
+      "calls": 14670,
+      "total_ms": 23.717,
+      "max_ms": 0.061
+    },
+    {
+      "label": "core/inbox.py:31:_skip",
+      "calls": 75,
+      "total_ms": 23.389,
+      "max_ms": 3.249
+    },
+    {
+      "label": "dashboard/steps/step5.py:1120:exports_panel",
+      "calls": 2,
+      "total_ms": 23.137,
+      "max_ms": 14.278
+    },
+    {
+      "label": "core/batch.py:68:image_targets",
+      "calls": 2,
+      "total_ms": 22.949,
+      "max_ms": 11.883
+    },
+    {
+      "label": "dashboard/steps/step1_characters.py:1:<module>",
+      "calls": 1,
+      "total_ms": 22.43,
+      "max_ms": 22.43
+    },
+    {
+      "label": "core/timeline_view.py:13:tracks",
+      "calls": 2,
+      "total_ms": 22.408,
+      "max_ms": 13.717
+    },
+    {
+      "label": "dashboard/steps/step5.py:43:second_music_box",
+      "calls": 2,
+      "total_ms": 22.191,
+      "max_ms": 13.78
+    },
+    {
+      "label": "core/features.py:1371:default_state",
+      "calls": 14156,
+      "total_ms": 22.059,
+      "max_ms": 0.084
+    },
+    {
+      "label": "core/delivery.py:125:selected_music",
+      "calls": 19,
+      "total_ms": 21.897,
+      "max_ms": 2.053
+    },
+    {
+      "label": "dashboard/common.py:155:image_estimate",
+      "calls": 2,
+      "total_ms": 21.644,
+      "max_ms": 12.736
+    },
+    {
+      "label": "dashboard/steps/step5.py:28:music_pick_box",
+      "calls": 4,
+      "total_ms": 21.486,
+      "max_ms": 7.255
+    },
+    {
+      "label": "core/project_budget.py:130:unverified",
+      "calls": 1960,
+      "total_ms": 21.463,
+      "max_ms": 0.334
+    },
+    {
+      "label": "core/byd_fields.py:47:enabled",
+      "calls": 160,
+      "total_ms": 21.401,
+      "max_ms": 0.36
+    },
+    {
+      "label": "dashboard/steps/step5.py:7:_note",
+      "calls": 10,
+      "total_ms": 21.226,
+      "max_ms": 3.192
+    },
+    {
+      "label": "core/storyboard_gate.py:28:picture_path",
+      "calls": 160,
+      "total_ms": 21.172,
+      "max_ms": 0.533
+    },
+    {
+      "label": "core/features.py:1211:baseline_path",
+      "calls": 14156,
+      "total_ms": 21.11,
+      "max_ms": 0.088
+    },
+    {
+      "label": "dashboard/design/screens/prompt_versions_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 20.946,
+      "max_ms": 20.946
+    },
+    {
+      "label": "core/chat_intake.py:46:enabled",
+      "calls": 110,
+      "total_ms": 20.304,
+      "max_ms": 0.499
+    },
+    {
+      "label": "core/storyboard_gate.py:20:_approved_image",
+      "calls": 160,
+      "total_ms": 20.152,
+      "max_ms": 0.517
+    },
+    {
+      "label": "core/music.py:85:project_dirs",
+      "calls": 25,
+      "total_ms": 19.421,
+      "max_ms": 1.286
+    },
+    {
+      "label": "core/prop_lock.py:1:<module>",
+      "calls": 1,
+      "total_ms": 19.142,
+      "max_ms": 19.142
+    },
+    {
+      "label": "dashboard/design/components.py:78:hero",
+      "calls": 52,
+      "total_ms": 18.494,
+      "max_ms": 1.368
+    },
+    {
+      "label": "core/cost.py:488:chat_prompt_estimate",
+      "calls": 151,
+      "total_ms": 18.413,
+      "max_ms": 0.647
+    },
+    {
+      "label": "core/sfx_plan.py:30:timeline",
+      "calls": 2,
+      "total_ms": 18.356,
+      "max_ms": 10.945
+    },
+    {
+      "label": "core/budget.py:228:status",
+      "calls": 30,
+      "total_ms": 18.211,
+      "max_ms": 1.854
+    },
+    {
+      "label": "core/inbox_clean.py:97:skip_sets",
+      "calls": 75,
+      "total_ms": 18.039,
+      "max_ms": 1.147
+    },
+    {
+      "label": "core/qc_scene.py:46:active",
+      "calls": 183,
+      "total_ms": 18.026,
+      "max_ms": 0.267
+    },
+    {
+      "label": "dashboard/header.py:359:_delete_box",
+      "calls": 15,
+      "total_ms": 17.674,
+      "max_ms": 1.955
+    },
+    {
+      "label": "dashboard/glow_ui.py:54:person_switch",
+      "calls": 15,
+      "total_ms": 17.626,
+      "max_ms": 3.233
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:406:action_bar",
+      "calls": 2,
+      "total_ms": 17.264,
+      "max_ms": 9.998
+    },
+    {
+      "label": "dashboard/admin.py:1:<module>",
+      "calls": 1,
+      "total_ms": 16.664,
+      "max_ms": 16.664
+    },
+    {
+      "label": "dashboard/steps/step1.py:390:_plate_move_notes",
+      "calls": 3,
+      "total_ms": 16.502,
+      "max_ms": 15.602
+    },
+    {
+      "label": "dashboard/before_run_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 16.389,
+      "max_ms": 16.389
+    },
+    {
+      "label": "dashboard/home.py:36:rows",
+      "calls": 2,
+      "total_ms": 16.261,
+      "max_ms": 8.738
+    },
+    {
+      "label": "dashboard/app.py:112:start_background_watch",
+      "calls": 15,
+      "total_ms": 16.212,
+      "max_ms": 10.997
+    },
+    {
+      "label": "dashboard/paid_confirm.py:63:paid_button",
+      "calls": 19,
+      "total_ms": 16.121,
+      "max_ms": 1.169
+    },
+    {
+      "label": "dashboard/home.py:181:_hero",
+      "calls": 2,
+      "total_ms": 16.053,
+      "max_ms": 8.987
+    },
+    {
+      "label": "core/model_router.py:56:priority_of",
+      "calls": 2165,
+      "total_ms": 15.569,
+      "max_ms": 0.052
+    },
+    {
+      "label": "core/delivery.py:95:_arc_cues",
+      "calls": 17,
+      "total_ms": 15.163,
+      "max_ms": 9.53
+    },
+    {
+      "label": "core/audio_lib.py:18:assets_dir",
+      "calls": 33,
+      "total_ms": 14.286,
+      "max_ms": 1.126
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:119:hero",
+      "calls": 2,
+      "total_ms": 14.261,
+      "max_ms": 7.512
+    },
+    {
+      "label": "core/adapters/clipai.py:235:resolve_model",
+      "calls": 4320,
+      "total_ms": 14.135,
+      "max_ms": 0.093
+    },
+    {
+      "label": "dashboard/ui.py:182:dark_on",
+      "calls": 45,
+      "total_ms": 13.944,
+      "max_ms": 2.127
+    },
+    {
+      "label": "core/quality_tier.py:1085:delivery_quote",
+      "calls": 49,
+      "total_ms": 13.902,
+      "max_ms": 0.706
+    },
+    {
+      "label": "core/plate_choice.py:132:landmark_off_frame",
+      "calls": 80,
+      "total_ms": 13.883,
+      "max_ms": 0.378
+    },
+    {
+      "label": "dashboard/app.py:150:<lambda>",
+      "calls": 7,
+      "total_ms": 13.179,
+      "max_ms": 3.702
+    },
+    {
+      "label": "core/plate_camera.py:1:<module>",
+      "calls": 1,
+      "total_ms": 13.147,
+      "max_ms": 13.147
+    },
+    {
+      "label": "core/trash.py:197:sweep_rejected",
+      "calls": 7,
+      "total_ms": 13.125,
+      "max_ms": 3.692
+    },
+    {
+      "label": "core/inbox.py:62:_video_waits",
+      "calls": 75,
+      "total_ms": 13.09,
+      "max_ms": 0.485
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:52:note",
+      "calls": 8,
+      "total_ms": 12.869,
+      "max_ms": 2.257
+    },
+    {
+      "label": "core/db.py:795:_migrate",
+      "calls": 1,
+      "total_ms": 12.827,
+      "max_ms": 12.827
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:229:pacing_control",
+      "calls": 2,
+      "total_ms": 12.631,
+      "max_ms": 7.915
+    },
+    {
+      "label": "dashboard/steps/step1_refs.py:33:modes_line",
+      "calls": 3,
+      "total_ms": 12.609,
+      "max_ms": 4.951
+    },
+    {
+      "label": "dashboard/quality_ui.py:37:enabled",
+      "calls": 87,
+      "total_ms": 12.319,
+      "max_ms": 0.428
+    },
+    {
+      "label": "core/qc_team.py:298:active",
+      "calls": 132,
+      "total_ms": 12.302,
+      "max_ms": 0.344
+    },
+    {
+      "label": "core/subjects.py:22:games",
+      "calls": 15,
+      "total_ms": 12.224,
+      "max_ms": 1.587
+    },
+    {
+      "label": "core/delivered.py:54:rendered_not_delivered",
+      "calls": 75,
+      "total_ms": 12.186,
+      "max_ms": 0.429
+    },
+    {
+      "label": "core/assets.py:1049:project_assets",
+      "calls": 90,
+      "total_ms": 12.165,
+      "max_ms": 0.937
+    },
+    {
+      "label": "core/assets.py:221:fold",
+      "calls": 290,
+      "total_ms": 12.08,
+      "max_ms": 1.307
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:88:fold",
+      "calls": 15,
+      "total_ms": 12.063,
+      "max_ms": 1.846
+    },
+    {
+      "label": "core/trash.py:189:_swept",
+      "calls": 14,
+      "total_ms": 12.011,
+      "max_ms": 2.782
+    },
+    {
+      "label": "core/dialogue.py:70:lines",
+      "calls": 3080,
+      "total_ms": 11.876,
+      "max_ms": 0.079
+    },
+    {
+      "label": "dashboard/design/screens/money_days.py:14:open_button",
+      "calls": 15,
+      "total_ms": 11.591,
+      "max_ms": 1.363
+    },
+    {
+      "label": "core/qc_agent.py:130:enabled",
+      "calls": 132,
+      "total_ms": 11.566,
+      "max_ms": 0.602
+    },
+    {
+      "label": "core/budget.py:161:spent",
+      "calls": 60,
+      "total_ms": 11.547,
+      "max_ms": 1.398
+    },
+    {
+      "label": "core/delivery.py:79:second_music",
+      "calls": 19,
+      "total_ms": 11.535,
+      "max_ms": 1.233
+    },
+    {
+      "label": "core/dialogue_chat.py:1:<module>",
+      "calls": 1,
+      "total_ms": 11.533,
+      "max_ms": 11.533
+    },
+    {
+      "label": "core/inbox.py:43:_direct_waiting",
+      "calls": 75,
+      "total_ms": 11.47,
+      "max_ms": 0.844
+    },
+    {
+      "label": "core/project_budget.py:131:<genexpr>",
+      "calls": 3920,
+      "total_ms": 11.306,
+      "max_ms": 0.301
+    },
+    {
+      "label": "core/seedance_refs.py:1:<module>",
+      "calls": 1,
+      "total_ms": 10.845,
+      "max_ms": 10.845
+    },
+    {
+      "label": "core/cost.py:295:estimate_videos_by_scene",
+      "calls": 2,
+      "total_ms": 10.841,
+      "max_ms": 8.229
+    },
+    {
+      "label": "dashboard/steps/step1_checklist.py:1:<module>",
+      "calls": 1,
+      "total_ms": 10.839,
+      "max_ms": 10.839
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:80:known_issues",
+      "calls": 2,
+      "total_ms": 10.834,
+      "max_ms": 6.815
+    },
+    {
+      "label": "core/trash.py:185:_swept_path",
+      "calls": 14,
+      "total_ms": 10.744,
+      "max_ms": 2.661
+    },
+    {
+      "label": "core/delivered.py:34:is_delivered",
+      "calls": 180,
+      "total_ms": 10.525,
+      "max_ms": 0.279
+    },
+    {
+      "label": "dashboard/steps/step5.py:1152:_deliver_button",
+      "calls": 2,
+      "total_ms": 10.521,
+      "max_ms": 8.799
+    },
+    {
+      "label": "dashboard/admin.py:1148:compare_panel",
+      "calls": 2,
+      "total_ms": 10.486,
+      "max_ms": 8.19
+    },
+    {
+      "label": "core/trash.py:36:trash_dir",
+      "calls": 14,
+      "total_ms": 10.459,
+      "max_ms": 2.626
+    },
+    {
+      "label": "dashboard/header.py:1:<module>",
+      "calls": 1,
+      "total_ms": 10.43,
+      "max_ms": 10.43
+    },
+    {
+      "label": "dashboard/common.py:325:me",
+      "calls": 307,
+      "total_ms": 10.4,
+      "max_ms": 0.199
+    },
+    {
+      "label": "dashboard/team_screen.py:188:machines_block",
+      "calls": 2,
+      "total_ms": 10.33,
+      "max_ms": 9.145
+    },
+    {
+      "label": "core/scene_storyboard.py:1:<module>",
+      "calls": 1,
+      "total_ms": 10.269,
+      "max_ms": 10.269
+    },
+    {
+      "label": "dashboard/design/components.py:319:grid",
+      "calls": 2,
+      "total_ms": 10.13,
+      "max_ms": 5.725
+    },
+    {
+      "label": "core/budget.py:44:get",
+      "calls": 109,
+      "total_ms": 10.028,
+      "max_ms": 0.328
+    },
+    {
+      "label": "dashboard/common.py:421:allowed",
+      "calls": 214,
+      "total_ms": 9.887,
+      "max_ms": 0.336
+    },
+    {
+      "label": "dashboard/steps/step3.py:1:<module>",
+      "calls": 1,
+      "total_ms": 9.788,
+      "max_ms": 9.788
+    },
+    {
+      "label": "core/money_policy.py:105:estimate",
+      "calls": 15,
+      "total_ms": 9.678,
+      "max_ms": 1.587
+    },
+    {
+      "label": "core/assets.py:1915:_byd_kho_ids",
+      "calls": 80,
+      "total_ms": 9.673,
+      "max_ms": 0.314
+    },
+    {
+      "label": "core/voice.py:704:status",
+      "calls": 6,
+      "total_ms": 9.53,
+      "max_ms": 2.152
+    },
+    {
+      "label": "core/diag.py:202:scan",
+      "calls": 11,
+      "total_ms": 9.496,
+      "max_ms": 1.812
+    },
+    {
+      "label": "dashboard/steps/step2.py:745:animatic_box",
+      "calls": 2,
+      "total_ms": 9.37,
+      "max_ms": 6.439
+    },
+    {
+      "label": "core/archive.py:20:active_projects",
+      "calls": 47,
+      "total_ms": 9.366,
+      "max_ms": 0.787
+    },
+    {
+      "label": "dashboard/common.py:198:spend_text",
+      "calls": 15,
+      "total_ms": 9.338,
+      "max_ms": 1.002
+    },
+    {
+      "label": "core/shots.py:38:mode",
+      "calls": 2168,
+      "total_ms": 9.308,
+      "max_ms": 0.13
+    },
+    {
+      "label": "dashboard/access_ui.py:163:team_panel",
+      "calls": 2,
+      "total_ms": 9.251,
+      "max_ms": 5.684
+    },
+    {
+      "label": "core/autopilot.py:74:status",
+      "calls": 55,
+      "total_ms": 9.212,
+      "max_ms": 2.331
+    },
+    {
+      "label": "core/quality_tier.py:1024:running_draft_final_estimate",
+      "calls": 49,
+      "total_ms": 9.14,
+      "max_ms": 0.39
+    },
+    {
+      "label": "dashboard/stage_view_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 9.081,
+      "max_ms": 9.081
+    },
+    {
+      "label": "dashboard/overview.py:17:_counts",
+      "calls": 15,
+      "total_ms": 9.067,
+      "max_ms": 1.097
+    },
+    {
+      "label": "core/model_router.py:61:chosen_priority",
+      "calls": 4329,
+      "total_ms": 9.008,
+      "max_ms": 0.032
+    },
+    {
+      "label": "dashboard/steps/step1_director.py:39:director_panel",
+      "calls": 2,
+      "total_ms": 8.981,
+      "max_ms": 5.643
+    },
+    {
+      "label": "core/lineage.py:260:_restamp_quietly",
+      "calls": 15,
+      "total_ms": 8.887,
+      "max_ms": 3.398
+    },
+    {
+      "label": "core/quality_tier.py:129:cheap_mode",
+      "calls": 2160,
+      "total_ms": 8.882,
+      "max_ms": 0.314
+    },
+    {
+      "label": "core/lineage.py:226:restamp_byd",
+      "calls": 15,
+      "total_ms": 8.82,
+      "max_ms": 3.387
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:39:row",
+      "calls": 16,
+      "total_ms": 8.768,
+      "max_ms": 1.398
+    },
+    {
+      "label": "core/speaker_lint.py:1:<module>",
+      "calls": 1,
+      "total_ms": 8.719,
+      "max_ms": 8.719
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:462:motion_hero",
+      "calls": 2,
+      "total_ms": 8.625,
+      "max_ms": 4.548
+    },
+    {
+      "label": "dashboard/steps/step5.py:1061:end_popup_panel",
+      "calls": 2,
+      "total_ms": 8.58,
+      "max_ms": 4.454
+    },
+    {
+      "label": "dashboard/steps/step2.py:669:pilot_panel",
+      "calls": 2,
+      "total_ms": 8.577,
+      "max_ms": 4.406
+    },
+    {
+      "label": "core/delivery.py:72:second_music_dir",
+      "calls": 21,
+      "total_ms": 8.233,
+      "max_ms": 1.03
+    },
+    {
+      "label": "dashboard/header.py:171:_risk_body",
+      "calls": 15,
+      "total_ms": 8.231,
+      "max_ms": 0.974
+    },
+    {
+      "label": "dashboard/team_screen.py:84:_history_v2",
+      "calls": 2,
+      "total_ms": 8.162,
+      "max_ms": 4.906
+    },
+    {
+      "label": "core/prop_lock.py:43:enabled",
+      "calls": 80,
+      "total_ms": 8.118,
+      "max_ms": 0.272
+    },
+    {
+      "label": "core/quality_tier.py:1108:run_estimate",
+      "calls": 49,
+      "total_ms": 8.095,
+      "max_ms": 0.385
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:267:image_model_control",
+      "calls": 2,
+      "total_ms": 8.035,
+      "max_ms": 4.285
+    },
+    {
+      "label": "core/delivered.py:47:has_render",
+      "calls": 75,
+      "total_ms": 8.006,
+      "max_ms": 0.321
+    },
+    {
+      "label": "core/cost.py:218:outside_estimate",
+      "calls": 51,
+      "total_ms": 7.98,
+      "max_ms": 0.352
+    },
+    {
+      "label": "core/audio_lib.py:1:<module>",
+      "calls": 1,
+      "total_ms": 7.943,
+      "max_ms": 7.943
+    },
+    {
+      "label": "dashboard/common.py:192:diag_problems",
+      "calls": 15,
+      "total_ms": 7.91,
+      "max_ms": 2.067
+    },
+    {
+      "label": "core/adapters/clipai.py:269:effective_duration",
+      "calls": 2160,
+      "total_ms": 7.818,
+      "max_ms": 0.08
+    },
+    {
+      "label": "core/motion_prompt_lint.py:1:<module>",
+      "calls": 1,
+      "total_ms": 7.774,
+      "max_ms": 7.774
+    },
+    {
+      "label": "core/music.py:268:pick_sources",
+      "calls": 4,
+      "total_ms": 7.671,
+      "max_ms": 2.34
+    },
+    {
+      "label": "dashboard/common.py:329:capture_op_source",
+      "calls": 15,
+      "total_ms": 7.668,
+      "max_ms": 4.091
+    },
+    {
+      "label": "core/project_budget.py:99:get",
+      "calls": 121,
+      "total_ms": 7.477,
+      "max_ms": 0.391
+    },
+    {
+      "label": "dashboard/team_screen.py:48:_hero",
+      "calls": 2,
+      "total_ms": 7.361,
+      "max_ms": 4.734
+    },
+    {
+      "label": "core/budget.py:70:token_price",
+      "calls": 780,
+      "total_ms": 7.295,
+      "max_ms": 0.082
+    },
+    {
+      "label": "core/end_frames.py:651:enabled",
+      "calls": 53,
+      "total_ms": 7.274,
+      "max_ms": 0.242
+    },
+    {
+      "label": "core/continuity.py:280:film_warnings",
+      "calls": 3,
+      "total_ms": 7.176,
+      "max_ms": 6.952
+    },
+    {
+      "label": "dashboard/steps/step4.py:132:_video_settings",
+      "calls": 2,
+      "total_ms": 7.109,
+      "max_ms": 3.964
+    },
+    {
+      "label": "core/qc_scene.py:1:<module>",
+      "calls": 1,
+      "total_ms": 7.1,
+      "max_ms": 7.1
+    },
+    {
+      "label": "core/autopilot.py:1:<module>",
+      "calls": 1,
+      "total_ms": 7.047,
+      "max_ms": 7.047
+    },
+    {
+      "label": "dashboard/paid_batch_preview.py:38:paid_batch_button",
+      "calls": 4,
+      "total_ms": 7.011,
+      "max_ms": 1.939
+    },
+    {
+      "label": "core/shot_popup.py:1:<module>",
+      "calls": 1,
+      "total_ms": 6.878,
+      "max_ms": 6.878
+    },
+    {
+      "label": "dashboard/design/screens/trainee_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 6.686,
+      "max_ms": 6.686
+    },
+    {
+      "label": "dashboard/home.py:131:_clean_box",
+      "calls": 10,
+      "total_ms": 6.642,
+      "max_ms": 0.847
+    },
+    {
+      "label": "dashboard/common.py:194:<lambda>",
+      "calls": 7,
+      "total_ms": 6.622,
+      "max_ms": 1.832
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:246:narration_speed_control",
+      "calls": 2,
+      "total_ms": 6.569,
+      "max_ms": 4.689
+    },
+    {
+      "label": "dashboard/header.py:324:archived_list",
+      "calls": 15,
+      "total_ms": 6.558,
+      "max_ms": 1.209
+    },
+    {
+      "label": "core/project_budget.py:43:enabled",
+      "calls": 57,
+      "total_ms": 6.556,
+      "max_ms": 0.236
+    },
+    {
+      "label": "core/budget.py:236:llm_spent",
+      "calls": 30,
+      "total_ms": 6.513,
+      "max_ms": 0.584
+    },
+    {
+      "label": "dashboard/design/components.py:155:md_plain",
+      "calls": 162,
+      "total_ms": 6.513,
+      "max_ms": 0.625
+    },
+    {
+      "label": "core/llm_io.py:1204:ready_for_video",
+      "calls": 8,
+      "total_ms": 6.421,
+      "max_ms": 1.75
+    },
+    {
+      "label": "dashboard/app.py:149:<lambda>",
+      "calls": 7,
+      "total_ms": 6.293,
+      "max_ms": 1.429
+    },
+    {
+      "label": "core/autoqc.py:1:<module>",
+      "calls": 1,
+      "total_ms": 6.277,
+      "max_ms": 6.277
+    },
+    {
+      "label": "dashboard/readiness_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 6.162,
+      "max_ms": 6.162
+    },
+    {
+      "label": "core/preflight.py:11:load_blocklist",
+      "calls": 15,
+      "total_ms": 6.143,
+      "max_ms": 0.54
+    },
+    {
+      "label": "core/chat_intake.py:1:<module>",
+      "calls": 1,
+      "total_ms": 6.017,
+      "max_ms": 6.017
+    },
+    {
+      "label": "core/perf.py:115:portfolio_rows",
+      "calls": 2,
+      "total_ms": 5.904,
+      "max_ms": 3.046
+    },
+    {
+      "label": "core/autopilot.py:1530:wake",
+      "calls": 2,
+      "total_ms": 5.656,
+      "max_ms": 3.087
+    },
+    {
+      "label": "core/sound_ai.py:56:_download",
+      "calls": 7,
+      "total_ms": 5.591,
+      "max_ms": 1.383
+    },
+    {
+      "label": "core/pilot.py:151:allowed_scenes",
+      "calls": 55,
+      "total_ms": 5.56,
+      "max_ms": 0.282
+    },
+    {
+      "label": "dashboard/ui.py:247:html",
+      "calls": 11,
+      "total_ms": 5.532,
+      "max_ms": 0.835
+    },
+    {
+      "label": "core/idea_to_script.py:1:<module>",
+      "calls": 1,
+      "total_ms": 5.514,
+      "max_ms": 5.514
+    },
+    {
+      "label": "core/features.py:1417:unmet_all",
+      "calls": 3,
+      "total_ms": 5.511,
+      "max_ms": 2.344
+    },
+    {
+      "label": "core/end_frames.py:1:<module>",
+      "calls": 1,
+      "total_ms": 5.459,
+      "max_ms": 5.459
+    },
+    {
+      "label": "core/project_budget.py:71:redo_shares",
+      "calls": 32,
+      "total_ms": 5.344,
+      "max_ms": 0.561
+    },
+    {
+      "label": "core/scene_establish.py:360:pending",
+      "calls": 51,
+      "total_ms": 5.332,
+      "max_ms": 0.333
+    },
+    {
+      "label": "core/pilot.py:75:active",
+      "calls": 55,
+      "total_ms": 5.33,
+      "max_ms": 0.272
+    },
+    {
+      "label": "core/features.py:1410:unmet",
+      "calls": 63,
+      "total_ms": 5.313,
+      "max_ms": 0.219
+    },
+    {
+      "label": "core/runner.py:1:<module>",
+      "calls": 1,
+      "total_ms": 5.311,
+      "max_ms": 5.311
+    },
+    {
+      "label": "dashboard/steps/step4.py:338:sequence_logic_panel",
+      "calls": 2,
+      "total_ms": 5.306,
+      "max_ms": 5.14
+    },
+    {
+      "label": "core/timeline_view.py:1:<module>",
+      "calls": 1,
+      "total_ms": 5.273,
+      "max_ms": 5.273
+    },
+    {
+      "label": "core/previz.py:1:<module>",
+      "calls": 1,
+      "total_ms": 5.25,
+      "max_ms": 5.25
+    },
+    {
+      "label": "core/pilot.py:13:get",
+      "calls": 57,
+      "total_ms": 5.16,
+      "max_ms": 0.262
+    },
+    {
+      "label": "core/scene_establish.py:33:enabled",
+      "calls": 51,
+      "total_ms": 5.133,
+      "max_ms": 0.328
+    },
+    {
+      "label": "dashboard/team_screen.py:24:people_rows",
+      "calls": 2,
+      "total_ms": 4.997,
+      "max_ms": 3.573
+    },
+    {
+      "label": "core/batch.py:219:video_plan",
+      "calls": 2,
+      "total_ms": 4.868,
+      "max_ms": 3.24
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:211:_card_head",
+      "calls": 8,
+      "total_ms": 4.793,
+      "max_ms": 0.909
+    },
+    {
+      "label": "core/prompt_rewrite.py:1:<module>",
+      "calls": 1,
+      "total_ms": 4.784,
+      "max_ms": 4.784
+    },
+    {
+      "label": "core/delivery.py:34:get_settings",
+      "calls": 31,
+      "total_ms": 4.774,
+      "max_ms": 0.586
+    },
+    {
+      "label": "core/archive.py:27:archived_projects",
+      "calls": 30,
+      "total_ms": 4.765,
+      "max_ms": 0.778
+    },
+    {
+      "label": "core/features.py:1386:shadow",
+      "calls": 65,
+      "total_ms": 4.678,
+      "max_ms": 0.251
+    },
+    {
+      "label": "dashboard/steps/step5.py:597:<genexpr>",
+      "calls": 10,
+      "total_ms": 4.628,
+      "max_ms": 1.012
+    },
+    {
+      "label": "dashboard/admin.py:1125:effectiveness_history",
+      "calls": 2,
+      "total_ms": 4.469,
+      "max_ms": 2.533
+    },
+    {
+      "label": "core/diag.py:295:report",
+      "calls": 2,
+      "total_ms": 4.442,
+      "max_ms": 2.84
+    },
+    {
+      "label": "core/delivery.py:1:<module>",
+      "calls": 1,
+      "total_ms": 4.405,
+      "max_ms": 4.405
+    },
+    {
+      "label": "dashboard/next_step.py:25:next_action",
+      "calls": 9,
+      "total_ms": 4.357,
+      "max_ms": 1.121
+    },
+    {
+      "label": "core/lineage.py:397:settings_hash",
+      "calls": 34,
+      "total_ms": 4.355,
+      "max_ms": 0.671
+    },
+    {
+      "label": "core/sound_lib.py:1:<module>",
+      "calls": 1,
+      "total_ms": 4.35,
+      "max_ms": 4.35
+    },
+    {
+      "label": "core/perf.py:219:snapshot",
+      "calls": 2,
+      "total_ms": 4.313,
+      "max_ms": 3.182
+    },
+    {
+      "label": "dashboard/steps/step1.py:456:<genexpr>",
+      "calls": 123,
+      "total_ms": 4.271,
+      "max_ms": 0.113
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:34:status_pills",
+      "calls": 9,
+      "total_ms": 4.215,
+      "max_ms": 0.905
+    },
+    {
+      "label": "core/assets.py:1390:scene_location",
+      "calls": 200,
+      "total_ms": 4.203,
+      "max_ms": 0.201
+    },
+    {
+      "label": "core/inbox_clean.py:104:preview",
+      "calls": 10,
+      "total_ms": 4.192,
+      "max_ms": 0.525
+    },
+    {
+      "label": "dashboard/header.py:1122:_blender_bit",
+      "calls": 15,
+      "total_ms": 4.191,
+      "max_ms": 0.901
+    },
+    {
+      "label": "core/lineage.py:28:_hash",
+      "calls": 34,
+      "total_ms": 4.177,
+      "max_ms": 0.657
+    },
+    {
+      "label": "core/project_budget.py:235:<genexpr>",
+      "calls": 3840,
+      "total_ms": 4.16,
+      "max_ms": 0.017
+    },
+    {
+      "label": "core/quality_tier.py:854:_proj_ratio",
+      "calls": 49,
+      "total_ms": 4.157,
+      "max_ms": 0.245
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:179:last_reset_md",
+      "calls": 15,
+      "total_ms": 4.146,
+      "max_ms": 0.759
+    },
+    {
+      "label": "core/costume.py:1:<module>",
+      "calls": 1,
+      "total_ms": 4.137,
+      "max_ms": 4.137
+    },
+    {
+      "label": "core/shots.py:432:shots_of",
+      "calls": 4,
+      "total_ms": 4.084,
+      "max_ms": 1.68
+    },
+    {
+      "label": "core/cost.py:469:rewrite_estimate",
+      "calls": 49,
+      "total_ms": 4.028,
+      "max_ms": 0.196
+    },
+    {
+      "label": "core/qc_team.py:292:shadow",
+      "calls": 49,
+      "total_ms": 3.976,
+      "max_ms": 0.171
+    },
+    {
+      "label": "core/delivery.py:63:render_hash",
+      "calls": 17,
+      "total_ms": 3.863,
+      "max_ms": 0.694
+    },
+    {
+      "label": "core/preflight.py:40:risk_notes",
+      "calls": 15,
+      "total_ms": 3.859,
+      "max_ms": 0.366
+    },
+    {
+      "label": "core/stage_map.py:16:_latest",
+      "calls": 40,
+      "total_ms": 3.81,
+      "max_ms": 0.315
+    },
+    {
+      "label": "core/diag.py:104:record",
+      "calls": 7,
+      "total_ms": 3.778,
+      "max_ms": 0.764
+    },
+    {
+      "label": "core/lineage.py:405:final_status",
+      "calls": 17,
+      "total_ms": 3.735,
+      "max_ms": 0.363
+    },
+    {
+      "label": "core/director_byd.py:28:enabled",
+      "calls": 32,
+      "total_ms": 3.708,
+      "max_ms": 0.388
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:48:say",
+      "calls": 2,
+      "total_ms": 3.674,
+      "max_ms": 1.959
+    },
+    {
+      "label": "dashboard/approve_preview.py:150:approve_all_box",
+      "calls": 4,
+      "total_ms": 3.624,
+      "max_ms": 1.092
+    },
+    {
+      "label": "core/reference_analysis.py:1:<module>",
+      "calls": 1,
+      "total_ms": 3.613,
+      "max_ms": 3.613
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:476:scene_voice_map",
+      "calls": 2,
+      "total_ms": 3.573,
+      "max_ms": 2.014
+    },
+    {
+      "label": "dashboard/glow_ui.py:42:lit_for_me",
+      "calls": 18,
+      "total_ms": 3.569,
+      "max_ms": 0.609
+    },
+    {
+      "label": "dashboard/steps/step4.py:49:<genexpr>",
+      "calls": 12,
+      "total_ms": 3.569,
+      "max_ms": 0.627
+    },
+    {
+      "label": "core/effectiveness.py:172:report",
+      "calls": 2,
+      "total_ms": 3.562,
+      "max_ms": 2.409
+    },
+    {
+      "label": "dashboard/steps/step3.py:279:voice_panel",
+      "calls": 2,
+      "total_ms": 3.529,
+      "max_ms": 1.931
+    },
+    {
+      "label": "dashboard/design/components.py:247:note",
+      "calls": 2,
+      "total_ms": 3.517,
+      "max_ms": 1.862
+    },
+    {
+      "label": "core/assets.py:594:purge_removed",
+      "calls": 7,
+      "total_ms": 3.515,
+      "max_ms": 0.902
+    },
+    {
+      "label": "dashboard/team_screen.py:1:<module>",
+      "calls": 1,
+      "total_ms": 3.46,
+      "max_ms": 3.46
+    },
+    {
+      "label": "dashboard/access_ui.py:112:watchers_editor",
+      "calls": 2,
+      "total_ms": 3.449,
+      "max_ms": 2.302
+    },
+    {
+      "label": "core/assets.py:888:find_in_text",
+      "calls": 2,
+      "total_ms": 3.445,
+      "max_ms": 1.774
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:150:money_meter",
+      "calls": 15,
+      "total_ms": 3.438,
+      "max_ms": 0.788
+    },
+    {
+      "label": "core/lineage.py:365:stale_scene_ids",
+      "calls": 3,
+      "total_ms": 3.411,
+      "max_ms": 1.301
+    },
+    {
+      "label": "dashboard/steps/step5.py:1:<module>",
+      "calls": 1,
+      "total_ms": 3.401,
+      "max_ms": 3.401
+    },
+    {
+      "label": "core/lineage.py:401:latest_output",
+      "calls": 42,
+      "total_ms": 3.377,
+      "max_ms": 0.263
+    },
+    {
+      "label": "core/inbox.py:1:<module>",
+      "calls": 1,
+      "total_ms": 3.31,
+      "max_ms": 3.31
+    },
+    {
+      "label": "dashboard/limits_ui.py:109:panel",
+      "calls": 45,
+      "total_ms": 3.284,
+      "max_ms": 0.195
+    },
+    {
+      "label": "core/diag.py:146:_write",
+      "calls": 7,
+      "total_ms": 3.276,
+      "max_ms": 0.68
+    },
+    {
+      "label": "core/archive.py:32:finished_projects",
+      "calls": 15,
+      "total_ms": 3.275,
+      "max_ms": 0.36
+    },
+    {
+      "label": "dashboard/header.py:266:current_pid",
+      "calls": 15,
+      "total_ms": 3.273,
+      "max_ms": 0.445
+    },
+    {
+      "label": "core/diag.py:260:stage_table",
+      "calls": 4,
+      "total_ms": 3.273,
+      "max_ms": 1.581
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:98:progress_details",
+      "calls": 18,
+      "total_ms": 3.241,
+      "max_ms": 0.334
+    },
+    {
+      "label": "core/subtitles.py:194:get_settings",
+      "calls": 23,
+      "total_ms": 3.236,
+      "max_ms": 0.468
+    },
+    {
+      "label": "dashboard/steps/step1.py:42:_script_summary",
+      "calls": 3,
+      "total_ms": 3.217,
+      "max_ms": 1.784
+    },
+    {
+      "label": "core/assets.py:224:<genexpr>",
+      "calls": 2208,
+      "total_ms": 3.193,
+      "max_ms": 0.048
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:100:next_kind",
+      "calls": 9,
+      "total_ms": 3.189,
+      "max_ms": 2.351
+    },
+    {
+      "label": "core/user_prefs.py:15:get",
+      "calls": 33,
+      "total_ms": 3.186,
+      "max_ms": 0.473
+    },
+    {
+      "label": "core/automation.py:47:current",
+      "calls": 9,
+      "total_ms": 3.186,
+      "max_ms": 0.672
+    },
+    {
+      "label": "core/audio_lib.py:28:load",
+      "calls": 33,
+      "total_ms": 3.162,
+      "max_ms": 0.21
+    },
+    {
+      "label": "dashboard/steps/step5.py:453:sfx_assistant",
+      "calls": 2,
+      "total_ms": 3.159,
+      "max_ms": 2.896
+    },
+    {
+      "label": "dashboard/paid_confirm.py:29:enabled",
+      "calls": 20,
+      "total_ms": 3.129,
+      "max_ms": 0.314
+    },
+    {
+      "label": "core/cost.py:1225:spend_summary",
+      "calls": 17,
+      "total_ms": 3.085,
+      "max_ms": 0.345
+    },
+    {
+      "label": "core/plates3d.py:188:lock_path",
+      "calls": 15,
+      "total_ms": 3.08,
+      "max_ms": 0.786
+    },
+    {
+      "label": "core/regen.py:1:<module>",
+      "calls": 1,
+      "total_ms": 3.064,
+      "max_ms": 3.064
+    },
+    {
+      "label": "core/perf.py:85:_progress",
+      "calls": 10,
+      "total_ms": 3.021,
+      "max_ms": 0.56
+    },
+    {
+      "label": "dashboard/overview.py:22:<lambda>",
+      "calls": 30,
+      "total_ms": 3.019,
+      "max_ms": 0.327
+    },
+    {
+      "label": "core/final_cut.py:11:clip_path",
+      "calls": 246,
+      "total_ms": 2.97,
+      "max_ms": 0.106
+    },
+    {
+      "label": "core/team.py:66:spend_by_user",
+      "calls": 4,
+      "total_ms": 2.962,
+      "max_ms": 1.163
+    },
+    {
+      "label": "dashboard/steps/step1.py:410:<genexpr>",
+      "calls": 3,
+      "total_ms": 2.961,
+      "max_ms": 1.324
+    },
+    {
+      "label": "core/money_policy.py:189:recent",
+      "calls": 15,
+      "total_ms": 2.915,
+      "max_ms": 0.446
+    },
+    {
+      "label": "dashboard/team_screen.py:70:_people_table",
+      "calls": 2,
+      "total_ms": 2.885,
+      "max_ms": 2.088
+    },
+    {
+      "label": "dashboard/paid_batch_preview.py:10:fingerprint",
+      "calls": 4,
+      "total_ms": 2.879,
+      "max_ms": 0.837
+    },
+    {
+      "label": "dashboard/steps/step1.py:34:_count_label",
+      "calls": 6,
+      "total_ms": 2.858,
+      "max_ms": 0.762
+    },
+    {
+      "label": "core/perf.py:87:c",
+      "calls": 40,
+      "total_ms": 2.844,
+      "max_ms": 0.183
+    },
+    {
+      "label": "core/byd_fields.py:29:mother_on",
+      "calls": 15,
+      "total_ms": 2.824,
+      "max_ms": 0.327
+    },
+    {
+      "label": "dashboard/limits_ui.py:153:usage_caption",
+      "calls": 15,
+      "total_ms": 2.816,
+      "max_ms": 0.678
+    },
+    {
+      "label": "core/perf.py:56:by_kind",
+      "calls": 4,
+      "total_ms": 2.757,
+      "max_ms": 0.967
+    },
+    {
+      "label": "dashboard/access_ui.py:70:set_read_only",
+      "calls": 75,
+      "total_ms": 2.751,
+      "max_ms": 0.084
+    },
+    {
+      "label": "core/subtitles.py:1:<module>",
+      "calls": 1,
+      "total_ms": 2.739,
+      "max_ms": 2.739
+    },
+    {
+      "label": "core/voice.py:142:profiles",
+      "calls": 23,
+      "total_ms": 2.696,
+      "max_ms": 0.22
+    },
+    {
+      "label": "core/assets.py:1808:atmosphere_refs",
+      "calls": 80,
+      "total_ms": 2.676,
+      "max_ms": 0.108
+    },
+    {
+      "label": "dashboard/header.py:1292:_budget_bit",
+      "calls": 15,
+      "total_ms": 2.647,
+      "max_ms": 0.337
+    },
+    {
+      "label": "core/music_cues.py:1:<module>",
+      "calls": 1,
+      "total_ms": 2.609,
+      "max_ms": 2.609
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:86:_budget_state",
+      "calls": 3,
+      "total_ms": 2.594,
+      "max_ms": 1.035
+    },
+    {
+      "label": "core/shot_popup.py:55:fingerprint",
+      "calls": 17,
+      "total_ms": 2.561,
+      "max_ms": 0.227
+    },
+    {
+      "label": "core/music.py:261:own_dir",
+      "calls": 8,
+      "total_ms": 2.548,
+      "max_ms": 0.507
+    },
+    {
+      "label": "core/cost.py:464:llm_model",
+      "calls": 390,
+      "total_ms": 2.516,
+      "max_ms": 0.031
+    },
+    {
+      "label": "dashboard/limits_ui.py:170:team_block",
+      "calls": 2,
+      "total_ms": 2.512,
+      "max_ms": 1.289
+    },
+    {
+      "label": "core/llm_provider.py:137:client_for_project",
+      "calls": 9,
+      "total_ms": 2.509,
+      "max_ms": 0.374
+    },
+    {
+      "label": "core/music.py:1:<module>",
+      "calls": 1,
+      "total_ms": 2.487,
+      "max_ms": 2.487
+    },
+    {
+      "label": "dashboard/header.py:985:user_name",
+      "calls": 30,
+      "total_ms": 2.447,
+      "max_ms": 0.173
+    },
+    {
+      "label": "core/batch.py:178:videos_to_make",
+      "calls": 2,
+      "total_ms": 2.422,
+      "max_ms": 1.765
+    },
+    {
+      "label": "dashboard/video_gate_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 2.366,
+      "max_ms": 2.366
+    },
+    {
+      "label": "core/batch.py:185:_stale_redos",
+      "calls": 2,
+      "total_ms": 2.361,
+      "max_ms": 1.423
+    },
+    {
+      "label": "dashboard/quality_ui.py:55:mode_label",
+      "calls": 17,
+      "total_ms": 2.36,
+      "max_ms": 0.232
+    },
+    {
+      "label": "core/model_router.py:146:_pick",
+      "calls": 2160,
+      "total_ms": 2.353,
+      "max_ms": 0.029
+    },
+    {
+      "label": "core/code_version.py:225:banner",
+      "calls": 15,
+      "total_ms": 2.344,
+      "max_ms": 0.257
+    },
+    {
+      "label": "dashboard/steps/step1.py:37:<genexpr>",
+      "calls": 246,
+      "total_ms": 2.341,
+      "max_ms": 0.051
+    },
+    {
+      "label": "dashboard/design/components.py:92:table",
+      "calls": 14,
+      "total_ms": 2.302,
+      "max_ms": 0.648
+    },
+    {
+      "label": "core/script_reader.py:1:<module>",
+      "calls": 1,
+      "total_ms": 2.299,
+      "max_ms": 2.299
+    },
+    {
+      "label": "core/llm_provider.py:275:quota_all",
+      "calls": 30,
+      "total_ms": 2.28,
+      "max_ms": 0.182
+    },
+    {
+      "label": "core/code_version.py:20:enabled",
+      "calls": 15,
+      "total_ms": 2.27,
+      "max_ms": 0.246
+    },
+    {
+      "label": "dashboard/design/screens/money_days.py:22:can_view",
+      "calls": 15,
+      "total_ms": 2.227,
+      "max_ms": 0.6
+    },
+    {
+      "label": "core/qc_agent.py:1:<module>",
+      "calls": 1,
+      "total_ms": 2.225,
+      "max_ms": 2.225
+    },
+    {
+      "label": "dashboard/common.py:424:access_user",
+      "calls": 257,
+      "total_ms": 2.22,
+      "max_ms": 0.18
+    },
+    {
+      "label": "core/inbox_clean.py:119:action_ids",
+      "calls": 10,
+      "total_ms": 2.215,
+      "max_ms": 0.299
+    },
+    {
+      "label": "core/ffmpeg_studio.py:1:<module>",
+      "calls": 1,
+      "total_ms": 2.195,
+      "max_ms": 2.195
+    },
+    {
+      "label": "dashboard/common.py:322:auth_on",
+      "calls": 552,
+      "total_ms": 2.171,
+      "max_ms": 0.026
+    },
+    {
+      "label": "core/next_glow.py:1:<module>",
+      "calls": 1,
+      "total_ms": 2.125,
+      "max_ms": 2.125
+    },
+    {
+      "label": "core/assets.py:545:trash_days",
+      "calls": 7,
+      "total_ms": 2.108,
+      "max_ms": 0.608
+    },
+    {
+      "label": "core/llm_provider.py:246:_quota",
+      "calls": 30,
+      "total_ms": 2.103,
+      "max_ms": 0.17
+    },
+    {
+      "label": "dashboard/header.py:281:remember_pid",
+      "calls": 15,
+      "total_ms": 2.092,
+      "max_ms": 0.433
+    },
+    {
+      "label": "dashboard/app.py:63:step_label",
+      "calls": 15,
+      "total_ms": 2.045,
+      "max_ms": 0.32
+    },
+    {
+      "label": "dashboard/steps/step5.py:975:cover_panel",
+      "calls": 2,
+      "total_ms": 2.027,
+      "max_ms": 1.406
+    },
+    {
+      "label": "dashboard/steps/step4.py:760:_draft_preview",
+      "calls": 2,
+      "total_ms": 1.976,
+      "max_ms": 1.118
+    },
+    {
+      "label": "core/preflight.py:31:check_characters",
+      "calls": 15,
+      "total_ms": 1.931,
+      "max_ms": 0.185
+    },
+    {
+      "label": "dashboard/overview.py:32:_plates",
+      "calls": 15,
+      "total_ms": 1.926,
+      "max_ms": 0.206
+    },
+    {
+      "label": "core/audio_lib.py:172:mix_list",
+      "calls": 19,
+      "total_ms": 1.909,
+      "max_ms": 0.234
+    },
+    {
+      "label": "core/cost.py:1046:<genexpr>",
+      "calls": 2009,
+      "total_ms": 1.899,
+      "max_ms": 0.028
+    },
+    {
+      "label": "dashboard/design/components.py:108:colored",
+      "calls": 19,
+      "total_ms": 1.893,
+      "max_ms": 0.201
+    },
+    {
+      "label": "core/assets.py:1828:_without_spoken_lines",
+      "calls": 160,
+      "total_ms": 1.893,
+      "max_ms": 0.053
+    },
+    {
+      "label": "core/cost.py:44:_number",
+      "calls": 831,
+      "total_ms": 1.89,
+      "max_ms": 0.026
+    },
+    {
+      "label": "core/place_refs.py:549:video_warnings",
+      "calls": 2,
+      "total_ms": 1.876,
+      "max_ms": 1.226
+    },
+    {
+      "label": "core/lineage.py:104:_aspect",
+      "calls": 15,
+      "total_ms": 1.872,
+      "max_ms": 0.262
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:15:overall_progress",
+      "calls": 9,
+      "total_ms": 1.858,
+      "max_ms": 0.345
+    },
+    {
+      "label": "dashboard/design/screens/video_ui.py:59:video_spend",
+      "calls": 2,
+      "total_ms": 1.834,
+      "max_ms": 1.063
+    },
+    {
+      "label": "core/diag.py:278:<lambda>",
+      "calls": 32,
+      "total_ms": 1.831,
+      "max_ms": 0.251
+    },
+    {
+      "label": "core/archive.py:38:parked_projects",
+      "calls": 15,
+      "total_ms": 1.806,
+      "max_ms": 0.789
+    },
+    {
+      "label": "dashboard/stage_map_ui.py:13:render",
+      "calls": 9,
+      "total_ms": 1.799,
+      "max_ms": 0.33
+    },
+    {
+      "label": "core/change_review.py:53:enabled",
+      "calls": 12,
+      "total_ms": 1.789,
+      "max_ms": 0.315
+    },
+    {
+      "label": "dashboard/design/tokens.py:46:css_vars",
+      "calls": 15,
+      "total_ms": 1.785,
+      "max_ms": 0.219
+    },
+    {
+      "label": "dashboard/admin.py:1287:llm_time_block",
+      "calls": 2,
+      "total_ms": 1.772,
+      "max_ms": 1.1
+    },
+    {
+      "label": "core/idea_to_script.py:64:enabled",
+      "calls": 9,
+      "total_ms": 1.758,
+      "max_ms": 0.328
+    },
+    {
+      "label": "core/lipsync.py:157:synced_scene_ids",
+      "calls": 15,
+      "total_ms": 1.737,
+      "max_ms": 0.186
+    },
+    {
+      "label": "core/llm_provider.py:62:project_provider",
+      "calls": 9,
+      "total_ms": 1.736,
+      "max_ms": 0.274
+    },
+    {
+      "label": "dashboard/design/components.py:304:cta_box",
+      "calls": 6,
+      "total_ms": 1.722,
+      "max_ms": 0.98
+    },
+    {
+      "label": "core/llm_provider.py:1:<module>",
+      "calls": 1,
+      "total_ms": 1.72,
+      "max_ms": 1.72
+    },
+    {
+      "label": "core/shots.py:82:story_scenes",
+      "calls": 3,
+      "total_ms": 1.701,
+      "max_ms": 0.733
+    },
+    {
+      "label": "dashboard/common.py:506:scene_status_text",
+      "calls": 120,
+      "total_ms": 1.676,
+      "max_ms": 0.028
+    },
+    {
+      "label": "core/llm_provider.py:52:has_column",
+      "calls": 9,
+      "total_ms": 1.67,
+      "max_ms": 0.265
+    },
+    {
+      "label": "core/voice_direction.py:93:deliveries",
+      "calls": 920,
+      "total_ms": 1.664,
+      "max_ms": 0.02
+    },
+    {
+      "label": "core/diag.py:181:repeated",
+      "calls": 11,
+      "total_ms": 1.662,
+      "max_ms": 0.276
+    },
+    {
+      "label": "core/autopilot.py:1622:get_gates",
+      "calls": 15,
+      "total_ms": 1.655,
+      "max_ms": 0.474
+    },
+    {
+      "label": "dashboard/change_review_ui.py:11:render",
+      "calls": 6,
+      "total_ms": 1.65,
+      "max_ms": 0.354
+    },
+    {
+      "label": "core/assets.py:161:missing_files",
+      "calls": 7,
+      "total_ms": 1.64,
+      "max_ms": 0.438
+    },
+    {
+      "label": "core/post_fx.py:68:fingerprint",
+      "calls": 17,
+      "total_ms": 1.629,
+      "max_ms": 0.254
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:394:gate_waiting",
+      "calls": 2,
+      "total_ms": 1.622,
+      "max_ms": 0.876
+    },
+    {
+      "label": "core/lipsync.py:120:index",
+      "calls": 15,
+      "total_ms": 1.613,
+      "max_ms": 0.174
+    },
+    {
+      "label": "core/subtitles.py:219:build_cues",
+      "calls": 2,
+      "total_ms": 1.604,
+      "max_ms": 1.049
+    },
+    {
+      "label": "dashboard/steps/step1_chatrefs.py:71:ref_cards",
+      "calls": 3,
+      "total_ms": 1.592,
+      "max_ms": 0.84
+    },
+    {
+      "label": "dashboard/app.py:65:pick",
+      "calls": 60,
+      "total_ms": 1.591,
+      "max_ms": 0.096
+    },
+    {
+      "label": "dashboard/common.py:428:scoped",
+      "calls": 135,
+      "total_ms": 1.581,
+      "max_ms": 0.045
+    },
+    {
+      "label": "core/chat_intake.py:134:pending",
+      "calls": 3,
+      "total_ms": 1.566,
+      "max_ms": 0.826
+    },
+    {
+      "label": "dashboard/steps/step1_refs.py:25:_summary",
+      "calls": 3,
+      "total_ms": 1.551,
+      "max_ms": 0.95
+    },
+    {
+      "label": "core/assets.py:102:root_warning",
+      "calls": 22,
+      "total_ms": 1.532,
+      "max_ms": 0.332
+    },
+    {
+      "label": "core/sound_lib.py:285:analyze",
+      "calls": 7,
+      "total_ms": 1.521,
+      "max_ms": 0.337
+    },
+    {
+      "label": "dashboard/steps/step1_refs.py:42:recognised",
+      "calls": 3,
+      "total_ms": 1.514,
+      "max_ms": 0.558
+    },
+    {
+      "label": "dashboard/widgets.py:6:image_busy",
+      "calls": 2,
+      "total_ms": 1.511,
+      "max_ms": 1.188
+    },
+    {
+      "label": "core/assets.py:850:_said_words",
+      "calls": 162,
+      "total_ms": 1.509,
+      "max_ms": 0.042
+    },
+    {
+      "label": "core/sound_lib.py:188:search",
+      "calls": 4,
+      "total_ms": 1.504,
+      "max_ms": 0.527
+    },
+    {
+      "label": "dashboard/common.py:502:claude_hint",
+      "calls": 7,
+      "total_ms": 1.47,
+      "max_ms": 0.838
+    },
+    {
+      "label": "dashboard/team_screen.py:103:user_reset_block",
+      "calls": 2,
+      "total_ms": 1.438,
+      "max_ms": 0.874
+    },
+    {
+      "label": "core/cost.py:785:collect",
+      "calls": 15,
+      "total_ms": 1.42,
+      "max_ms": 0.195
+    },
+    {
+      "label": "core/music_cues.py:191:load",
+      "calls": 17,
+      "total_ms": 1.404,
+      "max_ms": 0.187
+    },
+    {
+      "label": "core/chat_intake.py:130:_manifest",
+      "calls": 3,
+      "total_ms": 1.401,
+      "max_ms": 0.735
+    },
+    {
+      "label": "core/perf.py:60:count",
+      "calls": 24,
+      "total_ms": 1.388,
+      "max_ms": 0.21
+    },
+    {
+      "label": "core/autopilot.py:384:bible_gaps",
+      "calls": 2,
+      "total_ms": 1.38,
+      "max_ms": 1.017
+    },
+    {
+      "label": "dashboard/widgets.py:18:video_busy",
+      "calls": 2,
+      "total_ms": 1.375,
+      "max_ms": 1.036
+    },
+    {
+      "label": "core/money_reset.py:33:last",
+      "calls": 15,
+      "total_ms": 1.373,
+      "max_ms": 0.165
+    },
+    {
+      "label": "core/before_run.py:59:_loads",
+      "calls": 126,
+      "total_ms": 1.365,
+      "max_ms": 0.029
+    },
+    {
+      "label": "core/delivery.py:157:output_dir",
+      "calls": 2,
+      "total_ms": 1.36,
+      "max_ms": 0.873
+    },
+    {
+      "label": "dashboard/access_ui.py:76:read_only",
+      "calls": 30,
+      "total_ms": 1.359,
+      "max_ms": 0.1
+    },
+    {
+      "label": "core/chat_intake.py:124:_dir",
+      "calls": 3,
+      "total_ms": 1.356,
+      "max_ms": 0.711
+    },
+    {
+      "label": "core/batch.py:32:_stale_memo",
+      "calls": 2,
+      "total_ms": 1.296,
+      "max_ms": 0.831
+    },
+    {
+      "label": "core/scene_establish.py:1:<module>",
+      "calls": 1,
+      "total_ms": 1.25,
+      "max_ms": 1.25
+    },
+    {
+      "label": "core/autopilot.py:127:problems",
+      "calls": 2,
+      "total_ms": 1.23,
+      "max_ms": 0.813
+    },
+    {
+      "label": "core/access.py:175:filter_rows",
+      "calls": 83,
+      "total_ms": 1.203,
+      "max_ms": 0.266
+    },
+    {
+      "label": "core/code_version.py:25:head_sha",
+      "calls": 1,
+      "total_ms": 1.203,
+      "max_ms": 1.203
+    },
+    {
+      "label": "dashboard/design/components.py:97:<genexpr>",
+      "calls": 258,
+      "total_ms": 1.162,
+      "max_ms": 0.012
+    },
+    {
+      "label": "dashboard/steps/step1.py:430:<genexpr>",
+      "calls": 123,
+      "total_ms": 1.154,
+      "max_ms": 0.052
+    },
+    {
+      "label": "core/db.py:939:_migrate_v2",
+      "calls": 1,
+      "total_ms": 1.138,
+      "max_ms": 1.138
+    },
+    {
+      "label": "dashboard/access_ui.py:22:is_read_only",
+      "calls": 30,
+      "total_ms": 1.132,
+      "max_ms": 0.079
+    },
+    {
+      "label": "core/next_glow.py:20:target",
+      "calls": 18,
+      "total_ms": 1.127,
+      "max_ms": 0.318
+    },
+    {
+      "label": "core/llm_io.py:528:locked_fields",
+      "calls": 2,
+      "total_ms": 1.122,
+      "max_ms": 0.644
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:88:<genexpr>",
+      "calls": 82,
+      "total_ms": 1.111,
+      "max_ms": 0.047
+    },
+    {
+      "label": "dashboard/header.py:1088:<lambda>",
+      "calls": 98,
+      "total_ms": 1.11,
+      "max_ms": 0.032
+    },
+    {
+      "label": "dashboard/quality_ui.py:351:draft_render_note",
+      "calls": 4,
+      "total_ms": 1.108,
+      "max_ms": 0.434
+    },
+    {
+      "label": "core/perf.py:123:c",
+      "calls": 20,
+      "total_ms": 1.09,
+      "max_ms": 0.129
+    },
+    {
+      "label": "core/sound_lib.py:170:auto_scan",
+      "calls": 7,
+      "total_ms": 1.081,
+      "max_ms": 0.436
+    },
+    {
+      "label": "dashboard/steps/step1.py:361:bulk_editor",
+      "calls": 3,
+      "total_ms": 1.065,
+      "max_ms": 0.445
+    },
+    {
+      "label": "dashboard/steps/step1.py:46:<genexpr>",
+      "calls": 123,
+      "total_ms": 1.054,
+      "max_ms": 0.041
+    },
+    {
+      "label": "core/money_policy.py:100:_highest",
+      "calls": 15,
+      "total_ms": 1.035,
+      "max_ms": 0.152
+    },
+    {
+      "label": "dashboard/common.py:74:expert",
+      "calls": 24,
+      "total_ms": 1.024,
+      "max_ms": 0.088
+    },
+    {
+      "label": "core/sound_lib.py:105:list_sources",
+      "calls": 7,
+      "total_ms": 1.012,
+      "max_ms": 0.418
+    },
+    {
+      "label": "core/before_run.py:429:<lambda>",
+      "calls": 3,
+      "total_ms": 0.997,
+      "max_ms": 0.53
+    },
+    {
+      "label": "dashboard/steps/step2.py:15:image_progress",
+      "calls": 2,
+      "total_ms": 0.997,
+      "max_ms": 0.632
+    },
+    {
+      "label": "core/before_run.py:221:_drift_items",
+      "calls": 3,
+      "total_ms": 0.983,
+      "max_ms": 0.522
+    },
+    {
+      "label": "core/assets.py:1055:_project_assets",
+      "calls": 7,
+      "total_ms": 0.968,
+      "max_ms": 0.434
+    },
+    {
+      "label": "core/voice.py:308:_line_items",
+      "calls": 8,
+      "total_ms": 0.962,
+      "max_ms": 0.207
+    },
+    {
+      "label": "dashboard/design/components.py:61:hero_html",
+      "calls": 30,
+      "total_ms": 0.942,
+      "max_ms": 0.092
+    },
+    {
+      "label": "core/next_glow.py:16:_any",
+      "calls": 16,
+      "total_ms": 0.936,
+      "max_ms": 0.249
+    },
+    {
+      "label": "core/place_refs.py:52:enabled",
+      "calls": 7,
+      "total_ms": 0.929,
+      "max_ms": 0.159
+    },
+    {
+      "label": "core/features.py:1593:drift",
+      "calls": 3,
+      "total_ms": 0.926,
+      "max_ms": 0.486
+    },
+    {
+      "label": "dashboard/admin.py:1238:<lambda>",
+      "calls": 2,
+      "total_ms": 0.925,
+      "max_ms": 0.522
+    },
+    {
+      "label": "core/auth.py:215:list_users",
+      "calls": 6,
+      "total_ms": 0.923,
+      "max_ms": 0.466
+    },
+    {
+      "label": "core/budget.py:36:defaults",
+      "calls": 109,
+      "total_ms": 0.912,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/known_issues.py:98:active",
+      "calls": 2,
+      "total_ms": 0.899,
+      "max_ms": 0.451
+    },
+    {
+      "label": "core/voice_check.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.896,
+      "max_ms": 0.896
+    },
+    {
+      "label": "dashboard/steps/step1.py:129:<genexpr>",
+      "calls": 123,
+      "total_ms": 0.873,
+      "max_ms": 0.025
+    },
+    {
+      "label": "core/assets.py:1052:<lambda>",
+      "calls": 5,
+      "total_ms": 0.873,
+      "max_ms": 0.451
+    },
+    {
+      "label": "dashboard/steps/step1_chatrefs.py:54:ref_list",
+      "calls": 3,
+      "total_ms": 0.863,
+      "max_ms": 0.611
+    },
+    {
+      "label": "core/auth.py:48:can",
+      "calls": 229,
+      "total_ms": 0.855,
+      "max_ms": 0.033
+    },
+    {
+      "label": "dashboard/home.py:107:_details_html",
+      "calls": 10,
+      "total_ms": 0.851,
+      "max_ms": 0.109
+    },
+    {
+      "label": "core/cost.py:771:__contains__",
+      "calls": 600,
+      "total_ms": 0.848,
+      "max_ms": 0.085
+    },
+    {
+      "label": "core/music.py:124:load_drafts",
+      "calls": 4,
+      "total_ms": 0.837,
+      "max_ms": 0.437
+    },
+    {
+      "label": "core/place_refs.py:467:stale",
+      "calls": 4,
+      "total_ms": 0.836,
+      "max_ms": 0.529
+    },
+    {
+      "label": "core/perf.py:66:events",
+      "calls": 16,
+      "total_ms": 0.826,
+      "max_ms": 0.118
+    },
+    {
+      "label": "core/team.py:147:open_by",
+      "calls": 10,
+      "total_ms": 0.823,
+      "max_ms": 0.136
+    },
+    {
+      "label": "dashboard/common.py:140:subjects_visible",
+      "calls": 2,
+      "total_ms": 0.82,
+      "max_ms": 0.429
+    },
+    {
+      "label": "core/effectiveness.py:59:_first_pass",
+      "calls": 4,
+      "total_ms": 0.816,
+      "max_ms": 0.358
+    },
+    {
+      "label": "core/image_models.py:13:models",
+      "calls": 4,
+      "total_ms": 0.8,
+      "max_ms": 0.587
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:19:_uniq",
+      "calls": 19,
+      "total_ms": 0.795,
+      "max_ms": 0.073
+    },
+    {
+      "label": "dashboard/next_step.py:15:_count",
+      "calls": 15,
+      "total_ms": 0.792,
+      "max_ms": 0.115
+    },
+    {
+      "label": "dashboard/paid_confirm.py:111:pending",
+      "calls": 19,
+      "total_ms": 0.782,
+      "max_ms": 0.085
+    },
+    {
+      "label": "dashboard/paid_confirm.py:54:mark_drawn",
+      "calls": 13,
+      "total_ms": 0.768,
+      "max_ms": 0.083
+    },
+    {
+      "label": "dashboard/steps/step1.py:411:<genexpr>",
+      "calls": 123,
+      "total_ms": 0.768,
+      "max_ms": 0.014
+    },
+    {
+      "label": "core/before_run.py:428:<lambda>",
+      "calls": 3,
+      "total_ms": 0.76,
+      "max_ms": 0.397
+    },
+    {
+      "label": "core/voice.py:693:cues",
+      "calls": 2,
+      "total_ms": 0.76,
+      "max_ms": 0.465
+    },
+    {
+      "label": "core/next_glow.py:92:big_css",
+      "calls": 9,
+      "total_ms": 0.753,
+      "max_ms": 0.137
+    },
+    {
+      "label": "core/access.py:195:list_watchers",
+      "calls": 2,
+      "total_ms": 0.751,
+      "max_ms": 0.457
+    },
+    {
+      "label": "core/before_run.py:200:_fix_flag_items",
+      "calls": 3,
+      "total_ms": 0.742,
+      "max_ms": 0.386
+    },
+    {
+      "label": "core/assets.py:2491:auto_sync",
+      "calls": 7,
+      "total_ms": 0.74,
+      "max_ms": 0.194
+    },
+    {
+      "label": "core/delivery.py:297:latest_layer",
+      "calls": 17,
+      "total_ms": 0.733,
+      "max_ms": 0.092
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.731,
+      "max_ms": 0.731
+    },
+    {
+      "label": "core/subjects.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.73,
+      "max_ms": 0.73
+    },
+    {
+      "label": "dashboard/steps/step1.py:15:script_html",
+      "calls": 3,
+      "total_ms": 0.721,
+      "max_ms": 0.342
+    },
+    {
+      "label": "core/features.py:1484:fix_flags_off",
+      "calls": 6,
+      "total_ms": 0.72,
+      "max_ms": 0.215
+    },
+    {
+      "label": "core/location_pack.py:321:index",
+      "calls": 7,
+      "total_ms": 0.691,
+      "max_ms": 0.139
+    },
+    {
+      "label": "core/assets.py:2465:list_sources",
+      "calls": 7,
+      "total_ms": 0.69,
+      "max_ms": 0.182
+    },
+    {
+      "label": "dashboard/design/components.py:88:_cell",
+      "calls": 230,
+      "total_ms": 0.684,
+      "max_ms": 0.009
+    },
+    {
+      "label": "core/video_analysis.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.682,
+      "max_ms": 0.682
+    },
+    {
+      "label": "core/perf.py:63:live",
+      "calls": 8,
+      "total_ms": 0.669,
+      "max_ms": 0.219
+    },
+    {
+      "label": "core/looks.py:97:asset_look",
+      "calls": 80,
+      "total_ms": 0.668,
+      "max_ms": 0.029
+    },
+    {
+      "label": "core/diag.py:255:_hours_ago",
+      "calls": 59,
+      "total_ms": 0.667,
+      "max_ms": 0.035
+    },
+    {
+      "label": "core/perf.py:44:_durations",
+      "calls": 4,
+      "total_ms": 0.665,
+      "max_ms": 0.232
+    },
+    {
+      "label": "core/cost.py:778:__deepcopy__",
+      "calls": 600,
+      "total_ms": 0.664,
+      "max_ms": 0.009
+    },
+    {
+      "label": "dashboard/paid_confirm.py:219:undo_bar",
+      "calls": 15,
+      "total_ms": 0.661,
+      "max_ms": 0.093
+    },
+    {
+      "label": "core/before_run.py:174:fix_flags_pending",
+      "calls": 3,
+      "total_ms": 0.658,
+      "max_ms": 0.345
+    },
+    {
+      "label": "dashboard/widgets.py:9:<lambda>",
+      "calls": 4,
+      "total_ms": 0.64,
+      "max_ms": 0.423
+    },
+    {
+      "label": "core/memo.py:23:per_rerun",
+      "calls": 128,
+      "total_ms": 0.639,
+      "max_ms": 0.035
+    },
+    {
+      "label": "dashboard/common.py:437:read_only",
+      "calls": 25,
+      "total_ms": 0.637,
+      "max_ms": 0.055
+    },
+    {
+      "label": "dashboard/design/components.py:52:stat",
+      "calls": 50,
+      "total_ms": 0.629,
+      "max_ms": 0.055
+    },
+    {
+      "label": "core/access.py:162:visible_ids",
+      "calls": 83,
+      "total_ms": 0.628,
+      "max_ms": 0.079
+    },
+    {
+      "label": "core/budget.py:169:<genexpr>",
+      "calls": 120,
+      "total_ms": 0.627,
+      "max_ms": 0.135
+    },
+    {
+      "label": "dashboard/common.py:105:video_runner",
+      "calls": 2,
+      "total_ms": 0.627,
+      "max_ms": 0.619
+    },
+    {
+      "label": "core/stage_map.py:28:<lambda>",
+      "calls": 800,
+      "total_ms": 0.624,
+      "max_ms": 0.016
+    },
+    {
+      "label": "dashboard/steps/step5.py:951:loudness_line",
+      "calls": 2,
+      "total_ms": 0.618,
+      "max_ms": 0.467
+    },
+    {
+      "label": "dashboard/header.py:226:require_login",
+      "calls": 15,
+      "total_ms": 0.615,
+      "max_ms": 0.057
+    },
+    {
+      "label": "core/delivered.py:30:_data_dir",
+      "calls": 75,
+      "total_ms": 0.61,
+      "max_ms": 0.019
+    },
+    {
+      "label": "core/batch.py:320:provider_failures",
+      "calls": 4,
+      "total_ms": 0.601,
+      "max_ms": 0.208
+    },
+    {
+      "label": "dashboard/design/components.py:28:pill",
+      "calls": 86,
+      "total_ms": 0.6,
+      "max_ms": 0.016
+    },
+    {
+      "label": "dashboard/design/components.py:184:_attr",
+      "calls": 87,
+      "total_ms": 0.586,
+      "max_ms": 0.021
+    },
+    {
+      "label": "dashboard/steps/step1_checklist.py:20:checklist_panel",
+      "calls": 3,
+      "total_ms": 0.586,
+      "max_ms": 0.244
+    },
+    {
+      "label": "core/effectiveness.py:343:history",
+      "calls": 2,
+      "total_ms": 0.582,
+      "max_ms": 0.314
+    },
+    {
+      "label": "core/change_review.py:734:open_findings",
+      "calls": 3,
+      "total_ms": 0.58,
+      "max_ms": 0.241
+    },
+    {
+      "label": "core/release_gate.py:19:enabled",
+      "calls": 2,
+      "total_ms": 0.576,
+      "max_ms": 0.375
+    },
+    {
+      "label": "core/formats.py:37:label",
+      "calls": 85,
+      "total_ms": 0.573,
+      "max_ms": 0.025
+    },
+    {
+      "label": "core/before_run.py:149:fix_flag_skips",
+      "calls": 6,
+      "total_ms": 0.573,
+      "max_ms": 0.199
+    },
+    {
+      "label": "core/asset_checklist.py:32:enabled",
+      "calls": 3,
+      "total_ms": 0.571,
+      "max_ms": 0.236
+    },
+    {
+      "label": "dashboard/model_line.py:17:_two_tier",
+      "calls": 3,
+      "total_ms": 0.562,
+      "max_ms": 0.265
+    },
+    {
+      "label": "core/features.py:1298:_lock_bypassed",
+      "calls": 517,
+      "total_ms": 0.554,
+      "max_ms": 0.042
+    },
+    {
+      "label": "core/automation.py:33:effective_mode",
+      "calls": 9,
+      "total_ms": 0.551,
+      "max_ms": 0.11
+    },
+    {
+      "label": "core/assets.py:288:english_names_enabled",
+      "calls": 2,
+      "total_ms": 0.55,
+      "max_ms": 0.28
+    },
+    {
+      "label": "dashboard/steps/step5.py:847:rough_cut_panel",
+      "calls": 2,
+      "total_ms": 0.536,
+      "max_ms": 0.304
+    },
+    {
+      "label": "core/assets.py:938:library_labels",
+      "calls": 2,
+      "total_ms": 0.535,
+      "max_ms": 0.306
+    },
+    {
+      "label": "dashboard/steps/step4.py:292:clip_set_panel",
+      "calls": 2,
+      "total_ms": 0.513,
+      "max_ms": 0.259
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:54:next_panel",
+      "calls": 3,
+      "total_ms": 0.51,
+      "max_ms": 0.212
+    },
+    {
+      "label": "core/claude_tasks.py:670:bible_flags",
+      "calls": 2,
+      "total_ms": 0.51,
+      "max_ms": 0.256
+    },
+    {
+      "label": "dashboard/video_gate_ui.py:9:render",
+      "calls": 2,
+      "total_ms": 0.51,
+      "max_ms": 0.263
+    },
+    {
+      "label": "core/batch.py:23:_index_stamp",
+      "calls": 2,
+      "total_ms": 0.509,
+      "max_ms": 0.425
+    },
+    {
+      "label": "dashboard/steps/step5.py:1006:shot_popup_panel",
+      "calls": 2,
+      "total_ms": 0.507,
+      "max_ms": 0.258
+    },
+    {
+      "label": "dashboard/design/components.py:45:meter",
+      "calls": 25,
+      "total_ms": 0.502,
+      "max_ms": 0.049
+    },
+    {
+      "label": "core/sound_lib.py:348:_labels_sql",
+      "calls": 3,
+      "total_ms": 0.5,
+      "max_ms": 0.216
+    },
+    {
+      "label": "dashboard/common.py:433:project_level",
+      "calls": 25,
+      "total_ms": 0.498,
+      "max_ms": 0.041
+    },
+    {
+      "label": "core/before_run.py:432:<lambda>",
+      "calls": 3,
+      "total_ms": 0.497,
+      "max_ms": 0.172
+    },
+    {
+      "label": "dashboard/steps/step1_box.py:434:script_view",
+      "calls": 3,
+      "total_ms": 0.491,
+      "max_ms": 0.226
+    },
+    {
+      "label": "core/before_run.py:266:_budget_items",
+      "calls": 3,
+      "total_ms": 0.485,
+      "max_ms": 0.169
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:194:summary_detail_md",
+      "calls": 15,
+      "total_ms": 0.475,
+      "max_ms": 0.07
+    },
+    {
+      "label": "core/diag.py:175:recent",
+      "calls": 4,
+      "total_ms": 0.473,
+      "max_ms": 0.132
+    },
+    {
+      "label": "dashboard/steps/step5.py:815:viewer_check_panel",
+      "calls": 2,
+      "total_ms": 0.472,
+      "max_ms": 0.279
+    },
+    {
+      "label": "dashboard/design/tokens.py:49:<genexpr>",
+      "calls": 465,
+      "total_ms": 0.465,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/image_models.py:36:of_project",
+      "calls": 51,
+      "total_ms": 0.456,
+      "max_ms": 0.026
+    },
+    {
+      "label": "core/batch.py:329:input_failures",
+      "calls": 2,
+      "total_ms": 0.455,
+      "max_ms": 0.268
+    },
+    {
+      "label": "core/hero_takes.py:235:extra_clips",
+      "calls": 2,
+      "total_ms": 0.449,
+      "max_ms": 0.264
+    },
+    {
+      "label": "core/perf.py:189:llm_latency",
+      "calls": 2,
+      "total_ms": 0.447,
+      "max_ms": 0.255
+    },
+    {
+      "label": "dashboard/design/screens/money_days.py:188:dialog_if_open",
+      "calls": 15,
+      "total_ms": 0.446,
+      "max_ms": 0.059
+    },
+    {
+      "label": "core/effectiveness.py:77:_agreement",
+      "calls": 2,
+      "total_ms": 0.446,
+      "max_ms": 0.23
+    },
+    {
+      "label": "core/llm_provider.py:48:_db_file",
+      "calls": 9,
+      "total_ms": 0.443,
+      "max_ms": 0.063
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:68:is_next",
+      "calls": 9,
+      "total_ms": 0.441,
+      "max_ms": 0.072
+    },
+    {
+      "label": "core/money_policy.py:79:_num",
+      "calls": 210,
+      "total_ms": 0.44,
+      "max_ms": 0.023
+    },
+    {
+      "label": "core/autopilot.py:57:default_context",
+      "calls": 2,
+      "total_ms": 0.439,
+      "max_ms": 0.412
+    },
+    {
+      "label": "core/diag.py:61:redact",
+      "calls": 15,
+      "total_ms": 0.438,
+      "max_ms": 0.092
+    },
+    {
+      "label": "core/hero_takes.py:33:on",
+      "calls": 2,
+      "total_ms": 0.438,
+      "max_ms": 0.257
+    },
+    {
+      "label": "core/person_limits.py:318:requests",
+      "calls": 2,
+      "total_ms": 0.435,
+      "max_ms": 0.267
+    },
+    {
+      "label": "core/shots.py:60:label",
+      "calls": 160,
+      "total_ms": 0.416,
+      "max_ms": 0.019
+    },
+    {
+      "label": "core/assets.py:1285:link_characters",
+      "calls": 2,
+      "total_ms": 0.41,
+      "max_ms": 0.207
+    },
+    {
+      "label": "core/money_policy.py:145:_fallback",
+      "calls": 15,
+      "total_ms": 0.406,
+      "max_ms": 0.147
+    },
+    {
+      "label": "core/pipeline.py:152:set_project_field",
+      "calls": 1,
+      "total_ms": 0.406,
+      "max_ms": 0.406
+    },
+    {
+      "label": "core/db.py:779:schema_stamp",
+      "calls": 160,
+      "total_ms": 0.404,
+      "max_ms": 0.026
+    },
+    {
+      "label": "dashboard/chat_start.py:46:start_box",
+      "calls": 2,
+      "total_ms": 0.399,
+      "max_ms": 0.236
+    },
+    {
+      "label": "dashboard/common.py:114:image_runner",
+      "calls": 2,
+      "total_ms": 0.399,
+      "max_ms": 0.391
+    },
+    {
+      "label": "core/perf.py:166:by_user",
+      "calls": 2,
+      "total_ms": 0.391,
+      "max_ms": 0.238
+    },
+    {
+      "label": "dashboard/design/components.py:62:<genexpr>",
+      "calls": 62,
+      "total_ms": 0.386,
+      "max_ms": 0.025
+    },
+    {
+      "label": "core/location_pack.py:1008:stale_plates",
+      "calls": 4,
+      "total_ms": 0.386,
+      "max_ms": 0.144
+    },
+    {
+      "label": "dashboard/widgets.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.383,
+      "max_ms": 0.383
+    },
+    {
+      "label": "core/effectiveness.py:39:_times",
+      "calls": 2,
+      "total_ms": 0.381,
+      "max_ms": 0.215
+    },
+    {
+      "label": "core/known_issues.py:23:_per_image_qc",
+      "calls": 4,
+      "total_ms": 0.38,
+      "max_ms": 0.142
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:73:sync_folds",
+      "calls": 3,
+      "total_ms": 0.378,
+      "max_ms": 0.289
+    },
+    {
+      "label": "dashboard/design/components.py:94:<genexpr>",
+      "calls": 102,
+      "total_ms": 0.378,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/subtitles.py:129:discover",
+      "calls": 2,
+      "total_ms": 0.375,
+      "max_ms": 0.243
+    },
+    {
+      "label": "core/film_grammar.py:38:warnings",
+      "calls": 3,
+      "total_ms": 0.373,
+      "max_ms": 0.165
+    },
+    {
+      "label": "dashboard/ui.py:308:card_title",
+      "calls": 27,
+      "total_ms": 0.373,
+      "max_ms": 0.027
+    },
+    {
+      "label": "dashboard/steps/step1_director.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.369,
+      "max_ms": 0.369
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:95:board_stats",
+      "calls": 2,
+      "total_ms": 0.369,
+      "max_ms": 0.233
+    },
+    {
+      "label": "core/batch.py:270:chain_waits",
+      "calls": 2,
+      "total_ms": 0.369,
+      "max_ms": 0.23
+    },
+    {
+      "label": "core/formats.py:29:spec",
+      "calls": 189,
+      "total_ms": 0.368,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/model_router.py:463:total",
+      "calls": 3,
+      "total_ms": 0.357,
+      "max_ms": 0.153
+    },
+    {
+      "label": "core/machine_auth.py:164:requests",
+      "calls": 2,
+      "total_ms": 0.353,
+      "max_ms": 0.179
+    },
+    {
+      "label": "core/runner.py:215:_Runner",
+      "calls": 1,
+      "total_ms": 0.35,
+      "max_ms": 0.35
+    },
+    {
+      "label": "core/location_pack.py:1139:move_report",
+      "calls": 3,
+      "total_ms": 0.347,
+      "max_ms": 0.138
+    },
+    {
+      "label": "core/next_glow.py:64:css",
+      "calls": 9,
+      "total_ms": 0.341,
+      "max_ms": 0.105
+    },
+    {
+      "label": "core/formats.py:20:project_aspect",
+      "calls": 111,
+      "total_ms": 0.34,
+      "max_ms": 0.052
+    },
+    {
+      "label": "core/effectiveness.py:130:waste",
+      "calls": 2,
+      "total_ms": 0.34,
+      "max_ms": 0.18
+    },
+    {
+      "label": "core/chat_refs.py:26:items",
+      "calls": 3,
+      "total_ms": 0.339,
+      "max_ms": 0.191
+    },
+    {
+      "label": "core/claude_tasks.py:908:fresh_on",
+      "calls": 2,
+      "total_ms": 0.333,
+      "max_ms": 0.197
+    },
+    {
+      "label": "core/subtitles.py:73:Font",
+      "calls": 1,
+      "total_ms": 0.324,
+      "max_ms": 0.324
+    },
+    {
+      "label": "dashboard/access_ui.py:148:_users",
+      "calls": 4,
+      "total_ms": 0.323,
+      "max_ms": 0.158
+    },
+    {
+      "label": "dashboard/steps/step4.py:10:_latest_jobs",
+      "calls": 2,
+      "total_ms": 0.32,
+      "max_ms": 0.205
+    },
+    {
+      "label": "core/next_glow.py:17:<genexpr>",
+      "calls": 344,
+      "total_ms": 0.318,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/change_review.py:58:motion_enabled",
+      "calls": 3,
+      "total_ms": 0.312,
+      "max_ms": 0.147
+    },
+    {
+      "label": "core/sound_lib.py:213:counts",
+      "calls": 2,
+      "total_ms": 0.312,
+      "max_ms": 0.182
+    },
+    {
+      "label": "dashboard/stage_view_ui.py:234:render",
+      "calls": 2,
+      "total_ms": 0.311,
+      "max_ms": 0.197
+    },
+    {
+      "label": "dashboard/common.py:508:mark",
+      "calls": 360,
+      "total_ms": 0.307,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/auth.py:83:recent_audit",
+      "calls": 2,
+      "total_ms": 0.307,
+      "max_ms": 0.174
+    },
+    {
+      "label": "core/effectiveness.py:30:_finished_video_seconds",
+      "calls": 2,
+      "total_ms": 0.303,
+      "max_ms": 0.156
+    },
+    {
+      "label": "dashboard/stage_view_ui.py:32:enabled",
+      "calls": 2,
+      "total_ms": 0.302,
+      "max_ms": 0.191
+    },
+    {
+      "label": "dashboard/common.py:477:can_delete_project",
+      "calls": 30,
+      "total_ms": 0.3,
+      "max_ms": 0.024
+    },
+    {
+      "label": "core/scene_storyboard.py:26:enabled",
+      "calls": 3,
+      "total_ms": 0.297,
+      "max_ms": 0.17
+    },
+    {
+      "label": "dashboard/header.py:1088:<genexpr>",
+      "calls": 196,
+      "total_ms": 0.293,
+      "max_ms": 0.007
+    },
+    {
+      "label": "core/perf.py:31:sends_today",
+      "calls": 2,
+      "total_ms": 0.293,
+      "max_ms": 0.222
+    },
+    {
+      "label": "dashboard/steps/step1.py:493:<genexpr>",
+      "calls": 360,
+      "total_ms": 0.286,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/audio_lib.py:24:_manifest",
+      "calls": 33,
+      "total_ms": 0.285,
+      "max_ms": 0.016
+    },
+    {
+      "label": "dashboard/widgets.py:20:<lambda>",
+      "calls": 4,
+      "total_ms": 0.283,
+      "max_ms": 0.094
+    },
+    {
+      "label": "core/script_chat.py:48:window",
+      "calls": 3,
+      "total_ms": 0.282,
+      "max_ms": 0.113
+    },
+    {
+      "label": "core/place_refs.py:510:old_plate_images",
+      "calls": 2,
+      "total_ms": 0.281,
+      "max_ms": 0.15
+    },
+    {
+      "label": "dashboard/app.py:77:<lambda>",
+      "calls": 247,
+      "total_ms": 0.279,
+      "max_ms": 0.027
+    },
+    {
+      "label": "dashboard/steps/step1_box.py:334:_cards",
+      "calls": 3,
+      "total_ms": 0.275,
+      "max_ms": 0.109
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:161:money_flag",
+      "calls": 15,
+      "total_ms": 0.268,
+      "max_ms": 0.046
+    },
+    {
+      "label": "core/retired_topics.py:120:ensure_columns",
+      "calls": 1,
+      "total_ms": 0.267,
+      "max_ms": 0.267
+    },
+    {
+      "label": "core/script_chat.py:13:history",
+      "calls": 3,
+      "total_ms": 0.266,
+      "max_ms": 0.104
+    },
+    {
+      "label": "dashboard/app.py:67:<genexpr>",
+      "calls": 255,
+      "total_ms": 0.261,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/glow_ui.py:38:_email",
+      "calls": 33,
+      "total_ms": 0.259,
+      "max_ms": 0.014
+    },
+    {
+      "label": "core/seedance_refs.py:1543:vietnamese_held",
+      "calls": 2,
+      "total_ms": 0.259,
+      "max_ms": 0.155
+    },
+    {
+      "label": "core/claude_tasks.py:367:unchecked_videos",
+      "calls": 2,
+      "total_ms": 0.259,
+      "max_ms": 0.159
+    },
+    {
+      "label": "dashboard/steps/step2.py:752:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.258,
+      "max_ms": 0.148
+    },
+    {
+      "label": "dashboard/paid_confirm.py:116:waiting",
+      "calls": 4,
+      "total_ms": 0.256,
+      "max_ms": 0.081
+    },
+    {
+      "label": "core/video_gate.py:146:red_images",
+      "calls": 2,
+      "total_ms": 0.256,
+      "max_ms": 0.131
+    },
+    {
+      "label": "core/plate_camera.py:139:<genexpr>",
+      "calls": 31,
+      "total_ms": 0.255,
+      "max_ms": 0.044
+    },
+    {
+      "label": "dashboard/steps/step4.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.253,
+      "max_ms": 0.253
+    },
+    {
+      "label": "core/plate_choice.py:124:_raw_view",
+      "calls": 80,
+      "total_ms": 0.251,
+      "max_ms": 0.019
+    },
+    {
+      "label": "core/stage_map.py:57:video_idle_reason",
+      "calls": 2,
+      "total_ms": 0.249,
+      "max_ms": 0.166
+    },
+    {
+      "label": "core/assets.py:86:root",
+      "calls": 22,
+      "total_ms": 0.246,
+      "max_ms": 0.023
+    },
+    {
+      "label": "core/place_refs.py:602:resolution_of",
+      "calls": 7,
+      "total_ms": 0.246,
+      "max_ms": 0.053
+    },
+    {
+      "label": "core/retired_topics.py:116:_cols",
+      "calls": 3,
+      "total_ms": 0.244,
+      "max_ms": 0.097
+    },
+    {
+      "label": "core/features.py:1101:trainee_list",
+      "calls": 2,
+      "total_ms": 0.244,
+      "max_ms": 0.161
+    },
+    {
+      "label": "dashboard/steps/step2.py:824:<genexpr>",
+      "calls": 282,
+      "total_ms": 0.243,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:14:_short",
+      "calls": 11,
+      "total_ms": 0.24,
+      "max_ms": 0.042
+    },
+    {
+      "label": "core/project_budget.py:64:finished",
+      "calls": 2,
+      "total_ms": 0.235,
+      "max_ms": 0.139
+    },
+    {
+      "label": "core/project_budget.py:265:<genexpr>",
+      "calls": 256,
+      "total_ms": 0.232,
+      "max_ms": 0.015
+    },
+    {
+      "label": "core/perf.py:38:jobs_today",
+      "calls": 2,
+      "total_ms": 0.232,
+      "max_ms": 0.176
+    },
+    {
+      "label": "core/project_budget.py:508:md_safe",
+      "calls": 60,
+      "total_ms": 0.229,
+      "max_ms": 0.013
+    },
+    {
+      "label": "core/looks.py:39:of",
+      "calls": 82,
+      "total_ms": 0.228,
+      "max_ms": 0.013
+    },
+    {
+      "label": "core/project_budget.py:462:planned",
+      "calls": 3,
+      "total_ms": 0.224,
+      "max_ms": 0.096
+    },
+    {
+      "label": "core/autoqc.py:93:can_run",
+      "calls": 2,
+      "total_ms": 0.223,
+      "max_ms": 0.135
+    },
+    {
+      "label": "core/sound_ai.py:52:_paths",
+      "calls": 7,
+      "total_ms": 0.221,
+      "max_ms": 0.054
+    },
+    {
+      "label": "core/money_policy.py:141:_est",
+      "calls": 15,
+      "total_ms": 0.218,
+      "max_ms": 0.128
+    },
+    {
+      "label": "core/sound_lib.py:349:<genexpr>",
+      "calls": 189,
+      "total_ms": 0.213,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/glow_ui.py:24:_final",
+      "calls": 4,
+      "total_ms": 0.209,
+      "max_ms": 0.079
+    },
+    {
+      "label": "dashboard/steps/step5.py:722:<genexpr>",
+      "calls": 82,
+      "total_ms": 0.208,
+      "max_ms": 0.097
+    },
+    {
+      "label": "core/pipeline.py:109:__init__",
+      "calls": 139,
+      "total_ms": 0.205,
+      "max_ms": 0.028
+    },
+    {
+      "label": "dashboard/header.py:296:<lambda>",
+      "calls": 113,
+      "total_ms": 0.205,
+      "max_ms": 0.025
+    },
+    {
+      "label": "core/delivered.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.203,
+      "max_ms": 0.203
+    },
+    {
+      "label": "core/waveform.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.201,
+      "max_ms": 0.201
+    },
+    {
+      "label": "dashboard/model_line.py:130:<genexpr>",
+      "calls": 123,
+      "total_ms": 0.199,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/director_lease.py:131:_path",
+      "calls": 3,
+      "total_ms": 0.196,
+      "max_ms": 0.12
+    },
+    {
+      "label": "core/music.py:237:is_off",
+      "calls": 2,
+      "total_ms": 0.191,
+      "max_ms": 0.105
+    },
+    {
+      "label": "core/audio_lib.py:203:overlapping_tts",
+      "calls": 2,
+      "total_ms": 0.19,
+      "max_ms": 0.121
+    },
+    {
+      "label": "core/plates3d.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.185,
+      "max_ms": 0.185
+    },
+    {
+      "label": "dashboard/paid_confirm.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.181,
+      "max_ms": 0.181
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:34:_auto_key",
+      "calls": 19,
+      "total_ms": 0.18,
+      "max_ms": 0.019
+    },
+    {
+      "label": "core/autoqc.py:88:waiting",
+      "calls": 2,
+      "total_ms": 0.177,
+      "max_ms": 0.103
+    },
+    {
+      "label": "core/stage_desk.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.176,
+      "max_ms": 0.176
+    },
+    {
+      "label": "core/inbox.py:140:<genexpr>",
+      "calls": 150,
+      "total_ms": 0.175,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/known_issues.py:17:check",
+      "calls": 2,
+      "total_ms": 0.169,
+      "max_ms": 0.095
+    },
+    {
+      "label": "dashboard/design/components.py:237:short_text",
+      "calls": 11,
+      "total_ms": 0.166,
+      "max_ms": 0.032
+    },
+    {
+      "label": "dashboard/design/components.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.161,
+      "max_ms": 0.161
+    },
+    {
+      "label": "core/shots.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.157,
+      "max_ms": 0.157
+    },
+    {
+      "label": "core/perf.py:146:project_rows",
+      "calls": 2,
+      "total_ms": 0.157,
+      "max_ms": 0.11
+    },
+    {
+      "label": "core/project_budget.py:91:_key",
+      "calls": 121,
+      "total_ms": 0.155,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/known_issues.py:84:<lambda>",
+      "calls": 2,
+      "total_ms": 0.155,
+      "max_ms": 0.085
+    },
+    {
+      "label": "dashboard/home.py:95:tags_of",
+      "calls": 10,
+      "total_ms": 0.154,
+      "max_ms": 0.024
+    },
+    {
+      "label": "core/budget.py:188:_spent",
+      "calls": 1,
+      "total_ms": 0.152,
+      "max_ms": 0.152
+    },
+    {
+      "label": "core/diag.py:71:_now",
+      "calls": 7,
+      "total_ms": 0.152,
+      "max_ms": 0.027
+    },
+    {
+      "label": "core/cost.py:959:<genexpr>",
+      "calls": 49,
+      "total_ms": 0.151,
+      "max_ms": 0.016
+    },
+    {
+      "label": "dashboard/common.py:242:purge_trash",
+      "calls": 1,
+      "total_ms": 0.151,
+      "max_ms": 0.151
+    },
+    {
+      "label": "core/lineage.py:356:<genexpr>",
+      "calls": 15,
+      "total_ms": 0.15,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/trash.py:32:_project_dir",
+      "calls": 14,
+      "total_ms": 0.147,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/video_gate.py:23:enabled",
+      "calls": 2,
+      "total_ms": 0.146,
+      "max_ms": 0.085
+    },
+    {
+      "label": "core/assets.py:72:_db_path",
+      "calls": 22,
+      "total_ms": 0.145,
+      "max_ms": 0.019
+    },
+    {
+      "label": "core/lesson_judge.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.144,
+      "max_ms": 0.144
+    },
+    {
+      "label": "core/access.py:32:user_of",
+      "calls": 110,
+      "total_ms": 0.144,
+      "max_ms": 0.018
+    },
+    {
+      "label": "core/idea_to_script.py:74:get_state",
+      "calls": 3,
+      "total_ms": 0.144,
+      "max_ms": 0.062
+    },
+    {
+      "label": "core/cost.py:130:_range",
+      "calls": 104,
+      "total_ms": 0.143,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/shots.py:43:active",
+      "calls": 2,
+      "total_ms": 0.143,
+      "max_ms": 0.073
+    },
+    {
+      "label": "core/perf.py:25:_sql_midnight",
+      "calls": 4,
+      "total_ms": 0.143,
+      "max_ms": 0.075
+    },
+    {
+      "label": "core/access.py:54:level",
+      "calls": 27,
+      "total_ms": 0.14,
+      "max_ms": 0.013
+    },
+    {
+      "label": "dashboard/access_ui.py:174:<lambda>",
+      "calls": 13,
+      "total_ms": 0.139,
+      "max_ms": 0.021
+    },
+    {
+      "label": "core/adapters/clipai.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.137,
+      "max_ms": 0.137
+    },
+    {
+      "label": "core/stage_solver.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.137,
+      "max_ms": 0.137
+    },
+    {
+      "label": "core/project_budget.py:269:shares_text",
+      "calls": 15,
+      "total_ms": 0.136,
+      "max_ms": 0.017
+    },
+    {
+      "label": "core/known_issues.py:47:<lambda>",
+      "calls": 2,
+      "total_ms": 0.135,
+      "max_ms": 0.077
+    },
+    {
+      "label": "core/trash.py:157:purge_expired",
+      "calls": 1,
+      "total_ms": 0.134,
+      "max_ms": 0.134
+    },
+    {
+      "label": "dashboard/common.py:243:__annotate__",
+      "calls": 21,
+      "total_ms": 0.13,
+      "max_ms": 0.022
+    },
+    {
+      "label": "dashboard/design/screens/money_days.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.128,
+      "max_ms": 0.128
+    },
+    {
+      "label": "dashboard/steps/step1_refs.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.128,
+      "max_ms": 0.128
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:212:<genexpr>",
+      "calls": 16,
+      "total_ms": 0.128,
+      "max_ms": 0.023
+    },
+    {
+      "label": "dashboard/steps/step1_box.py:306:waiting_choice",
+      "calls": 3,
+      "total_ms": 0.128,
+      "max_ms": 0.051
+    },
+    {
+      "label": "core/qc_team.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.125,
+      "max_ms": 0.125
+    },
+    {
+      "label": "dashboard/app.py:44:stage",
+      "calls": 45,
+      "total_ms": 0.124,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/db.py:600:_migrate_usage_events",
+      "calls": 1,
+      "total_ms": 0.123,
+      "max_ms": 0.123
+    },
+    {
+      "label": "core/cost.py:1231:<genexpr>",
+      "calls": 17,
+      "total_ms": 0.123,
+      "max_ms": 0.106
+    },
+    {
+      "label": "dashboard/header.py:1236:<genexpr>",
+      "calls": 30,
+      "total_ms": 0.122,
+      "max_ms": 0.014
+    },
+    {
+      "label": "core/batch.py:39:<genexpr>",
+      "calls": 82,
+      "total_ms": 0.12,
+      "max_ms": 0.006
+    },
+    {
+      "label": "core/project_budget.py:288:<genexpr>",
+      "calls": 120,
+      "total_ms": 0.119,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/asset_checklist.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.119,
+      "max_ms": 0.119
+    },
+    {
+      "label": "dashboard/header.py:300:<lambda>",
+      "calls": 68,
+      "total_ms": 0.118,
+      "max_ms": 0.018
+    },
+    {
+      "label": "dashboard/steps/step2.py:806:<genexpr>",
+      "calls": 82,
+      "total_ms": 0.118,
+      "max_ms": 0.017
+    },
+    {
+      "label": "core/stage_grid.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.117,
+      "max_ms": 0.117
+    },
+    {
+      "label": "core/spend_gate.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.116,
+      "max_ms": 0.116
+    },
+    {
+      "label": "dashboard/chat_start.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.116,
+      "max_ms": 0.116
+    },
+    {
+      "label": "core/before_run.py:458:details_md",
+      "calls": 3,
+      "total_ms": 0.109,
+      "max_ms": 0.043
+    },
+    {
+      "label": "dashboard/app.py:68:<genexpr>",
+      "calls": 120,
+      "total_ms": 0.107,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/team.py:51:_since",
+      "calls": 4,
+      "total_ms": 0.107,
+      "max_ms": 0.046
+    },
+    {
+      "label": "core/prop_lock.py:548:<genexpr>",
+      "calls": 50,
+      "total_ms": 0.105,
+      "max_ms": 0.006
+    },
+    {
+      "label": "dashboard/steps/step1_box.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.103,
+      "max_ms": 0.103
+    },
+    {
+      "label": "core/skill_dossier.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.101,
+      "max_ms": 0.101
+    },
+    {
+      "label": "core/llm_runner.py:1343:missing_hint",
+      "calls": 7,
+      "total_ms": 0.101,
+      "max_ms": 0.03
+    },
+    {
+      "label": "core/location_pack.py:317:_index_path",
+      "calls": 9,
+      "total_ms": 0.101,
+      "max_ms": 0.016
+    },
+    {
+      "label": "dashboard/admin.py:1155:<lambda>",
+      "calls": 10,
+      "total_ms": 0.101,
+      "max_ms": 0.024
+    },
+    {
+      "label": "core/machine_auth.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.1,
+      "max_ms": 0.1
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.099,
+      "max_ms": 0.099
+    },
+    {
+      "label": "dashboard/common.py:474:clean_name",
+      "calls": 22,
+      "total_ms": 0.099,
+      "max_ms": 0.013
+    },
+    {
+      "label": "core/sound_ai.py:48:model_dir",
+      "calls": 14,
+      "total_ms": 0.099,
+      "max_ms": 0.018
+    },
+    {
+      "label": "dashboard/header.py:304:<lambda>",
+      "calls": 83,
+      "total_ms": 0.098,
+      "max_ms": 0.006
+    },
+    {
+      "label": "core/money_policy.py:25:level",
+      "calls": 30,
+      "total_ms": 0.098,
+      "max_ms": 0.01
+    },
+    {
+      "label": "dashboard/home.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.096,
+      "max_ms": 0.096
+    },
+    {
+      "label": "core/sent_package.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.096,
+      "max_ms": 0.096
+    },
+    {
+      "label": "core/model_router.py:465:<genexpr>",
+      "calls": 123,
+      "total_ms": 0.096,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/perf.py:17:_iso",
+      "calls": 12,
+      "total_ms": 0.096,
+      "max_ms": 0.021
+    },
+    {
+      "label": "core/next_glow.py:95:<genexpr>",
+      "calls": 108,
+      "total_ms": 0.095,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/limits_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.094,
+      "max_ms": 0.094
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:79:cut_words",
+      "calls": 9,
+      "total_ms": 0.094,
+      "max_ms": 0.039
+    },
+    {
+      "label": "dashboard/steps/step2.py:807:<genexpr>",
+      "calls": 82,
+      "total_ms": 0.091,
+      "max_ms": 0.012
+    },
+    {
+      "label": "dashboard/overview.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.09,
+      "max_ms": 0.09
+    },
+    {
+      "label": "dashboard/home.py:120:<genexpr>",
+      "calls": 60,
+      "total_ms": 0.09,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/stage_map.py:61:<genexpr>",
+      "calls": 82,
+      "total_ms": 0.09,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/throttle.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.089,
+      "max_ms": 0.089
+    },
+    {
+      "label": "core/user_prefs.py:9:_key",
+      "calls": 33,
+      "total_ms": 0.089,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/assets.py:1089:_reference_rows",
+      "calls": 2,
+      "total_ms": 0.087,
+      "max_ms": 0.044
+    },
+    {
+      "label": "dashboard/steps/step2.py:872:<genexpr>",
+      "calls": 80,
+      "total_ms": 0.087,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/design/screens/trainee_ui.py:192:<genexpr>",
+      "calls": 20,
+      "total_ms": 0.087,
+      "max_ms": 0.009
+    },
+    {
+      "label": "core/lineage.py:360:<genexpr>",
+      "calls": 15,
+      "total_ms": 0.085,
+      "max_ms": 0.01
+    },
+    {
+      "label": "core/next_glow.py:98:<genexpr>",
+      "calls": 108,
+      "total_ms": 0.084,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/design/components.py:57:empty_state",
+      "calls": 8,
+      "total_ms": 0.084,
+      "max_ms": 0.014
+    },
+    {
+      "label": "core/video_gate.py:164:group_waits",
+      "calls": 2,
+      "total_ms": 0.084,
+      "max_ms": 0.045
+    },
+    {
+      "label": "dashboard/common.py:487:__annotate__",
+      "calls": 24,
+      "total_ms": 0.083,
+      "max_ms": 0.01
+    },
+    {
+      "label": "core/diag.py:286:health",
+      "calls": 88,
+      "total_ms": 0.082,
+      "max_ms": 0.01
+    },
+    {
+      "label": "dashboard/steps/step4.py:491:_apply_picks",
+      "calls": 2,
+      "total_ms": 0.081,
+      "max_ms": 0.046
+    },
+    {
+      "label": "core/voice.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.079,
+      "max_ms": 0.079
+    },
+    {
+      "label": "core/effectiveness.py:197:summary_lines",
+      "calls": 2,
+      "total_ms": 0.079,
+      "max_ms": 0.043
+    },
+    {
+      "label": "dashboard/design/tokens.py:51:<genexpr>",
+      "calls": 75,
+      "total_ms": 0.078,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/inbox.py:17:_mine",
+      "calls": 75,
+      "total_ms": 0.078,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:46:sum_html",
+      "calls": 8,
+      "total_ms": 0.077,
+      "max_ms": 0.02
+    },
+    {
+      "label": "dashboard/design/components.py:38:_color",
+      "calls": 25,
+      "total_ms": 0.076,
+      "max_ms": 0.005
+    },
+    {
+      "label": "dashboard/header.py:104:<genexpr>",
+      "calls": 36,
+      "total_ms": 0.075,
+      "max_ms": 0.017
+    },
+    {
+      "label": "core/voice_casting.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.074,
+      "max_ms": 0.074
+    },
+    {
+      "label": "dashboard/steps/step1_chatrefs.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.073,
+      "max_ms": 0.073
+    },
+    {
+      "label": "core/release_gate.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.072,
+      "max_ms": 0.072
+    },
+    {
+      "label": "core/lipsync.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.071,
+      "max_ms": 0.071
+    },
+    {
+      "label": "core/runner.py:1037:VideoRunner",
+      "calls": 1,
+      "total_ms": 0.069,
+      "max_ms": 0.069
+    },
+    {
+      "label": "dashboard/access_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.069,
+      "max_ms": 0.069
+    },
+    {
+      "label": "core/before_run.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.069,
+      "max_ms": 0.069
+    },
+    {
+      "label": "core/change_review.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.067,
+      "max_ms": 0.067
+    },
+    {
+      "label": "core/byd_fields.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.066,
+      "max_ms": 0.066
+    },
+    {
+      "label": "core/model_router.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.065,
+      "max_ms": 0.065
+    },
+    {
+      "label": "core/kho_profile.py:529:capture_inputs",
+      "calls": 5,
+      "total_ms": 0.065,
+      "max_ms": 0.02
+    },
+    {
+      "label": "core/image_models.py:32:label",
+      "calls": 2,
+      "total_ms": 0.065,
+      "max_ms": 0.038
+    },
+    {
+      "label": "core/autopilot.py:1491:running_count",
+      "calls": 6,
+      "total_ms": 0.065,
+      "max_ms": 0.018
+    },
+    {
+      "label": "core/cost.py:1229:<genexpr>",
+      "calls": 17,
+      "total_ms": 0.063,
+      "max_ms": 0.049
+    },
+    {
+      "label": "dashboard/home.py:90:progress_of",
+      "calls": 10,
+      "total_ms": 0.063,
+      "max_ms": 0.008
+    },
+    {
+      "label": "core/llm_provider.py:49:<genexpr>",
+      "calls": 18,
+      "total_ms": 0.063,
+      "max_ms": 0.01
+    },
+    {
+      "label": "core/sound_ai.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.062,
+      "max_ms": 0.062
+    },
+    {
+      "label": "dashboard/admin.py:1269:<lambda>",
+      "calls": 88,
+      "total_ms": 0.062,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/diag.py:34:normalize_stage",
+      "calls": 11,
+      "total_ms": 0.061,
+      "max_ms": 0.017
+    },
+    {
+      "label": "core/lineage.py:358:<genexpr>",
+      "calls": 15,
+      "total_ms": 0.061,
+      "max_ms": 0.007
+    },
+    {
+      "label": "dashboard/home.py:62:_sort",
+      "calls": 2,
+      "total_ms": 0.06,
+      "max_ms": 0.033
+    },
+    {
+      "label": "core/automation.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.06,
+      "max_ms": 0.06
+    },
+    {
+      "label": "core/autopilot.py:39:__annotate__",
+      "calls": 1,
+      "total_ms": 0.058,
+      "max_ms": 0.058
+    },
+    {
+      "label": "core/quality_tier.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.058,
+      "max_ms": 0.058
+    },
+    {
+      "label": "dashboard/home.py:103:_money_text",
+      "calls": 10,
+      "total_ms": 0.058,
+      "max_ms": 0.008
+    },
+    {
+      "label": "core/animatic.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.058,
+      "max_ms": 0.058
+    },
+    {
+      "label": "core/layout.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.057,
+      "max_ms": 0.057
+    },
+    {
+      "label": "core/plate_env.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.057,
+      "max_ms": 0.057
+    },
+    {
+      "label": "core/chat_refs.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.056,
+      "max_ms": 0.056
+    },
+    {
+      "label": "core/place_refs.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.056,
+      "max_ms": 0.056
+    },
+    {
+      "label": "core/image_models.py:28:rule",
+      "calls": 2,
+      "total_ms": 0.056,
+      "max_ms": 0.033
+    },
+    {
+      "label": "core/db.py:625:_migrate_outputs",
+      "calls": 1,
+      "total_ms": 0.055,
+      "max_ms": 0.055
+    },
+    {
+      "label": "dashboard/steps/step5.py:84:<genexpr>",
+      "calls": 82,
+      "total_ms": 0.054,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/final_qc.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.054,
+      "max_ms": 0.054
+    },
+    {
+      "label": "dashboard/design/screens/shell_parts.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.053,
+      "max_ms": 0.053
+    },
+    {
+      "label": "core/storyboard_frames.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.053,
+      "max_ms": 0.053
+    },
+    {
+      "label": "core/cost.py:768:__new__",
+      "calls": 15,
+      "total_ms": 0.052,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/archive.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.051,
+      "max_ms": 0.051
+    },
+    {
+      "label": "dashboard/next_step.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.051,
+      "max_ms": 0.051
+    },
+    {
+      "label": "dashboard/admin.py:1198:<genexpr>",
+      "calls": 4,
+      "total_ms": 0.051,
+      "max_ms": 0.03
+    },
+    {
+      "label": "core/asset_vision.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.05,
+      "max_ms": 0.05
+    },
+    {
+      "label": "core/trash.py:25:retention_days",
+      "calls": 8,
+      "total_ms": 0.05,
+      "max_ms": 0.011
+    },
+    {
+      "label": "core/throttle.py:84:info",
+      "calls": 4,
+      "total_ms": 0.05,
+      "max_ms": 0.02
+    },
+    {
+      "label": "dashboard/admin.py:1197:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.05,
+      "max_ms": 0.029
+    },
+    {
+      "label": "core/write_guard.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.049,
+      "max_ms": 0.049
+    },
+    {
+      "label": "core/stage_map.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.049,
+      "max_ms": 0.049
+    },
+    {
+      "label": "core/diag.py:305:<lambda>",
+      "calls": 88,
+      "total_ms": 0.048,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/sequence_logic.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.047,
+      "max_ms": 0.047
+    },
+    {
+      "label": "core/trainee.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.047,
+      "max_ms": 0.047
+    },
+    {
+      "label": "dashboard/access_ui.py:174:<genexpr>",
+      "calls": 26,
+      "total_ms": 0.047,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/music.py:120:_manifest",
+      "calls": 4,
+      "total_ms": 0.046,
+      "max_ms": 0.019
+    },
+    {
+      "label": "core/storyboard_gate.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.045,
+      "max_ms": 0.045
+    },
+    {
+      "label": "core/takes.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.044,
+      "max_ms": 0.044
+    },
+    {
+      "label": "dashboard/quality_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.044,
+      "max_ms": 0.044
+    },
+    {
+      "label": "dashboard/header.py:1237:<genexpr>",
+      "calls": 30,
+      "total_ms": 0.044,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/llm_runner.py:1331:provider_status",
+      "calls": 7,
+      "total_ms": 0.044,
+      "max_ms": 0.009
+    },
+    {
+      "label": "core/delivery.py:206:_locked",
+      "calls": 5,
+      "total_ms": 0.043,
+      "max_ms": 0.01
+    },
+    {
+      "label": "core/lineage.py:357:<genexpr>",
+      "calls": 15,
+      "total_ms": 0.042,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/change_review_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.042,
+      "max_ms": 0.042
+    },
+    {
+      "label": "dashboard/ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.041,
+      "max_ms": 0.041
+    },
+    {
+      "label": "core/person_limits.py:63:exempt",
+      "calls": 15,
+      "total_ms": 0.041,
+      "max_ms": 0.012
+    },
+    {
+      "label": "core/lineage.py:361:<genexpr>",
+      "calls": 15,
+      "total_ms": 0.041,
+      "max_ms": 0.005
+    },
+    {
+      "label": "dashboard/steps/step1_v2.py:216:_tune",
+      "calls": 3,
+      "total_ms": 0.041,
+      "max_ms": 0.023
+    },
+    {
+      "label": "core/shots.py:47:styles",
+      "calls": 2,
+      "total_ms": 0.041,
+      "max_ms": 0.029
+    },
+    {
+      "label": "core/pilot.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.04,
+      "max_ms": 0.04
+    },
+    {
+      "label": "core/plates3d.py:312:set_reporter",
+      "calls": 15,
+      "total_ms": 0.04,
+      "max_ms": 0.005
+    },
+    {
+      "label": "dashboard/header.py:648:<genexpr>",
+      "calls": 30,
+      "total_ms": 0.04,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/design/screens/deliver_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.04,
+      "max_ms": 0.04
+    },
+    {
+      "label": "dashboard/steps/step5.py:356:<lambda>",
+      "calls": 27,
+      "total_ms": 0.04,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/perf.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.039,
+      "max_ms": 0.039
+    },
+    {
+      "label": "core/runner.py:3596:ImageRunner",
+      "calls": 1,
+      "total_ms": 0.039,
+      "max_ms": 0.039
+    },
+    {
+      "label": "core/image_models.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.039,
+      "max_ms": 0.039
+    },
+    {
+      "label": "core/readiness.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.039,
+      "max_ms": 0.039
+    },
+    {
+      "label": "core/perf.py:21:_midnight",
+      "calls": 6,
+      "total_ms": 0.038,
+      "max_ms": 0.012
+    },
+    {
+      "label": "core/text_placement.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.037,
+      "max_ms": 0.037
+    },
+    {
+      "label": "core/lineage.py:359:<genexpr>",
+      "calls": 15,
+      "total_ms": 0.037,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/stage_map_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.037,
+      "max_ms": 0.037
+    },
+    {
+      "label": "core/known_issues.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.037,
+      "max_ms": 0.037
+    },
+    {
+      "label": "dashboard/design/screens/video_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.037,
+      "max_ms": 0.037
+    },
+    {
+      "label": "core/hero_takes.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.037,
+      "max_ms": 0.037
+    },
+    {
+      "label": "core/effectiveness.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.036,
+      "max_ms": 0.036
+    },
+    {
+      "label": "dashboard/common.py:38:configure",
+      "calls": 15,
+      "total_ms": 0.036,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/ui_log.py:37:source_from",
+      "calls": 15,
+      "total_ms": 0.036,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/steps/step5.py:367:<lambda>",
+      "calls": 7,
+      "total_ms": 0.036,
+      "max_ms": 0.02
+    },
+    {
+      "label": "core/ui_log.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.035,
+      "max_ms": 0.035
+    },
+    {
+      "label": "dashboard/home.py:218:<lambda>",
+      "calls": 31,
+      "total_ms": 0.035,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/cost.py:1050:format_run_estimate",
+      "calls": 2,
+      "total_ms": 0.035,
+      "max_ms": 0.023
+    },
+    {
+      "label": "dashboard/design/screens/video_ui.py:69:hero_stats",
+      "calls": 2,
+      "total_ms": 0.035,
+      "max_ms": 0.019
+    },
+    {
+      "label": "core/sound_intent.py:125:music_plan",
+      "calls": 2,
+      "total_ms": 0.035,
+      "max_ms": 0.024
+    },
+    {
+      "label": "core/compare.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.035,
+      "max_ms": 0.035
+    },
+    {
+      "label": "core/feedback.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.034,
+      "max_ms": 0.034
+    },
+    {
+      "label": "dashboard/header.py:101:<lambda>",
+      "calls": 27,
+      "total_ms": 0.034,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/steps/step1_box.py:22:_keys",
+      "calls": 9,
+      "total_ms": 0.034,
+      "max_ms": 0.006
+    },
+    {
+      "label": "dashboard/steps/step1_refs.py:111:<lambda>",
+      "calls": 23,
+      "total_ms": 0.033,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/design/tokens.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.031,
+      "max_ms": 0.031
+    },
+    {
+      "label": "dashboard/admin.py:1155:<genexpr>",
+      "calls": 20,
+      "total_ms": 0.031,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/home.py:22:status_of",
+      "calls": 10,
+      "total_ms": 0.03,
+      "max_ms": 0.005
+    },
+    {
+      "label": "dashboard/steps/step2.py:10:D_card",
+      "calls": 2,
+      "total_ms": 0.03,
+      "max_ms": 0.02
+    },
+    {
+      "label": "core/sound_intent.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.03,
+      "max_ms": 0.03
+    },
+    {
+      "label": "core/final_cut.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.029,
+      "max_ms": 0.029
+    },
+    {
+      "label": "dashboard/steps/step3.py:11:_card",
+      "calls": 2,
+      "total_ms": 0.029,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/preflight.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.028,
+      "max_ms": 0.028
+    },
+    {
+      "label": "core/throttle.py:32:__init__",
+      "calls": 1,
+      "total_ms": 0.028,
+      "max_ms": 0.028
+    },
+    {
+      "label": "dashboard/home.py:123:pill_of",
+      "calls": 10,
+      "total_ms": 0.028,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/model_line.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.028,
+      "max_ms": 0.028
+    },
+    {
+      "label": "core/pacing.py:29:of",
+      "calls": 2,
+      "total_ms": 0.028,
+      "max_ms": 0.018
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:257:<lambda>",
+      "calls": 10,
+      "total_ms": 0.028,
+      "max_ms": 0.008
+    },
+    {
+      "label": "core/code_version.py:72:<genexpr>",
+      "calls": 16,
+      "total_ms": 0.027,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/diag.py:252:<lambda>",
+      "calls": 9,
+      "total_ms": 0.027,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/perf.py:201:alerts",
+      "calls": 2,
+      "total_ms": 0.027,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/subtitles.py:210:__annotate__",
+      "calls": 1,
+      "total_ms": 0.026,
+      "max_ms": 0.026
+    },
+    {
+      "label": "core/money_reset.py:29:_last_key",
+      "calls": 15,
+      "total_ms": 0.026,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/voice_direction.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.026,
+      "max_ms": 0.026
+    },
+    {
+      "label": "core/before_run.py:51:_item",
+      "calls": 21,
+      "total_ms": 0.026,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/place_refs.py:605:<genexpr>",
+      "calls": 21,
+      "total_ms": 0.026,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/motion_sfx_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.026,
+      "max_ms": 0.026
+    },
+    {
+      "label": "core/qc_policy.py:19:current",
+      "calls": 9,
+      "total_ms": 0.025,
+      "max_ms": 0.006
+    },
+    {
+      "label": "core/before_run.py:448:<genexpr>",
+      "calls": 30,
+      "total_ms": 0.025,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/inbox_clean.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.024,
+      "max_ms": 0.024
+    },
+    {
+      "label": "core/team.py:155:<genexpr>",
+      "calls": 10,
+      "total_ms": 0.024,
+      "max_ms": 0.011
+    },
+    {
+      "label": "core/access.py:120:need_view",
+      "calls": 3,
+      "total_ms": 0.024,
+      "max_ms": 0.011
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:146:<lambda>",
+      "calls": 17,
+      "total_ms": 0.024,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/end_popup.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.023,
+      "max_ms": 0.023
+    },
+    {
+      "label": "dashboard/home.py:219:<lambda>",
+      "calls": 13,
+      "total_ms": 0.023,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/next_glow.py:77:<genexpr>",
+      "calls": 18,
+      "total_ms": 0.023,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/steps/step1_box.py:620:_messages",
+      "calls": 3,
+      "total_ms": 0.023,
+      "max_ms": 0.013
+    },
+    {
+      "label": "core/plate_choice.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.023,
+      "max_ms": 0.023
+    },
+    {
+      "label": "dashboard/admin.py:1092:<lambda>",
+      "calls": 12,
+      "total_ms": 0.023,
+      "max_ms": 0.008
+    },
+    {
+      "label": "core/trash.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.022,
+      "max_ms": 0.022
+    },
+    {
+      "label": "core/style.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.022,
+      "max_ms": 0.022
+    },
+    {
+      "label": "core/post_fx.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.022,
+      "max_ms": 0.022
+    },
+    {
+      "label": "core/delivery.py:137:<lambda>",
+      "calls": 17,
+      "total_ms": 0.022,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/cost.py:1228:<genexpr>",
+      "calls": 17,
+      "total_ms": 0.022,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:187:<lambda>",
+      "calls": 18,
+      "total_ms": 0.022,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:309:<lambda>",
+      "calls": 16,
+      "total_ms": 0.022,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/ui.py:251:badge",
+      "calls": 4,
+      "total_ms": 0.022,
+      "max_ms": 0.008
+    },
+    {
+      "label": "dashboard/steps/step5.py:1208:_deliver_files",
+      "calls": 2,
+      "total_ms": 0.022,
+      "max_ms": 0.013
+    },
+    {
+      "label": "core/qc_agent.py:291:QcAgent",
+      "calls": 1,
+      "total_ms": 0.021,
+      "max_ms": 0.021
+    },
+    {
+      "label": "core/next_glow.py:78:<genexpr>",
+      "calls": 16,
+      "total_ms": 0.021,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/plate_camera.py:137:<genexpr>",
+      "calls": 5,
+      "total_ms": 0.021,
+      "max_ms": 0.008
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:192:<lambda>",
+      "calls": 14,
+      "total_ms": 0.021,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/adapters/factory.py:32:image_provider",
+      "calls": 4,
+      "total_ms": 0.021,
+      "max_ms": 0.007
+    },
+    {
+      "label": "dashboard/glow_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.02,
+      "max_ms": 0.02
+    },
+    {
+      "label": "core/perf.py:96:_step",
+      "calls": 10,
+      "total_ms": 0.02,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/home.py:191:<genexpr>",
+      "calls": 12,
+      "total_ms": 0.02,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/film_grammar.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.02,
+      "max_ms": 0.02
+    },
+    {
+      "label": "core/batch.py:258:with_groups",
+      "calls": 2,
+      "total_ms": 0.02,
+      "max_ms": 0.016
+    },
+    {
+      "label": "core/subtitles.py:149:default_font",
+      "calls": 2,
+      "total_ms": 0.02,
+      "max_ms": 0.01
+    },
+    {
+      "label": "dashboard/header.py:24:<genexpr>",
+      "calls": 15,
+      "total_ms": 0.019,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/subtitles.py:88:uploads_dir",
+      "calls": 2,
+      "total_ms": 0.019,
+      "max_ms": 0.012
+    },
+    {
+      "label": "core/adapters/clipai.py:312:ClipAIVideoProvider",
+      "calls": 1,
+      "total_ms": 0.018,
+      "max_ms": 0.018
+    },
+    {
+      "label": "core/cost.py:1252:<genexpr>",
+      "calls": 17,
+      "total_ms": 0.018,
+      "max_ms": 0.005
+    },
+    {
+      "label": "dashboard/common.py:486:autopilot_manager",
+      "calls": 1,
+      "total_ms": 0.018,
+      "max_ms": 0.018
+    },
+    {
+      "label": "dashboard/steps/step3.py:40:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.018,
+      "max_ms": 0.012
+    },
+    {
+      "label": "dashboard/header.py:545:<genexpr>",
+      "calls": 15,
+      "total_ms": 0.017,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/user_prefs.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.017,
+      "max_ms": 0.017
+    },
+    {
+      "label": "core/diag.py:206:add",
+      "calls": 9,
+      "total_ms": 0.017,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/stage_desk_ui.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.017,
+      "max_ms": 0.017
+    },
+    {
+      "label": "core/stage_desk.py:1068:_gate_path",
+      "calls": 2,
+      "total_ms": 0.017,
+      "max_ms": 0.009
+    },
+    {
+      "label": "dashboard/steps/step5.py:365:<lambda>",
+      "calls": 9,
+      "total_ms": 0.017,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/access.py:82:can_manage",
+      "calls": 2,
+      "total_ms": 0.017,
+      "max_ms": 0.01
+    },
+    {
+      "label": "core/prompt_rewrite.py:52:RewriteResult",
+      "calls": 1,
+      "total_ms": 0.016,
+      "max_ms": 0.016
+    },
+    {
+      "label": "dashboard/home.py:71:apply_filters",
+      "calls": 2,
+      "total_ms": 0.016,
+      "max_ms": 0.009
+    },
+    {
+      "label": "dashboard/home.py:68:<lambda>",
+      "calls": 10,
+      "total_ms": 0.016,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/adapters/factory.py:22:video_provider",
+      "calls": 4,
+      "total_ms": 0.016,
+      "max_ms": 0.009
+    },
+    {
+      "label": "core/music.py:68:audio_provider",
+      "calls": 2,
+      "total_ms": 0.016,
+      "max_ms": 0.01
+    },
+    {
+      "label": "dashboard/steps/step5.py:1247:delivery_feedback",
+      "calls": 2,
+      "total_ms": 0.016,
+      "max_ms": 0.009
+    },
+    {
+      "label": "dashboard/team_screen.py:299:<lambda>",
+      "calls": 9,
+      "total_ms": 0.016,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/autopilot.py:1474:Manager",
+      "calls": 1,
+      "total_ms": 0.015,
+      "max_ms": 0.015
+    },
+    {
+      "label": "core/adapters/factory.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.015,
+      "max_ms": 0.015
+    },
+    {
+      "label": "core/before_run.py:73:_short_label",
+      "calls": 3,
+      "total_ms": 0.015,
+      "max_ms": 0.008
+    },
+    {
+      "label": "core/before_run.py:452:title",
+      "calls": 3,
+      "total_ms": 0.015,
+      "max_ms": 0.007
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:235:<lambda>",
+      "calls": 11,
+      "total_ms": 0.015,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/approve_preview.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.015,
+      "max_ms": 0.015
+    },
+    {
+      "label": "core/video_gate.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.015,
+      "max_ms": 0.015
+    },
+    {
+      "label": "core/effectiveness.py:21:_t",
+      "calls": 4,
+      "total_ms": 0.015,
+      "max_ms": 0.007
+    },
+    {
+      "label": "core/diag.py:301:<genexpr>",
+      "calls": 14,
+      "total_ms": 0.015,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/formats.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.014,
+      "max_ms": 0.014
+    },
+    {
+      "label": "dashboard/home.py:190:<genexpr>",
+      "calls": 12,
+      "total_ms": 0.014,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/features.py:1419:<genexpr>",
+      "calls": 12,
+      "total_ms": 0.014,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step1_refs.py:37:<genexpr>",
+      "calls": 12,
+      "total_ms": 0.014,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step5.py:362:<lambda>",
+      "calls": 9,
+      "total_ms": 0.014,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/effectiveness.py:179:<lambda>",
+      "calls": 6,
+      "total_ms": 0.014,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/effectiveness.py:200:<lambda>",
+      "calls": 12,
+      "total_ms": 0.014,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/steps/step3.py:53:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.013,
+      "max_ms": 0.007
+    },
+    {
+      "label": "dashboard/admin.py:1199:<genexpr>",
+      "calls": 6,
+      "total_ms": 0.013,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/diag.py:300:<genexpr>",
+      "calls": 10,
+      "total_ms": 0.013,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/qc_policy.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.012,
+      "max_ms": 0.012
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:293:<lambda>",
+      "calls": 6,
+      "total_ms": 0.012,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/cost.py:430:price_tag",
+      "calls": 6,
+      "total_ms": 0.012,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/next_glow.py:48:<genexpr>",
+      "calls": 8,
+      "total_ms": 0.012,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/machine_auth.py:58:lan_on",
+      "calls": 2,
+      "total_ms": 0.012,
+      "max_ms": 0.008
+    },
+    {
+      "label": "core/autopilot.py:1501:queue_length",
+      "calls": 6,
+      "total_ms": 0.012,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/perf.py:52:_avg",
+      "calls": 12,
+      "total_ms": 0.012,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/prompt_rewrite.py:52:__annotate__",
+      "calls": 1,
+      "total_ms": 0.011,
+      "max_ms": 0.011
+    },
+    {
+      "label": "dashboard/glow_ui.py:19:<genexpr>",
+      "calls": 6,
+      "total_ms": 0.011,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/before_run.py:145:_skip_key",
+      "calls": 6,
+      "total_ms": 0.011,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/continuity.py:27:_OnPurpose",
+      "calls": 1,
+      "total_ms": 0.011,
+      "max_ms": 0.011
+    },
+    {
+      "label": "core/access.py:116:_p_user",
+      "calls": 4,
+      "total_ms": 0.011,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/paid_batch_preview.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.011,
+      "max_ms": 0.011
+    },
+    {
+      "label": "dashboard/team_screen.py:257:<genexpr>",
+      "calls": 8,
+      "total_ms": 0.011,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/steps/step5.py:372:<lambda>",
+      "calls": 7,
+      "total_ms": 0.01,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/design/screens/trainee_ui.py:21:<genexpr>",
+      "calls": 5,
+      "total_ms": 0.01,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/throttle.py:24:_env",
+      "calls": 5,
+      "total_ms": 0.009,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/home.py:221:<lambda>",
+      "calls": 7,
+      "total_ms": 0.009,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/subtitles.py:120:_windows_font_dirs",
+      "calls": 2,
+      "total_ms": 0.009,
+      "max_ms": 0.005
+    },
+    {
+      "label": "dashboard/steps/step5.py:1135:<lambda>",
+      "calls": 7,
+      "total_ms": 0.009,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/throttle.py:49:cap",
+      "calls": 4,
+      "total_ms": 0.009,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/throttle.py:31:Throttle",
+      "calls": 1,
+      "total_ms": 0.008,
+      "max_ms": 0.008
+    },
+    {
+      "label": "dashboard/design/screens/v2_tables.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.008,
+      "max_ms": 0.008
+    },
+    {
+      "label": "dashboard/home.py:188:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.008,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/home.py:278:_finished",
+      "calls": 2,
+      "total_ms": 0.008,
+      "max_ms": 0.005
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:277:<lambda>",
+      "calls": 10,
+      "total_ms": 0.008,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/autoqc.py:191:video_last_error",
+      "calls": 4,
+      "total_ms": 0.008,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/final_cut.py:38:<genexpr>",
+      "calls": 6,
+      "total_ms": 0.008,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/autopilot.py:1492:<genexpr>",
+      "calls": 6,
+      "total_ms": 0.008,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/admin.py:1091:<lambda>",
+      "calls": 6,
+      "total_ms": 0.008,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/script_reader.py:34:__annotate__",
+      "calls": 1,
+      "total_ms": 0.007,
+      "max_ms": 0.007
+    },
+    {
+      "label": "dashboard/home.py:189:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.007,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/steps/step1.py:147:<genexpr>",
+      "calls": 3,
+      "total_ms": 0.007,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/steps/step1_prep.py:303:<lambda>",
+      "calls": 6,
+      "total_ms": 0.007,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/design/screens/storyboard_cards.py:82:<genexpr>",
+      "calls": 6,
+      "total_ms": 0.007,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/subtitles.py:153:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.007,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/script_reader.py:34:ScriptText",
+      "calls": 1,
+      "total_ms": 0.006,
+      "max_ms": 0.006
+    },
+    {
+      "label": "core/prompt_rewrite.py:577:Plan",
+      "calls": 1,
+      "total_ms": 0.006,
+      "max_ms": 0.006
+    },
+    {
+      "label": "core/access.py:125:need_edit",
+      "calls": 1,
+      "total_ms": 0.006,
+      "max_ms": 0.006
+    },
+    {
+      "label": "core/autopilot.py:1479:__init__",
+      "calls": 1,
+      "total_ms": 0.006,
+      "max_ms": 0.006
+    },
+    {
+      "label": "core/autoqc.py:72:active",
+      "calls": 4,
+      "total_ms": 0.006,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/autoqc.py:76:last_error",
+      "calls": 2,
+      "total_ms": 0.006,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/throttle.py:53:_learned",
+      "calls": 4,
+      "total_ms": 0.006,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/perf.py:204:<genexpr>",
+      "calls": 6,
+      "total_ms": 0.006,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/spend_gate.py:46:Slot",
+      "calls": 1,
+      "total_ms": 0.005,
+      "max_ms": 0.005
+    },
+    {
+      "label": "dashboard/steps/step1_run.py:8:__annotate__",
+      "calls": 1,
+      "total_ms": 0.005,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/qc_team.py:89:RecordingClient",
+      "calls": 1,
+      "total_ms": 0.005,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/stage_solver.py:301:Shot",
+      "calls": 1,
+      "total_ms": 0.005,
+      "max_ms": 0.005
+    },
+    {
+      "label": "core/director_lease.py:191:_active",
+      "calls": 3,
+      "total_ms": 0.005,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/model_line.py:131:<genexpr>",
+      "calls": 3,
+      "total_ms": 0.005,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/autopilot.py:1487:alive",
+      "calls": 2,
+      "total_ms": 0.005,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/final_cut.py:56:extra_files",
+      "calls": 4,
+      "total_ms": 0.005,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/perf.py:74:<genexpr>",
+      "calls": 4,
+      "total_ms": 0.005,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/admin.py:1193:<genexpr>",
+      "calls": 6,
+      "total_ms": 0.005,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/music.py:22:MockAudioProvider",
+      "calls": 1,
+      "total_ms": 0.004,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/design/screens/__init__.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.004,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/steps/__init__.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.004,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/qc_team.py:107:ReplayClient",
+      "calls": 1,
+      "total_ms": 0.004,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/adapters/clipai.py:217:RamTaskMemory",
+      "calls": 1,
+      "total_ms": 0.004,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/chat_start.py:11:_File",
+      "calls": 1,
+      "total_ms": 0.004,
+      "max_ms": 0.004
+    },
+    {
+      "label": "core/before_run.py:399:<genexpr>",
+      "calls": 3,
+      "total_ms": 0.004,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step1.py:355:rows_box_height",
+      "calls": 3,
+      "total_ms": 0.004,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step1_director.py:9:_director_summary",
+      "calls": 2,
+      "total_ms": 0.004,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/stage_desk.py:252:_Hold",
+      "calls": 1,
+      "total_ms": 0.004,
+      "max_ms": 0.004
+    },
+    {
+      "label": "dashboard/paid_confirm.py:117:<genexpr>",
+      "calls": 4,
+      "total_ms": 0.004,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/cost.py:560:llm_tag",
+      "calls": 4,
+      "total_ms": 0.004,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/autoqc.py:187:video_active",
+      "calls": 2,
+      "total_ms": 0.004,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/admin.py:1233:<genexpr>",
+      "calls": 4,
+      "total_ms": 0.004,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/__init__.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/llm_provider.py:175:JobClients",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/subtitles.py:73:__annotate__",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/autopilot.py:39:Context",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/autopilot.py:1616:_Wait",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/video_analysis.py:33:VideoAnalysisError",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/runner.py:137:TaskMemory",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/design/__init__.py:1:<module>",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/lesson_judge.py:418:MockJudge",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/steps/step1.py:343:__annotate__",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/widgets.py:85:__annotate__",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/steps/step4.py:797:__annotate__",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/plates3d.py:38:Plates3DError",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/plates3d.py:117:_Done",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/sent_package.py:142:_Index",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/chat_start.py:19:Seed",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/location_pack.py:36:LocationPackError",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/idea_to_script.py:70:_key",
+      "calls": 3,
+      "total_ms": 0.003,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/reference_analysis.py:55:ReferenceAnalysisError",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/steps/step1_director.py:40:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/stage_desk.py:317:hold_segments",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/prop_lock.py:898:_Named",
+      "calls": 1,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "core/cost.py:332:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/common.py:160:show_estimate",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.003
+    },
+    {
+      "label": "dashboard/steps/step4.py:221:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step5.py:708:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/timeline_view.py:18:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/sound_intent.py:134:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/team_screen.py:53:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/team_screen.py:55:<genexpr>",
+      "calls": 4,
+      "total_ms": 0.003,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/team_screen.py:56:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/diag.py:78:lost",
+      "calls": 2,
+      "total_ms": 0.003,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/effectiveness.py:199:<lambda>",
+      "calls": 6,
+      "total_ms": 0.003,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/layout.py:30:LayoutError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/ffmpeg_studio.py:12:FFmpegNotFound",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/sound_ai.py:44:SoundAiError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/sfx_plan.py:22:SfxPlanError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/subtitles.py:210:Cue",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/autopilot.py:98:_Stopped",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/autopilot.py:519:_Stop",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/subjects.py:351:CapacityWait",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/batch.py:15:GateError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/runner.py:95:RedrawWithFix",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/design/components.py:84:Raw",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/paid_confirm.py:226:__annotate__",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/lesson_judge.py:59:JudgeError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/admin.py:225:__annotate__",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/admin.py:630:__annotate__",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/admin.py:868:__annotate__",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/admin.py:959:__annotate__",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/widgets.py:90:__annotate__",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/prompt_rewrite.py:43:RewriteRefused",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/prompt_rewrite.py:47:RewriteLocked",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step3.py:232:__annotate__",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/shots.py:34:ShotError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/shot_intent.py:99:BydTypeError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/asset_checklist.py:28:ChecklistError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/idea_to_script.py:37:IdeaError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/autopilot.py:1504:_check_user",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/stage_desk.py:88:DeskError",
+      "calls": 1,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/design/screens/video_ui.py:71:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/design/screens/video_ui.py:72:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/steps/step4.py:66:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/steps/step5.py:709:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "core/final_cut.py:224:render_problems",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.002
+    },
+    {
+      "label": "dashboard/steps/step5.py:121:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/team_screen.py:54:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/team_screen.py:192:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.002,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/spend_gate.py:42:SpendRefused",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/ffmpeg_studio.py:16:FFmpegError",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/sound_lib.py:42:SoundError",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/subtitles.py:68:SubtitleError",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/script_reader.py:30:ScriptReadError",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/runner.py:104:UpgradeCutFailed",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/lesson_judge.py:63:JudgeOff",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:311:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:469:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:540:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:690:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:707:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:733:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:800:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:814:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:905:__annotate__",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/known_issues.py:16:_shot_mode",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/known_issues.py:65:<lambda>",
+      "calls": 2,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/known_issues.py:91:<lambda>",
+      "calls": 2,
+      "total_ms": 0.001,
+      "max_ms": 0.0
+    },
+    {
+      "label": "dashboard/design/screens/video_ui.py:73:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "core/machine_auth.py:54:MachinePending",
+      "calls": 1,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    },
+    {
+      "label": "dashboard/admin.py:1200:<genexpr>",
+      "calls": 2,
+      "total_ms": 0.001,
+      "max_ms": 0.001
+    }
+  ],
+  "lineage": [
+    {
+      "label": "lineage.summary",
+      "calls": 1,
+      "total_ms": 5.17,
+      "max_ms": 5.17
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "synthetic empty-media fixture",
+    "Python server inclusive wall-time with probe overhead",
+    "SQL execute only, not cursor fetch/CPU/lock",
+    "no browser/click/expanded conditional branch coverage"
+  ]
+}
