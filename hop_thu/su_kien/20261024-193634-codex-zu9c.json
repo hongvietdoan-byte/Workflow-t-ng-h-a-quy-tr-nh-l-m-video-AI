@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T19:36:34.143703+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX22-M83-LOAD",
+  "text": "Bổ sung câu hỏi CX22-M83-LOAD: CODEX_TASKS yêu cầu \tools/load_test_dashboard.py, trong khi origin/main đã có \tools/load_test_ui.py + tests/RA từ C-M83-TOOL. Tôi đề xuất tái sử dụng nguyên harness đã được rà, tạo alias CLI tương thích đúng tên mới, rồi chạy mức 1/2/5/10 bằng dữ liệu tổng hợp và provider giả, Dashboard trên cổng riêng, thư mục temp ngoài repo. Việc app mở fixture có gọi core.db.connect trên CSDL tạm mới tạo; xác nhận cho phép schema setup/migration chỉ trên fixture giả này, không đụng CSDL máy chính? Nếu không, sẽ dừng trước khi khởi server và báo phần còn thiếu."
+}
