@@ -4,6 +4,14 @@ import math
 from core import access, simple_budget
 
 
+def selected_send_ready():
+    """Giai đoạn 1 HOLD cả lô; chỉ mở sau core port CX24-M82B đã được nghiệm thu.
+
+    Không là cờ môi trường/tùy chọn người dùng: simple_mode không mở đường gửi này.
+    """
+    return False
+
+
 def _actor(p, pid, *, confirmed=False, paid=False):
     if not simple_budget.enabled():
         raise PermissionError("Chế độ Cơ bản chưa được bật")
@@ -39,6 +47,8 @@ def use_script(p, pid, text):
 
 def quote(p, pid, data_dir, kind):
     """Báo giá đúng lớp hiện có, ràng buộc cùng tập đầu vào và job chưa gửi."""
+    if not selected_send_ready():
+        raise ValueError("Đang giữ cả lô — chưa bảo đảm tập job gửi (chờ CX24-M82B)")
     from core import batch, cost, gen_auth, image_models
     from dashboard.paid_batch_preview import fingerprint
     pricing = cost.load_pricing()
@@ -67,6 +77,8 @@ def quote(p, pid, data_dir, kind):
 def send(p, pid, data_dir, kind, *, confirmed=False, expected_quote=None):
     """Chỉ initial send; retry/reject/reopen/voice/music dành pha B."""
     _actor(p, pid, confirmed=confirmed, paid=True)
+    if not selected_send_ready():
+        raise ValueError("Đang giữ cả lô — chưa bảo đảm tập job gửi (chờ CX24-M82B)")
     from core import batch
     from dashboard import common as C, paid_confirm
     if not paid_confirm.enabled():

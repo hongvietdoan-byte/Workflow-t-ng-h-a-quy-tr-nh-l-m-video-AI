@@ -10,6 +10,13 @@ Theo tin `20261024-125409`, Claude chốt **giai đoạn 1 giữ fail-closed HOL
 
 ## Phần đã triển khai
 
+### Chốt guard giai đoạn 1 sau rà tự kiểm
+
+- `simple_budget.proposal()` đánh dấu rõ `qd3_complete=False` trên dự toán cũ. `approve()` từ chối nếu chưa có dự toán qd3 hoàn chỉnh; màn Ý tưởng chỉ hiện HOLD, **không có nút duyệt số thiếu worst-case + 40% hoạt động**.
+- `actions.selected_send_ready()` cố định False trong code cho tới CX24-M82B, không đọc env/cờ người dùng. Cả `quote()` và `send()` giữ chờ cả lô trước provider/queue; UI nói rõ lý do. **Checkpoint không còn đường gửi thật toàn dự án**, kể cả expected_quote trùng. Nhánh triển khai gửi nằm sau cổng này để M82B tiếp, chưa được mở bằng simple_mode.
+- Hai regression mới chạy **2 ĐỎ / 2,61 giây**, rồi gom đúng `tests/test_basic_mode.py`: **16 XANH / 6,20 giây**. Không chạy broad/GUI. Test dương gửi bằng runner giả chỉ kiểm nhánh tương lai với port-ready được mock rõ, không chứng minh đường gửi hiện tại đã mở.
+- Sau hai guard này, giai đoạn 1 **sẵn root rà độc lập**. Q-A, dự toán qd3 và targeted send vẫn mở dưới dạng chức năng HOLD/WIP; không tuyên bố toàn pha A hay chỉ số sản phẩm hoàn tất.
+
 - `simple_mode` mặc định TẮT. `dashboard.basic.render()` OFF trả False trước import/render màn; chưa sửa entrypoint `dashboard/app.py`/`header.py`.
 - Helper `core/simple_budget.py`: metadata `simple_auto_limit:<pid>` tách trần cảnh báo `project_budget:<pid>`; kiểm EP theo public policy hiện hành `stage_desk.is_executive_producer`, recheck user active/role và dự án; không coi quyền edit là EP. Xác nhận giá hiện tại, no-op khi duyệt lặp cùng số, không nâng ngầm; SAVEPOINT giữ giao dịch caller, audit chỉ ghi mã dự án/số tiền.
 - Khung Streamlit năm màn Ý tưởng+ngân sách / Kịch bản / Ảnh / Video / Tải bản giao, HOLD/lỗi/tạm dừng. Tiền tổng một vị trí mở chi tiết; 80% tính cả giữ chỗ; không ghi dữ liệu lúc dựng snapshot (nếu chưa có bảng giữ chỗ thì hiển thị 0, không gọi API tạo bảng).
@@ -29,8 +36,8 @@ Theo tin `20261024-125409`, Claude chốt **giai đoạn 1 giữ fail-closed HOL
 
 ## Các phần chưa đủ để nghiệm thu
 
-1. **HOLD cả lô được Claude chấp nhận cho giai đoạn 1**. Chưa đạt yêu cầu cuối cùng HOLD từng mục không chặn mục khác; tách CX24-M82B. Đối chiếu tin mới: `runner.submit_pending(..., only=job_ids)` **đã có**, cần dùng đúng khi triển khai targeted send; phần còn thiếu chính là `queue_images` nhận tập scene được chọn. Không tự đổi API core. Callback checkpoint hiện còn gọi submit_pending toàn dự án: reviewer phải kiểm rủi ro job queued ngoài tập báo giá trước khi cho mở đường gửi thật.
-2. Proposal đang dùng `project_budget.propose` cũ, **chưa đủ dự toán xấu nhất + ngân sách tự sửa 40%** theo thiết kế qd3. Chưa được gọi là báo giá toàn phim đã hoàn chỉnh.
+1. **HOLD cả lô được Claude chấp nhận cho giai đoạn 1**. Chưa đạt yêu cầu cuối cùng HOLD từng mục không chặn mục khác; tách CX24-M82B. Đối chiếu tin mới: `runner.submit_pending(..., only=job_ids)` **đã có**, cần dùng đúng khi triển khai targeted send; phần còn thiếu chính là `queue_images` nhận tập scene được chọn. Không tự đổi API core. Nhánh gửi tương lai còn gọi submit_pending toàn dự án nhưng hiện bị cổng False chặn trước queue/provider: M82B phải sửa và kiểm queued ngoài tập trước khi mở cổng này.
+2. Proposal dùng `project_budget.propose` cũ, **chưa đủ dự toán xấu nhất + ngân sách tự sửa 40%** theo qd3; cả UI và helper đã HOLD không cho duyệt. Chưa được gọi là báo giá toàn phim đã hoàn chỉnh.
 3. Q-A/Phương án khác/chọn hướng có lý do chưa nối đầy đủ; các lối sửa thẻ, retry/reject/reopen/voice/music và phụ đề thuộc pha B chưa nối; bản ghép xem thử sau duyệt clip còn mở. Không tuyên bố mục tiêu ≤8 hành động đã đạt.
 4. Khung dùng policy EP hiện hành; sau G1 của Codex 3 lên main phải đối chiếu adapter quyền. Chưa RÀ KỸ độc lập M82.
 5. UI QA 1440/390 chưa hoàn tất, **chưa có PNG**; Claude đã chuyển phần kiểm này cho phiên chính, không còn là việc cần retry ở phiên hiện tại. Đã đọc computer-use SKILL/guidance/confirmations, khởi tạo Sky và list_apps được; IAB/browser inventory rỗng. Thử Chrome native đúng window được trả về bị công cụ dừng: “could not determine the current browser URL on Windows with enough confidence to enforce policy”. Dừng UI, không retry/bypass.

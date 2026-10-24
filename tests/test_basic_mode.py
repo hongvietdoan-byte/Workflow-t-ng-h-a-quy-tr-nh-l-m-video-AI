@@ -28,7 +28,7 @@ def project(tmp_path):
         """)
         p = SimpleNamespace(conn=conn, user={"email": "ep@example.test", "role": "member"})
         from core import simple_budget
-        with patch.object(simple_budget, "proposal", return_value={"total": 10.0, "incomplete": False}), \
+        with patch.object(simple_budget, "proposal", return_value={"total": 10.0, "incomplete": False, "qd3_complete": True}), \
                 patch.object(simple_budget, "enabled", return_value=True):
             yield p
         conn.close()
@@ -166,14 +166,15 @@ def test_off_flag_and_changed_quote_stop_before_provider_or_queue(project):
         assert not provider.called and not queue.called
 
 
-def test_confirmed_send_reuses_existing_batch_and_marks_human(project):
+def test_future_confirmed_send_reuses_batch_only_after_selected_port_is_ready(project):
     from dashboard.basic import actions
     project.project = lambda pid: {"paused": 0}
     quote = {"usd": 1, "fp": "fixed", "ids": [1]}
     from unittest.mock import Mock
     runner = Mock()
     runner.submit_pending.return_value = 1
-    with patch.object(actions, "quote", return_value=quote), \
+    with patch.object(actions, "selected_send_ready", return_value=True), \
+            patch.object(actions, "quote", return_value=quote), \
             patch("dashboard.paid_confirm.enabled", return_value=True), \
             patch("dashboard.common.image_runner", return_value=runner), \
             patch("core.batch.queue_images", return_value={"created": 1, "redo": 0}) as queue:
@@ -181,3 +182,24 @@ def test_confirmed_send_reuses_existing_batch_and_marks_human(project):
         assert queue.call_args.kwargs["confirmed"] is False  # không bỏ qua cổng ảnh
         assert project.actor == "ep@example.test" and project.origin is None
         runner.submit_pending.assert_called_once_with(1)
+
+
+def test_stage_one_does_not_approve_legacy_warning_estimate(project):
+    from core import simple_budget as B
+    with patch.object(B, "proposal", return_value={"total": 10, "incomplete": False}):
+        with pytest.raises(ValueError, match="40|dự toán"):
+            B.approve(project, 1, expected_total=10, confirmed=True)
+    assert B.get(project.conn, 1) is None
+
+
+def test_stage_one_holds_send_before_provider_even_with_matching_quote(project):
+    from dashboard.basic import actions
+    project.project = lambda pid: {"paused": 0}
+    quote = {"usd": 1, "fp": "fixed", "ids": [1]}
+    with patch.object(actions, "quote", return_value=quote), \
+            patch("dashboard.paid_confirm.enabled", return_value=True), \
+            patch("dashboard.common.image_runner") as provider, \
+            patch("core.batch.queue_images") as queue:
+        with pytest.raises(ValueError, match="tập|M82B"):
+            actions.send(project, 1, "fake", "images", confirmed=True, expected_quote=quote)
+        assert not provider.called and not queue.called

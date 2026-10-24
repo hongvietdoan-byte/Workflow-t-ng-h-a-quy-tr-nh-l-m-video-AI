@@ -41,3 +41,11 @@ Checkpoint guard+AppTest/fakeprovider sẵn root rà, không rerun 14 test vì c
 Những mục worstcase+40/Q-A/EP/E4 không được mặc nhiên bỏ; RA đã tách rõ.
 Root phải xem đường submit_pending toàn dự án có thể gửi queued ngoài quote và ngân sách
 cũ chưa đủ scope qd3 trước khi cho mở gửi thật. Agent không tự báo XONG hộp thư.
+
+Gom sửa guard theo root: proposal cũ qd3_complete=False → UI/helper HOLD không duyệt.
+selected_send_ready() cố định False → quote/send HOLD cả lô trước provider/queue,
+không mở bằng env/simple_mode. Nhánh submit tương lai chỉ tồn tại sau cổng này;
+CX24-M82B phải sửa selected jobIDs trước khi mở. Không mở API core ở checkpoint.
+Hai test regression ĐỎ2/2,61s → file test Basic 16 XANH/6,20s. Không broad/GUI.
+Giai đoạn1 guardcheckpoint sẵn root RÀ KỸ; Q-A/qd3/targeted-send còn HOLD/WIP,
+không khẳng định toàn phaA/M8.2 hoặc mục tiêu ≤8 hành động đã hoàn tất.

@@ -55,8 +55,8 @@ def idea_screen(p, pid, state):
             quote = simple_budget.proposal(p, pid)
         except Exception:
             quote = None
-        if not quote or quote.get("incomplete") or not quote.get("total"):
-            st.info("Đang giữ — chưa đủ dữ liệu/báo giá toàn phim để EP duyệt hạn mức tự động.")
+        if not quote or quote.get("incomplete") or not quote.get("total") or quote.get("qd3_complete") is not True:
+            st.info("Đang giữ — dự toán chưa đủ mức xấu nhất và ngân sách tự sửa 40%; chưa cho duyệt hạn mức tự động.")
         else:
             st.caption(f"Hạn mức đề xuất (ước tính): {quote['total']:.2f} USD. Chỉ EP được duyệt.")
             confirmed = st.checkbox("Tôi xác nhận hạn mức chi của luồng tự động", key=f"basic_limit_confirm_{pid}")
@@ -119,6 +119,8 @@ def media_screen(p, pid, state, kind):
         _act(lambda: actions.send(p, pid, state["data_dir"], kind, confirmed=True, expected_quote=quoted), "Đã xử lý lượt gửi bạn xác nhận")
     if not paid_confirm.enabled():
         st.info("Đang giữ — lớp xác nhận giá chưa bật; chưa có nút gửi hoạt động.")
+    if not actions.selected_send_ready():
+        st.info("Đang giữ cả lô — chờ bảo đảm đúng tập job gửi (CX24-M82B). Chưa gửi ảnh/video từ giai đoạn này.")
     if state["can_edit"] and paid_confirm.enabled():
         from dashboard import approve_preview
         ids = approve_preview.pending_ids(p.conn, pid, "images" if kind == "images" else "clips")

@@ -15,7 +15,9 @@ def enabled():
 
 
 def proposal(p, pid):
-    return project_budget.propose(p, pid)
+    # Chưa có dự toán qd3 xấu nhất + tự sửa 40%. Không đổi nhãn trần cảnh báo
+    # cũ thành một hạn mức tự động có thể duyệt.
+    return dict(project_budget.propose(p, pid), qd3_complete=False)
 
 
 def _key(pid):
@@ -66,6 +68,8 @@ def approve(p, pid, *, expected_total, confirmed=False):
     if confirmed is not True:
         raise ValueError("Cần xác nhận hạn mức chi của luồng tự động")
     prop = proposal(p, pid)
+    if prop.get("qd3_complete") is not True:
+        raise ValueError("Đang giữ — dự toán chưa đủ mức xấu nhất và ngân sách tự sửa 40%")
     amount = prop.get("total")
     if prop.get("incomplete") or not _amount(amount):
         raise ValueError("Chưa đủ báo giá toàn phim — giữ chờ, chưa duyệt hạn mức")
