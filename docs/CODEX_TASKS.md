@@ -1993,3 +1993,10 @@ Giao 24/10 23:15 (sổ ep-2410-focus-no-new-features-2026-10-24). Phụ thuộc 
 - Hiện phiếu trên màn CX24-M610; vai chủ xử lý / trả lại có lý do; không ghi trường production ngoài quyền vai (write guard M6.4).
 - Shadow: cờ mới TẮT trước (TẮT = không I/O); chỉ bật trong lượt nghiệm thu dự án thật khi EP duyệt.
 - Test đỏ→xanh: lỗi QC → đúng một phiếu đúng vai; fallback Director có note; cờ TẮT không ghi gì. Không dữ liệu thật, không Computer Use, 0 USD.
+
+### CX24-HOP-THU-FLUSH — sửa hộp thư treo khi đẩy lô (flush_pending ghi lại ~1000 file, giữ flush.lock > 15 phút) (ưu tiên 5; lỗi vận hành; Cấp 1 tooling; 0 USD)
+Bằng chứng 24/10: `hop_thu.py gop`/`xong … --push` treo ở `flush_pending` → `atomic_bytes`, ghi lại toàn bộ ~1000 file sự kiện vào thư mục tạm, mỗi file một fsync; tiến trình `xong CX24-N9-REAPPROVE` (Codex 1) giữ `.git/hop_thu_local/flush.lock` từ 23:12 tới 23:30, mọi làn khác "metadata đang bị khóa"; phiên chính phải tắt tay. Khóa mồ côi (không tiến trình giữ) cũng từng kẹt.
+1. Đẩy lô chỉ ghi/commit sự kiện MỚI (diff so với origin), không ghi lại cả thư mục; fsync một lần/lô. Mục tiêu: lô ≤ 10 sự kiện xong < 20 s trên máy chính (ghi số đo vào báo cáo).
+2. flush.lock ghi PID + giờ; tiến trình sau gặp khóa của PID đã chết hoặc khóa > 10 phút không gia hạn → tự giành lại (chuyển khóa cũ sang _luu_tru, không xóa), in rõ đã giành từ PID nào.
+3. Lệnh có `--push` không bao giờ chặn vô hạn: hết thời gian chờ khóa → để sự kiện ở pending, thoát mã 0 kèm dòng "đã xếp hàng, lô sau sẽ đẩy".
+Test đỏ→xanh: lô 1000 sự kiện cũ + 3 mới chỉ ghi 3; khóa PID chết được giành lại; khóa sống không bị giành; 2 tiến trình đồng thời không mất sự kiện. Nhánh `codex/v31-hop-thu-flush`. Phiên chính RÀ KỸ (đường trao đổi mọi làn).
