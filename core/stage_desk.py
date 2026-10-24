@@ -683,7 +683,8 @@ def write_prompt(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> D
     return _sync(data_dir, pid, seg, "N3", who, conn, fn)
 
 
-def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[Dict], user=None) -> Dict:
+def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[Dict], user=None,
+                expected_proposal_revision: Optional[str] = None) -> Dict:
     """N4 (nền, 0 USD; đo K3 + K4 khi phase cần): câu trả lời vai → crew_answer(source="claude_code"). Nguồn CỐ ĐỊNH — nút này không
     nhận câu trả lời "người dùng" (duyệt chốt chỉ qua N6 / N7, S-B); phase `duyet` → crew_answer tự từ chối."""
     denied = _need_edit(conn, pid, user, "nạp câu trả lời vai sân khấu")
@@ -697,6 +698,17 @@ def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[D
         return {"ok": False, "errors": ["câu trả lời duyệt / trả lại chỉ nhận qua nút ✅ Duyệt / ↩ Trả lại của Executive Producer (S-B)"]}
 
     def work(c, log):
+        if expected_proposal_revision is not None:
+            from . import stage_cli_proposal
+            denied = stage_cli_proposal._edit_guard(c, pid, user)
+            if denied:
+                return denied
+            try:
+                current = stage_cli_proposal._context(c, pid, data_dir, scene, locked=True)
+                if current["revision"] != expected_proposal_revision:
+                    return {"ok": False, "errors": ["Đề xuất Claude CLI đã cũ (đầu vào/vai đổi); giữ JSON để xem, không nạp hay gọi lại CLI."]}
+            except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
+                return {"ok": False, "errors": ["Không xác minh được đầu vào/vai của đề xuất CLI; chưa nạp JSON."]}
         log("kiểm câu trả lời + đo (K3 + K4 nếu cần)")
         r = sa.crew_answer(c, pid, seg, data_dir, obj, source=SOURCE_DESK, log=log,
                            who=_tool_who(who, "stage_desk.load_answer"))

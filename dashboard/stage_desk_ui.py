@@ -134,6 +134,122 @@ def _answer_obj(conn, pid: int, data_dir: str, scene, phase: Optional[str], text
         return None, f"câu trả lời không phải JSON hợp lệ ({e})"
 
 
+def _camera_controls(text, key, busy):
+    """Lựa chọn chỉ áp vào JSON N4, còn quyền/khóa/đo/duyệt do lõi hiện có kiểm."""
+    from dashboard.stage_camera_controls import answer_specs, controls_revision
+    try:
+        answer = json.loads(text)
+        specs = answer_specs(answer)
+        revision = controls_revision(answer)
+    except (ValueError, TypeError):
+        specs = []
+    if not specs:
+        st.caption("Dán JSON yêu cầu khung để chọn phía máy và ngưỡng thấy của từng vật phụ trước khi nạp.")
+        return {}
+    seen = set()
+    for spec in specs:
+        shot = spec.get("shot")
+        components = spec.get("thanh_phan")
+        if type(shot) is not int or shot in seen or not isinstance(components, list):
+            st.caption("JSON cần mỗi shot_spec một số shot duy nhất và danh sách thanh_phan; sửa JSON trước khi chọn máy.")
+            return {}
+        seen.add(shot)
+        keys = [c.get("vat") for c in components if isinstance(c, dict) and c.get("vai") == "phu"]
+        if any(not isinstance(k, str) for k in keys) or len(set(keys)) != len(keys):
+            st.caption("JSON cần khóa vật phụ duy nhất trong từng shot; sửa JSON trước khi chọn ngưỡng.")
+            return {}
+    labels = {None: "Giữ yêu cầu trong JSON", "front": "Trước (+ hướng A→B)", "back": "Sau (− hướng A→B)",
+              "left": "Trái (nhìn từ A sang B)", "right": "Phải (nhìn từ A sang B)"}
+    st.caption("Phía máy theo trục có hướng A→B của nhịp: trước/sau tính từ trung điểm; trái/phải giữ quy ước trục 180°. "
+               "Thiếu trục hoặc không đạt ngưỡng sẽ báo lỗi, không tự bỏ ý đồ. Chỉ có hiệu lực khi nạp JSON qua N4.")
+    key = f"{key}_intent_{revision}"
+    choices = {}
+    for spec in specs:
+        shot = spec.get("shot")
+        side = st.selectbox(f"Phía máy shot {shot}", options=list(labels), format_func=labels.get,
+                            key=f"{key}_camera_side_{shot}", disabled=busy)
+        minimums = {}
+        for component in spec.get("thanh_phan") or []:
+            if not isinstance(component, dict) or component.get("vai") != "phu":
+                continue
+            obj = component.get("vat")
+            if st.checkbox(f"Ép ngưỡng thấy vật phụ {obj} — shot {shot}", key=f"{key}_min_on_{shot}_{obj}", disabled=busy):
+                minimums[obj] = st.number_input(f"Tối thiểu thấy {obj} (%) — shot {shot}", min_value=0.0, max_value=100.0,
+                                                value=50.0, step=5.0, key=f"{key}_min_{shot}_{obj}", disabled=busy)
+        if side is not None or minimums:
+            choices[shot] = {"camera_side": side, "minimums": minimums}
+    return choices
+
+
+def _cli_proposal_controls(conn, pid, data_dir, scene, key, who, user, busy):
+    from core import stage_cli_proposal
+    from dashboard import paid_confirm
+    revision_key = f"{key}_N4_proposal_revision"
+    if st.session_state.get(revision_key):
+        st.caption("JSON đề xuất đã ghim vào đúng đầu vào/vai lúc tạo. Chưa nạp; vẫn cần xác nhận N4 bên dưới.")
+        if st.button("Bỏ ghim đề xuất để dùng JSON nhập tay", key=f"{key}_N4_manual", disabled=busy):
+            st.session_state.pop(revision_key, None)
+            st.session_state[f"{key}_N4_ok"] = False
+    quoted = stage_cli_proposal.quote(conn, pid, data_dir, scene, user=user)
+    if not quoted.get("ok"):
+        st.caption("Giao vai CLI chưa sẵn sàng: " + "; ".join(quoted.get("errors") or []))
+        return
+    suffix = quoted["revision"][:24]
+    consent = st.checkbox("Tôi đồng ý dùng hạn mức gói Claude CLI để tạo đề xuất; chưa nạp hay duyệt máy",
+                          key=f"{key}_N4_cli_consent_{suffix}", disabled=busy)
+    if paid_confirm.paid_button("Giao vai cho Claude", key=f"{key}_N4_cli_{suffix}", tag=quoted["tag"],
+                                disabled=busy or not consent,
+                                question="Tạo JSON đề xuất bằng CLI của dự án, dùng hạn mức gói. CLI có thể hỏi lại khi lỗi định dạng/thời gian chờ. "
+                                         "Chưa nạp N4 hay duyệt máy; tiếp tục?"):
+        result = stage_cli_proposal.generate(conn, pid, data_dir, scene, who, user=user,
+                                              expected_revision=quoted["revision"], confirmed=consent)
+        if result.get("ok"):
+            # Đặt TRƯỚC khi tạo text_area/checkbox N4 trong lượt vẽ hiện tại.
+            st.session_state[f"{key}_N4_json"] = json.dumps(result["answer"], ensure_ascii=False, indent=2)
+            st.session_state[revision_key] = result["revision"]
+            st.session_state[f"{key}_N4_ok"] = False
+            st.rerun()
+        else:
+            st.error("; ".join(result.get("errors") or ["Không tạo được đề xuất CLI."]))
+
+
+def _height_fix_panel(conn, pid, shots, key, user, busy):
+    from core import assets, library_height
+    from dashboard import common
+    import hashlib
+    if not common.allowed('assets'):
+        return
+    try:
+        entries, problems = library_height.missing_heights(conn, pid, shots)
+    except Exception:
+        st.caption('Không đọc được chiều cao Kho cho cảnh này; mở Kho để kiểm tra hồ sơ.')
+        return
+    for problem in problems:
+        st.caption(problem)
+    if not entries:
+        return
+    with st.expander('Bổ sung chiều cao còn thiếu — sửa Kho CHUNG'):
+        st.caption('Nhập số đo theo mét. Lưu vào hồ sơ Kho chung, ảnh hưởng mọi dự án dùng hồ sơ này; không tạo bản sao dự án.')
+        for entry in entries:
+            revision = hashlib.sha256(entry['snapshot'].encode('utf-8')).hexdigest()[:24]
+            prefix = f"{key}_height_{entry['id']}_{revision}"
+            height = st.number_input(f"Chiều cao {entry['name']} — Kho #{entry['id']} (m)", min_value=0.0,
+                                     max_value=30.0, value=0.0, step=0.01, key=prefix, disabled=busy)
+            confirmed = st.checkbox('Tôi xác nhận sửa Kho CHUNG, ảnh hưởng mọi dự án dùng hồ sơ này',
+                                    key=f'{prefix}_confirm', disabled=busy)
+            if st.button('Lưu chiều cao vào Kho chung', key=f'{prefix}_save', disabled=busy or not confirmed or height < .2):
+                try:
+                    library_height.save_height(conn, entry['id'], height, user=user, confirmed=confirmed,
+                                               expected_profile_snapshot=entry['snapshot'])
+                except assets.AssetError as error:
+                    st.error(str(error))
+                except Exception:
+                    st.error('Không lưu được chiều cao; tải lại để kiểm tra quyền và hồ sơ Kho.')
+                else:
+                    st.success('Đã lưu chiều cao vào Kho chung.')
+                    st.rerun()
+
+
 def render_scene(p, pid: int, data_dir: str, scene) -> None:
     """Hàng nút của MỘT cảnh, vẽ trong expander của màn XEM. Cờ tắt → không đọc / không vẽ gì."""
     if not enabled():
@@ -177,6 +293,7 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
         st.warning("Sau làm lại, máy đổi ở shot " + ", ".join(map(str, rs["plates_stale"])) + " — nền 3D cũ (bấm ↻ Render lại nền 3D)"
                    + (f"; ảnh đã vẽ cũ: shot {', '.join(map(str, rs['images_stale']))}" if rs.get("images_stale") else ""))
     busy = bool(h and not h.get("stale")) or bool(s.get("running")) or (pr or {}).get("state") == "running"
+    _height_fix_panel(conn, pid, s.get('shots') or [], key, user, busy)
     codes = [c for c in ORDER if c in (s.get("buttons") or [])]
     if any(c in codes for c in EP_ONLY) and not (s.get("user_approves") and not is_claude
                                                  and stage_desk.is_executive_producer(conn, pid, user)):
@@ -267,8 +384,10 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
                     conn, pid, data_dir, scene, suggestion.get("place_ids") or [], family, who=who, user=user))
 
     if "N4" in codes:
-        st.text_area("📥 Câu trả lời vai (JSON) — dán vào đây, hoặc để trống để đọc crew/tra_loi_<phase>.json của đoạn",
+        _cli_proposal_controls(conn, pid, data_dir, scene, key, who, user, busy)
+        answer_text = st.text_area("📥 Câu trả lời vai (JSON) — dán vào đây, hoặc để trống để đọc crew/tra_loi_<phase>.json của đoạn",
                      key=f"{key}_N4_json", height=120, disabled=busy)
+        camera_choices = _camera_controls(answer_text, key, busy) if s.get("phase") in ("quay_phim", "quay_phim_duyet") else {}
         ok = st.checkbox(CONFIRM["N4"], key=f"{key}_N4_ok", disabled=busy)
         if st.button(_label("N4"), key=f"{key}_N4", disabled=busy):
             if not ok:
@@ -278,7 +397,14 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
                 if err:
                     st.session_state[res_key] = ("N4", {"ok": False, "errors": [err]})
                 else:
-                    run("N4", lambda: stage_desk.load_answer(conn, pid, data_dir, scene, obj, who, user=user), clear=("N4_ok",))
+                    from dashboard.stage_camera_controls import apply_camera_controls
+                    try:
+                        obj = apply_camera_controls(obj, camera_choices)
+                    except ValueError as e:
+                        st.session_state[res_key] = ("N4", {"ok": False, "errors": [str(e)]})
+                    else:
+                        run("N4", lambda: stage_desk.load_answer(conn, pid, data_dir, scene, obj, who, user=user,
+                            expected_proposal_revision=st.session_state.get(f"{key}_N4_proposal_revision")), clear=("N4_ok",))
 
     if "N6" in codes:
         marks_key = f"{key}_marks"
