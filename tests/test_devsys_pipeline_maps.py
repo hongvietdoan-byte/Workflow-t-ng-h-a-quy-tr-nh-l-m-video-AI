@@ -377,7 +377,8 @@ def test_latest_click_decides_the_colour(mini, tmp_path):
 
 def test_read_only_cli_modes_do_not_log_and_replay_reads_the_main_flag(tmp_path):
     src = open(os.path.join(ROOT, "tools", "stage_auto.py"), encoding="utf-8").read()
-    assert "if not (a.beats or a.score or a.prompt_out or a.dry)" in src
+    assert "if not (beats_mode or a.score or a.prompt_out or a.dry)" in src   # --beats/--beats-crew = chế độ chỉ đọc (BEATS-CLI)
+    assert "beats_mode = a.beats is not None or bool(a.beats_crew)" in src
     from tools import replay_payload as rp
     main = tmp_path / "main"
     (main / "data").mkdir(parents=True)

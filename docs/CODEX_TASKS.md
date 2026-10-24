@@ -1930,3 +1930,66 @@ Lưu thiết lập theo dự án; xuất bản đầy đủ + kích thước kh�
 
 ### Bổ sung CX24-CLI-TOKENS (phiên con #34, tin r9hm)
 Gốc nghi vấn: lời gọi NHẸ NHẤT (change_review) vẫn ~42 nghìn token vào, video/chat_prompt/qc nền ~100 nghìn → mỗi `claude -p` có thể nạp lại system prompt + công cụ + MCP/plugin của máy (brightdata, adobe, chrome-devtools…) + CLAUDE.md + memory của thư mục làm việc; cache_read NULL. Thử: cwd ngoài repo hoặc `--setting-sources` tối thiểu, `--strict-mcp-config` với cấu hình rỗng, tắt plugin, `--allowedTools` theo khâu; đo trên fake, sau đó trình phiên chính 1 lời gọi thật có duyệt. Lời gọi 1,62 triệu = llm_calls id 1955 (chat_prompt), 920 nghìn = id 1956 (qc).
+
+### CX24-MAIN-RED
+Giao 24/10 19:25 (phiên chính) — Codex 3. 0 USD, nhẹ, pytest -n 2 tới 22:00.
+1. Ba test đỏ sẵn trên main (xác nhận trên main gốc trước): `test_devsys` (tests/test_kpi_goc.py chưa khai khu vực trong devsys/areas.json),
+   `test_devsys_plan_map` (M9.13 chưa có trong devsys/plan_map.json), `test_script_cap` (tools/m60_profile.py). Sửa gốc, không nới test.
+2. `_ref_lint` (core/runner.py ~1310) còn chọn ảnh nền 3D không theo khung đầu, lệch với phần prompt sau D6-REFROLES (f4031e9b) —
+   dùng cùng hàm chọn như đường gửi; test đỏ→xanh.
+Nhánh `codex/v31-main-red`; báo XONG kèm sha + danh sách test.
+
+### CX24-M65-VPA — M6.5 Video Prompt Artist SHADOW (ưu tiên 3; Cấp 2 shadow cờ TẮT; 0 USD)
+Giao 24/10 20:20 (phiên chính). Theo thiết kế Gói M6-B đã gộp (CX23-M6B-DESIGN, docs trong main) + EP 22/10 Q-B.
+- Cờ mới `vpa_shadow` mặc định TẮT. BẬT: từ BYĐ v2 + ảnh đã duyệt + ràng buộc model → VPA (claude_cli, gói, KHÔNG API trả phí)
+  viết motion prompt + coverage, CHỈ ghi shadow (jsonl/bảng riêng) cạnh prompt builder cũ để so; KHÔNG thay prompt gửi đi.
+- Code chỉ KIỂM (độ dài, có đủ vai ảnh như guard D6 f4031e9b, không mâu thuẫn BYĐ), kiểm trượt = ghi lý do, không im lặng.
+- Quyền duyệt prompt TÁCH quyền gửi API trả phí (không mở đường gửi mới). Cờ TẮT = gói gửi byte-y-hệt (golden COMPAT xanh).
+- Test fixture + claude giả; không chạy Claude thật / dữ liệu thật. Giảm tải RAM tới 22:00 (pytest -n 2).
+
+### CX24-M82C — M8.2 chế độ Cơ bản pha tiếp theo (ưu tiên 3; Cấp 2 sau cờ simple_mode TẮT; 0 USD)
+Giao 24/10 20:20. Phụ thuộc CX24-M82B (API gửi gen ảnh theo shot) GỘP trước. Làm phần còn của đề CX23-M82 sau pha A (d15d444d):
+nút Cơ bản dùng API theo shot (HOLD từng shot), giữ mọi guard Chuyên gia, sổ ep-2310-m84-gate-before-auto-paid (không luồng tự gửi
+trả phí trước M8.4), quyết định ep-2410-basic-post-auto (Bước 5 Cơ bản tự áp từ kịch bản khóa, thiếu dữ liệu thì báo rõ) — phần
+Bước 5 nối với CX24-P34-B5-OVERLAY khi nhánh đó GỘP. AppTest nặng chỉ chạy sau 22:00. Báo cáo + ảnh UI KHÔNG chụp bằng Computer Use.
+
+### CX24-M47-DELETE-MSG — xóa dự án có ngoại lệ: báo rõ trước khi dừng/hủy (ưu tiên 30; Cấp 2; 0 USD)
+Giao 24/10 22:20 (EP câu 2 = 2B). Phụ thuộc CX23-M47B. Bảng overrides giữ RESTRICT, CHƯA migrate.
+- Đường xóa dự án trong core/pipeline.py (~188): hiện dừng tự động + hủy task rồi mới vỡ RESTRICT, báo lỗi thô.
+- Sửa: kiểm số ngoại lệ TRƯỚC khi dừng/hủy; có thì dừng sớm, báo "dự án có N ngoại lệ — gỡ trước". Không đổi RESTRICT, không migrate.
+- Test đỏ→xanh (dự án giả có ngoại lệ: không dừng tự động, không hủy task, thông báo đúng N); không dữ liệu thật, không Computer Use.
+
+### CX24-URL-TOKEN-RA — rà bảo mật token đăng nhập trên URL ?s= (ưu tiên 20; Cấp 2; 0 USD)
+Giao 24/10 22:20 (EP câu 5: chưa lưu phiên mới, ưu tiên rà token URL). Token `?s=` hạn 12 giờ.
+- Rà đường lộ: Referer, lịch sử trình duyệt, log Streamlit/proxy, chia sẻ link, cache.
+- Đề xuất + sửa nhỏ an toàn (vd Referrer-Policy, không ghi s vào log, thu hồi token khi đăng xuất). KHÔNG thêm lưu phiên/cookie mới.
+- Test đỏ→xanh cho phần sửa; cờ mới (nếu đổi hành vi) mặc định TẮT; không dữ liệu thật, không Computer Use.
+- Báo cáo docs/RA_CX24_URL_TOKEN_*.md (mức rủi ro từng đường + việc còn lại).
+
+### CX24-HEIGHT-PROJECT — hồ sơ chiều cao height_m riêng theo dự án (ưu tiên 40; Cấp 2 RÀ KỸ; 0 USD)
+Giao 24/10 22:20 (EP câu 6). Bản riêng dự án ghi đè Kho chung; KHÔNG sửa Kho chung.
+- Khi đặt/đề xuất height_m phải tham khảo hồ sơ các nhân vật khác cùng dự án (tỉ lệ tương xứng); cảnh báo lệch bất thường.
+- Dùng chung API/ghi atomic (core/assets.py set_profile), giữ trường v1 lạ; cờ mới mặc định TẮT (TẮT = hành vi cũ byte-y-hệt).
+- Test đỏ→xanh (ghi đè đúng dự án, dự án khác không đổi, cảnh báo lệch); không dữ liệu thật, không Computer Use.
+
+### CX24-N9-REAPPROVE — xác minh N9 "Render lại" có bắt duyệt lại (ưu tiên 25; Cấp 2; 0 USD)
+Giao 24/10 22:20 (EP câu 7: giữ quyền hiện tại + xác minh duyệt lại).
+- Giữ quyền: quyền SỬA + tích xác nhận (core/stage_desk.py rerender ~916), không đổi sang chỉ-EP.
+- Xác minh: sau dự án/shot "xong", render lại có đưa sân khấu/sản phẩm về trạng thái chờ EP duyệt không.
+- Nếu đổi sản phẩm đã duyệt mà không về chờ duyệt → sửa bắt duyệt lại; test đỏ→xanh; cờ mới (nếu đổi hành vi) TẮT.
+- Báo cáo ngắn kết quả xác minh; không dữ liệu thật, không Computer Use.
+
+### CX24-M610 — M6.10 Dashboard điều phối EP: phiếu lỗi theo vai (ưu tiên 10; Cấp 2; cờ TẮT; 0 USD)
+Giao 24/10 23:15 (EP duyệt hướng TẬP TRUNG, sổ ep-2410-focus-no-new-features-2026-10-24: M6 khung trách nhiệm ƯU TIÊN CAO). Phụ thuộc CX23-M62, CX23-M64 GỘP main.
+- Đọc trước: docs/THIET_KE_GOI_M6B_2026-10-24.md (§ M6.2/M6.4, handoff/rollback), core/crew.py (owner_of_error, owner_of, can_write, roles, role), core/handoff.py (record, latest, cờ crew_handoff_shadow), core/continuity_validator.py (read_evidence, run), core/repair_router.py (plan, observe).
+- Màn Dashboard: danh sách phiếu lỗi theo vai (vai chủ, mã QC, shot, trạng thái, nguồn bằng chứng), lọc theo vai/shot/trạng thái; gán/chuyển vai kèm lý do bắt buộc, ghi qua API handoff M6.2 có sẵn (sau gộp) — KHÔNG tạo registry/bảng/JSONL trùng.
+- Định tuyến vai chủ dùng crew.owner_of_error (M6.9); hiện rõ fallback Director + owner_cannot_fix.
+- Quyền: xem theo access.need_view; gán/chuyển theo access.need_edit / EP dự án (project_executive_producers); không hardcode Owner.
+- Cờ mới mặc định TẮT (TẮT = Dashboard byte-y-hệt cũ); AppTest đỏ→xanh (lọc, chuyển vai có lý do, từ chối khi thiếu quyền); không dữ liệu thật, không Computer Use, 0 USD.
+
+### CX24-M610B — M6.10b nối khung trách nhiệm vào dự án thật: QC/cổng → phiếu → vai chủ (ưu tiên 12; Cấp 2; shadow cờ TẮT; 0 USD)
+Giao 24/10 23:15 (sổ ep-2410-focus-no-new-features-2026-10-24). Phụ thuộc CX24-M610 (và CX23-M62, CX23-M64 GỘP).
+- Khi QC/cổng bắt lỗi (continuity_validator.run, repair_router.observe, cổng trước gen) → tạo phiếu theo vai qua core/handoff.record (from/to_role, qc_evidence, approval_state), vai chủ theo crew.owner_of_error; dedup theo vai+snapshot+validator như thiết kế M6B.
+- Hiện phiếu trên màn CX24-M610; vai chủ xử lý / trả lại có lý do; không ghi trường production ngoài quyền vai (write guard M6.4).
+- Shadow: cờ mới TẮT trước (TẮT = không I/O); chỉ bật trong lượt nghiệm thu dự án thật khi EP duyệt.
+- Test đỏ→xanh: lỗi QC → đúng một phiếu đúng vai; fallback Director có note; cờ TẮT không ghi gì. Không dữ liệu thật, không Computer Use, 0 USD.

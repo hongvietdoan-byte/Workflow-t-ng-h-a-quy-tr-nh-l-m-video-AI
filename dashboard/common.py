@@ -431,7 +431,7 @@ def scoped(p: Pipeline) -> Pipeline:
     return p
 
 def project_level(p: Pipeline, pid: int):
-    """The signed-in person's level on a project: 'admin' | 'own' | 'edit' | 'view' | None (core/access.level)."""
+    """The signed-in person's level on a project: 'admin' | 'own' | 'ep' | 'edit' | 'view' | None (core/access.level)."""
     return access.level(p.conn, pid, access_user())
 
 def read_only(p: Pipeline, pid: int) -> bool:

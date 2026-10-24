@@ -1,0 +1,14 @@
+{
+  "ts": "2026-10-24T23:12:40.014642+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-N9-REAPPROVE",
+  "branch": "codex/v31-n9-reapprove",
+  "commit": "9a5d7d67",
+  "report": "docs/RA_CX24_N9_REAPPROVE_CODEX1_2026-10-24.md",
+  "text": "Codex 1: N9 da commit/push9a5d7d67, co stage_rerender_reapprove OFF. Giữ bản/camera đã duyệt, đề xuất fresh đo/final chờ EP; giữ quyền SỬA+xác nhận N9 và EP N6. Đã sửa bypass offline/reset/publicrun gỡcamera; EP trảlại vẫn lấyđềsửa. Root39pass127deselected2.59s, own23pass0.96s saufixturefix; RÀ KỸ độc lập0P1P2/root2lượt. ChưaGUI/Blender/DBthật; applylegacy khôngnguyêntử đa shot/tệp, khôngclaimrollback. Nhánh sạch/pushxong, khôngmainmerge/CU/API/data thật. Đã đọc hướng TẬP TRUNG M6, M23B/HEIGHT tạmngừng. Xin main chốt gộp dependencies M62/M64 và phân ownerM610/M610B trước nhận kế; không tự gop thaymain.",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}

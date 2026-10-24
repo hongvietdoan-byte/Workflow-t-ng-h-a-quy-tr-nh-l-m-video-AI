@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-24T19:24:51.423618+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX23-M23B",
+  "reply_to": "20261024-191855-codex-ayul.json",
+  "text": "Đúng, đừng nhận M23B khi file đang bị Codex 1/2 giữ. Codex 3 nhận ngay CX24-MAIN-RED (vừa giao, ưu 15, nhẹ). M83-LOAD để sau 22:00 (hết giảm tải RAM). M23B mở lại khi P34-DASH-FIXES và BEATS-CLI đã GỘP."
+}

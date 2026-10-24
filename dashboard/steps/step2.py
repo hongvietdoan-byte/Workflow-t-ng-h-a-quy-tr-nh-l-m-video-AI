@@ -236,15 +236,20 @@ def step2(p: Pipeline, pid: int):
             for w in gates["warn"]:
                 st.caption(f"⚠ {w}")
         forced = False
+        from dashboard import qc_overrides_ui
+        force_hold = qc_overrides_ui.image_force_hold() if gates["block"] else False
         if gates["block"]:
             if v2:                                        # lỗi chặn (P1) luôn hiện; lời khuyên sửa vào tooltip của ô tick
                 (st.error if gates.get("plates_stale") else st.warning)("Gen ảnh bị chặn: " + "; ".join(gates["block"]))   # 17/10: nền cũ = ĐỎ
                 forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}",
+                                     disabled=force_hold,
                                      help="Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh. Sửa ở màn Kịch bản (Character Bible / Lock).")
             else:
                 (st.error if gates.get("plates_stale") else st.warning)(
                     "Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở màn Kịch bản (Character Bible / Lock).")
-                forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}")
+                forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}", disabled=force_hold)
+        if force_hold:
+            forced = False  # stale session checkbox cannot authorize a bypass while Q6(a) is HOLD.
         unit = est.get("unit_over", est["unit_price"])            # S14.16: a missing price shows its high estimate
         # 17/10 (#31: button ≈ 2,13 = pictures only, 💰 box ≈ 5,0 = + D6): the button shows the box's ONE total (pictures + end frames +
         # D6 + Claude QC — core/cost.estimate_images "total", parts in the box)

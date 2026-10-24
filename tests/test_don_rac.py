@@ -621,7 +621,13 @@ def test_gop_cleanup_failure_does_not_break_event_completion(tmp_path, monkeypat
     rc, out, err = _run_hop_thu(root, "gop", "CX22-T", "--lane", "phien-chinh", "--commit", "def456")
     assert rc == 0, err
     assert "GỘP" in out or "Đã ghi" in out
-    assert len(list(event_dir.glob("*.json"))) == 4
+    # HOP-THU-GON: gop tự đẩy lô metadata rồi bỏ bản local chưa track đã xác minh → đếm theo cây git + đĩa
+    import subprocess
+    tracked = subprocess.run(["git", "-C", str(root), "ls-tree", "--name-only", "origin/main", "hop_thu/su_kien/"],
+                             capture_output=True, text=True, encoding="utf-8").stdout.split()
+    names = {Path(t).name for t in tracked} | {p.name for p in event_dir.glob("*.json")}
+    assert len(names) == 4
+    assert any("-phien-chinh-" in n for n in names)
 
 
 def test_gop_removes_clean_merged_worktree_and_local_branch(tmp_path, monkeypatch):

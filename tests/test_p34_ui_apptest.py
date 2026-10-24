@@ -76,7 +76,15 @@ def safe(tmp_path):
         keyring=ModuleType('keyring')
         for name in ('get_password','set_password','delete_password'):
             setattr(keyring,name,mock.Mock(side_effect=AssertionError('credential access blocked')))
-        stack.enter_context(mock.patch.dict(sys.modules,{'keyring':keyring}))
+        missing = object()
+        previous_keyring = sys.modules.get('keyring', missing)
+        sys.modules['keyring'] = keyring
+        def restore_keyring():
+            if previous_keyring is missing:
+                sys.modules.pop('keyring', None)
+            else:
+                sys.modules['keyring'] = previous_keyring
+        stack.callback(restore_keyring)
         from streamlit.testing.v1 import AppTest
         from core import library_height, stage_cli_proposal, stage_desk, llm_provider, cli_auth_status, access, change_review
         from dashboard import stage_desk_ui, header, common, paid_confirm, change_review_ui

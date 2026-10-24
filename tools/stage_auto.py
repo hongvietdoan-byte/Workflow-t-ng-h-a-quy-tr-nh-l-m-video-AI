@@ -10,12 +10,25 @@ chọn); autopilot chỉ chạy khi cờ bật."""
 import argparse
 import json
 import os
+import sqlite3
 import sys
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
+
+
+def _connect_readonly(path):
+    """Mở manifest có sẵn chỉ đọc cho chế độ dựng ảnh; tuyệt đối không chạy schema migration."""
+    db = Path(path).expanduser().resolve(strict=True)
+    if not db.is_file():
+        raise ValueError("--db phải là tệp CSDL hiện có.")
+    conn = sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=5)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA query_only=ON")
+    return conn
 
 
 def main(argv=None):
@@ -62,7 +75,9 @@ def _run(argv, step):
     ap.add_argument("--crew-tra-lai", metavar="JSON", help="NGƯỜI DÙNG trả lại: tệp [{\"shot\": 10, \"y_do\": \"…\"}] → Quay phim duyệt lại")
     ap.add_argument("--beats", metavar="THU_MUC", help="0 USD: lượt đã lưu của từng cảnh → mặt cắt bỏ mái (Blender, nếu chưa có) + "
                                                        "top_beats.png (đánh số / làm mờ theo nhịp) + ảnh ghép san_khau_canh<N>.png "
-                                                       "vào THU_MUC; không ghi CSDL")
+                                                       "vào THU_MUC; tự dùng crew preview nếu đang chia vai; không ghi CSDL")
+    ap.add_argument("--beats-crew", action="store_true", help="0 USD: dựng đúng tấm N5 cho một --scene, in lần đo từng shot; "
+                                                               "ảnh lưu tại beats/san_khau_canh<N>.png, chỉ đọc CSDL")
     ap.add_argument("--set-family",help="khai họ sân khấu (0 USD, ghi Kho) cho các --place, vd --set-family phong_2_cua --place 447 --place 448")
     ap.add_argument("--place", type=int, action="append", help="id bối cảnh Kho cho --set-family")
     from core import script_cap
@@ -70,16 +85,34 @@ def _run(argv, step):
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     a = ap.parse_args(argv)
-    os.environ["FEATURE_STAGE_AUTO"] = "1"               # lệnh tay = người chọn chạy (cờ chỉ điều khiển autopilot)
+    beats_mode = a.beats is not None or bool(a.beats_crew)
+    if a.beats is not None and not a.beats.strip():
+        ap.error("--beats cần đường dẫn thư mục ảnh không rỗng.")
+    if a.beats is not None and a.beats_crew:
+        ap.error("Dùng --beats để chọn thư mục ảnh hoặc --beats-crew để lưu đúng đường dẫn N5; không ghép hai cờ.")
+    if a.beats_crew and len(a.scene or []) != 1:
+        ap.error("--beats-crew cần đúng một --scene để khớp nút N5.")
+    if beats_mode and (a.set_family or a.place or a.cam_tay or a.crew or a.crew_reset or a.crew_approve or a.crew_tra_lai
+                       or a.prompt_out or a.answer or a.score or a.rerender or a.dry or a.again or a.yes):
+        ap.error("--beats/--beats-crew là chế độ ảnh chỉ đọc; không ghép với tùy chọn ghi hoặc chạy tác vụ khác.")
+    if not beats_mode:
+        os.environ["FEATURE_STAGE_AUTO"] = "1"           # lệnh tay = người chọn chạy (cờ chỉ điều khiển autopilot)
     from core import features, stage_auto
     miss = [n for n in features.REQUIRES.get("stage_auto", ()) if not features.on(n)]
-    if miss and not a.beats:                             # --beats chỉ vẽ ảnh từ lượt đã lưu (0 USD, không ghi CSDL)
+    if miss and not beats_mode:                          # --beats chỉ vẽ ảnh từ lượt đã lưu (0 USD, không ghi CSDL)
         print(f"Cờ cần cho sân khấu tự động đang TẮT: {', '.join(miss)} — bật ở 🧪 rồi chạy lại (máy sân khấu sẽ không được nền 3D dùng)")
         return
     from core.camera_plan import drawn_shots
-    from core.db import connect
-    conn = connect(os.path.abspath(a.db))
-    if not (a.beats or a.score or a.prompt_out or a.dry):  # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên
+    if beats_mode:
+        try:
+            conn = _connect_readonly(a.db)
+        except (OSError, sqlite3.Error, ValueError) as exc:
+            print(f"Không mở được CSDL chỉ đọc: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 2
+    else:
+        from core.db import connect
+        conn = connect(os.path.abspath(a.db))
+    if not (beats_mode or a.score or a.prompt_out or a.dry):  # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên
         # sơ đồ; chế độ chỉ đọc / chỉ in đề (--beats, --score, --prompt-out, --dry) không ghi; ghi ở ui_step.run_cli SAU khi chạy
         step.update(conn=conn, project=a.project, task="sân khấu 3D" + (f" cảnh {', '.join(a.scene)}" if a.scene else " cả dự án")
                     + (" · khai họ sân khấu" if a.set_family else ""))
@@ -89,6 +122,12 @@ def _run(argv, step):
     segs = stage_auto.segments(conn, a.project)
     if a.scene:
         segs = [g for g in segs if g["scene"] in a.scene]
+    if a.beats_crew:
+        segs = segs[:1]                                  # N5 chọn đoạn sân khấu đầu tiên của đúng cảnh truyện
+        if not segs:
+            print(f"Cảnh {a.scene[0]} không có shot nào trên bối cảnh 3D.")
+            conn.close()
+            return 2
     for g in segs:
         drawn = drawn_shots(conn, g)
         print(f"- {g['id']}: shot {', '.join(str(s['idx']) for s in g['shots'])} · chỗ đứng {g['spots']} · gốc O = {g['main_spot']}"
@@ -184,25 +223,28 @@ def _run(argv, step):
             if r["errors"]:
                 step.update(result="error", why=f"câu trả lời ngoại tuyến LỖI ({len(r['errors'])})")
         return
-    if a.beats:                                          # 16/10: ảnh nhìn từ trên theo nhịp cho người duyệt — 0 USD, không ghi CSDL
-        os.makedirs(a.beats, exist_ok=True)
-        t = stage_auto.tool()
-        for g in segs:
-            got = stage_auto.result_round(a.data_dir, a.project, g)
-            if got is None:
-                print(f"## {g['id']}: chưa có lượt đã lưu — bỏ qua")
-                continue
-            if not os.path.exists(os.path.join(got, "top_cut.png")):
-                try:
-                    t.top_cut(got, log=print)
-                except Exception as e:  # noqa: BLE001 - vẫn vẽ trên ảnh chưa cắt
-                    print(f"  {g['id']}: không cắt được mái ({type(e).__name__}: {e}) — vẽ trên ảnh từ trên thường")
-            title = f"#{a.project} cảnh {g['scene']} — {g['id']} (shot {g['shots'][0]['idx']}–{g['shots'][-1]['idx']})"
-            try:                                         # rà 16/10: một cảnh hỏng không dừng cả vòng
-                t.draw_beats(got)
-                print(t.stage_sheet(got, title, os.path.join(a.beats, f"san_khau_canh{g['scene']}.png")))
-            except Exception as e:  # noqa: BLE001
-                print(f"  {g['id']}: không vẽ được ({type(e).__name__}: {e})")
+    if beats_mode:                                      # N5 và CLI dùng chung crew_preview + renderer; SQLite chỉ đọc
+        from core import stage_desk
+        try:
+            for g in segs:
+                output = (os.path.join(a.beats, f"san_khau_canh{g['scene']}.png") if a.beats else
+                          os.path.join(stage_desk.seg_dir(a.data_dir, a.project, g), "beats",
+                                       f"san_khau_canh{g['scene']}.png"))
+                result = stage_auto.render_beats_sheet(a.data_dir, a.project, g, output, log=print)
+                if not result.get("ok"):
+                    print(f"## {g['id']}: " + "; ".join(result.get("errors") or ["không dựng được tấm ghép"]))
+                    continue
+                if result.get("lan_do"):
+                    picked = result["lan_do"]
+                    print("  lần đo từng shot: " + ", ".join(
+                        f"shot {shot} ← {picked[shot]}" for shot in sorted(picked, key=int)))
+                elif a.beats_crew:
+                    print("  không có lượt chia vai đang dở; dùng lượt đã lưu hiện hành như nút N5")
+                for note in result.get("notes") or []:
+                    print("  ⚠ " + note)
+                print(result["path"])
+        finally:
+            conn.close()
         return
     if a.score:
         for g in segs:

@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T22:25:04.311609+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Nhắc lại theo người dùng 22:20: HẾT giảm tải — cả 3 Codex chạy tốc độ cũ (pytest -n 8 khi cần, được chạy cả bộ, server/AppTest phụ được dùng, tối đa 2 phiên test nặng cùng lúc)."
+}
