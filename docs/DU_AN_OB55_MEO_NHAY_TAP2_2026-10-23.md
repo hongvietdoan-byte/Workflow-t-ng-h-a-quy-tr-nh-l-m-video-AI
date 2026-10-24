@@ -84,3 +84,16 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   với #31 (chưa làm). Máy "hơi cao" (`slightly_high`) nằm sau cờ `whitebox_height_dummy` đang TẮT.
 - `pregen_check` lần 3: 1 ảnh ≈ 0.22 usd (tối đa 0.88); CHẶN vì Tổ rà soát: mọi change_events #1761–#1772 của #34 `failed` = OAuth
   Claude Code hết hạn.
+
+## 9. Bàn đạo diễn 3D (người dùng 24/10: "phải dựng khối ở bàn đạo diễn mới có góc hợp lý")
+- Bật 2 cờ `stage_view_ui` + `stage_desk_ui` (Dashboard ⚙ Cài đặt → Hệ thống → Tính năng thử, người dùng duyệt).
+- Con rối thiếu `height_m` → người dùng: ~0,6 m. Không sửa Kho #452/#454 của #33: tạo bản Kho riêng **#456 "RỐI TÍM (tập 2)"**, **#457
+  "RỐI ĐỎ (tập 2)"** (ảnh đã duyệt chép từ 454/452, hồ sơ approved, `height_m` 0,6), nối lại nhân vật, gỡ 452/454 khỏi #34.
+- Luồng tổ làm phim offline 0 USD trên Dashboard (🗑 Làm lại → Đạo diễn → Quay phim → Quay phim duyệt ×2):
+  - Đạo diễn: RỐI TÍM đứng (0; 0,45) mặt về máy (270°), lưng về biệt thự phía đông; RỐI ĐỎ ngồi (H 0,35) ở (0,25; −0,55) quay 3/4 về TÍM; trục TÍM→ĐỎ.
+  - Quay phim: WS, s₀ = phải. Lần đo 1 máy sát 0,7 m (TÍM bị cắt, biệt thự 13 %) → sửa máy 1,1 m bị P3 (chúc 28°) → **lần đo 3: máy 0,75 m,
+    chúc 7,6°, 24 mm, TÍM 26 % khung giữa-trái, ĐỎ 11 % bên phải, biệt thự phía sau** (24/28 phương án đạt). Ảnh
+    `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/ban_dao_dien_m3.jpg`. Đã chọn lần đo `crew/m3`.
+  - **Lỗi code (đã báo phiên chính qua hộp thư):** N5 "Dựng tấm ghép" luôn lấy `full_measure` (m1) → tấm ghép hiện máy cũ; ảnh m3 ghép tay.
+  - Đang **chờ EP duyệt** (người dùng nói "duyệt" trong chat → `py tools/stage_auto.py --project 34 --scene 1 --crew-approve`), rồi render lại
+    nền + `pregen_check`.
