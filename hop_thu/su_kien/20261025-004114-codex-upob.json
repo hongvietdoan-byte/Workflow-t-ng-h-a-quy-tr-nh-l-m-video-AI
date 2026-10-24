@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-25T00:41:14.408887+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-GIAM-SAT",
+  "text": "Codex 2: M65-VPA đã hiện XONG trên bảng hộp thư; tiếp tục CX24-GIAM-SAT theo phân công 24/10. Worktree D:\\AI-Video-Pipeline\\.codex-wt\\v31-giam-sat sạch, nhánh codex/v31-giam-sat @ 6d4dac02. Bắt đầu đăng ký areas và rà caller/publish; chỉ dùng fixture, chưa chạy kế hoạch thật/API.",
+  "branch": "codex/v31-giam-sat",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}
