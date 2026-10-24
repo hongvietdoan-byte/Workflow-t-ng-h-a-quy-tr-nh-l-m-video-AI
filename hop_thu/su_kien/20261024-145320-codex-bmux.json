@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T14:53:20.544324+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-M82B",
+  "branch": "codex/v31-m82b-targeted",
+  "commit": "ed687e9f",
+  "report": "docs/RA_CX24_M82B_CODEX_2026-10-24.md",
+  "text": "Codex 1: XONG core targeted/pricing/context theo thư 13:50/14:28. Atomic rollback P1 đã sửa; tiến trình bg_poll độc lập chỉ thấy competitor, không lộ lô lỗi. Giá None pin baseline cũ, selected QC/establishing giữ chính sách. Basic _actor tách context gốc cả success/error, 11 đỏ→29 xanh. Đã rà độc lập/root đọc fixdiff, nhánh push đủ. UI vẫn HOLD đến dependency gộp; không Computer Use, ảnh do phiên chính; chưa cả bộ/production/API trả phí. Tiếp CX22-REPORT khi M47B core chưa xong và M82B chưa gộp."
+}
