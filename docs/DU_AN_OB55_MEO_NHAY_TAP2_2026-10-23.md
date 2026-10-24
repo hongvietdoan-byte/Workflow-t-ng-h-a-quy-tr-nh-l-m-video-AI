@@ -127,3 +127,7 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   + `motion_prompts` (vai ĐỎ: ngồi xổm, nghiêng, nhổm dậy bước theo, về lại thế xổm; negative thêm "no iPhone, no brand logo")
   — sao lưu `data/_luu_tru_manifest_truoc_p34_ngoi_xom_1314.sqlite`. Tổ rà soát rà 2 thay đổi (0.12 USD), 0 chặn; mục vàng #903/#905
   lại là luật dò tên Kho #454 (báo sai). QC tự kiểm ảnh 1197 = giữ (0.00). `pregen_check_7`: mã 0. Vẽ lại 1 ảnh ≈ 0.16 USD chờ duyệt.
+- 24/10 người dùng "Vẽ lại … dáng ngồi", rồi nói rõ **ngồi xổm = mông không chạm đất**. Vẽ lại trên Dashboard (Câu sửa tiếng Anh + Lý do
+  "Nhân vật sai" — nút ↻ Vẽ lại bị khóa tới khi chọn lý do) → job 1197 `rejected`, **job 1198 `succeeded`** (`job_1198.png`, bản sao
+  `anh_khung_dau_job1198_ngoi_xom.png`, so sánh `so_sanh_1197_vs_1198.jpg`): RỐI ĐỎ ngồi xổm, mông không chạm đất, lưng nửa về máy, điện
+  thoại đen trơn. Khác bản cũ: RỐI TÍM mặc áo xanh + quần xanh đậm (đúng must_keep Kho), góc phải trời có trăng. Chờ người dùng duyệt ảnh.
