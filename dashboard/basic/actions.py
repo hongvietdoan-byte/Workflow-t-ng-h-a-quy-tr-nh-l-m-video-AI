@@ -1,5 +1,6 @@
 """Callback người bấm: dùng lại nghiệp vụ và cổng hiện hành, không vòng tự gửi."""
 import math
+from copy import copy
 
 from core import access, simple_budget
 
@@ -21,25 +22,27 @@ def _actor(p, pid, *, confirmed=False, paid=False):
     access.require(p.conn, pid, who, need="edit", action="thao tác ở chế độ Cơ bản")
     if paid and p.project(pid)["paused"]:
         raise ValueError("Đã tạm dừng — không gửi job mới")
-    p.user = who
-    p.actor = who["email"] if who else "user"
-    p.origin = None  # thao tác người bấm, không kế thừa ngữ cảnh autopilot
-    return who
+    # Giữ kết nối/transaction hiện hành, tách identity khỏi Pipeline dùng chung.
+    context = copy(p)
+    context.user = dict(who) if who else None
+    context.actor = who["email"] if who else "user"
+    context.origin = None  # thao tác người bấm, không kế thừa ngữ cảnh autopilot
+    return context
 
 
 def pause(p, pid, paused):
-    _actor(p, pid, confirmed=True)
+    p = _actor(p, pid, confirmed=True)
     p.set_paused(pid, bool(paused))
 
 
 def save_idea(p, pid, text):
-    _actor(p, pid, confirmed=True)
+    p = _actor(p, pid, confirmed=True)
     from core import idea_to_script
     return idea_to_script.start(p.conn, pid, text, p=p)
 
 
 def use_script(p, pid, text):
-    _actor(p, pid, confirmed=True)
+    p = _actor(p, pid, confirmed=True)
     from core import idea_to_script
     if "inputs" not in idea_to_script.get_state(p.conn, pid):
         # Nhập kịch bản trực tiếp không bắt buộc đã gửi ý tưởng trước đó.
@@ -79,7 +82,7 @@ def quote(p, pid, data_dir, kind):
 
 def send(p, pid, data_dir, kind, *, confirmed=False, expected_quote=None):
     """Chỉ initial send; retry/reject/reopen/voice/music dành pha B."""
-    _actor(p, pid, confirmed=confirmed, paid=True)
+    p = _actor(p, pid, confirmed=confirmed, paid=True)
     if not selected_send_ready():
         raise ValueError("Đang giữ cả lô — chưa bảo đảm tập job gửi (chờ CX24-M82B)")
     from core import batch

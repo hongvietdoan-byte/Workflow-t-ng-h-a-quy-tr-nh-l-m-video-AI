@@ -86,7 +86,7 @@
       "code": ["core/autopilot.py", "core/automation.py", "core/pilot.py", "core/batch.py", "core/autoqc.py", "core/qc_policy.py"],
       "assets": ["tools/pilot_run.py", "tools/pilot_setup.py"],
       "docs": ["docs/RUNBOOK.md"],
-      "tests": ["tests/test_layout_follow.py", "tests/test_bg_autoqc.py", "tests/test_v31_fix6_desk.py"],
+      "tests": ["tests/test_layout_follow.py", "tests/test_bg_autoqc.py", "tests/test_v31_fix6_desk.py", "tests/test_batch_targeted_images.py"],
       "flags": ["layout_from_follow", "voice_check_redo", "storyboard_auto_trust", "lip_sync", "audio_first", "cli_call_budget"],
       "diag_stages": ["autopilot"],
       "keywords": ["autopilot", "tự động", "tự chạy", "pilot", "chạy thử"]
@@ -99,7 +99,7 @@
       "code": ["tools/clipai_cost_reconcile.py", "core/budget.py", "core/project_budget.py", "core/simple_budget.py", "core/money_reset.py", "core/cost.py", "core/spend_gate.py", "core/money_policy.py", "core/budget_rounds.py", "core/project_reserve.py", "core/script_cap.py", "dashboard/admin.py", "dashboard/header.py", "core/timestamps.py", "dashboard/paid_confirm.py", "dashboard/approve_preview.py", "dashboard/paid_batch_preview.py"],
       "assets": ["data/pricing.json"],
       "docs": [],
-      "tests": ["tests/test_clipai_cost_reconcile.py", "tests/test_cost_paid_group_index.py", "tests/test_out_of_credit.py", "tests/test_project_budget.py", "tests/test_basic_mode.py", "tests/test_project_budget_video_remaining.py", "tests/test_spend_gate.py", "tests/test_spend_gate_scan.py", "tests/test_money_policy.py", "tests/test_budget_rounds.py", "tests/test_project_reserve.py", "tests/test_price_label_scan.py", "tests/test_script_cap.py", "tests/test_safe_paid_buttons.py", "tests/test_m80b_money_rest.py"],
+      "tests": ["tests/test_m82b_selected_cost.py", "tests/test_clipai_cost_reconcile.py", "tests/test_cost_paid_group_index.py", "tests/test_out_of_credit.py", "tests/test_project_budget.py", "tests/test_basic_mode.py", "tests/test_project_budget_video_remaining.py", "tests/test_spend_gate.py", "tests/test_spend_gate_scan.py", "tests/test_money_policy.py", "tests/test_budget_rounds.py", "tests/test_project_reserve.py", "tests/test_price_label_scan.py", "tests/test_script_cap.py", "tests/test_safe_paid_buttons.py", "tests/test_m80b_money_rest.py"],
       "flags": ["project_budget", "send_estimate", "budget_notice_d01", "safe_paid_buttons", "cli_call_budget"],
       "diag_stages": [],
       "keywords": ["ngân sách", "sổ chi", "trần", "giá", "pricing", "budget", "credit", "ước tính", "báo giá"]
