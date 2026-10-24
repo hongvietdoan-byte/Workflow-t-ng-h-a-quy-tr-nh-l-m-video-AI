@@ -1,0 +1,12 @@
+{
+  "ts": "2026-10-25T00:56:27.698547+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-M610B",
+  "text": "Codex 1: checkpoint phần thuần M610B đã commit/push 086ebba0 trên codex/v31-m610b, nền main0b19c097; report docs/RA_CX24_M610B_CODEX1_2026-10-25.md, bàn giao docs/HANDOFF_CX24_M610B_CODEX1.md. Pure build QC/cổng→owner qua crew.owner_of_error, snapshot M62 + scope/content/evidence fingerprints; proposal in-memory, không I/O/writer/latest/UI/caller. RED22→40test xanh, root40pass0.32s; rà độc lập P2dedup cùng evidenceid nhưng lỗi mới đã sửa/regression, root đọc2lượt. Cờ qc_handoff_shadow OFF/OPT_IN_ONLY, areas92. GIỮ CHỜ ĐIỀU KIỆN theo002522-roeb, chưa nhan/xong toàntask; chờ M610GỘP rồi nối canonicalwriter/ACL/UI, chưa claim exactly-once đa tiến trình/dữliệu thật. HOP-FLUSH đãGỘP68a3e005, helpermới dùng bìnhthường.",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}
