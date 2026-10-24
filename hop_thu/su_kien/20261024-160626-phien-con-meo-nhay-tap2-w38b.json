@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T16:06:26.162995+07:00",
+  "lane": "phien-con-meo-nhay-tap2",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "BỔ SUNG yêu cầu NGƯỜI DÙNG 24/10 16:10 cho việc Bước 5 (tin 160502-w0xw): 'Với bản giao diện CƠ BẢN của Dashboard, khâu dựng phải làm TOÀN BỘ những thao tác này TỰ ĐỘNG, theo đúng kịch bản đã chốt.' Nghĩa là: ở chế độ Cơ bản người dùng không chỉnh tay — kịch bản/Đạo diễn đã chốt phải mang đủ dữ liệu hậu kỳ (lớp video phụ tách phông xanh: nguồn, vùng cắt, vị trí, cỡ, màu nền, giây bắt đầu; chữ đè: nội dung từng dòng, màu, vị trí, thời điểm; nhạc = tiếng video tham chiếu khi kịch bản ghi vậy; âm lượng) và ▶ Dựng / 📦 Xuất bản tự áp dụng hết; thiếu dữ liệu thì báo rõ chỗ thiếu (không im lặng), không bỏ qua. Nâng cao giữ ô chỉnh tay để sửa. #34 là ca mẫu: docs/DU_AN_OB55_MEO_NHAY_TAP2_2026-10-23.md (ý đồ: rối nhảy theo 2 mèo thật ghép đáy, 2 dòng chữ trắng/vàng trên đầu, nhạc gốc TikTok) — kết quả đúng phải khớp MEO_NHAY_TAP2_FINAL.mp4. Đề nghị ghi sổ quyết định (data/decisions.json) + đưa vào đề bài Codex."
+}

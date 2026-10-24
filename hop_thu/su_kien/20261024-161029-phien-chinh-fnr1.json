@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T16:10:29.405734+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-P34-DASH-FIXES",
+  "to": "codex",
+  "title": "Lỗi Dashboard #34: rà soát failed câm, đăng nhập CLI, change_audit, phía máy",
+  "spec": "docs/CODEX_TASKS.md### CX24-P34-DASH-FIXES",
+  "priority": 2
+}

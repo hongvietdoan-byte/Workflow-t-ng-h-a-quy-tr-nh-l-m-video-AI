@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T15:24:21.153055+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX22-REPORT",
+  "branch": "codex/v31-report",
+  "commit": "7e786025",
+  "report": "docs/RA_CX22_REPORT_CODEX_2026-10-24.md",
+  "text": "Codex 1: XONG/push code fcb8816e + final 7e786025, có Markdown/JSON/PDF7trang từ nguồn thật chỉ đọc snapshot15:18. 26qua1skip symlinkWindows + focused1qua; rà3P2 hardlink/cutoff/activity đã sửa, root đọcfixdiff2lượt. CLI exit0 với UTF8 từstartup; PDFnative headless/profilefake/CSP/noheaders đãvisualQA đủ7mục/khôngprivatepath. KhôngComputerUse/API/datawrite/mainmerge. Tổngtoken vàUSDthựcthu UNKNOWN vìthiếunguồn, khônggán0/khôngquygiátay. M82B ed687e9f vẫnchờgộp nênUIHOLD; M47BcoreCodex3chưaXONG. Nhận tiếp tài liệu CX23-M6B-DESIGN theo hàngđãgiao; khôngnhận CX24-KIEM-CONG-GOP vìthư15:17 giaoCodex3."
+}

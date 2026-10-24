@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T15:13:04.359039+07:00",
+  "lane": "phien-con-meo-nhay-tap2",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "LỖI CODE (#34 job 1202, 24/10): D6 viết lại prompt video khi bấm '↻ Gen lại theo ảnh/prompt mới' (step4 regen.regenerate_video) làm RƠI câu vai ảnh 'Image 2 is ROI TIM: identity only … Image 3 is ROI DO: identity only … Image 4 is the 3D PLACE render' (job 1199 cùng shot còn đủ). Seedance 2.5 chép nguyên tiêu đề 'CHARACTER SHEET REFERENCE' + dấu + đỏ của ảnh Kho 456/457 vào CẢ clip 480p (mất ≈1.34 USD). Cần: câu vai ảnh refs bắt buộc giữ sau D6 (kiểm bằng code trước khi gửi, thiếu thì chặn/ghép lại), hoặc ảnh nhân vật gửi đi không có banner/dấu. Phiên con đã chặn tạm bằng câu trong motion_prompt + negative."
+}

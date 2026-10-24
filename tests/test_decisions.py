@@ -338,6 +338,101 @@ def check_m6_engineer_cannot_write_production():
     assert all(not crew.can_write("engineer", field, reg) for field in reg["fields"])
 
 
+def _decision_test_module(filename):
+    import importlib.util
+    path = os.path.join(ROOT, "tests", filename)
+    spec = importlib.util.spec_from_file_location("_decision_" + filename.replace(".", "_"), path)
+    assert spec and spec.loader, f"không nạp được {path}"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def check_qf_safe_paid_buttons():
+    """Q-F: chạy toàn bộ kiểm tra giá/xác nhận/hoàn tác và không tự gửi trong tests/test_safe_paid_buttons.py (fixture, 0 USD)."""
+    import unittest
+    module = _decision_test_module("test_safe_paid_buttons.py")
+    suite = unittest.defaultTestLoader.loadTestsFromModule(module)
+    result = unittest.TestResult()
+    with tempfile.TemporaryDirectory(prefix="decision_qf_home_") as home:
+        with mock.patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}, clear=False):
+            suite.run(result)
+    failures = result.failures + result.errors
+    assert result.testsRun and result.wasSuccessful(), [f"{case.id()}: {error[-500:]}" for case, error in failures]
+
+
+def check_qd3_auto_spend_limit():
+    """QD3: khi CX23-M82 vào main, chạy các ca core về duyệt hạn mức, quyền hiện tại, giá hiện tại và cảnh báo gồm khoản giữ chỗ."""
+    from pathlib import Path
+    from core import simple_budget  # noqa: F401 — thiếu module trên main thì check pending phải còn đỏ
+
+    module = _decision_test_module("test_basic_mode.py")
+
+    def run_project_case(name, *args):
+        with tempfile.TemporaryDirectory(prefix="decision_qd3_") as temp:
+            fixture = module.project._fixture_function
+            generator = fixture(Path(temp))
+            project = next(generator)
+            try:
+                getattr(module, name)(project, *args)
+            finally:
+                try:
+                    next(generator)
+                except StopIteration:
+                    pass
+
+    run_project_case("test_auto_budget_is_separate_from_old_warning_cap")
+    for identity in (None, {"email": "edit@example.test", "role": "member"},
+                     {"email": "missing@example.test", "role": "owner"}):
+        run_project_case("test_budget_rejects_missing_identity_editor_and_forged_owner", identity)
+    run_project_case("test_budget_requires_current_project_confirmation_and_current_quote")
+    run_project_case("test_disabled_user_cannot_approve_even_with_old_session")
+    run_project_case("test_approval_rollback_belongs_to_caller_transaction")
+    module.test_eighty_percent_includes_reservations_without_blocking_manual_spend()
+    run_project_case("test_stage_one_does_not_approve_legacy_warning_estimate")
+    run_project_case("test_stage_one_holds_send_before_provider_even_with_matching_quote")
+
+
+def check_e4_attempt_counters():
+    """E4/M6: bộ đếm theo shot giữ nguyên qua đổi prompt/model, tính lượt gửi chưa rõ và phân biệt nâng nháp với bản cao gen mới."""
+    from pathlib import Path
+    from core import gen_auth
+
+    assert gen_auth.LIMITS.get("image_gen") == 3 and gen_auth.LIMITS.get("video_gen") == 2
+    module = _decision_test_module("test_v31_m63_gen_auth.py")
+    fixture = module._fresh_pricing_cache.__wrapped__()
+    opened = []
+    setup = module._setup
+
+    def tracked_setup(*args, **kwargs):
+        result = setup(*args, **kwargs)
+        opened.append(result[0])
+        return result
+
+    next(fixture)
+    try:
+        with mock.patch.object(module, "_setup", side_effect=tracked_setup):
+            for name in ("test_fourth_image_attempt_would_be_blocked_and_counter_never_resets",
+                         "test_third_image_attempt_is_allowed", "test_video_limit_two_and_upgrade_from_draft_not_counted",
+                         "test_final_made_new_is_a_counted_attempt", "test_not_created_is_not_counted_submit_unknown_is",
+                         "test_ep_grant_starts_a_new_cycle",
+                         "test_group_clip_sent_by_the_first_shot_counts_for_the_other_shot"):
+                with tempfile.TemporaryDirectory(prefix="decision_e4_") as temp:
+                    first = len(opened)
+                    try:
+                        getattr(module, name)(Path(temp))
+                    finally:
+                        for pipeline in opened[first:]:
+                            pipeline.conn.close()
+    finally:
+        for pipeline in opened:
+            pipeline.conn.close()
+        try:
+            next(fixture)
+        except StopIteration:
+            pass
+
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 

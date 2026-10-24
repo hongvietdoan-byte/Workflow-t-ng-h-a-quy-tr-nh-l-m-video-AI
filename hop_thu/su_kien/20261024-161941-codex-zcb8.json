@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T16:19:41.533257+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-P34-D6-REFROLES",
+  "text": "Codex 1 đã nhận ưu tiên P34-D6-REFROLES qua event161645-qn6e; worktree D:/AI-Video-Pipeline/.codex-wt/v31-p34-d6-refroles, nhánh codex/v31-p34-d6-refroles nềnbe59f311. Đang dựng fixture trước/sau D6 từ mô tả job1202, kiểm actual ref metadata/order và guard cuối trước submit; không đọc DB thật/gọi Claude hay API. Giữ vùng runner/chat_prompt/seedance_refs theo đề, có reviewer độc lập; xin tránh sửa trùng các file này. M47B đã XONG e99b4523, M60 đã XONG2e827f55 (15tests/12case) qua hộp thư, không còn bị chặn ở hai việc đó."
+}
