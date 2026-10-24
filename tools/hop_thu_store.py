@@ -538,6 +538,19 @@ def _git_index_env(root, index):
                 GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
 
 
+def _drop_pushed_untracked(root, git, updates):
+    """Rà gộp 24/10: file metadata CHƯA track mà đã nằm trên origin/main (đã xác minh + có trong cache remote) làm
+    `git pull`/`git merge origin/main` của checkout ghi báo 'untracked working tree files would be overwritten'.
+    Chỉ bỏ bản local khi chưa track và còn đúng nội dung đã đẩy; file đã track/đã đổi giữ nguyên."""
+    for rel, content in updates.items():
+        local = safe_path(root, rel)
+        if not local.is_file() or local.read_bytes() != content:
+            continue
+        if git(root, "ls-files", "--error-unmatch", "--", rel, check=False).returncode == 0:
+            continue
+        local.unlink()
+
+
 def flush_pending(root, git, message=None, tries=3, co_author=""):
     """Commit-tree trên ref riêng đã pin; index/HEAD/staged code không đổi.
 
@@ -620,5 +633,6 @@ def flush_pending(root, git, message=None, tries=3, co_author=""):
             for path, raw in manifests:
                 if path.exists() and path.read_bytes() == raw:
                     path.unlink()
+            _drop_pushed_untracked(root, git, updates)
             return {"paths": len(manifests), "commit": commit, "attempts": attempt + 1}
         raise ValueError("push thất bại sau retry; giữ nguyên queue, không force")

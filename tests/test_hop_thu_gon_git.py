@@ -186,3 +186,16 @@ def test_second_sync_same_sha_uses_verified_blob_cache(tmp_path):
     second = ht.store.sync_remote(clones[0], measured)
     assert first == second
     assert sum(args[0] == "cat-file" for args in calls) == 1
+
+
+def test_pushed_event_does_not_block_pull_of_writer_checkout(tmp_path):
+    """Rà gộp 24/10: file sự kiện đã đẩy không được nằm lại dạng chưa track (git pull báo 'would be overwritten')."""
+    remote, clones = repos(tmp_path)
+    root = clones[0]
+    assert ht.main(["--goc", str(root), "giao", "PULLOK", "--lane", "phien-chinh", "--to", "cloud-B", "--title", "pull fixture"]) == 0
+    records, errors = ht.store.load_records(root)
+    assert not errors and len(records) == 1          # vẫn đọc được từ cache remote đã xác minh
+    git(root, "pull", "-q", "--ff-only", "origin", "main")
+    assert len(list((root / "hop_thu/su_kien").glob("*.json"))) == 1
+    records, errors = ht.store.load_records(root)
+    assert not errors and len(records) == 1
