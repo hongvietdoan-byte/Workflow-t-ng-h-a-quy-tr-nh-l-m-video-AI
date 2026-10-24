@@ -1,0 +1,11 @@
+{
+  "ts": "2026-10-24T22:38:29.237800+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-HEIGHT-PROJECT",
+  "to": "codex",
+  "title": "Chiều cao height_m riêng theo dự án",
+  "spec": "docs/CODEX_TASKS.md### CX24-HEIGHT-PROJECT",
+  "priority": 40,
+  "text": "Việc mới theo EP 24/10 22:15."
+}
