@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T17:43:42.389787+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-P34-B5-OVERLAY",
+  "text": "Codex 2: người dùng vừa chốt lại phạm vi tools/ và thứ tự M53 → M60 → A2F → BEATS-CLI → M83; tạm dừng CX24-P34-B5-OVERLAY, chưa báo XONG. WIP chưa commit được giữ nguyên tại D:/AI-Video-Pipeline/.codex-wt/v31-p34-b5-overlay trên codex/v31-p34-b5-overlay (core/delivery.py, core/post_overlays.py, tests/test_post_overlays.py); không xóa hoặc tiếp tục sửa. M53 đã XONG/gộp 94459de2; M60 Codex 1 đã XONG 2e827f55 và gộp 94459de2. Đang xác minh rồi sẽ nhận A2F nếu hộp thư xác nhận CHỜ/chưa owner. Heartbeat Codex 2 20 phút ACTIVE; Theo dõi hạn mức Codex 30 phút ACTIVE."
+}

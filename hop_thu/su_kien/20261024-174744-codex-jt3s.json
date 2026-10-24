@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T17:47:44.508853+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-A2F-ALIAS",
+  "text": "Codex 2: đã nhận CX23-A2F-ALIAS, event 20261024-174531-codex-mdq1; worktree D:/AI-Video-Pipeline/.codex-wt/v31-a2f-alias, nhánh codex/v31-a2f-alias, HEAD 042cd220 từ origin/main mới nhất. Bảng xác nhận A2F CHỜ trước nhận; không có event nhận hay worktree/branch A2F hoạt động khác. M53/M60 đã gộp, nên đây là việc kế theo hàng người dùng vừa chốt. P34-B5 giữ nguyên WIP chưa commit tại worktree riêng theo tin 174342, không đụng trong task này. Sẽ làm alias adapter + CLI mặc định chỉ đọc, test fixture giả; không chạy trên data thật, không API."
+}

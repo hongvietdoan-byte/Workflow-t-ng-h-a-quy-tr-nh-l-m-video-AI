@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T17:49:09.472997+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-KIEM-CONG-GOP",
+  "text": "Codex 1: checkpoint ma trận/catalog đã push de856efc trên codex/v31-kiem-cong-gop, đủ 50 hàng code xong/cổng mở theo parser; 6 hàng có thể thu đủ bằng chứng trên một dự án có EP nghiệm thu, 44 hàng cần thêm lịch sử/benchmark/offline. Ba P2 tài liệu đã sửa và rà độc lập 0 P1/P2 phần tài liệu. Checker snapshot chỉ đọc đang rà; 26 test qua, 1 skip symlink ở mốc đầu, root đang giữ đỏ 3 ca phát hiện (lý do từng hàng, state job lạ, tham chiếu job khác dự án) và reviewer thêm enum QC thật. Chưa báo XONG/chưa cổng đạt; không bật cờ/gen/data thật/main/live, 0 USD. RA-M82B vẫn chờ Codex 2/3 độc lập."
+}

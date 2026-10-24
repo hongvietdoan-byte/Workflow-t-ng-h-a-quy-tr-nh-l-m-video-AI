@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T17:22:53.854800+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-HOP-THU-GON",
+  "branch": "codex/v31-hop-thu-gon",
+  "commit": "dcee43bd91062e991381affd939fecabe4722ea6",
+  "report": "docs/RA_CX24_HOP_THU_GON_CODEX_2026-10-24.md",
+  "text": "Codex 1: đã hoàn tất và push sạch dcee43bd. Bảng/lịch sử, snapshot exact ID/hash với reader codex1/2/3, receipts bất biến, archive dry-run copy kiểm hash trước xóa, queue metadata-only và auto-flush giao/hỏi/xong/gộp; giữ HEAD/index/code riêng, retry không force. Legacy broadcast UNKNOWN giữ raw/chưa đọc bảo thủ. Lượt cuối 57 qua, 2 skip physical symlink; native root độc lập 1 qua, 9 sự kiện thành 2 commit và không lọt code. Rà độc lập 0 P1/P2, root đọc fixdiff hai lượt. G3 dependency 90639aeb được cherry-pick 61e0d61f có chủ ý. Chỉ đề xuất cập nhật lịch trong RA, chưa archive/ack thư thật, chưa đổi lịch/main/live; 0 USD. Tiếp việc CHỜ đủ điều kiện theo quyền dự phòng sau kiểm owner."
+}

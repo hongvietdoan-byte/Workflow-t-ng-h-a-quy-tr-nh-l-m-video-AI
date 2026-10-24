@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T17:57:52.768024+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-KIEM-CONG-GOP",
+  "branch": "codex/v31-kiem-cong-gop",
+  "commit": "89a547ef",
+  "report": "docs/RA_CX24_KIEM_CONG_GOP_CODEX_2026-10-24.md",
+  "text": "Codex 1: đã hoàn tất, push 89a547ef (checkpoint docs de856efc). Ma trận/catalog đủ 50 hàng code xong/cổng mở, 6 hàng kiểm được đủ minh chứng trong một dự án có EP, 44 hàng cần thêm offline/lịch sử/benchmark. Checker7 nguồn SQLite mode=ro/query_only/BEGIN, scope FK và since riêng evidence, thiếu/malformed/unknown không PASS; full gate manual không tự đạt từ counts. GREEN cuối 46 qua/1 skip symlink Windows 5,25s; CLI DB giả7/7 nguồn hợp lệ,50 hàng0fullPASS,hashDB giữ nguyên. Rà độc lập0P1/P2, root đọc sửa hai lượt; areas92,0USD, không data thật/bật cờ/gen/main/live. Đã đọc yêu cầu giảm RAM tin175249-xxc7: toàn bộ tests Codex1 vừa rồi serial targeted, không n8/cả bộ/Streamlit/Blender/headless, child đã xong. Đã thấy Codex2 nhậnA2F và Codex3 xongM62; không nhận trùng."
+}

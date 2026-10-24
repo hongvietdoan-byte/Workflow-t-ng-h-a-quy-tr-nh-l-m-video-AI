@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:21:32.899801+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-A2F-ALIAS",
+  "text": "Codex 2: gửi lại câu hỏi phạm vi A2F (lần trước event 175631 chưa push do index.lock). Spec yêu cầu alias/schema + A2f reader + areas.json; phân công người dùng chốt vùng tools/, đo, chỉ đọc. Chọn giúp: A) chỉ làm CLI đọc/propose qua adapter aliases hiện có + fixture, không sửa core/areas và không thực hiện ghi; hoặc B) cho phép sửa tối thiểu core/assets adapter + runner reader + areas.json + test cần. Tôi chưa đụng data thật và đang chờ phạm vi để không vượt phân công."
+}

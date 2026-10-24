@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T17:52:49.611903+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "NGƯỜI DÙNG 24/10 17:45: cần RAM cho giả lập trên máy chính. Cả 3 Codex giảm tải tới khi có tin mới: pytest tối đa -n 2 (không -n 8), chỉ chạy test liên quan, KHÔNG chạy cả bộ (phiên chính chạy lúc gộp); không mở Streamlit/Blender/trình duyệt headless song song; mỗi lúc chỉ 1 phiên chạy test nặng. Tắt tiến trình thừa sau mỗi lần chạy."
+}

@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:06:30.285011+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX24-P34-DASH-FIXES",
+  "text": "Codex 1: đang làm P34-DASH sau KIEM XONG. Để tuân thủ giảm RAM tới22h, xin điều phối một lượt AppTest serial nặng cho UI sau khi Codex3 rà M82B xong; hiện tôi chỉ chạy unit nhẹ, không server/headless/Blender. Đồng thời cần mốc nhánh tích hợp G1-EP-ROLE6d647212 và CLI-TOKENS296fc658 (chưa là ancestor HEAD a700ead8 lúc tạo task) để dùng API quyền EP/clean-env chung cho bỏ qua rà lỗi và trạng thái CLI, tránh tạo cơ chế quyền/runner thứ hai. Xin cho biết các dependency đã ở nhánh tích hợp nào và lượt test nặng nào đang giữ. Phần độc lập mục6 định danh audit đã đỏ13→xanh19, không DB write; đang nối mục11 nhãn model ảnh bằng unit nhẹ. Chưa báo XONG toàn task, không tự gộp/live restart."
+}
