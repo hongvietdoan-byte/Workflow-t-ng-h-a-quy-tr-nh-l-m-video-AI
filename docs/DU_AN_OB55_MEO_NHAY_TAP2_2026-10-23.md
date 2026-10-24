@@ -107,3 +107,8 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
 - `pregen_check` lần 4 (`pregen_check_4.txt`): 1 ảnh ≈ 0.22 usd (tối đa 0.88); video bản cao 1 shot ≈ 7.84 USD; cổng không có; nền 3D 0 shot
   chưa sẵn; **CÒN CHẶN** duy nhất: Tổ rà soát lỗi OAuth Claude Code hết hạn. Còn phải khóa Character Bible trước khi gen
   (`image_model` CSDL = gpt-image-2.5-sunburst; "Ảnh: deepix" trên Dashboard là nhà cung cấp).
+- 24/10 người dùng "đã đăng nhập claude, rà lại và khóa Character Bible": **khóa Character Bible** (nút ✔ Duyệt & khóa → Storyboard,
+  0 USD; RỐI TÍM/ĐỎ locked = 1, dự án vẫn paused). Đóng 3 mục cũ của Tổ rà soát (✓ Đã sửa). **Rà lại** 13 lần lỗi (gọi đúng hàm nút
+  ↻ Rà lại vì Dashboard không hiện nút — xem `docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md` mục 1) → vẫn LỖI OAuth: `claude auth status`
+  của pipeline = `loggedIn: false` (tệp đăng nhập vẫn 23/10 23:03). `pregen_check` lần 5 (`pregen_check_5.txt`): 1 ảnh ≈ 0.22 usd (tối đa
+  0.88), CÒN CHẶN duy nhất vì Tổ rà soát.
