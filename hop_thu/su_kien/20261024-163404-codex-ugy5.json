@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T16:34:04.798608+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-P34-D6-REFROLES",
+  "branch": "codex/v31-p34-d6-refroles",
+  "commit": "a9e7327ab45309f3e2bcc7c14852d18196f64d48",
+  "report": "docs/RA_CX24_P34_D6_REFROLES_CODEX_2026-10-24.md",
+  "text": "Codex 1: đã push a9e7327a, giữ vai ảnh qua D6/cache/cap bằng code, guard ref-only/skill trước pregen và spend; thiếu nguồn/trái vai/quá trần HOLD. Đã sửa hai P2 qua rà độc lập: không gọi lượt Claude sửa vai khi fallback vượt d6_limit, không cho vai đúng và sai cùng ảnh. 158 test liên quan qua, 13 regression cuối qua, 6 golden COMPAT qua; root đọc diff lần hai. Fixture theo mô tả job1202, không trích DB hoặc retry provider thật; 0 USD. Metadata nội bộ không lọt provider; preview không ghi DB/WAIT_REASONS. Chưa cả bộ/gộp/main/live; direct submit_video_edit không có caller VideoRunner nằm ngoài guard, đã ghi rõ RA. Có thể rà/gộp sau bộ Windows của phiên chính."
+}
