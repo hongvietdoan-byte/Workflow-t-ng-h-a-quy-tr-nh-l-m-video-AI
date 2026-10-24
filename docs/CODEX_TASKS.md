@@ -1930,3 +1930,11 @@ Lưu thiết lập theo dự án; xuất bản đầy đủ + kích thước kh�
 
 ### Bổ sung CX24-CLI-TOKENS (phiên con #34, tin r9hm)
 Gốc nghi vấn: lời gọi NHẸ NHẤT (change_review) vẫn ~42 nghìn token vào, video/chat_prompt/qc nền ~100 nghìn → mỗi `claude -p` có thể nạp lại system prompt + công cụ + MCP/plugin của máy (brightdata, adobe, chrome-devtools…) + CLAUDE.md + memory của thư mục làm việc; cache_read NULL. Thử: cwd ngoài repo hoặc `--setting-sources` tối thiểu, `--strict-mcp-config` với cấu hình rỗng, tắt plugin, `--allowedTools` theo khâu; đo trên fake, sau đó trình phiên chính 1 lời gọi thật có duyệt. Lời gọi 1,62 triệu = llm_calls id 1955 (chat_prompt), 920 nghìn = id 1956 (qc).
+
+### CX24-MAIN-RED
+Giao 24/10 19:25 (phiên chính) — Codex 3. 0 USD, nhẹ, pytest -n 2 tới 22:00.
+1. Ba test đỏ sẵn trên main (xác nhận trên main gốc trước): `test_devsys` (tests/test_kpi_goc.py chưa khai khu vực trong devsys/areas.json),
+   `test_devsys_plan_map` (M9.13 chưa có trong devsys/plan_map.json), `test_script_cap` (tools/m60_profile.py). Sửa gốc, không nới test.
+2. `_ref_lint` (core/runner.py ~1310) còn chọn ảnh nền 3D không theo khung đầu, lệch với phần prompt sau D6-REFROLES (f4031e9b) —
+   dùng cùng hàm chọn như đường gửi; test đỏ→xanh.
+Nhánh `codex/v31-main-red`; báo XONG kèm sha + danh sách test.
