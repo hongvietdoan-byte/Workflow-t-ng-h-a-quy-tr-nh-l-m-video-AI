@@ -159,10 +159,3 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
 - **Job 1203 nháp** sạch, điện thoại đúng chiều từ ~4 s (0–3 s RỐI ĐỎ nhổm dậy, máy nghiêng cạnh) → ✔ Duyệt clip → ⬆ Gen bản cao → **job 1204
   1080p**. Hậu kỳ cùng `hau_ky/hau_ky.sh` → **`MEO_NHAY_TAP2_FINAL.mp4` (bản mới)**; bản cũ đổi tên `MEO_NHAY_TAP2_FINAL_v1_dien_thoai_nguoc.mp4`.
 - Chi phí thêm lượt này: ảnh 1201 ≈ 0.16 · nháp 1202 (hỏng) + nháp 1203 ≈ 1.34 × 2 · bản cao 1204 ≈ 6.85 · rà soát 0.11.
-
-## 12. Hoàn thiện trên Dashboard (24/10 16:00, người dùng yêu cầu)
-- Bước 5: chọn nhạc `nhac_rieng/nhac_goc_tiktok_meo.m4a` (tách từ video TikTok), âm lượng nhạc 1.0, ▶ Dựng video cuối → 📦 Xuất bản đầy đủ
-  (0 USD) → `data/projects/34/output/FINAL_VIDEO.mp4` (1080×1920, 12,6 s, "Kiểm bản dựng: đạt"), chép ra
-  `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/MEO_NHAY_TAP2_DASHBOARD.mp4`.
-- Dashboard không ghép được mèo phông xanh và 2 dòng chữ (mục 12–13 `docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md`) → bản đủ vẫn là
-  `MEO_NHAY_TAP2_FINAL.mp4` (ffmpeg).
