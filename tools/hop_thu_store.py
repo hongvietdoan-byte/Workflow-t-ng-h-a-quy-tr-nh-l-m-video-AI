@@ -6,12 +6,15 @@ archive chỉ chuyển metadata sau khi bản sao đã được kiểm lại.
 from __future__ import annotations
 
 import hashlib
+import errno
 import json
 import os
 import re
 import tempfile
 import time
 import uuid
+import threading
+import sys
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -79,24 +82,199 @@ def atomic_bytes(path, content):
             os.unlink(temporary)
 
 
+class LockTimeout(ValueError):
+    """Hết thời gian chờ khóa; riêng flush được giữ queue để gửi lô sau."""
+
+
+LOCK_WAIT = 20
+LOCK_LEASE = 600
+
+
+def _process_identity(pid):
+    """None = PID chết; chuỗi thời điểm sinh giúp tránh nhận nhầm PID tái sử dụng."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return None
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+        kernel.GetProcessTimes.restype = wintypes.BOOL
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
+        handle = kernel.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return None if ctypes.get_last_error() == 87 else "unknown"
+        try:
+            created, exited, system, user = (wintypes.FILETIME() for _ in range(4))
+            code = wintypes.DWORD()
+            if kernel.GetExitCodeProcess(handle, ctypes.byref(code)) and code.value != 259:
+                return None
+            if kernel.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited), ctypes.byref(system), ctypes.byref(user)):
+                return str((created.dwHighDateTime << 32) | created.dwLowDateTime)
+            return "unknown"
+        finally:
+            kernel.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return None
+    except PermissionError:
+        return "unknown"
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+    except OSError:
+        return "unknown"
+
+
+def _local_path(root, rel):
+    folder = local_dir(root)
+    for parent in (folder, *folder.parents):
+        if parent.is_symlink() or getattr(parent, "is_junction", lambda: False)():
+            raise ValueError("local metadata có symlink/junction")
+    return safe_path(folder, rel)
+
+
+@contextmanager
+def _lock_guard(root, name):
+    # File guard không xóa/replace: khóa kernel tự nhả khi tiến trình chết.
+    path = _local_path(root, name + ".guard")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a+b") as stream:
+        if os.name == "nt":
+            import msvcrt
+            stream.seek(0, 2)
+            if stream.tell() == 0:
+                stream.write(b"0")
+                stream.flush()
+            stream.seek(0)
+            try:
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                    raise
+                yield False
+                return
+        else:
+            import fcntl
+            try:
+                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                yield False
+                return
+        try:
+            yield True
+        finally:
+            if os.name == "nt":
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(stream, fcntl.LOCK_UN)
+
+
+def _write_lock(path, row):
+    # Guard kernel bảo vệ replace; khóa không phải bản dữ liệu nguồn cần fsync.
+    fd, temporary = tempfile.mkstemp(prefix=".lease-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(canonical(row))
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+class _Lease:
+    def __init__(self, root, name, row):
+        self.root, self.name, self.row = root, name, row
+        self.lost = False
+
+    def check(self, renew=False, background=False):
+        path = _local_path(self.root, self.name + ".lock")
+        with _lock_guard(self.root, self.name) as held:
+            if not held:
+                if background:
+                    return
+                raise ValueError("không kiểm được quyền khóa; giữ queue")
+            current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+            if current.get("token") != self.row["token"]:
+                self.lost = True
+                raise ValueError("lease đã đổi chủ; giữ queue, không gửi lô")
+            if renew:
+                self.row["renewed"] = time.time()
+                _write_lock(path, self.row)
+
+
 @contextmanager
 def locked(root, name):
-    path = local_dir(root) / (name + ".lock")
+    if not re.fullmatch(r"[A-Za-z0-9-]+", name):
+        raise ValueError("tên khóa không hợp lệ")
+    path = _local_path(root, name + ".lock")
     path.parent.mkdir(parents=True, exist_ok=True)
-    deadline = time.monotonic() + 20
+    deadline = time.monotonic() + LOCK_WAIT
+    row = {"pid": os.getpid(), "token": uuid.uuid4().hex, "started": time.time(),
+           "renewed": time.time(), "identity": _process_identity(os.getpid())}
     while True:
-        try:
-            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            break
-        except FileExistsError:
-            if time.monotonic() >= deadline:
-                raise ValueError("metadata đang bị khóa; chưa thay đổi nguồn")
-            time.sleep(.05)
+        with _lock_guard(root, name) as held:
+            if held:
+                if path.exists():
+                    raw = path.read_bytes()
+                    try:
+                        old = json.loads(raw)
+                        if not isinstance(old, dict):
+                            old = {}
+                    except ValueError:
+                        old = {}
+                    renewed = old.get("renewed", path.stat().st_mtime)
+                    if not isinstance(renewed, (float, int)) or isinstance(renewed, bool):
+                        raise ValueError("lease có thời gian sai; chưa giành khóa")
+                    pid = old.get("pid")
+                    if pid is not None and (not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0):
+                        raise ValueError("khóa có PID không hợp lệ; chưa giành khóa")
+                    identity = _process_identity(pid) if pid is not None else "unknown"
+                    dead = identity is None or (identity != "unknown" and old.get("identity") not in (None, "unknown", identity))
+                    # Không xác minh được PID thật (vd access denied): giữ khóa.
+                    # Chỉ khóa legacy thiếu PID được xét lease theo mtime.
+                    expired = time.time() - renewed > LOCK_LEASE and (pid is None or identity != "unknown")
+                    if dead or expired:
+                        archive = _local_path(root, "_luu_tru")
+                        archive.mkdir(exist_ok=True)
+                        os.replace(path, safe_path(archive, name + "-" + uuid.uuid4().hex + ".lock"))
+                        print(f"Đã giành lại khóa {name} từ PID {pid if pid is not None else 'không rõ'} (khóa cũ đã lưu trữ).", file=sys.stderr)
+                if not path.exists():
+                    _write_lock(path, row)
+                    break
+        if time.monotonic() >= deadline:
+            raise LockTimeout("metadata đang bị khóa; chưa thay đổi nguồn")
+        time.sleep(.05)
+    lease = _Lease(root, name, row)
+    stop = threading.Event()
+    def heartbeat():
+        while not stop.wait(30):
+            try:
+                lease.check(renew=True, background=True)
+            except (OSError, ValueError):
+                lease.lost = True
+                return
+    worker = threading.Thread(target=heartbeat, daemon=True)
+    worker.start()
     try:
-        os.close(fd)
-        yield
+        yield lease
     finally:
-        path.unlink(missing_ok=True)
+        stop.set()
+        worker.join(timeout=1)
+        with _lock_guard(root, name) as held:
+            if held and path.exists():
+                try:
+                    current = json.loads(path.read_text(encoding="utf-8"))
+                except ValueError:
+                    current = {}
+                if current.get("token") == row["token"]:
+                    path.unlink()
 
 
 def event_id(value):
@@ -130,18 +308,39 @@ def validate_event(ev):
 
 def _metadata_views(root):
     yield Path(root)
-    pointer = local_dir(root) / "remote.json"
+    pointer = _local_path(root, "remote.json")
     if pointer.exists():
         data = json.loads(pointer.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and data.get("format") == 2:
+            return
         if not isinstance(data, dict) or not isinstance(data.get("snapshot"), str) or not re.fullmatch(r"[0-9a-f]{40,64}-[0-9a-f]{32}", data["snapshot"]):
             raise ValueError("snapshot remote không hợp lệ")
-        view = local_dir(root) / "remote" / data["snapshot"]
-        if view.parent != local_dir(root) / "remote" or not view.is_dir():
+        view = _local_path(root, "remote/" + data["snapshot"])
+        if not view.is_dir():
             raise ValueError("snapshot metadata remote không đầy đủ")
         yield view
 
 
-def load_records(root):
+def _source_files(root):
+    for view in _metadata_views(root):
+        for prefix, pattern in (("hop_thu/su_kien", "*.json"), ("hop_thu/luu_tru", "*.jsonl"), ("hop_thu/da_doc", "*/*.json")):
+            folder = safe_path(view, prefix)
+            for path in sorted(folder.glob(pattern)):
+                path = safe_path(view, path.relative_to(view))
+                yield path.relative_to(view).as_posix(), path.read_bytes()
+    pointer = _local_path(root, "remote.json")
+    if pointer.exists():
+        data = json.loads(pointer.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and data.get("format") == 2:
+            if not isinstance(data.get("files"), dict):
+                raise ValueError("bundle remote không hợp lệ")
+            for rel, value in data["files"].items():
+                if not isinstance(rel, str) or not allowed_path(rel) or not isinstance(value, str):
+                    raise ValueError("bundle remote ngoài whitelist")
+                yield rel, value.encode("utf-8")
+
+
+def _collect_records(files):
     records, errors = {}, []
     def put(iid, ev, source):
         try:
@@ -152,35 +351,39 @@ def load_records(root):
             records.setdefault(iid, ev)
         except (ValueError, TypeError, KeyError) as exc:
             errors.append((source, str(exc)))
-    try:
-        views = list(_metadata_views(root))
-    except (OSError, ValueError, KeyError) as exc:
-        return {}, [("remote-cache", str(exc))]
-    for view in views:
-        try:
-            active = safe_path(view, "hop_thu/su_kien")
-            archived = safe_path(view, "hop_thu/luu_tru")
-        except ValueError:
-            errors.append(("metadata", "thư mục symlink/ngoài phạm vi"))
+    for rel, content in files:
+        if not allowed_path(rel):
+            raise ValueError("metadata path ngoài whitelist")
+        if rel.startswith("hop_thu/da_doc/"):
             continue
-        for path in sorted(active.glob("*.json")):
+        if rel.startswith("hop_thu/luu_tru/"):
+            for n, line in enumerate(content.decode("utf-8").splitlines(), 1):
+                source = f"{rel}:{n}"
+                try:
+                    row = json.loads(line)
+                    put(row["id"], row["event"], source)
+                except (ValueError, KeyError, TypeError) as exc:
+                    errors.append((source, str(exc)))
+        else:
             try:
-                path = safe_path(view, path.relative_to(view))
-                put(path.name, json.loads(path.read_text(encoding="utf-8-sig")), str(path.relative_to(view)))
-            except (OSError, ValueError) as exc:
-                errors.append((path.name, str(exc)))
-        for path in sorted(archived.glob("*.jsonl")):
-            try:
-                path = safe_path(view, path.relative_to(view))
-                for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                    try:
-                        row = json.loads(line)
-                        put(row["id"], row["event"], f"{path.name}:{n}")
-                    except (ValueError, KeyError, TypeError) as exc:
-                        errors.append((f"{path.name}:{n}", str(exc)))
-            except (OSError, ValueError) as exc:
-                errors.append((path.name, str(exc)))
+                put(Path(rel).name, json.loads(content.decode("utf-8-sig")), rel)
+            except (ValueError, TypeError) as exc:
+                errors.append((rel, str(exc)))
     return records, errors
+
+
+def _records_from_files(files):
+    records, errors = _collect_records(files)
+    if errors:
+        raise ValueError("metadata lỗi: " + "; ".join(f"{name}: {why}" for name, why in errors))
+    return records
+
+
+def load_records(root):
+    try:
+        return _collect_records(_source_files(root))
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        return {}, [("metadata", str(exc))]
 
 
 def require_records(root):
@@ -244,23 +447,32 @@ def _is_recipient(ev, required, reader):
     return reader in (required or []) or (required is None and ev.get("to") == "all")
 
 
-def receipt_records(root, records):
+def _receipts_from_files(files, records):
     out = {}
-    for view in _metadata_views(root):
-        folder = safe_path(view, "hop_thu/da_doc")
-        for path in sorted(folder.glob("*/*.json")):
-            path = safe_path(view, path.relative_to(view))
-            row = json.loads(path.read_text(encoding="utf-8"))
-            if not isinstance(row, dict) or not all(isinstance(row.get(key), str) for key in ("lane", "reader", "event_id", "sha256", "read_at")):
-                raise ValueError("receipt thiếu/sai trường điều khiển")
-            reader = readers(row["lane"], row["reader"])
-            iid = event_id(row["event_id"])
-            if iid not in records or row["sha256"] != digest(records[iid]) or path.parent.name != reader:
-                raise ValueError("receipt không khớp event/reader/hash: " + path.name)
-            dt = timestamp(row["read_at"])
-            key = (iid, reader)
-            out[key] = min(dt, out.get(key, dt))
+    for rel, content in files:
+        if not rel.startswith("hop_thu/da_doc/"):
+            continue
+        row = json.loads(content)
+        if not isinstance(row, dict) or not all(isinstance(row.get(key), str) for key in ("lane", "reader", "event_id", "sha256", "read_at")):
+            raise ValueError("receipt thiếu/sai trường điều khiển")
+        reader = readers(row["lane"], row["reader"])
+        iid = event_id(row["event_id"])
+        if iid not in records or row["sha256"] != digest(records[iid]) or Path(rel).parent.name != reader:
+            raise ValueError("receipt không khớp event/reader/hash: " + Path(rel).name)
+        dt = timestamp(row["read_at"])
+        key = (iid, reader)
+        out[key] = min(dt, out.get(key, dt))
     return out
+
+
+def receipt_records(root, records):
+    return _receipts_from_files(_source_files(root), records)
+
+
+def _validate_files(files):
+    records = _records_from_files(files.items())
+    _receipts_from_files(files.items(), records)
+    return records
 
 
 def unread_snapshot(root, lane, reader=None, save=True):
@@ -345,8 +557,7 @@ def archive(root, state, now=None, apply=False):
         recipients, receipts = recipient_map(records), receipt_records(root, records)
         open_questions = {q["_file"] for q in state["questions"] if q["_file"] not in state["answers"]}
         eligible, held = [], {}
-        active = {path.name for view in _metadata_views(root)
-                  for path in safe_path(view, "hop_thu/su_kien").glob("*.json")}
+        active = {Path(rel).name for rel, _ in _source_files(root) if rel.startswith("hop_thu/su_kien/")}
         for iid, ev in sorted(records.items()):
             source = safe_path(root, Path("hop_thu/su_kien") / iid)
             if iid not in active:
@@ -429,7 +640,13 @@ def _remote_files(root, git):
         git(root, "fetch", "-q", "origin", "refs/heads/main:" + ref)
         base = git(root, "rev-parse", ref).stdout.strip()
         tree = git(root, "ls-tree", "-rz", base, "--", "hop_thu/su_kien", "hop_thu/luu_tru", "hop_thu/da_doc").stdout
-        files = {}
+        paths, objects = {}, {}
+        bundle = _local_path(root, "blobs.json")
+        if bundle.exists():
+            cached = json.loads(bundle.read_text(encoding="utf-8"))
+            if not isinstance(cached, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in cached.items()):
+                raise ValueError("cache blob không hợp lệ")
+            objects = {oid: value.encode("utf-8") for oid, value in cached.items()}
         for row in tree.split("\0"):
             if not row:
                 continue
@@ -439,42 +656,57 @@ def _remote_files(root, git):
                 raise ValueError("remote có metadata ngoài whitelist hoặc symlink")
             if not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid):
                 raise ValueError("OID metadata không hợp lệ")
-            cache = local_dir(root) / "blobs" / oid
+            paths[rel] = oid
+            cache = _local_path(root, "blobs/" + oid)
             if cache.exists():
-                content = cache.read_bytes()
-            else:
-                raw = git(root, "cat-file", "blob", oid, binary=True).stdout
-                content = raw.encode("utf-8") if isinstance(raw, str) else raw
-            algorithm = hashlib.sha1 if len(oid) == 40 else hashlib.sha256 if len(oid) == 64 else None
-            if not algorithm or algorithm(b"blob " + str(len(content)).encode() + b"\0" + content).hexdigest() != oid:
+                objects[oid] = cache.read_bytes()
+        missing = sorted(set(paths.values()) - objects.keys())
+        if len(missing) == 1:
+            oid = missing[0]
+            raw = git(root, "cat-file", "blob", oid, binary=True).stdout
+            objects[oid] = raw.encode("utf-8") if isinstance(raw, str) else raw
+        elif missing:
+            raw = git(root, "cat-file", "--batch", binary=True, input=("\n".join(missing) + "\n").encode("ascii")).stdout
+            offset = 0
+            for oid in missing:
+                end = raw.find(b"\n", offset)
+                header = raw[offset:end].decode("ascii").split()
+                if end < offset or len(header) != 3 or header[:2] != [oid, "blob"] or not header[2].isdigit():
+                    raise ValueError("batch Git thiếu/sai blob")
+                size = int(header[2])
+                offset = end + 1
+                content = raw[offset:offset + size]
+                offset += size
+                if len(content) != size or raw[offset:offset+1] != b"\n":
+                    raise ValueError("batch Git bị cắt blob")
+                objects[oid] = content
+                offset += 1
+            if offset != len(raw):
+                raise ValueError("batch Git thừa dữ liệu")
+        files = {}
+        for rel, oid in paths.items():
+            content = objects[oid]
+            algorithm = hashlib.sha1 if len(oid) == 40 else hashlib.sha256
+            if algorithm(b"blob " + str(len(content)).encode() + b"\0" + content).hexdigest() != oid:
                 raise ValueError("cache/blob Git không khớp OID")
-            if not cache.exists():
-                atomic_bytes(cache, content)
             files[rel] = content
+        if len(missing) == 1:
+            atomic_bytes(_local_path(root, "blobs/" + missing[0]), objects[missing[0]])
+        elif missing:
+            atomic_bytes(bundle, canonical({oid: objects[oid].decode("utf-8") for oid in set(paths.values())}))
         return base, files
     finally:
         git(root, "update-ref", "-d", ref, check=False)
 
 
 def _cache_remote(root, base, files):
-    pointer = local_dir(root) / "remote.json"
-    expected = {rel: hashlib.sha256(content).hexdigest() for rel, content in files.items()}
-    if pointer.exists():
-        previous = json.loads(pointer.read_text(encoding="utf-8"))
-        if previous.get("commit") == base and previous.get("files") == expected:
-            existing = local_dir(root) / "remote" / previous["snapshot"]
-            if all(hashlib.sha256(safe_path(existing, rel).read_bytes()).hexdigest() == sha for rel, sha in expected.items()):
-                require_records(existing)
-                return
-    folder = local_dir(root) / "remote" / (base + "-" + uuid.uuid4().hex)
-    folder.mkdir(parents=True)
-    for rel, content in files.items():
-        if not allowed_path(rel):
-            raise ValueError("remote path ngoài whitelist")
-        atomic_bytes(safe_path(folder, rel), content)
-    records = require_records(folder)
-    receipt_records(folder, records)
-    atomic_bytes(pointer, canonical({"snapshot": folder.name, "commit": base, "files": expected}))
+    # Một bundle atomic: không nhân bản hàng nghìn file mỗi SHA của main.
+    _validate_files(files)
+    pointer = _local_path(root, "remote.json")
+    data = {"format": 2, "commit": base, "files": {rel: content.decode("utf-8") for rel, content in files.items()}}
+    raw = canonical(data)
+    if not pointer.exists() or pointer.read_bytes() != raw:
+        atomic_bytes(pointer, raw)
 
 
 def sync_remote(root, git):
@@ -507,8 +739,10 @@ def _union_files(remote, updates):
                     raise ValueError("remote archive cùng ID khác nội dung")
                 rows[iid] = ev
             merged[rel] = b"".join(canonical({"id": iid, "event": ev}) + b"\n" for iid, ev in sorted(rows.items()))
-        elif rel in remote and digest(json.loads(remote[rel])) != digest(json.loads(content)):
-            raise ValueError("remote có ID/receipt khác nội dung")
+        elif rel in remote:
+            if digest(json.loads(remote[rel])) != digest(json.loads(content)):
+                raise ValueError("remote có ID/receipt khác nội dung")
+            # Cùng nội dung chuẩn: giữ nguyên bytes remote, không ghi lại tin cũ.
         else:
             merged[rel] = content
     return merged
@@ -552,16 +786,24 @@ def _drop_pushed_untracked(root, git, updates):
 
 
 def flush_pending(root, git, message=None, tries=3, co_author=""):
+    try:
+        return _flush_pending(root, git, message, tries, co_author)
+    except LockTimeout:
+        return {"paths": 0, "commit": None, "queued": True}
+
+
+def _flush_pending(root, git, message=None, tries=3, co_author=""):
     """Commit-tree trên ref riêng đã pin; index/HEAD/staged code không đổi.
 
     Manifest là whitelist tường minh. Mỗi retry dựng lại union từ remote mới,
     không force; chỉ xóa đúng phiên bản queue sau xác minh commit ở remote.
     """
     root = Path(root).resolve()
-    with locked(root, "flush"):
+    with locked(root, "flush") as lease:
         manifests = []
         updates, deletes = {}, {}
-        for path in sorted((local_dir(root) / "pending").glob("*.json")):
+        for path in sorted(_local_path(root, "pending").glob("*.json")):
+            path = _local_path(root, "pending/" + path.name)
             raw = path.read_bytes()
             row = json.loads(raw)
             if not isinstance(row, dict) or not isinstance(row.get("path"), str) or not isinstance(row.get("delete"), bool) or not isinstance(row.get("sha256"), str):
@@ -601,16 +843,25 @@ def flush_pending(root, git, message=None, tries=3, co_author=""):
                 if rel in merged and digest(json.loads(merged[rel])) != expected:
                     raise ValueError("remote event thay đổi, không xóa")
                 merged.pop(rel, None)
-            # Kiểm cả union raw/archive/receipt TRƯỚC khi tạo commit gửi.
+            # Dùng cùng parser raw/archive/receipt; chỉ vật chất hóa diff mới.
+            _validate_files(merged)
+            diff = {rel: content for rel, content in merged.items() if remote.get(rel) != content}
+            removed = set(remote) - set(merged)
             with tempfile.TemporaryDirectory(prefix="union-", dir=local_dir(root)) as scratch:
                 view = Path(scratch)
-                for rel, content in merged.items():
-                    atomic_bytes(view / rel, content)
-                records = require_records(view)
-                receipt_records(view, records)
+                # Một barrier fsync cho lô; Git chỉ đọc scratch, nguồn queue vẫn bền.
+                last = None
+                for rel, content in diff.items():
+                    destination = safe_path(view, rel)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_bytes(content)
+                    last = destination
+                if last is not None:
+                    with last.open("r+b") as stream:
+                        os.fsync(stream.fileno())
                 env = _git_index_env(root, view / "index")
                 git(root, "read-tree", base, env=env)
-                for rel in sorted(set(updates) | set(deletes)):
+                for rel in sorted(set(diff) | removed):
                     if rel in merged:
                         path = view / rel
                         oid = git(root, "hash-object", "-w", "--no-filters", "--", str(path), env=env).stdout.strip()
@@ -622,6 +873,7 @@ def flush_pending(root, git, message=None, tries=3, co_author=""):
                 text = (message + "\n\n" if message else "") + summary + ("\n\n" + co_author if co_author else "")
                 commit = git(root, "-c", "user.name=Hộp thư AI Video", "-c", "user.email=mailbox@localhost",
                              "commit-tree", tree, "-p", base, "-m", text, env=env).stdout.strip()
+                lease.check(renew=True)
                 pushed = git(root, "push", "origin", f"{commit}:refs/heads/main", check=False)
             if pushed.returncode:
                 continue
@@ -629,7 +881,9 @@ def flush_pending(root, git, message=None, tries=3, co_author=""):
             verified, files = _remote_files(root, git)
             if git(root, "merge-base", "--is-ancestor", commit, verified, check=False).returncode:
                 raise ValueError("chưa xác minh remote chứa lô; giữ queue")
+            lease.check(renew=True)
             _cache_remote(root, verified, files)
+            lease.check()
             for path, raw in manifests:
                 if path.exists() and path.read_bytes() == raw:
                     path.unlink()

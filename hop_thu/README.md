@@ -55,6 +55,14 @@ Trước unlink: kiểm đường dẫn/ancestor không symlink/junction, ghi + 
 
 Cache blob theo OID Git được kiểm hash. Đồng bộ lại cùng SHA dùng cache, không gọi `cat-file` từng blob lần nữa; lượt lạnh vẫn cần đọc mỗi blob lần đầu. Chưa có benchmark latency trên hộp thư sản xuất nhiều nghìn receipt.
 
+## Đẩy lô và phục hồi khóa
+
+`flush` kiểm hợp raw/archive/receipt trong bộ nhớ, chỉ đưa phần metadata thay đổi vào Git index riêng. Cache đọc remote dùng bundle nguyên tử, không dựng lại hàng nghìn file sự kiện để kiểm một lô nhỏ. Event nguồn vẫn bất biến; xác minh remote có commit thành công rồi mới bỏ đúng manifest pending.
+
+Khóa có PID, định danh lần chạy, token và thời điểm gia hạn. Khi chủ đã chết hoặc lease quá 10 phút không gia hạn, helper chuyển khóa cũ vào `_luu_tru` trong cache metadata và báo PID trước khi nhận khóa mới. Khóa còn sống và đang gia hạn được giữ. Không xóa khóa bằng tay hoặc dùng PID làm bằng chứng duy nhất khi PID có thể được tái sử dụng.
+
+Nếu hết thời gian chờ khóa, lệnh `--push` giữ sự kiện trong pending, trả mã 0 và báo **“đã xếp hàng, lô sau sẽ đẩy”**. Mã 0 trong trường hợp này chỉ xác nhận đã xếp hàng, chưa xác nhận có trên remote. Lỗi dữ liệu/whitelist/xung đột ID hoặc lỗi Git thật vẫn báo lỗi và giữ queue; không đổi thành thông báo đã gửi.
+
 ## Cảnh báo tiến độ commit (G3)
 
 `bang` chỉ đọc và cảnh báo việc ĐANG LÀM quá 12 giờ chưa có commit riêng mới

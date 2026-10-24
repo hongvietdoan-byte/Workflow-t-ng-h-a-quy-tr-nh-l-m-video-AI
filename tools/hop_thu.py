@@ -287,10 +287,14 @@ def next_task(state, lane):
 # ---------------------------------------------------------------- git
 
 
-def _git(root, *args, check=True, env=None, binary=False):
-    r = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=not binary,
-                       encoding=None if binary else "utf-8", errors=None if binary else "replace",
-                       env=env if env is not None else store.git_environment(root))
+def _git(root, *args, check=True, env=None, binary=False, input=None):
+    try:
+        r = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=not binary, input=input,
+                           encoding=None if binary else "utf-8", errors=None if binary else "replace",
+                           env=env if env is not None else store.git_environment(root), timeout=30)
+    except subprocess.TimeoutExpired:
+        # Không đưa cmd/stdout của TimeoutExpired vào thông báo (có thể chứa nội dung riêng).
+        raise HopThuError("Git hết thời gian chờ; chưa xác minh thao tác, giữ nguyên queue.") from None
     if check and r.returncode != 0:
         raise HopThuError(f"git {args[0] if args else '?'} thất bại (mã {r.returncode}); chưa xác minh thao tác")
     return r
@@ -320,7 +324,11 @@ def git_push_event(root: Path, path: Path, message: str, tries: int = 3):
         result = store.flush_pending(root, _git, message=message, tries=tries, co_author=CO_AUTHOR)
     except (OSError, ValueError) as exc:
         raise HopThuError(str(exc)) from None
+    if result.get("queued"):
+        print("đã xếp hàng, lô sau sẽ đẩy")
+        return False
     print(f"Đã push lô {result['paths']} metadata lên origin/main.")
+    return True
 
 
 # ---------------------------------------------------------------- in bảng
@@ -481,8 +489,9 @@ def _finish(args, root, path, kind, task):
     requested = args.push or (urgent and not getattr(args, "khong_day", False))
     if requested and is_git_repo(root):
         label = f"{kind} {task}" if task else kind
-        git_push_event(root, path, f"hộp thư: {label} ({args.lane})")
-        print("Đã gửi lô metadata lên origin/main.")
+        sent = git_push_event(root, path, f"hộp thư: {label} ({args.lane})")
+        if sent:
+            print("Đã gửi lô metadata lên origin/main.")
     else:
         print("Chỉ lưu local; metadata đang chờ trong lô.")
 
@@ -713,6 +722,9 @@ def cmd_day_lo(args, root):
         result = store.flush_pending(root, _git, co_author=CO_AUTHOR)
     except (OSError, ValueError) as exc:
         raise HopThuError(str(exc)) from None
+    if result.get("queued"):
+        print("đã xếp hàng, lô sau sẽ đẩy")
+        return
     print(f"Đã đẩy {result['paths']} metadata trong lô; không đẩy code nhánh.")
 
 
