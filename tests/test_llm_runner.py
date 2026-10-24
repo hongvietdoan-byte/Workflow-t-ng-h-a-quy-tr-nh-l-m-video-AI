@@ -362,6 +362,22 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertEqual(args[args.index("--tools") + 1], "Read")
         self.assertEqual(args[args.index("--allowedTools") + 1], "Read")
 
+    def test_cli_token_budget_on_leaves_a_turn_per_image(self):
+        """Rà gộp 24/10: 5 ảnh → Read có thể mở từng ảnh một lượt; trần lượt không được làm khâu chết vì error_max_turns."""
+        import tempfile
+        calls, folder, pics = [], tempfile.mkdtemp(), []
+        for i in range(5):
+            path = os.path.join(folder, f"a{i}.png")
+            with open(path, "wb") as f:
+                f.write(b"x")
+            pics.append((f"Image {i + 1}", path))
+        done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
+        with mock.patch("core.features.on", return_value=True), lr.tagged("chat_prompt", 3):
+            self.client(done, calls).complete("viết prompt", pics)
+        args = calls[0][0]
+        self.assertEqual(args[args.index("--max-turns") + 1], "6")
+        self.assertEqual(args[args.index("--tools") + 1], "Read")
+
     def test_cli_token_budget_on_leaves_unprofiled_stages_unchanged(self):
         calls = []
         done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')

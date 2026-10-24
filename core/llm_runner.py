@@ -155,14 +155,17 @@ CLI_TOKEN_WARN_ENV = "CLAUDE_CLI_TOKEN_WARN_INPUT"
 CLI_TOKEN_WARN_DEFAULT = 200_000
 
 
-def cli_token_policy(stage: str, has_images: bool = False) -> Dict[str, Any]:
-    """The shared source of truth for CLI turns, tools, model and observed input baseline."""
+def cli_token_policy(stage: str, has_images: bool = False, image_count: int = 0) -> Dict[str, Any]:
+    """The shared source of truth for CLI turns, tools, model and observed input baseline.
+    image_count: rà gộp 24/10 — Read may open one image per turn; the cap must leave a turn per image + the answer, else a
+    many-image call (D6, QC) dies on error_max_turns and the stage loses its output."""
     policy = CLI_TOKEN_STAGE_POLICY.get(stage, CLI_TOKEN_STAGE_POLICY["other"])
     tools = list(policy["tools"])
     if has_images:
         tools.extend(tool for tool in policy["image_tools"] if tool not in tools)
     return {**policy, "tools": tuple(tools),
-            "selected_max_turns": policy["max_turns_with_images"] if has_images else policy["max_turns"]}
+            "selected_max_turns": (max(policy["max_turns_with_images"], int(image_count or 0) + 1) if has_images
+                                   else policy["max_turns"])}
 
 
 def cli_input_estimate(stage: str, prompt: str, image_count: int = 0) -> Dict[str, Any]:
@@ -1589,7 +1592,7 @@ class ClaudeCliClient:
             args = [shutil.which("claude") or "claude", "-p", "--output-format", "json", "--no-session-persistence"]
             stage, project_id = current_tag()
             token_budget = features.on("cli_token_budget") and stage in CLI_TOKEN_STAGE_POLICY and stage != "other"
-            policy = cli_token_policy(stage, bool(images)) if token_budget else None
+            policy = cli_token_policy(stage, bool(images), len(images)) if token_budget else None
             selected_model = (policy["model"] or self.model) if policy else self.model
             if selected_model:
                 args += ["--model", selected_model]
