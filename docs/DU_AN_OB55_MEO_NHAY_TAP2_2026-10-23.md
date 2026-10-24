@@ -112,3 +112,7 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   ↻ Rà lại vì Dashboard không hiện nút — xem `docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md` mục 1) → vẫn LỖI OAuth: `claude auth status`
   của pipeline = `loggedIn: false` (tệp đăng nhập vẫn 23/10 23:03). `pregen_check` lần 5 (`pregen_check_5.txt`): 1 ảnh ≈ 0.22 usd (tối đa
   0.88), CÒN CHẶN duy nhất vì Tổ rà soát.
+- 24/10 người dùng `/login` trong terminal máy chính → `claude auth status` (môi trường pipeline) `loggedIn: true` (claude.ai). Rà lại 13 thay
+  đổi: reviewed 13, failed 0, sổ chi ghi 0.253 USD (claude_cli). Còn 2 mục vàng báo SAI (luật dò tên Kho — DASHBOARD_CHUA_TU_LAM_DUOC mục 6).
+- **`pregen_check` lần 6 (`pregen_check_6.txt`): mã thoát 0 — "GEN ĐƯỢC — xin duyệt với giá ≈ 0.22 usd"** (tối đa 0.88): ảnh khung đầu
+  0.052 · D6 0.088 · QC 0.065 · Claude khác 0.014. Video bản cao (cổng riêng) ≈ 7.84 USD. **DỪNG ở cổng gen ảnh, chờ người dùng "gen".**
