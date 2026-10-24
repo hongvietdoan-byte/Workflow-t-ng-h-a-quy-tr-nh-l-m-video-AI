@@ -32,3 +32,19 @@ Trạng thái: CHỜ (hoặc CHỜ ĐIỀU KIỆN) → ĐANG LÀM → XONG (ch�
 - `py tools/hop_thu.py ke --lane cloud-C [--nhan]` — việc kế: việc riêng đủ điều kiện (ưu tiên rồi giờ giao) → pool → "HẾT VIỆC".
 
 Test: `py -m pytest tests/test_hop_thu.py`.
+
+## Cảnh báo tiến độ commit (G3)
+
+`bang` chỉ đọc và cảnh báo việc ĐANG LÀM quá 12 giờ chưa có commit riêng mới
+trên nhánh ngoài `origin/main`; không tự đưa về CHỜ. Người điều phối phải kiểm
+owner và tiến độ trước khi giao lại. Commit đã nằm trong main không tính là
+commit riêng của việc đang mở. Chỉ xét refs hiện có: hãy fetch trước khi đọc
+nếu cần cập nhật remote, `bang` không tự fetch hoặc sửa refs.
+
+Khi biết nhánh, có thể dùng `nhan <mã> --lane codex --branch codex/<việc>`
+hoặc `tin --lane codex --task <mã> --branch codex/<việc> --text "Codex 1: …"`.
+`ke --nhan` cũng nhận `--branch`. Tin chỉ cập nhật nhánh khi lane đang giữ việc;
+tin tiến độ không đặt lại giờ nhận. Lệnh cũ không có `--branch` vẫn tương thích.
+Không suy nhánh hoặc phiên Codex 1/2/3 từ lane/tên việc/văn bản tự do. Thiếu
+metadata, ref chưa có, lỗi Git hoặc thời gian commit ở tương lai được báo
+**chưa xác minh**, không coi là bằng chứng task không hoạt động.
