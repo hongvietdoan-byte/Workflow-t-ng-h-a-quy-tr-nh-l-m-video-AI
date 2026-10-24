@@ -97,3 +97,7 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   - **Lỗi code (đã báo phiên chính qua hộp thư):** N5 "Dựng tấm ghép" luôn lấy `full_measure` (m1) → tấm ghép hiện máy cũ; ảnh m3 ghép tay.
   - Đang **chờ EP duyệt** (người dùng nói "duyệt" trong chat → `py tools/stage_auto.py --project 34 --scene 1 --crew-approve`), rồi render lại
     nền + `pregen_check`.
+- 24/10 người dùng: "Sao cột đỏ thấp thế?" (RỐI ĐỎ ngồi, H 0,35, xa máy 2,1 m → 11 % khung) → "thử theo đề xuất": vẫn ngồi, dời lại gần.
+  Làm lại 3 lần từ Đạo diễn: (−0,45; −0,25) → biệt thự chính diện nhưng RỐI ĐỎ sát máy hơn TÍM, bị cắt mép phải (thấy 39–54 %, sửa máy
+  không cứu được); (0,1; −0,45) → máy về lại phía tây-bắc, ĐỎ vẫn nhỏ; **chốt (−0,3; −0,05)**, cách TÍM ~0,6 m: ĐỎ 15 % khung, thấy trọn,
+  máy 0,75 m chúc 7,8°, biệt thự nửa trái phía sau. Quay phim "khop". Ảnh `ban_dao_dien_roi_do_gan.png`. Chờ EP duyệt.
