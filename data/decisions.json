@@ -620,7 +620,12 @@
    "keeps": "Code hiện hành giữ nguyên tới khi M6.3 được duyệt Cấp 2: core/pipeline.py AUTO_REGEN_LIMIT (tự gen LẠI ảnh 3 / video 2, đếm từ thao tác gần nhất của người), quality_tier.RETRY_LIMIT, autopilot._job_caps. v31-d01b-money-policy-product-job-cap-2026-10-20 giữ hiệu lực (ngân sách dự kiến chỉ cảnh báo cho thao tác của người) — khi triển khai M6.3 ghi mục D01c replaces D01b cho phần giới hạn tự gen lại; câu hỏi mở cho EP: nâng nháp 480p→1080p có tính lượt không, thao tác EP có trừ lượt không, ngân sách tự sửa đặt thế nào, thang lùi model.",
    "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code. Được làm ngay (Cấp 1): audit repo, tài liệu kiến trúc M6, đối chiếu Master Plan, roadmap / dependency / nghiệm thu / test plan / rollback, ghi sổ. CHƯA được: code pipeline M6 (Cấp 2), migration / sửa dữ liệu production, bật cờ mới trên máy chính, đổi provider / cấu hình job đang chạy, gọi API trả phí, tự gen lại trên production, xóa / ghi đè tài nguyên đã duyệt (Cấp 3). Chi tiết: docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 3/4b/5 (M6).",
    "replaces": "v31-m6-generation-limits-policy-2026-10-21",
-   "enforced_by": [],
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_e4_attempt_counters"
+    }
+   ],
    "status": "active"
   },
   {
@@ -988,7 +993,12 @@
    "keeps": "v31-permission-tiers-2026-10-20",
    "changes": "Cấp 1 ghi sổ + kế hoạch. Không phải lệnh triển khai code (Cấp 2 theo gói) và không cấp quyền Cấp 3 (API trả phí, bật cờ production, migration, xóa asset) — EP 22/10 điều kiện chung 3/4/8.",
    "replaces": null,
-   "enforced_by": [],
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_qf_safe_paid_buttons"
+    }
+   ],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
   },
@@ -1132,7 +1142,12 @@
    "keeps": "ep-2210-e4-counters-2026-10-22; v31-ep-m6-self-repair-budget-40-2026-10-21; budget-gate-removed-2026-10-15 (thao tác tay không bị khóa ngân sách)",
    "changes": "So với qd2: thêm chi dự kiến của job vào phép so; hạn mức theo khâu; người tạo dự án được vượt bằng tay có cảnh báo + ghi sổ; đặt tên 'hạn mức chi của luồng tự động'.",
    "replaces": "ep-2210-qd2-hard-stop-automated-only-2026-10-22",
-   "enforced_by": [],
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_qd3_auto_spend_limit"
+    }
+   ],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
   },
@@ -1171,6 +1186,18 @@
    "enforced_by": [],
    "status": "active",
    "phase": "APPROVED"
+  },
+  {
+   "id": "ep-2410-test-project-cap-20usd-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, chat phiên chính 24/10 chiều)",
+   "text": "Dự án test thật V3.1 ngày 25/10 (clip rối funny 30–50 s, cảnh trận FF nhiều đội, mỗi đội 3 con rối nhảy nhót; ~8–12 shot) có TRẦN 20 USD cho cả dự án (ảnh + video nháp + 1080p). Một nửa số shot thử A/B gói gửi gọn (M2.10 bước 3, lean_package). Mỗi lần gen ảnh/video vẫn báo giá pregen_check và chờ người dùng duyệt.",
+   "keeps": "v31-ep-m210-lean-package-2026-10-21; ep-2310-qd3-auto-spend-limit-2026-10-23; feedback ask_before_image_and_video_gen",
+   "changes": "Đặt budget_usd = 20 khi tạo dự án test 25/10; M2.10 bước 3 A/B được làm trong dự án này.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
   }
  ]
 }

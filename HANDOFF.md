@@ -76,3 +76,14 @@ Nhánh `claude/golden-replay-windows` (từ origin/main 85189242). Commit công 
 | Phụ (pause_before_submit + poll_claim BẬT) | 127 | 0 | 0 | 31 | 21 ca | có |
 So GOLDEN7 117/0/0/41: 10 ca 'operation' nay đều SAME (#27 +3, #31 +7 → #31 78/78). 31 BOTH_FAIL còn lại đều 'prepare giữ (_hold)'
 (như cũ). Theo dự án: #24 15/0/0/9, #27 28/0/0/16, #31 78/0/0/0, #33 6/0/0/6. Tệp: D:/AI-Video-Output/golden-snapshot-8mc/ab_main.json, ab_flags_on.json.
+
+---
+
+# Bàn giao — CX24-G4-QUYET-DINH
+
+- Làn: Codex 3; nhánh `codex/v31-quyet-dinh-check`.
+- Nhánh đã nhập `origin/main` tới `d76d3588` (M82 pha A, M53-MAY, G1-PLAN-GATES và các cập nhật mới); merge commit nhánh G4 `c33aaf53` đã push.
+- Đã nối Q-F với `tests/test_safe_paid_buttons.py`, M6 policy B với ca E4 (gồm clip nhóm tính giới hạn riêng từng shot), QD3 với `check_qd3_auto_spend_limit`. Sau khi M82 pha A gộp `core.simple_budget`, đã bỏ `pending` cũ khỏi `data/decisions.json`.
+- Bằng chứng mới nhất: `py -m core.decisions check` → **Khớp**; `py -m pytest -q -p no:cacheprovider tests/test_decisions.py` → **43 passed / 25.18s**.
+- Báo cáo ứng viên: `docs/RA_CX24_G4_QUYET_DINH_CODEX_2026-10-24.md`; còn 52 quyết định chưa nối, có đề xuất check; không sửa nội dung quyết định cũ.
+- Chỉ dùng fixture tạm; không gọi API trả phí, không ghi dữ liệu dự án thật. G4 hoàn tất trên nhánh, chờ phiên chính rà/gộp; việc kế là CX24-G3-SO-LOI. M47B vẫn chờ Codex 1 nối UI.

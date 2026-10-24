@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T14:33:06.550903+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-M77-EVID",
+  "branch": "codex/v31-m77-evid",
+  "commit": "0e6c8271",
+  "report": "docs/M7_7_BANG_CHUNG_CO_2026-10-24.md",
+  "text": "Codex 3: M77 đã push báo cáo 62 cờ chưa bật đầy đủ (60 OFF + 2 học việc), khớp core.features.report() trên máy chính; tin giao ghi 61, thêm simple_mode của M8.2 có trong registry hiện tại. Không bật/tắt cờ, không ghi dữ liệu thật, không gọi API trả phí; pytest không chạy vì chỉ sửa tài liệu. Tiếp tục CX24-G4 đang giữ theo đính chính 13:48."
+}

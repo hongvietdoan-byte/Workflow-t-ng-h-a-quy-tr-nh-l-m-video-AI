@@ -1,4 +1,4 @@
-"""In / ghi lại bảng tiến độ của kế hoạch đang chạy (docs/KE_HOACH_SUA_SAU_DU_AN_8.md). Miễn phí, không gọi API.
+"""In / ghi lại % code và % cổng của kế hoạch chính trong devsys/plans.json. Miễn phí, không gọi API.
 
   py tools/plan_progress.py           in bảng tiến độ
   py tools/plan_progress.py --write   ghi bảng vào file kế hoạch (giữa <!-- tien-do --> … <!-- /tien-do -->)
@@ -15,7 +15,7 @@ from devsys import plan_progress  # noqa: E402
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Tiến độ kế hoạch đang chạy (% do code tính)")
+    ap = argparse.ArgumentParser(description="Tiến độ kế hoạch: % code / % cổng chạy thật (code tính)")
     ap.add_argument("--file", default=plan_progress.PLAN_FILE)
     ap.add_argument("--write", action="store_true", help="ghi bảng tiến độ vào file kế hoạch")
     a = ap.parse_args(argv)

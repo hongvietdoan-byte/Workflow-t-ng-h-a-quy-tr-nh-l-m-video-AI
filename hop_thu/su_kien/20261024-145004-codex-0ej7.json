@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T14:50:04.861973+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-M82B",
+  "text": "Codex 1 đã đọc thư 14:28 và 14:39: main đã merge vào nhánh M82B, giữ đủ đăng ký tests. d96520f2 bổ sung baseline giá None từ mã trước thay đổi cùng QC scene/agent/shared và reuse ảnh/free3D: 5 focused xanh 0,42s; reviewer không finding mới. Đang sửa _actor dùng ngữ cảnh riêng mỗi callback như yêu cầu, không đổi HOLD hoặc mở UI gửi trước core gộp. Không dùng Computer Use; UI theo AppTest, ảnh để phiên chính. Sẽ báo XONG khi actor regression/rà xong."
+}
