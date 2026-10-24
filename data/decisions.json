@@ -1198,6 +1198,18 @@
    "enforced_by": [],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2410-basic-post-auto-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, qua phiên con #34 16:05/16:10, xác nhận chat phiên chính 24/10)",
+   "text": "Bước 5 Dashboard thêm ghép video phụ tách phông xanh, chữ đè tự gõ nhiều dòng, nhạc lấy từ tiếng video có sẵn. Ở chế độ CƠ BẢN khâu dựng làm TOÀN BỘ tự động theo kịch bản đã chốt (kịch bản/Đạo diễn mang đủ dữ liệu hậu kỳ); thiếu dữ liệu thì báo rõ chỗ thiếu, không im lặng, không bỏ qua; Nâng cao giữ ô chỉnh tay. Ca mẫu #34 MEO_NHAY_TAP2_FINAL.mp4.",
+   "keeps": "ep-2310-m81-approved-m82-go-2026-10-23; ep-2310-mode-labels-basic-advanced-2026-10-23",
+   "changes": "Codex CX24-P34-B5-OVERLAY (cờ post_overlays TẮT).",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
   }
  ]
 }

@@ -1898,3 +1898,35 @@ Test đỏ→xanh: fake claude trả JSON usage → ghi đủ cột; cờ TẮT 
 Giao: Codex 3 sau CX24-KIEM-CONG-GOP (hoặc Codex 2 nếu rảnh trước). Chỉ đọc `git diff origin/main...origin/codex/v31-m82b-targeted` (@ed687e9f, báo cáo docs/RA_CX24_M82B_CODEX_2026-10-24.md) + chỗ gọi tới.
 Trọng tâm tiền + vòng đời job: queue_images(scene_ids) None = hành vi cũ; HOLD không để lại job queued (bg_poll / 2 tiến trình); submit_pending(only=) không gửi job khác; giá estimate_images(scene_ids) = đúng tập gửi; pilot/redo ngoài tập; lỗi THẤP `_actor` dashboard/basic/actions.py.
 Ra `docs/RA_CX24_RA_M82B_2026-10-24.md`: lỗi CAO/VỪA/THẤP, file:dòng, cách sửa + test chứng minh; chạy test liên quan của nhánh. KHÔNG gộp main (phiên chính gộp). Lỗi → Codex 1 sửa trên nhánh.
+
+> Các việc CX24-P34-* dưới đây tổng hợp lỗi/yêu cầu phiên con #34 (Mèo nhảy tập 2) bàn giao 24/10 qua hộp thư (tin ris9, fw23, 4ubf, r9hm, w0xw, w38b) + `docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md` (mục 1–14). Ca mẫu: `docs/DU_AN_OB55_MEO_NHAY_TAP2_2026-10-23.md`. Mục 5 (N5 tấm ghép lấy lần đo đầu) ĐÃ SỬA 5deb6da0 — không làm lại. Không dữ liệu thật, không API, không Computer Use.
+
+### CX24-P34-D6-REFROLES — D6 "Gen lại" làm rơi câu vai ảnh tham chiếu → mất tiền (ưu tiên 1; LỖI TIỀN; RÀ KỸ; 0 USD)
+Giao: Codex 1 (tạm dừng M47B sau mốc an toàn — cần xong trước test 25/10). Nhánh `codex/v31-p34-d6-refroles`.
+Thật #34 job 1202: bấm "↻ Gen lại theo ảnh/prompt mới" (dashboard step4 → regen.regenerate_video) → D6 viết lại prompt video, RƠI câu "Image 2 is ROI TIM: identity only … Image 3 is ROI DO … Image 4 is the 3D PLACE render" (job 1199 cùng shot còn đủ) → Seedance 2.5 in nguyên banner "CHARACTER SHEET REFERENCE" + dấu đỏ của ảnh Kho vào cả clip 480p (≈ 1,34 USD mất).
+Làm: (1) kiểm bằng CODE ngay trước gửi (một chỗ trong builder gói video, mọi đường gửi kể cả regen/D6/chat): mỗi ảnh tham chiếu gửi kèm phải có câu vai tương ứng trong prompt cuối; thiếu → tự ghép lại câu vai từ dữ liệu ref (không gọi Claude) + diag; không ghép được → CHẶN gửi, nói rõ shot/ảnh thiếu. (2) D6 rewrite: câu vai ảnh là đoạn KHÓA (giống locks) — đầu vào/đầu ra D6 giữ nguyên. (3) Tùy chọn khác (ghi đề xuất, không bắt buộc): ảnh nhân vật gửi provider dùng bản không banner/dấu.
+Test đỏ→xanh tái hiện job 1202 bằng fixture (prompt trước/sau D6) → sau sửa gói gửi có đủ câu vai; mọi đường gửi video qua cùng kiểm tra; cờ: sửa lỗi tiền → áp dụng không cờ trừ khi đổi byte gói của shot ĐÃ đủ câu vai (golden COMPAT phải giữ nguyên).
+
+### CX24-P34-DASH-FIXES — Lỗi Dashboard #34: rà soát 'failed' câm, trạng thái đăng nhập CLI, change_audit theo tên, chọn phía máy… (ưu tiên 2; 0 USD; RÀ KỸ phần cổng gen)
+Giao: Codex 3 sau CX24-RA-M82B. Nhánh `codex/v31-p34-dash-fixes`. Theo `docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md`:
+- Mục 1: change_review lần rà 'failed' (vd lỗi đăng nhập) GIỮ cổng gen nhưng Dashboard ghi "không có mục lệch" → hiện đúng trạng thái "Rà soát LỖI: <lý do>" + nút "Rà lại" và "Bỏ qua (EP, ghi lý do)"; mục đỏ phải tạo cả khi blocking() không ghi.
+- Mục 2: ô trạng thái đăng nhập Claude Code CỦA PIPELINE (chạy `claude auth status` với clean_env như llm_runner, cache ngắn) + hiện EMAIL tài khoản CLI (người dùng 24/10 mới biết Dashboard dùng vietdoan1202 còn app dùng doanhongviet122) + hướng dẫn đăng nhập lại khi hết hạn; khâu Claude thất bại vì đăng nhập → thông báo rõ thay vì treo.
+- Mục 3: Bàn đạo diễn N4 cần JSON từ phiên Claude Code → nút "Giao vai cho Claude" chạy đề bài qua llm_runner (claude_cli, theo CX24-CLI-TOKENS) và nạp câu trả lời; giữ nút dán tay.
+- Mục 4: thiếu height_m → chặn kèm lối sửa ngay trên Dashboard (ô nhập chiều cao ghi hồ sơ Kho, có xác nhận).
+- Mục 6: core/change_audit.py dò nhân vật theo characters.ref_asset_id trước, tên toàn Kho chỉ dự phòng (#34 báo sai Kho #454 / "RỐI ĐỎ không có trong Kho"; ✓ Đã sửa rồi lại mọc → sửa vòng lặp mọc lại).
+- Mục 7: bộ giải máy: cho chọn phía máy (trước/sau/trái/phải so trục) + ép thay_min của vật phụ.
+- Mục 10: đăng nhập Dashboard mất khi mở URL mới (?pid=&step=) → giữ phiên đăng nhập theo cookie/token như hiện có, không bắt nhập lại.
+- Mục 11: nhãn "Ảnh: deepix" ở Bước 2 phải đọc model ảnh thật của dự án.
+Mỗi mục test đỏ→xanh; cái đổi hành vi cổng gen phải có test HOLD fail-closed. Mục 8/9 (đổi chỗ đứng đồng bộ, dựng từ video TikTok) chỉ ghi thiết kế trong báo cáo.
+
+### CX24-P34-B5-OVERLAY — Bước 5: ghép video phụ phông xanh + chữ đè tự gõ + nhạc từ video; Cơ bản tự áp theo kịch bản (ưu tiên 2; người dùng 24/10 16:05/16:10; 0 USD ffmpeg)
+Giao: Codex 2 sau CX24-CLI-TOKENS. Nhánh `codex/v31-p34-b5-overlay`. Cờ mới `post_overlays` TẮT = y hệt cũ.
+(A) Lớp VIDEO PHỤ tách phông xanh: chọn/tải video, cắt vùng, cỡ + vị trí (vd đáy giữa), chromakey màu + ngưỡng + despill, giây bắt đầu (theo nhạc), tùy chọn lấy tiếng video phụ làm nhạc; xem thử 1 khung trước khi dựng.
+  Mẫu chạy thật: D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/hau_ky/hau_ky.sh (crop=880:900:100:640, chromakey=0x00FF00:0.16:0.08, despill=green, scale=480, overlay=(W-w)/2:H-h+12) — ĐỌC để chép tham số, KHÔNG sửa file đó.
+(B) CHỮ TỰ GÕ cả video / theo đoạn: nhiều dòng, mỗi dòng màu, cỡ, viền, vị trí (vùng an toàn), thời điểm vào–ra, font tiếng Việt từ Kho. Hiện phụ đề chỉ sinh từ lời thoại (delivery.subtitle_cues, data_editor num_rows='fixed') → dự án không thoại không thêm được dòng. Mẫu: drawtext 2 dòng trắng/vàng fontsize 64 borderw 5 y=120/205.
+(C) Nhạc = tiếng của một video có sẵn (tự tách âm) thay vì chép tay vào nhac_rieng.
+(D) CHẾ ĐỘ CƠ BẢN (người dùng 16:10, sổ ep-2410-basic-post-auto): người dùng không chỉnh tay — kịch bản/Đạo diễn đã chốt mang đủ dữ liệu hậu kỳ (lớp phụ: nguồn, vùng cắt, vị trí, cỡ, màu nền, giây bắt đầu; chữ: nội dung, màu, vị trí, thời điểm; nhạc từ video tham chiếu khi kịch bản ghi; âm lượng) — thêm trường có cấu trúc vào dữ liệu dự án/kịch bản (đề xuất schema trong báo cáo, Đạo diễn điền); ▶ Dựng / 📦 Xuất bản tự áp dụng hết; THIẾU dữ liệu → báo rõ chỗ thiếu, không im lặng, không bỏ qua. Nâng cao giữ ô chỉnh tay.
+Lưu thiết lập theo dự án; xuất bản đầy đủ + kích thước khác giữ lớp phủ. Test: fixture video nhỏ sinh bằng ffmpeg (testsrc + màu xanh) → khung xem thử có lớp phụ đúng vị trí; cờ TẮT = lệnh ffmpeg y hệt cũ; ca #34 tái hiện bằng tham số (so chuỗi filter).
+
+### Bổ sung CX24-CLI-TOKENS (phiên con #34, tin r9hm)
+Gốc nghi vấn: lời gọi NHẸ NHẤT (change_review) vẫn ~42 nghìn token vào, video/chat_prompt/qc nền ~100 nghìn → mỗi `claude -p` có thể nạp lại system prompt + công cụ + MCP/plugin của máy (brightdata, adobe, chrome-devtools…) + CLAUDE.md + memory của thư mục làm việc; cache_read NULL. Thử: cwd ngoài repo hoặc `--setting-sources` tối thiểu, `--strict-mcp-config` với cấu hình rỗng, tắt plugin, `--allowedTools` theo khâu; đo trên fake, sau đó trình phiên chính 1 lời gọi thật có duyệt. Lời gọi 1,62 triệu = llm_calls id 1955 (chat_prompt), 920 nghìn = id 1956 (qc).
