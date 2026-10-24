@@ -1094,7 +1094,12 @@
    "keeps": "v31-ep-stage-desk-actions-2026-10-21 S-B (chỉ NGƯỜI có vai EP; Director/Claude/công cụ không tự duyệt); check_stage_desk_ep_only giữ, mở rộng ca EP được cấp",
    "changes": "Giao Codex CX22-G1-EP-ROLE (docs/CODEX_TASKS.md). Đổi CHECK/schema CSDL thật = migration Cấp 3 → dừng báo.",
    "replaces": "ep-2210-g1-ep-role-per-project-2026-10-22",
-   "enforced_by": [{"kind": "code", "check": "check_stage_desk_ep_only"}],
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_stage_desk_ep_only"
+    }
+   ],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
   },
@@ -1278,6 +1283,18 @@
    "text": "Câu 7: N9 Render lại giữ quyền hiện tại (quyền sửa + xác nhận) và xác minh việc duyệt lại sau khi render.",
    "keeps": "",
    "changes": "Codex CX24-N9-REAPPROVE: nếu render lại đổi sản phẩm đã duyệt mà không về chờ duyệt thì sửa + test.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2410-focus-no-new-features-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, chat 24/10 ~23:10)",
+   "text": "Hướng TẬP TRUNG: ngừng thêm tính năng mới; làm nốt Dashboard cơ bản + lỗi từ dự án thật + đo/nghiệm thu; định nghĩa xong = đạt cổng trên dự án thật, mỗi dự án thật là một lượt nghiệm thu nhóm việc. TIẾP TỤC: M8.2 (M82B, CX24-M82C), CX24-P34-B5-OVERLAY, M8.3 → M8.4 (gồm M6.11); lỗi dự án thật P34-DASH-FIXES, URL-TOKEN-RA, N9-REAPPROVE, M47-DELETE-MSG, MAIN-RED; đo/nghiệm thu M9.13, M9.2, M9.3, M7.7, CX24-GIAM-SAT. M6 GIỮ ƯU TIÊN CAO (khung trách nhiệm, giải 'lỗi không biết ai sửa'): M6.1/6.3/6.9 đã có, M6.2/M6.4 đang gộp, M6.10 Dashboard điều phối EP (phiếu lỗi theo vai) + việc mới M6.10b nối khung trách nhiệm vào dự án thật (QC/cổng → phiếu → vai chủ M6.9 → Dashboard). M6 GIỮ SAU KHUNG: M6.5 VPA tiếp tục; M6.6/6.7/6.8 sau M6.10; M6.12 nghiệm thu bằng dự án thật. TẠM NGỪNG (giữ nhánh, không xóa): CX23-M23B (dừng ở mốc an toàn), CX24-HEIGHT-PROJECT (hoãn tới khi gặp ca cần), M2.10 gửi thật (giữ shadow), M3.1 world map, M4.6 mở rộng, M4.8 Bàn đạo diễn đợt sau. Cấp 3 chờ bằng chứng: M5.4, M5.5, M7.8.",
+   "keeps": "M6 khung trách nhiệm; các cờ/nhánh tạm ngừng giữ nguyên, không xóa.",
+   "changes": "Kế hoạch V3.1 ghi chú TẠM NGỪNG/ƯU TIÊN CAO; thêm M6.10b; giao Codex CX24-M610, CX24-M610B; Codex dừng CX23-M23B ở mốc an toàn.",
    "replaces": null,
    "enforced_by": [],
    "status": "active",
