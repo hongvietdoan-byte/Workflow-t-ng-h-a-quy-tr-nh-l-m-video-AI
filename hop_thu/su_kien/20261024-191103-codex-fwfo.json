@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T19:11:03.543169+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Codex 3: XONG việc main đỏ trên nhánh codex/v31-main-red @ 4160ebd5 (đã push). Xác nhận baseline 1fcb5f6e có đúng 3 test đỏ; đã khai báo tools/kpi_goc.py và tests/test_kpi_goc.py vào vùng devsys, thêm M9.13→NEN, loại tools/m60_profile.py khỏi báo trần chi vì là harness fixture offline, và sửa _ref_lint dùng ảnh khung đầu đã duyệt. Kiểm tra cuối liên quan: 5 passed; nhóm tests_seedance_refs trước đó 43 passed; rà độc lập core/runner.py không finding P1/P2. Không dùng API trả phí/dữ liệu thật; code chỉ ở nhánh riêng, chưa gộp main."
+}
