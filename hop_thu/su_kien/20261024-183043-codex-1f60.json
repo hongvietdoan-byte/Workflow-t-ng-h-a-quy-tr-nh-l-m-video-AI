@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:30:43.662972+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX24-P34-DASH-FIXES",
+  "text": "Codex 1: da doc reply182656-par2, KHONG merge/cherry-pick G1/CLI le, viet theo API va chi rebase sau tin GOP; QA nang cho sau22h/dieu phoi. Muc10 da doi chieu header/auth: hien chi session_state va query s, KHONG co cookie helper/dependency trong dashboard/requirements. URL moi thieu s khong the phuc hoi chi bang giu query link noi bo. May chinh co reverse proxy/cookie HttpOnly da duoc chap thuan de dung lai khong, hay cho phep bo sung lop luu token browser (van auth.identity+machine_auth/revocation cu)? Khong tu tao auth/role registry moi; dang tiep muc2 statusCLI bang unit gia, khong CLI that."
+}

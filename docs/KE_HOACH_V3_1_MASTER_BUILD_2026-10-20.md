@@ -301,6 +301,7 @@ Lớp cổng khởi tạo theo báo cáo giám sát 24/10 §3; M0.8 giữ ⬜ do
 
 ## 6. Nhật ký
 
+- 24/10 gộp D6-REFROLES + CLI-TOKENS f4031e9b (rà: cờ đổi tên cli_call_budget, --max-turns chừa lượt mỗi ảnh, reference_roles_hold vào diag gộp).
 - 24/10 (chiều): EP — cờ sau kiểm chứng chỉ KHÓA BẬT/SỬA/BỎ, kỹ thuật dựng phim do Đạo diễn AI chọn theo shot (ghi dòng M7.7, bỏ M7.9); thêm M9.13 đợt kiểm cổng gộp trên dự án test 25/10.
 - 24/10: giám sát đợt 1 (4,6/10) → người dùng: tối ưu bổ sung TRỰC TIẾP vào kế hoạch → thêm M9 (M9.0 luật + 12 việc từ 16 phát hiện), M5.4 thêm cổng M9.2 đo KPI gốc.
 - 23/10 (tối): M8.1 vòng 2 theo góp ý EP — nhãn Cơ bản/Nâng cao, Q-D qd3 hạn mức chi của luồng tự động, cổng M8.4 trước luồng tự động trả phí (dòng M8.2, M8.4), mockup 7 màn; chờ EP duyệt chính thức.

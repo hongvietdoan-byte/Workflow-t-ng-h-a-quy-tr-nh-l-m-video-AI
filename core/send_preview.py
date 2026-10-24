@@ -79,6 +79,12 @@ def video_package(p, runner, job) -> Dict[str, Any]:
             out["why"] = "thiếu đầu vào (ảnh đã duyệt / motion prompt đã duyệt) — nút Gen cũng sẽ không gửi"
             return out
         kwargs = r._submit_kwargs(job) if getattr(runner.provider, "supports_aspect", False) else {}
+        guard = getattr(r, "_guard_reference_roles", None)
+        if guard:
+            args = guard(job, args, kwargs)
+            if args is None:
+                out["why"] = "thiếu vai ảnh tham chiếu hoặc prompt không giữ đủ vai trong trần — nút Gen cũng sẽ giữ chờ"
+                return out
     except PreviewBlocked as e:
         out["why"] = f"{e} — gói này cần hỏi nhà cung cấp lúc gửi (vd bản cao nâng từ nháp), không dựng trước được"
         return out
