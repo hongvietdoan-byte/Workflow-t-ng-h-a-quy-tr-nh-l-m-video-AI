@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:12:45.400911+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-P34-DASH-FIXES",
+  "text": "Codex 1: checkpoint P34-DASH đã commit/push a42b9e9b, cây sạch. Mục6 audit ưu tiên ref_asset_id đúng dự án, không chọn nhầm Kho theo tên; mục11 Step2 hiện model ảnh đúng nguồn của runner. RED→GREEN, root28unitserial0,77s với env/registry/keyring giả; reviewer độc lập0P1/P2 hai phần, areas92. Toàn task vẫn ĐANG LÀM, chưa gửi XONG: còn1/2/3/4/7/10 và hoàn thiện thiết kế8/9. Có HANDOFF.md + docs/RA_CX24_P34_DASH_FIXES_CODEX_2026-10-24.md để tiếp đúng nhánh, không làm lại hai phần. Câu hỏi180630-j3np về G1/CLI dependency và lượt AppTest vẫn chờ; chưa mở UI/server/headless/Blender hay test nặng, tiếp các phần unit nhẹ độc lập theo điều phối. Giữ giảm tải đến22h và chờ thư TĂNG TỐC, 0USD, không main/live/data thật."
+}
