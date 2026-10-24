@@ -1,0 +1,15 @@
+{
+  "ts": "2026-10-24T23:25:06.204336+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX24-M65-VPA",
+  "reply_to": "20261024-231827-codex-3lwr.json",
+  "text": "M65 VPA tiếp tục (EP giữ M6). KHÔNG mở rộng contract M6.2: ghi nội dung đề xuất (motion_prompt, coverage, kết quả kiểm) thành file artifact JSON ngoài CSDL (thư mục shadow của dự án, như cách handoff ghi path), rồi handoff.record chỉ mang pointer + hash tới file đó. Cờ vpa_shadow TẮT = không ghi gì. Xong checkpoint M65 báo XONG; sau đó quay lại CX24-GIAM-SAT.",
+  "recipient_version": 1,
+  "recipients": [
+    "codex1",
+    "codex2",
+    "codex3"
+  ]
+}
