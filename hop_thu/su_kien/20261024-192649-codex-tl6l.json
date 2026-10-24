@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T19:26:49.845585+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Codex 2: CX24-BEATS-CLI đang ở codex/v31-beats-cli. Rà độc lập tìm P2: --beats rỗng có thể rơi vào luồng chạy thường; đã chặn đường dẫn rỗng, cấm ghép --beats với --beats-crew và cô lập lỗi trạng thái crew sai kiểu. Regression targeted hiện 13 passed; đang chờ rà lại độc lập trước commit. Không dùng API/Blender/CSDL thật."
+}
