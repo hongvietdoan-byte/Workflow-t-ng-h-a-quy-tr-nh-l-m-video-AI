@@ -181,6 +181,38 @@ def _camera_controls(text, key, busy):
     return choices
 
 
+def _cli_proposal_controls(conn, pid, data_dir, scene, key, who, user, busy):
+    from core import stage_cli_proposal
+    from dashboard import paid_confirm
+    revision_key = f"{key}_N4_proposal_revision"
+    if st.session_state.get(revision_key):
+        st.caption("JSON đề xuất đã ghim vào đúng đầu vào/vai lúc tạo. Chưa nạp; vẫn cần xác nhận N4 bên dưới.")
+        if st.button("Bỏ ghim đề xuất để dùng JSON nhập tay", key=f"{key}_N4_manual", disabled=busy):
+            st.session_state.pop(revision_key, None)
+            st.session_state[f"{key}_N4_ok"] = False
+    quoted = stage_cli_proposal.quote(conn, pid, data_dir, scene, user=user)
+    if not quoted.get("ok"):
+        st.caption("Giao vai CLI chưa sẵn sàng: " + "; ".join(quoted.get("errors") or []))
+        return
+    suffix = quoted["revision"][:24]
+    consent = st.checkbox("Tôi đồng ý dùng hạn mức gói Claude CLI để tạo đề xuất; chưa nạp hay duyệt máy",
+                          key=f"{key}_N4_cli_consent_{suffix}", disabled=busy)
+    if paid_confirm.paid_button("Giao vai cho Claude", key=f"{key}_N4_cli_{suffix}", tag=quoted["tag"],
+                                disabled=busy or not consent,
+                                question="Tạo JSON đề xuất bằng CLI của dự án, dùng hạn mức gói. CLI có thể hỏi lại khi lỗi định dạng/thời gian chờ. "
+                                         "Chưa nạp N4 hay duyệt máy; tiếp tục?"):
+        result = stage_cli_proposal.generate(conn, pid, data_dir, scene, who, user=user,
+                                              expected_revision=quoted["revision"], confirmed=consent)
+        if result.get("ok"):
+            # Đặt TRƯỚC khi tạo text_area/checkbox N4 trong lượt vẽ hiện tại.
+            st.session_state[f"{key}_N4_json"] = json.dumps(result["answer"], ensure_ascii=False, indent=2)
+            st.session_state[revision_key] = result["revision"]
+            st.session_state[f"{key}_N4_ok"] = False
+            st.rerun()
+        else:
+            st.error("; ".join(result.get("errors") or ["Không tạo được đề xuất CLI."]))
+
+
 def render_scene(p, pid: int, data_dir: str, scene) -> None:
     """Hàng nút của MỘT cảnh, vẽ trong expander của màn XEM. Cờ tắt → không đọc / không vẽ gì."""
     if not enabled():
@@ -314,6 +346,7 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
                     conn, pid, data_dir, scene, suggestion.get("place_ids") or [], family, who=who, user=user))
 
     if "N4" in codes:
+        _cli_proposal_controls(conn, pid, data_dir, scene, key, who, user, busy)
         answer_text = st.text_area("📥 Câu trả lời vai (JSON) — dán vào đây, hoặc để trống để đọc crew/tra_loi_<phase>.json của đoạn",
                      key=f"{key}_N4_json", height=120, disabled=busy)
         camera_choices = _camera_controls(answer_text, key, busy) if s.get("phase") in ("quay_phim", "quay_phim_duyet") else {}
@@ -332,7 +365,8 @@ def render_scene(p, pid: int, data_dir: str, scene) -> None:
                     except ValueError as e:
                         st.session_state[res_key] = ("N4", {"ok": False, "errors": [str(e)]})
                     else:
-                        run("N4", lambda: stage_desk.load_answer(conn, pid, data_dir, scene, obj, who, user=user), clear=("N4_ok",))
+                        run("N4", lambda: stage_desk.load_answer(conn, pid, data_dir, scene, obj, who, user=user,
+                            expected_proposal_revision=st.session_state.get(f"{key}_N4_proposal_revision")), clear=("N4_ok",))
 
     if "N6" in codes:
         marks_key = f"{key}_marks"

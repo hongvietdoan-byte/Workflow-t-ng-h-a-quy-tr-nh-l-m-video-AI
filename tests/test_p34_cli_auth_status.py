@@ -15,6 +15,12 @@ with mock.patch.object(os,"environ",{}):
     from core.llm_runner import ClaudeCliClient
 
 
+@pytest.mark.parametrize("message", ["Not logged in", "Please run /login", "not logged in · Please run /login"])
+def test_cli_login_failures_have_explicit_auth_code(message):
+    from core.llm_runner import cli_error_code
+    assert cli_error_code(message) == "auth"
+
+
 @pytest.fixture(autouse=True)
 def isolated(tmp_path):
     auth.clear_cache()

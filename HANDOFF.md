@@ -1,3 +1,5 @@
+CẬP NHẬT ƯU TIÊN: mục3 đã sửa quyền và rà0P1P2, root76test/1,39s. Xem cuối RA. Mục1 pushaf12ee32. Thư18:54 đã chốt4 chỉ KhoCHUNG+writergiữv1;10 chỉgiữs+thôngbáothiếuphiên, KHÔNGcookie/clone. Tiếp4/10, khôngchờcâuhỏicũ. G1 vẫnchưaGỘP; giữRAM/CU/API/data restrictions.
+
 # Codex 1 — CX24-P34-DASH-FIXES đang làm
 
 Nhánh codex/v31-p34-dash-fixes, D:/AI-Video-Pipeline/.codex-wt/v31-p34-dash-fixes. Đọc docs/RA_CX24_P34_DASH_FIXES_CODEX_2026-10-24.md và git log/status trước tiếp. Task nhận175930-9fnb; CHƯA XONG, chỉ xóa HANDOFF này ở commit hoàn tất.

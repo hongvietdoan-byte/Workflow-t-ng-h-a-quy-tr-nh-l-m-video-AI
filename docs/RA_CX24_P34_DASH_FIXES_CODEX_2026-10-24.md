@@ -120,3 +120,18 @@ Backend `dismiss_failed_review` dùng `_need_ep` canonical của stage_desk, đ�
 RED **15 failed/0,56s** trước API → GREEN15/0,31s. Rà gom2P2: coverage cũ chỉ so timestamp đến giây có thể che cùng event lỗi lại SAU khi EP bỏ qua; UI đọc snapshot ngoài try có thể crash khi finding bị đóng đồng thời. Sửa marker `event_versions` id→hash(kind,state,fulltimestamp,note) trong audit, không lưu rawnote; blocking mở lại đúng finding có bằng chứng phiên lỗi đổi, summary readonly cũng hiện phiên mới. UI race có caption tải lại + không vẽ nút stale. Ca lỗi cùnggiây sau skip RED1/0,25s → xanh; mock UI nonce/race bổ sung. Kết quả root toàn `test_change_review` +2file P34: **100 passed/10,65s** serial, fakeenv/DB/model. Reviewer vòng2: **0 P1/P2 trong phạm vi đã gom**, root đọc fix hai lượt. Audithistory lookup còn quét action mới theo scene có dismissed; chưa benchmark production.
 
 Giới hạn: chưa AppTest/GUI/#34 thật. G1 chưa main nên EP đượcgán riêng mới kiểm qua contract API/mock, Owner/quyềncanonical nền giữ nguyên; chờ gộp G1 trước chốt tích hợp. Không migration, không trảphí/data thật/API; role/audit dùng nguồn cósẵn. Đã merge main đãGỘP CLI/D6 vào nhánhtask bằng **2ce7ea95**, xử lý3block areas bằng unionkhai báo/cờ, version92, không rewrite/forcepush và không gộpcode vào main.
+
+
+## Mục 3 và lỗi đăng nhập mục 2 — đề xuất N4 qua CLI
+
+`core/stage_cli_proposal.py` dùng client Claude CLI của đúng dự án và ledger tệp; provider khác/client sai/ledger thiếu đều từ chối, không chuyển API. Chỉ dùng K1 đã có, không tự dựng Blender. Ước tính token bằng API canonical, nói rõ chỉ phần đầu vào thấy được, không bịa baseline/model. Bốn vai sân khấu đăng ký policy canonical `other`; giữ cờ cli_call_budget hiện có, không bật cờ. Người dùng xác nhận hạn mức trước khi chạy; JSON hợp lệ chỉ thành bản nháp, không tự ingest, ghi camera hay duyệt EP. N4 vẫn cần xác nhận và validator hiện hành; nhập tay vẫn còn. Pin theo input/phase/state/prompt/metadata ảnh, không cam kết nguyên khối output CLI: người dùng được chỉnh draft rồi validator kiểm. Đầu vào đổi trước generate hoặc trước worker N4 thì giữ draft và từ chối; không tự gọi lại.
+
+Rà quyền phát hiện authON thiếu identity và cached-owner/thu hồi quyền giữa precheck→khóa. RED **6 failed,24 passed/0,71s** → sửa lấy users.active/role mới, kiểm quyền trước provider/ledger và lại dưới khóa S; pinned N4 kiểm connection worker trước ingest. Builder **46 passed/1,06s**. Reviewer đọc fix hai lượt, **0 P1/P2 trong phạm vi đã gom**. Root đọc lại và chạy serial proposal+camera controls+CLI status **76 passed/1,39s** bằng OBJECT env/HOME/DB/provider/process giả. Không gọi CLI/native/Blender/API, không ghi dữ liệu thật; chưa AppTest/ca #34 thật.
+
+`cli_error_code` nhận cả Not logged in và Please run /login thành auth; 3 ca RED trước sửa → module CLI status30 xanh. Luồng giao vai hiện câu đăng nhập/hạn mức/timeout/JSON/ledger rõ, không đưa raw output vào UI. Helper/test đã khai plates3d; giữ areas.version92 và widget N4 cũ.
+
+## Đính chính phạm vi theo thư mới 18:54
+
+- Mục10: thư185416-4j0w yêu cầu giữ s trên mọi link/nút nội bộ; URL mới thiếu s báo rõ phiên không mang theo, đăng nhập lại. KHÔNG cookie/transport/reverse proxy mới; chỉ ghi đề xuất cho EP.
+- Mục4: thư185447-cupd chốt chỉ sửa height_m Kho CHUNG qua writer hiện có, giữ mọi trường v1 lạ và quyền cũ. KHÔNG clone dự án/API transaction mới; bản riêng sẽ tách nếu EP cần. Chuẩn bị làm tiếp theo phạm vi này, không còn chờ hai quyết định cũ.
+- Toàn task vẫn ĐANG LÀM; mục4/10 và QA tích hợp còn mở. Không phát xong sớm.
