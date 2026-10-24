@@ -1882,3 +1882,19 @@ EP 24/10: "code xong nhiều mà cổng chưa đạt → gộp vào kiểm tra, 
 2. `tools/kiem_cong.py --project N [--since <ts>] [--md out.md]` CHỈ ĐỌC (sqlite mode=ro như pilot_a --may-chinh): sau dự án, tự gom bằng chứng từng dòng bảng (jobs/sent_package/diag_events/ui_step/sổ chi/qc/overrides) → ĐẠT / CHƯA ĐẠT / THIẾU DỮ LIỆU kèm lý do; tái dùng tools/kpi_goc.py (G2) nếu đã có, pilot_a, core.cost.
    Test fixture CSDL giả: đủ / thiếu / lỗi từng loại bằng chứng; không bao giờ báo ĐẠT khi thiếu dữ liệu.
 Khai devsys/areas.json, không tăng version. Báo XONG kèm số dòng bảng + số kiểm được trên 1 dự án.
+
+### CX24-CLI-TOKENS — Tối ưu token các lời gọi `claude` của Dashboard (ưu tiên 1; người dùng duyệt 24/10; 0 USD; RÀ KỸ)
+Giao: Codex 2. Hạn: trước buổi test 25/10 sáng nếu kịp. Nhánh `codex/v31-cli-tokens`. Không chạy claude thật trong test (fake binary/mock), không dữ liệu thật.
+Số đo thật 24/10 #34 (llm_calls, provider claude_cli, 27 lời gọi ≈ 4,7 triệu token vào, tài khoản CLI vietdoan1202 lên 70 % 5 giờ): chat_prompt 8 lần 2,51 triệu (MỘT lần 1,62 triệu),
+qc 3 lần 1,12 triệu (một lần 920 nghìn), video 5 lần 0,56 triệu, change_review 10 lần 0,46 triệu, director_rewrite 88 nghìn. cache_read/cache_write đều NULL.
+Làm (core/llm_runner.py:1515 `claude -p --output-format json --no-session-persistence`):
+1. Tìm GỐC vì sao một lời gọi nạp > 500 nghìn token (nhiều lượt agentic + công cụ đọc file/ảnh lặp? prompt nhồi cả dự án? ảnh base64 lặp?) — ghi rõ trong báo cáo, kèm cách tái hiện bằng fixture.
+2. Theo khâu: `--max-turns` hợp lý; tắt công cụ không cần (`--disallowedTools`/`--allowedTools` chỉ cái khâu dùng); model theo khâu (khâu nhẹ change_review / chat_prompt → Sonnet nếu kiểm chứng đủ chất lượng, ghi lý do; QC nhìn ảnh giữ model hiện tại trừ khi có bằng chứng) — cấu hình MỘT bảng, sau cờ mới `cli_token_budget` TẮT = y hệt cũ.
+3. Ghi đủ input/output/cache_read/cache_write từ JSON của claude vào llm_calls; cảnh báo diag khi một lời gọi > 200 nghìn token vào (ngưỡng cấu hình); không chặn gửi.
+4. Ước tính trước khi chạy dùng cùng bảng (không tính tay).
+Test đỏ→xanh: fake claude trả JSON usage → ghi đủ cột; cờ TẮT = tham số lệnh y hệt cũ (so list args); cờ BẬT = max-turns/tools/model đúng bảng; cảnh báo ngưỡng. Báo cáo ước lượng mức giảm theo số đo 24/10. Khai areas.json.
+
+### CX24-RA-M82B — Codex RÀ KỸ độc lập nhánh M82B (ưu tiên 1; 0 USD)
+Giao: Codex 3 sau CX24-KIEM-CONG-GOP (hoặc Codex 2 nếu rảnh trước). Chỉ đọc `git diff origin/main...origin/codex/v31-m82b-targeted` (@ed687e9f, báo cáo docs/RA_CX24_M82B_CODEX_2026-10-24.md) + chỗ gọi tới.
+Trọng tâm tiền + vòng đời job: queue_images(scene_ids) None = hành vi cũ; HOLD không để lại job queued (bg_poll / 2 tiến trình); submit_pending(only=) không gửi job khác; giá estimate_images(scene_ids) = đúng tập gửi; pilot/redo ngoài tập; lỗi THẤP `_actor` dashboard/basic/actions.py.
+Ra `docs/RA_CX24_RA_M82B_2026-10-24.md`: lỗi CAO/VỪA/THẤP, file:dòng, cách sửa + test chứng minh; chạy test liên quan của nhánh. KHÔNG gộp main (phiên chính gộp). Lỗi → Codex 1 sửa trên nhánh.
