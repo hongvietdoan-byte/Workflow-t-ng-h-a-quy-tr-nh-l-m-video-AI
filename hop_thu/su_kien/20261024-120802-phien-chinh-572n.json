@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T12:08:02.773452+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "24/10 12:1x: Codex giờ chỉ còn hạn mức THÁNG (300 USD) → làm liên tục. Đã gộp M80C + M48-D2. Thêm 3 việc: CX24-DEVSYS-FIX (ưu 2), CX24-BEATS-CLI (ưu 3), CX24-M77-EVID (ưu 4). Phân công giữ như tin 23/10 23:20; Codex 1 bốc thêm DEVSYS-FIX trước REPORT; Codex 2 thêm BEATS-CLI sau A2F-ALIAS; ai rảnh bốc M77-EVID. Mỗi phiên NHỚ tạo heartbeat 20 phút đọc hộp thư + nhận việc kế (không có lịch = đứng yên sau mỗi lượt)."
+}
