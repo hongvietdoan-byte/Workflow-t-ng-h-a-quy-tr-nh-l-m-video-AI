@@ -1776,3 +1776,18 @@ Phụ thuộc đã ✅ (M2.1, M1.9, M2.7, M2.9, M4.4). Theo docs/KE_HOACH_TO_LAM
 (VPA tự viết + Director tự chấp nhận motion prompt khi kiểm đạt; quyền duyệt prompt TÁCH quyền gửi API), E1 (bộ ref do vai đề xuất), M6-A đã duyệt (mẫu).
 Mỗi vai: đầu vào/đầu ra, file:hàm hiện có sẽ thay/bọc, cờ SHADOW TẮT, so với builder cũ (chỉ số so), test plan, rollback, câu hỏi EP (≤ 5, có phương án đề xuất).
 KHÔNG code. Ra `docs/THIET_KE_GOI_M6B_2026-10-2x.md` để phiên chính trình EP duyệt Cấp 2. Nhánh `codex/v31-m6b-design`.
+
+### CX24-DEVSYS-FIX — test hỏng sẵn trên main `test_devsys_page_renders_four_tabs_and_three_maps` (ưu tiên 2; Cấp 1; 0 USD)
+`tests/test_devsys_pipeline_maps.py::test_devsys_page_renders_four_tabs_and_three_maps` hỏng trên main từ ≤ 23/10 (cả bộ M80C/M48-D2/N5 đều thấy). Tìm GỐC (test cũ không
+theo kịp trang devsys, hay trang devsys hỏng thật) — chứng minh bằng chạy; sửa đúng phía (không nới test che lỗi). Nếu trang 8502 hỏng thật → sửa trang + ghi phiên chính
+khởi động lại 8502. Nhánh `codex/v31-devsys-fix`.
+
+### CX24-BEATS-CLI — CLI `tools/stage_auto.py --beats` dùng cùng lượt ghép xem trước như nút N5 (ưu tiên 3; Cấp 1; 0 USD)
+Sau sửa N5 (5deb6da0): `core/stage_auto.py crew_preview()` dựng crew/xem_ghep theo `_crew_pick` (lần đo N6 sẽ chốt từng shot). CLI `--beats <thư mục>` vẫn nhận thư mục người gõ.
+Thêm `--beats-crew --project N --scene S` (hoặc tự dùng crew_preview khi lượt chia vai đang dở) → cùng tấm như nút N5; in lần đo từng shot. Test fixture giả (mẫu
+tests/test_v31_m48_sheet_pick.py), Blender giả. Nhánh `codex/v31-beats-cli`.
+
+### CX24-M77-EVID — M7.7 gom BẰNG CHỨNG từng cờ K1/K2/K7 (ưu tiên 4; Cấp 1 CHỈ ĐỌC + tài liệu; 0 USD)
+Dòng M7.7 kế hoạch chính (K1 send_claim, back_view_guard; K2 video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence; K7 stale_code_alarm, diag_merge,
+budget_notice_d01, send_estimate). Mỗi cờ: test hiện có (tên), ca chạy thật đã có (sổ/nhật ký, golden, replay #31/#33), thiếu gì để khóa, đề xuất ca thử 0 USD còn thiếu.
+KHÔNG bật cờ, KHÔNG ghi CSDL/dashboard.env. Ra `docs/M7_7_BANG_CHUNG_CO_2026-10-2x.md` để phiên chính trình EP từng cờ (Cấp 3). Nhánh `codex/v31-m77-evid`.
