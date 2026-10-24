@@ -246,3 +246,68 @@ def test_atomic_helper_cannot_commit_by_transaction_sql(case):
             scoped.create_job(sids[0], "image_gen")
             scoped.conn.execute("COMMIT")
     assert p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_real_process_bg_poll_never_sees_failed_targeted_batch(case, tmp_path):
+    """Parent writer + fresh native observer processes; every process uses fake env."""
+    import json
+    import sqlite3
+    import subprocess
+    import sys
+    from pathlib import Path
+    from core import batch
+    from core.pipeline import Pipeline
+    p, pid, sids, *_ = case
+    competitor = p.create_job(sids[3], "image_gen")
+    original = p.conn
+    db_path = tmp_path / "process-batch.sqlite"
+    writer = sqlite3.connect(str(db_path))
+    original.backup(writer)
+    writer.row_factory = sqlite3.Row
+    home = tmp_path / "observer-home"
+    home.mkdir()
+    native_env = {"SystemRoot": "C:\\Windows", "WINDIR": "C:\\Windows", "HOME": str(home),
+                  "USERPROFILE": str(home), "TEMP": str(home), "TMP": str(home), "PYTHONUTF8": "1"}
+    source = """
+import os, sys, json, sqlite3
+from unittest.mock import patch
+with patch.object(os, 'environ', {'HOME':sys.argv[3], 'USERPROFILE':sys.argv[3],
+                                  'TEMP':sys.argv[3], 'TMP':sys.argv[3], 'DASHBOARD_AUTH':'off'}):
+    sys.path.insert(0, sys.argv[1])
+    from core import bg_poll, features
+    with patch.object(features, 'on', return_value=False):
+        conn = sqlite3.connect(sys.argv[2])
+        conn.row_factory = sqlite3.Row
+        ids = sorted(jid for value in bg_poll.queued_by_person(conn).values() for jid in value['send'])
+        print(json.dumps({'pid':os.getpid(), 'send':ids}), flush=True)
+        conn.close()
+"""
+    root = str(Path(__file__).resolve().parents[1])
+    def observer():
+        # Explicit whitelist: replacing os.environ alone would not clear native env.
+        result = subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", source,
+                                 root, str(db_path), str(home)], cwd=str(home), env=native_env,
+                                capture_output=True, timeout=20, check=False)
+        assert result.returncode == 0  # never print child stderr/environment
+        data = json.loads(result.stdout)
+        assert data["pid"] != os.getpid()
+        return data["send"]
+    observed, created = [], []
+    insert = Pipeline._insert_job
+    def fail_after_uncommitted_job(self, *args, **kwargs):
+        created.append(insert(self, *args, **kwargs))
+        observed.append(observer())
+        raise RuntimeError("fixture failed selected batch")
+    p.conn = writer
+    try:
+        with patch.object(Pipeline, "_insert_job", fail_after_uncommitted_job):
+            with pytest.raises(RuntimeError):
+                batch.queue_images(p, pid, scene_ids=sids[:2])
+        assert observed == [[competitor]]
+        assert observer() == [competitor]
+        assert created and competitor not in created
+        assert p.job(competitor)["state"] == "queued"
+        assert p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 1
+    finally:
+        p.conn = original
+        writer.close()

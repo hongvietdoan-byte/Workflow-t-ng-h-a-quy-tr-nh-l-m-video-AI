@@ -22,3 +22,9 @@ BEGIN IMMEDIATE/savepoint có kiểm soát, rollback lỗi; không hủy competi
 conn Pipeline gốc. None không dùng context mới; default reopen vẫn status string.
 RED3/0,61s → targeted+7legacy22GREEN/7,82s; thêm outerrollback/observerSQLitefake/
 SQLtransactioncontrol →25GREEN/7,86s. Root đọc fixdiff lần hai; giá selected vẫn OPEN.
+
+Claude13:50: đã thêm regression parent+nativechildprocess thật với env whitelist,
+DBfake. Child bg_poll không thấy job lô lỗi khi parent chưa commit hoặc sau rollback,
+chỉ thấy competitor đã commit trước và giữ nguyên competitor. Test mới1xanh2,78s;
+đối chứng tắt atomic qua mock riêng1đỏ1,38s (chạy sau xanh, không claimTDD).
+Không chạy lại25test/production, không sửa batch/pipeline ở lượt bổ sung này.
