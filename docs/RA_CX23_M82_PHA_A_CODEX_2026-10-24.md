@@ -10,6 +10,13 @@ Theo tin `20261024-125409`, Claude chốt **giai đoạn 1 giữ fail-closed HOL
 
 ## Phần đã triển khai
 
+### RÀ KỸ độc lập và sửa P2 nhập kịch bản
+
+- Reviewer kiểm callback/quyền/model tại `ddeff77b`: không thấy đường vượt HOLD để gửi/duyệt dự toán thiếu; phát hiện P2 khi nhập kịch bản trực tiếp mà chưa gửi ý tưởng (`inputs` chưa có).
+- `actions.use_script` giữ `_actor` trước mọi ghi, chỉ khởi tạo qua public `idea_to_script.start(..., p=p)` khi thiếu `inputs`. Hàm này không gọi API; input cũ và dự án khác được giữ nguyên.
+- Regression mới **1 ĐỎ, 2 qua / 0,21 giây**. Lượt xanh đầu **19 qua, 1 lỗi fixture / 3,55 giây** (mock scene thiếu `heading` khi public `start` phân loại kịch bản); sửa fixture đúng hợp đồng, gom file **20 XANH / 2,65 giây**. DB in-memory, môi trường giả, không provider/GUI/dữ liệu thật.
+- Test có tên cũ `changed_quote` được đổi tên rõ thành kiểm **HOLD giai đoạn 1**. Vì readiness=False chặn trước so quote, chưa chứng minh đường stale-quote; CX24-M82B phải thêm test tập job/quote/fingerprint đổi khi mở port. Test nhánh tương lai có mock port-ready không thay bằng chứng này.
+
 ### Chốt guard giai đoạn 1 sau rà tự kiểm
 
 - `simple_budget.proposal()` đánh dấu rõ `qd3_complete=False` trên dự toán cũ. `approve()` từ chối nếu chưa có dự toán qd3 hoàn chỉnh; màn Ý tưởng chỉ hiện HOLD, **không có nút duyệt số thiếu worst-case + 40% hoạt động**.
@@ -21,7 +28,7 @@ Theo tin `20261024-125409`, Claude chốt **giai đoạn 1 giữ fail-closed HOL
 - Helper `core/simple_budget.py`: metadata `simple_auto_limit:<pid>` tách trần cảnh báo `project_budget:<pid>`; kiểm EP theo public policy hiện hành `stage_desk.is_executive_producer`, recheck user active/role và dự án; không coi quyền edit là EP. Xác nhận giá hiện tại, no-op khi duyệt lặp cùng số, không nâng ngầm; SAVEPOINT giữ giao dịch caller, audit chỉ ghi mã dự án/số tiền.
 - Khung Streamlit năm màn Ý tưởng+ngân sách / Kịch bản / Ảnh / Video / Tải bản giao, HOLD/lỗi/tạm dừng. Tiền tổng một vị trí mở chi tiết; 80% tính cả giữ chỗ; không ghi dữ liệu lúc dựng snapshot (nếu chưa có bảng giữ chỗ thì hiển thị 0, không gọi API tạo bảng).
 - Model đọc dữ liệu và bộ đếm E4 dùng `gen_auth.project_jobs/attempts_in/cycle_start`; không dùng retry_count hay reset khi đổi mode/model/prompt.
-- Callback OFF/thiếu xác nhận/người thiếu quyền đều dừng trước provider/queue; tái dùng `batch`, runner, `paid_confirm`, `approve_preview` hiện hành; không thêm worker/vòng autopilot. Fingerprint+tập cảnh+giá gắn với bước xác nhận, thay input làm hủy hộp hỏi cũ; callback kiểm lại trước gửi. Không dùng confirmed=True để vượt cổng ảnh.
+- Callback OFF/thiếu xác nhận/người thiếu quyền đều dừng trước provider/queue; tái dùng `batch`, runner, `paid_confirm`, `approve_preview` hiện hành; không thêm worker/vòng autopilot. Nhánh tương lai có fingerprint+tập cảnh+giá gắn với xác nhận; checkpoint hiện chỉ chứng minh HOLD trước queue/provider, không khẳng định đã kiểm đường đổi quote. Không dùng confirmed=True để vượt cổng ảnh.
 - Media/download chỉ nhận file nằm dưới thư mục dự án sau resolve, không mở đường dẫn tùy ý từ DB.
 - File mã/test/fixture và cờ đăng ký areas, **giữ version nền 92**.
 

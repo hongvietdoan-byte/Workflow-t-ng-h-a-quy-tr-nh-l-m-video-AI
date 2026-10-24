@@ -41,6 +41,9 @@ def save_idea(p, pid, text):
 def use_script(p, pid, text):
     _actor(p, pid, confirmed=True)
     from core import idea_to_script
+    if "inputs" not in idea_to_script.get_state(p.conn, pid):
+        # Nhập kịch bản trực tiếp không bắt buộc đã gửi ý tưởng trước đó.
+        idea_to_script.start(p.conn, pid, text, p=p)
     idea_to_script.edit(p.conn, pid, text, p=p)
     return idea_to_script.use_script(p, pid)
 

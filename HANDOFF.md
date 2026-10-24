@@ -49,3 +49,9 @@ CX24-M82B phải sửa selected jobIDs trước khi mở. Không mở API core �
 Hai test regression ĐỎ2/2,61s → file test Basic 16 XANH/6,20s. Không broad/GUI.
 Giai đoạn1 guardcheckpoint sẵn root RÀ KỸ; Q-A/qd3/targeted-send còn HOLD/WIP,
 không khẳng định toàn phaA/M8.2 hoặc mục tiêu ≤8 hành động đã hoàn tất.
+
+RÀ KỸ độc lập checkpoint: 0 P1, 1 P2 nhập script trước ý tưởng → thiếu inputs.
+Đã sửa bằng public start chỉ khi missing inputs, giữ _actor trước ghi và input cũ.
+Regression 1 đỏ/2 qua0,21s; lượt xanh đầu19qua/1lỗi fixture mock thiếu heading3,55s;
+sửa đúng hợp đồng fixture, file Basic20xanh2,65s. Test đổi quote chỉ chứng minh
+HOLD giai đoạn1; M82B phải kiểm stale path khi mở port. Root đọc fixdiff lần hai.

@@ -150,7 +150,7 @@ def test_send_requires_human_confirmation_before_any_provider(project):
         assert not provider.called
 
 
-def test_off_flag_and_changed_quote_stop_before_provider_or_queue(project):
+def test_off_flag_and_stage_one_hold_stop_before_provider_or_queue(project):
     from dashboard.basic import actions
     project.project = lambda pid: {"paused": 0}
     with patch("dashboard.common.image_runner") as provider, \
@@ -158,6 +158,7 @@ def test_off_flag_and_changed_quote_stop_before_provider_or_queue(project):
         with patch.object(actions.simple_budget, "enabled", return_value=False):
             with pytest.raises(PermissionError):
                 actions.send(project, 1, "fake", "images", confirmed=True)
+        # Port chưa mở: ca này chỉ chứng minh HOLD, không chứng minh stale-quote.
         with patch.object(actions, "quote", return_value={"usd": 2, "fp": "new", "ids": [1]}), \
                 patch("dashboard.paid_confirm.enabled", return_value=True):
             with pytest.raises(ValueError):
@@ -203,3 +204,43 @@ def test_stage_one_holds_send_before_provider_even_with_matching_quote(project):
         with pytest.raises(ValueError, match="tập|M82B"):
             actions.send(project, 1, "fake", "images", confirmed=True, expected_quote=quote)
         assert not provider.called and not queue.called
+
+
+def test_pasted_script_initializes_missing_idea_inputs_in_current_project(project):
+    from dashboard.basic import actions
+    from core import idea_to_script, script_parser
+    text = "CẢNH 1 - NGÀY\nKelly bước vào kho."
+    with patch.object(idea_to_script, "check_script", return_value={"ok": True, "problems": []}), \
+            patch.object(idea_to_script, "parse", return_value=([SimpleNamespace(heading="CẢNH 1")], SimpleNamespace(paragraphs=[text]))), \
+            patch.object(script_parser, "import_scenes") as imported:
+        assert actions.use_script(project, 1, text) == 1
+    state = idea_to_script.get_state(project.conn, 1)
+    assert state["inputs"]["idea"] == text
+    assert state["script"] == text and state["used"] is True
+    assert imported.call_args.args[:2] == (project, 1)
+    assert idea_to_script.get_state(project.conn, 999) == {}
+
+
+def test_pasted_script_preserves_existing_idea_inputs(project):
+    from dashboard.basic import actions
+    from core import idea_to_script, script_parser
+    text = "CẢNH 1 - NGÀY\nKelly bước vào kho."
+    original = {"idea": "Ý tưởng đã chốt", "duration_s": 55, "anchors": {"ending": "Giữ kết"}}
+    idea_to_script.save_state(project.conn, 1, {"inputs": original})
+    with patch.object(idea_to_script, "check_script", return_value={"ok": True, "problems": []}), \
+            patch.object(idea_to_script, "parse", return_value=([{}], SimpleNamespace(paragraphs=[text]))), \
+            patch.object(script_parser, "import_scenes"):
+        assert actions.use_script(project, 1, text) == 1
+    assert idea_to_script.get_state(project.conn, 1)["inputs"] == original
+
+
+@pytest.mark.parametrize("denied", ["off", "revoked"])
+def test_pasted_script_cannot_create_state_when_flag_off_or_user_revoked(project, denied):
+    from dashboard.basic import actions
+    from core import idea_to_script
+    if denied == "revoked":
+        project.conn.execute("UPDATE users SET active=0 WHERE email='ep@example.test'")
+    with patch.object(actions.simple_budget, "enabled", return_value=denied != "off"):
+        with pytest.raises(PermissionError):
+            actions.use_script(project, 1, "CẢNH 1 - NGÀY\nKelly bước vào kho.")
+    assert idea_to_script.get_state(project.conn, 1) == {}
