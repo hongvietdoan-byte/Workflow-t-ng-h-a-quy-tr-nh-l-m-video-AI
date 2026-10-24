@@ -1791,3 +1791,22 @@ tests/test_v31_m48_sheet_pick.py), Blender giả. Nhánh `codex/v31-beats-cli`.
 Dòng M7.7 kế hoạch chính (K1 send_claim, back_view_guard; K2 video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence; K7 stale_code_alarm, diag_merge,
 budget_notice_d01, send_estimate). Mỗi cờ: test hiện có (tên), ca chạy thật đã có (sổ/nhật ký, golden, replay #31/#33), thiếu gì để khóa, đề xuất ca thử 0 USD còn thiếu.
 KHÔNG bật cờ, KHÔNG ghi CSDL/dashboard.env. Ra `docs/M7_7_BANG_CHUNG_CO_2026-10-2x.md` để phiên chính trình EP từng cờ (Cấp 3). Nhánh `codex/v31-m77-evid`.
+
+### CX24-GIAM-SAT — AI Dev System cử agent GIÁM SÁT kế hoạch build theo mốc (ưu tiên 2; NGƯỜI DÙNG YÊU CẦU 24/10; Cấp 1 tooling devsys; 0 USD API)
+Người dùng 24/10: dựa vào 3 mục devsys "📋 Kế hoạch đang chạy" (app.py page_plan :958), "🗺 Sơ đồ tiến độ" (page_plan_map :1033), "🧭 Sơ đồ dây chuyền"
+(page_pipeline_maps :1064), AI Dev System phải cử agent chấm điểm + rà soát + giám sát kế hoạch chính (devsys/plans.json "chinh") theo 3 trục:
+(1) ĐÚNG HƯỚNG so mục tiêu gốc (docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md §2, §8) và cổng nghiệm thu (master §3, §4a);
+(2) LỖI / LỖ HỔNG phát sinh khi build (trạng thái kế hoạch lệch thực tế, test hỏng trên main, quyết định thiếu check, cờ thiếu test TẮT=byte cũ, đường trả phí mới chưa xác nhận, việc rơi giữa làn);
+(3) CHẤT LƯỢNG DASHBOARD theo từng mốc (màn của đợt có mặt, sau cờ nào, nút tốn tiền có xác nhận, người không chuyên dùng được).
+Đợt 1 làm tay đã có: `docs/GIAM_SAT_KE_HOACH_V31_2026-10-24.md` (phiên chính cử agent; có mục "RUBRIC ĐỀ XUẤT") — ĐỌC TRƯỚC, mã hóa đúng rubric đó.
+Làm (TÁI DÙNG khung chấm sẵn có, KHÔNG viết khung thứ hai): devsys/scorer.py (build_bundle/plan/estimate/run/make_client claude_cli|mock/import_score),
+devsys/scores.py (_normalize_v2 khoản trừ có bằng chứng, overall/trend), devsys/rubric.md, spawn (app.py:124):
+- `devsys/rubric_plan.md` (3 trục, khoản trừ CHẶN/LỚN/NHỎ, trọng số 0,4/0,35/0,25) + "khu vực" kiểu `plan:V3.1` để scorer gom gói bằng chứng KẾ HOẠCH (mục tiêu gốc,
+  bảng việc + trạng thái, plan_progress, decisions check, errors.json, đối soát devsys/doi_soat.py, git log, hộp thư bang, kết quả test gần nhất, cờ core.features) — điểm do CODE tính từ khoản trừ.
+- KÍCH HOẠT THEO MỐC: tự cử khi (a) một việc kế hoạch chính chuyển ✅, (b) một đợt M qua 25/50/75/100 %, (c) nút "🛰 Giám sát ngay" — chạy nền bằng spawn + claude_cli
+  (lượt gói, 0 USD API); chống chạy chồng (khóa), log devsys/data/; ước tính trước khi chạy như scorer.estimate.
+- HIỆN trên 3 trang: "Kế hoạch đang chạy" thêm thẻ điểm 3 trục + xu hướng + phát hiện CHẶN/LỚN mở; "Sơ đồ tiến độ" tô việc/đợt có phát hiện (overlay); "Sơ đồ dây chuyền"
+  đánh dấu khâu có lỗ hổng. Lịch sử mỗi đợt giám sát devsys/data/giam_sat/*.json + xuất .md.
+- Phát hiện mở → đề xuất giao việc (KHÔNG tự giao): nút "Đưa vào hộp thư" tạo lệnh `hop_thu.py giao` cho phiên chính bấm.
+Test đỏ→xanh với client mock (không gọi Claude thật trong test): gói bằng chứng đúng nguồn, điểm từ khoản trừ, kích hoạt theo mốc đúng 1 lần, khóa chống chồng, 3 trang hiện
+(AppTest). Khai areas.json. Sau gộp phiên chính khởi động lại 8502. Nhánh `codex/v31-giam-sat`. Phiên chính RÀ KỸ (đụng lịch chạy nền).
