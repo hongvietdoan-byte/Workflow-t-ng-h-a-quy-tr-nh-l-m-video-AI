@@ -110,9 +110,9 @@
       "weight": 0.8,
       "description": "Kho nhân vật/vũ khí/bối cảnh/phong cách, đọc ảnh tài nguyên bằng Claude, trang FF chính thức, hồ sơ chuẩn + bản rút gọn, đổi trang phục.",
       "code": ["core/assets.py", "core/asset_vision.py", "core/kho_review.py", "core/ff_site.py", "core/nuxt_static.py", "core/profile_digest.py", "core/costume.py", "core/looks.py", "dashboard/admin.py", "core/kho_profile.py"],
-      "assets": ["data/games.json", "tools/draft_profiles.py", "tools/enrich_ff_role_difficulty.py", "mcp_servers/project_db.py", "tools/kho_merge.py"],
+      "assets": ["data/games.json", "tools/draft_profiles.py", "tools/enrich_ff_role_difficulty.py", "mcp_servers/project_db.py", "tools/kho_merge.py", "tools/kho_place_alias.py"],
       "docs": [],
-      "tests": ["tests/test_assets_names_d17.py", "tests/test_kho_profile_provenance.py", "tests/test_kho_profile_readers.py", "tests/test_kho_profile_v2.py"],
+      "tests": ["tests/test_assets_names_d17.py", "tests/test_kho_profile_provenance.py", "tests/test_kho_profile_readers.py", "tests/test_kho_profile_v2.py", "tests/test_kho_place_alias.py"],
       "flags": ["profile_digest", "short_lock_outfit", "asset_english_names", "kho_forms_v2", "cli_call_budget"],
       "diag_stages": [],
       "keywords": ["Kho", "tài nguyên", "hồ sơ", "asset", "KELLY", "KENTA", "MAXIM", "nhân vật"]
