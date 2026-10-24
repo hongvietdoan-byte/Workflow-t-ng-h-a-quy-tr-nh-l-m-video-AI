@@ -48,6 +48,16 @@ trong phiên; "chưa kiểm" = phiên làm ngoài Dashboard nhưng chưa dò h�
     (phiên nằm ở tham số `s=`). Phiền khi gửi link thẳng tới một bước.
 11. **"Ảnh: deepix" trên Bước 2 trong khi model ảnh dự án = `gpt-image-2.5-sunburst` (chưa kiểm).** Dễ tưởng chọn sai model.
 
+12. **Ghép video phụ có tách phông xanh (2 con mèo thật đè dưới khung) — không có chức năng (đã kiểm 24/10 16:00).** Bước 5 chỉ có
+    phụ đề / card cuối / popup icon PNG / kích thước; không có lớp video phủ + chromakey. Bản đủ mèo phải ghép ngoài bằng ffmpeg
+    (`hau_ky/hau_ky.sh`). Cần: "khung phụ" nhận video + vị trí/cỡ + cắt + tách màu nền, đồng bộ theo nhạc.
+13. **Chữ đè suốt video (2 dòng tiêu đề trên đầu, 2 màu) — không có (đã kiểm).** Phụ đề chỉ sinh từ lời thoại (`delivery.subtitle_cues`,
+    bảng `num_rows="fixed"`) → dự án không thoại thì không thêm được dòng; card chữ chỉ ghép cuối video. Cần: phụ đề/tiêu đề tự gõ với
+    thời điểm, vị trí, màu từng dòng.
+14. **Dùng tiếng gốc video tham chiếu làm nhạc — làm được nhưng vòng.** Phải tự tách âm (ffmpeg) ra `data/projects/<id>/nhac_rieng/`
+    rồi mới chọn được; âm lượng mặc định 0.6 phải kéo lên 1.0. (Đã làm cho #34: dựng + xuất bản trên Dashboard → `output/FINAL_VIDEO.mp4`,
+    "Kiểm bản dựng: đạt", không mèo/không chữ.)
+
 ## C. Đã gửi phiên chính (hộp thư)
 - Mục 5 (20261024-094619-phien-con-meo-nhay-tap2).
 - Mục 1, 2, 3, 6, 7 gửi cùng commit tài liệu này.
