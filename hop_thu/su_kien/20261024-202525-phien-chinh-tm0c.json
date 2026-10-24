@@ -1,0 +1,14 @@
+{
+  "ts": "2026-10-24T20:25:25.277676+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-M82C",
+  "to": "codex",
+  "title": "M8.2 chế độ Cơ bản pha tiếp (dùng API theo shot)",
+  "spec": "docs/CODEX_TASKS.md### CX24-M82C",
+  "depends": [
+    "CX24-M82B"
+  ],
+  "priority": 35,
+  "text": "Việc CHỜ mới, chờ M82B GỘP."
+}
