@@ -135,6 +135,66 @@ DEFAULT_STAGE_MAX_TOKENS = 8000
 EFFORT_MODELS = ("claude-sonnet-5", "claude-opus-5", "claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
                  "claude-sonnet-4-6")                       # models that take output_config.effort (Haiku 4.5 refuses it)
 
+# CX24-CLI-TOKENS: averages from the 24/10 #34 sample. They are estimates, not caps. Keep the model inherited until a real quality
+# comparison approves per-stage overrides. `tools` are built-in tools required without images; image inputs add Read only.
+CLI_TOKEN_STAGE_POLICY: Dict[str, Dict[str, Any]] = {
+    "chat_prompt": {"max_turns": 1, "max_turns_with_images": 2, "model": None, "tools": (), "image_tools": ("Read",),
+                    "observed_input_average": 2_510_000 // 8},
+    "qc": {"max_turns": 1, "max_turns_with_images": 2, "model": None, "tools": (), "image_tools": ("Read",),
+           "observed_input_average": 1_120_000 // 3},
+    "video": {"max_turns": 1, "max_turns_with_images": 2, "model": None, "tools": (), "image_tools": ("Read",),
+              "observed_input_average": 560_000 // 5},
+    "change_review": {"max_turns": 1, "max_turns_with_images": 2, "model": None, "tools": (), "image_tools": ("Read",),
+                      "observed_input_average": 460_000 // 10},
+    "director_rewrite": {"max_turns": 1, "max_turns_with_images": 2, "model": None, "tools": (), "image_tools": ("Read",),
+                         "observed_input_average": 88_000},
+    "other": {"max_turns": 1, "max_turns_with_images": 2, "model": None, "tools": (), "image_tools": ("Read",),
+              "observed_input_average": None},
+}
+CLI_TOKEN_WARN_ENV = "CLAUDE_CLI_TOKEN_WARN_INPUT"
+CLI_TOKEN_WARN_DEFAULT = 200_000
+
+
+def cli_token_policy(stage: str, has_images: bool = False) -> Dict[str, Any]:
+    """The shared source of truth for CLI turns, tools, model and observed input baseline."""
+    policy = CLI_TOKEN_STAGE_POLICY.get(stage, CLI_TOKEN_STAGE_POLICY["other"])
+    tools = list(policy["tools"])
+    if has_images:
+        tools.extend(tool for tool in policy["image_tools"] if tool not in tools)
+    return {**policy, "tools": tuple(tools),
+            "selected_max_turns": policy["max_turns_with_images"] if has_images else policy["max_turns"]}
+
+
+def cli_input_estimate(stage: str, prompt: str, image_count: int = 0) -> Dict[str, Any]:
+    """Rough pre-run estimate; historical averages do not pretend to count hidden CLI context or image payloads."""
+    policy = cli_token_policy(stage, bool(image_count))
+    try:
+        visible_prompt_tokens = max(0, int((len(plain(prompt)) + CHARS_PER_TOKEN - 1) // CHARS_PER_TOKEN))
+    except (TypeError, ValueError):
+        visible_prompt_tokens = 0
+    observed = policy["observed_input_average"]
+    estimate = max(visible_prompt_tokens, int(observed or 0))
+    return {"estimated_input_tokens": estimate,
+            "method": "historical_stage_average" if observed else "visible_prompt_chars_only",
+            "image_count": max(0, int(image_count)), "visible_prompt_estimate": visible_prompt_tokens}
+
+
+def cli_token_warning_threshold() -> int:
+    """A positive environment override; invalid values use the default without exposing their contents."""
+    try:
+        value = int(os.environ.get(CLI_TOKEN_WARN_ENV, str(CLI_TOKEN_WARN_DEFAULT)))
+        return value if value > 0 else CLI_TOKEN_WARN_DEFAULT
+    except (TypeError, ValueError):
+        return CLI_TOKEN_WARN_DEFAULT
+
+
+def _usage_count(value: Any) -> int:
+    """Read a non-negative integer from CLI JSON without allowing malformed usage to abort a successful answer."""
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
 
 def stage_settings(stage: str) -> Dict[str, Any]:
     out = dict(STAGE_SETTINGS.get(stage) or {})
@@ -162,6 +222,7 @@ class LlmReply:
     blocks: Optional[list] = None  # the raw content blocks (tool use: core/qc_agent.py)
     request_id: str = ""           # Data Pack P1: Anthropic's 'request-id' header (what their support asks for)
     latency_ms: int = 0            # time from sending to the whole answer, this attempt
+    model: str = ""                # actual selected model where reported
 
 
 # ---- what each paid call is for (C1/C7): stage + project go into the cost ledger ----------------------------------------------
@@ -1479,11 +1540,23 @@ class ClaudeCliClient:
             try:
                 from .llm_provider import has_column
                 cols = "at, project_id, stage, model, sources, input_tokens, output_tokens"
-                vals = [project_id, stage, self.model or "claude-cli", "[]", reply.input_tokens, reply.output_tokens]
+                vals = [project_id, stage, reply.model or self.model or "claude-cli", "[]", reply.input_tokens, reply.output_tokens]
                 if has_column(conn, "llm_calls", "provider"):
                     cols += ", provider"
                     vals.append("claude_cli")
+                if has_column(conn, "llm_calls", "cache_read_tokens"):
+                    cols += ", cache_read_tokens"
+                    vals.append(reply.cache_read_tokens)
+                if has_column(conn, "llm_calls", "cache_write_tokens"):
+                    cols += ", cache_write_tokens"
+                    vals.append(reply.cache_write_tokens)
                 conn.execute(f"INSERT INTO llm_calls ({cols}) VALUES (datetime('now'),{','.join('?' * len(vals))})", vals)
+                total_input = reply.input_tokens + reply.cache_read_tokens + reply.cache_write_tokens
+                threshold = cli_token_warning_threshold()
+                if total_input > threshold:
+                    diag.record(conn, stage, "warn",
+                                f"Claude Code dùng {total_input:,} token đầu vào, vượt ngưỡng cảnh báo {threshold:,}; lời gọi vẫn được gửi.",
+                                "cli_input_tokens_high", project_id)
                 conn.commit()
             finally:
                 conn.close()
@@ -1510,11 +1583,16 @@ class ClaudeCliClient:
         import shutil
         import subprocess
         import tempfile
+        from . import features
         work = tempfile.mkdtemp(prefix="claude_cli_")
         try:
             args = [shutil.which("claude") or "claude", "-p", "--output-format", "json", "--no-session-persistence"]
-            if self.model:
-                args += ["--model", self.model]
+            stage, project_id = current_tag()
+            token_budget = features.on("cli_token_budget") and stage in CLI_TOKEN_STAGE_POLICY and stage != "other"
+            policy = cli_token_policy(stage, bool(images)) if token_budget else None
+            selected_model = (policy["model"] or self.model) if policy else self.model
+            if selected_model:
+                args += ["--model", selected_model]
             prompt = plain(prompt)
             text = prompt
             if images:
@@ -1533,6 +1611,13 @@ class ClaudeCliClient:
                 args += ["--allowedTools", "Read"]
                 for folder in folders:
                     args += ["--add-dir", folder]
+            if token_budget:
+                args += ["--safe-mode", "--max-turns", str(policy["selected_max_turns"]), "--tools", ",".join(policy["tools"])]
+                estimate = cli_input_estimate(stage, text, len(images))
+                threshold = cli_token_warning_threshold()
+                if estimate["estimated_input_tokens"] > threshold:
+                    self._note_cli_tokens(stage, project_id, estimate["estimated_input_tokens"], threshold,
+                                          "cli_input_tokens_estimate")
             try:
                 proc = self._run(args, input=text, capture_output=True, text=True, encoding="utf-8", errors="replace",
                                  timeout=min(self.timeout, int(stage_settings(current_tag()[0]).get("timeout") or self.timeout)), cwd=work,
@@ -1550,11 +1635,33 @@ class ClaudeCliClient:
                 code = cli_error_code(detail)
                 hint = " Mở Claude Code (lệnh `claude`) một lần để đăng nhập lại rồi thử lại." if code == "auth" else ""
                 raise LlmError(f"Claude Code báo lỗi: {detail}.{hint}", code=code)
-            usage = out.get("usage") or {}
-            tokens_in = sum(int(usage.get(k, 0) or 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
-            return LlmReply(str(out["result"]), tokens_in, int(usage.get("output_tokens", 0)))
+            usage = out.get("usage")
+            usage = usage if isinstance(usage, dict) else {}
+            tokens_in = _usage_count(usage.get("input_tokens"))
+            cache_read = _usage_count(usage.get("cache_read_input_tokens"))
+            cache_write = _usage_count(usage.get("cache_creation_input_tokens"))
+            output_tokens = _usage_count(usage.get("output_tokens"))
+            return LlmReply(str(out["result"]), tokens_in, output_tokens, cache_write_tokens=cache_write,
+                            cache_read_tokens=cache_read, model=selected_model or "")
         finally:
             shutil.rmtree(work, ignore_errors=True)
+
+    def _note_cli_tokens(self, stage: str, project_id: Optional[int], amount: int, threshold: int, code: str) -> None:
+        """Best-effort diagnostics for an estimate or observed input count; never blocks a CLI request."""
+        if not self.ledger:
+            return
+        try:
+            conn = self._ledger_conn()
+            try:
+                kind = "Ước tính" if code == "cli_input_tokens_estimate" else "Claude Code dùng"
+                diag.record(conn, stage, "warn",
+                            f"{kind} {amount:,} token đầu vào, vượt ngưỡng cảnh báo {threshold:,}; lời gọi vẫn được gửi.",
+                            code, project_id)
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001 — diagnostics never block this call
+            return
 
     def complete_with_search(self, prompt: str, max_uses: int = 3) -> LlmReply:
         raise LlmError("Nghiên cứu hàng tháng cần Claude API (tìm kiếm web); chế độ Claude Code trên máy chưa hỗ trợ.", code="config")
