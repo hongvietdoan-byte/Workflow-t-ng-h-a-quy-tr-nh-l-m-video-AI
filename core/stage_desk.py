@@ -714,44 +714,11 @@ def build_sheet(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> Di
     sa = _sa()
     seg = segment(conn, pid, scene)
     d = seg_dir(data_dir, pid, seg)
+    output = os.path.join(d, "beats", f"san_khau_canh{seg['scene']}.png")
 
     def work(c, log):
-        # 24/10 (#34): lượt chia vai dở / chờ duyệt → ghép từng shot theo ĐÚNG lần đo N6 sẽ chốt (sa.crew_preview dùng chung
-        # _crew_merged(best=True) với crew_user_verdict) — trước đây lấy lặng lần đo đầy đủ ĐẦU (crew/m1), EP duyệt nhìn máy cũ
-        try:
-            pv = sa.crew_preview(data_dir, pid, seg)
-        except (OSError, ValueError, KeyError) as e:
-            return {"ok": False, "errors": [f"không ghép được lần đo từng shot của lượt chia vai ({type(e).__name__}: {e}) — "
-                                            "không dựng tấm ghép bằng lần đo khác"]}
-        notes, picked = [], None
-        if pv is not None:
-            got, picked = pv["dir"], pv["picked"]
-            notes += pv["notes"]
-            if picked:
-                notes.append("lần đo từng shot (máy N6 sẽ chốt): " + ", ".join(f"shot {n} ← {picked[n]}" for n in sorted(picked)))
-        else:
-            got = sa.result_round(data_dir, pid, seg)
-        if got is None or not os.path.isdir(got):
-            return {"ok": False, "errors": ["chưa có lượt đã lưu / lần đo nào để dựng tấm ghép"]}
-        t = sa.tool()
-        if not os.path.exists(os.path.join(got, "top_cut.png")):
-            log("cắt mái (Blender)")
-            try:
-                t.top_cut(got, log=log)
-            except Exception as e:  # noqa: BLE001 - vẫn vẽ trên ảnh chưa cắt (như CLI)
-                notes.append(f"không cắt được mái ({type(e).__name__}: {e}) — vẽ trên ảnh từ trên thường")
-        log("vẽ nhịp + ghép")
-        t.draw_beats(got)
-        out = os.path.join(d, "beats", f"san_khau_canh{seg['scene']}.png")
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        title = f"#{pid} cảnh {seg['scene']} — {seg['id']} (shot {seg['shots'][0]['idx']}–{seg['shots'][-1]['idx']})"
-        if picked:                                         # ghi lần đo từng shot lên tấm (EP biết ảnh máy nào lấy từ đâu)
-            title += " · lần đo: " + ", ".join(f"{n}←{os.path.basename(picked[n])}" for n in sorted(picked))
-        path = t.stage_sheet(got, title, out)
-        res = {"ok": True, "path": path if isinstance(path, str) else out, "notes": notes}
-        if picked is not None:
-            res["lan_do"] = {str(n): r for n, r in sorted(picked.items())}
-        return res
+        # N5 và tools/stage_auto.py dùng cùng renderer + cùng crew_preview, tránh lệch ảnh/nhãn từng shot.
+        return sa.render_beats_sheet(data_dir, pid, seg, output, log=log)
     return _start(conn, pid, data_dir, seg, "N5", who, work)
 
 
