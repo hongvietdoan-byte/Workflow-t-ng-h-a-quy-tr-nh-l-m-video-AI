@@ -147,6 +147,25 @@ def read_log(name: str, tail: int = 4000) -> str:
         return ""
 
 
+def _spawn_plan_monitor(args, log_name):
+    from devsys import plan_monitor
+    return spawn(args, log_name, env_allowlist=plan_monitor.SAFE_ENV)
+
+
+from devsys import plan_monitor as _plan_monitor_module
+if _plan_monitor_module.load_config(ROOT)["auto_enabled"]:
+    @st.fragment(run_every="60s")
+    def _poll_plan_monitor():
+        result = _plan_monitor_module.check_auto_triggers(ROOT, _spawn_plan_monitor)
+        if result.get("state") == "spawned":
+            estimate = result.get("estimate") or {}
+            st.info(f"Giám sát kế hoạch đã nhận {len(result['spawned'])} mốc; ước tính {estimate.get('input_tokens', '—')} token vào, 0 USD API.")
+        elif result.get("state") == "failed":
+            st.warning("Chưa khởi chạy được giám sát tự động; mốc được giữ để thử lại. Xem log đã lọc.")
+
+    _poll_plan_monitor()
+
+
 def score_job():
     path = os.path.join(collect.data_dir(ROOT), "score_job.json")
     try:
@@ -964,8 +983,11 @@ def _all_plans_board():
 
 
 def page_plan():
+    from devsys import plan_monitor
     t1, t2 = st.columns([14, 1], vertical_alignment="center")
     t1.title("📋 Kế hoạch đang chạy")
+    plan_monitor.render_summary(st, ROOT)
+    plan_monitor.render_manual_control(st, ROOT, _spawn_plan_monitor)
     _all_plans_board()
     path = plan_progress.main_plan_file()
     plan = plan_progress.load(path)
@@ -1044,13 +1066,13 @@ def page_plan():
 
 # ---- trang: Sơ đồ tiến độ (V3.1 M0.8, người dùng 20/10) ---------------------------------------------------------------
 def page_plan_map():
-    from devsys import plan_map
+    from devsys import plan_map, plan_monitor
     st.title("🗺 Sơ đồ tiến độ")
     st.caption("Vẽ lại mỗi lần mở từ file kế hoạch chính (mục \"chinh\" trong `devsys/plans.json`), sổ khâu `devsys/stages.json` (theo cờ thật), "
                "bảng việc ↔ khâu `devsys/plan_map.json` và sổ lỗi `devsys/errors.json` (khi có). Đổi trạng thái một việc trong file kế hoạch "
                "(⬜ → 🔄 → ✅code / ✅cổng) là sơ đồ đổi màu theo — không tô tay. Xuất SVG: `py -m devsys.plan_map <thư mục>`.")
     try:
-        m, roadmap, stage_map = plan_map.build()
+        m, _, _ = plan_map.build()
     except (OSError, ValueError) as e:
         st.error(f"Không vẽ được sơ đồ: {e}")
         return
@@ -1060,6 +1082,16 @@ def page_plan_map():
         st.info("Mã việc trong `devsys/plan_map.json` không còn trong kế hoạch: " + ", ".join(m["stale"]))
     if m["unknown_stage"]:
         st.warning("Mã khâu trong `devsys/plan_map.json` không có trong `devsys/stages.json`: " + ", ".join(m["unknown_stage"]))
+    task_to_stages = plan_map.load_map()
+    latest, _history_errors = plan_monitor.latest_record(ROOT)
+    findings = plan_monitor._major_findings(latest)
+    mapped_tasks = {task["id"] for wave in m["waves"] for task in wave["tasks"]}
+    overlay = plan_monitor.annotate_plan_map(m, findings, task_to_stages)
+    plan_monitor.render_findings(st, ROOT, context="Sơ đồ tiến độ", task_ids=mapped_tasks,
+                                 task_to_stages=task_to_stages)
+    plan_name = os.path.basename(plan_progress.main_plan_file(ROOT))
+    roadmap = plan_map.roadmap_svg(overlay, f"Lộ trình build — {plan_name}")
+    stage_map = plan_map.stages_svg(overlay, "Khâu dây chuyền × việc đang sửa")
     st.markdown('<div class="kpis">' + kpi("Tiến độ code", _pct_text(m["total"]))
                 + kpi("Cổng nghiệm thu", _pct_text(m["total_gate"])) + '</div>', unsafe_allow_html=True)
     st.caption("Xanh dương = code xong nhưng cổng chưa đạt; xanh lá = cổng đạt có khai báo bằng chứng chạy thật.")
@@ -1081,7 +1113,7 @@ def _evidence_commit(PM, globs) -> str:
 
 def page_pipeline_maps():
     """C-DEVSYS-MAPS (người dùng 21/10): 3 sơ đồ dây chuyền SỐNG + tab Thay đổi; chọn dự án → ô nút tô theo lần bấm thật."""
-    from devsys import pipeline_maps as PM
+    from devsys import pipeline_maps as PM, plan_map, plan_monitor
     st.title("🧭 Sơ đồ dây chuyền")
     st.caption("Ba sơ đồ 17/10 dựng lại SỐNG từ `devsys/pipeline_maps.json`: màu TÍNH mỗi lần mở — bằng chứng code (tệp + chữ phải có), cờ "
                "hiệu lực (core.features.state), trạng thái việc kế hoạch chính, sổ khâu theo cờ thật và sổ lỗi. Chấm nhỏ góc ô = màu mốc 17/10. "
@@ -1093,6 +1125,11 @@ def page_pipeline_maps():
         return
     for w in m["warnings"]:
         st.warning(w)
+    try:
+        task_to_stages = plan_map.load_map()
+    except (OSError, ValueError):
+        task_to_stages = {}
+    plan_monitor.render_findings(st, ROOT, context="Sơ đồ dây chuyền", task_to_stages=task_to_stages)
     if PM.record_history(m):
         st.caption("Đã ghi ảnh chụp trạng thái mới vào devsys/data/pipeline_maps_history.jsonl (có ô đổi so với lần trước).")
     db = PM.db_path()

@@ -21,6 +21,7 @@ ERRORS_FILE = os.path.join(ROOT, "devsys", "errors.json")
 BG, PANEL, TEXT, MUTED = "#0f1720", "#16212c", "#e8eef5", "#8a99a8"
 STATUS_COLOR = {"✅": "#4dff6a", "🔄": "#ffb020", "⏸": "#b388ff", "⬜": "#5b6b7a", "✖": "#3a4450"}
 CODE_DONE_COLOR = "#65b9ff"
+MONITOR_COLOR = {"CHẶN": "#ff5a5a", "LỚN": "#d27dff"}
 STATUS_NAME = {"✅": "cổng đạt", "🔄": "đang làm", "⏸": "chờ người dùng", "⬜": "chưa làm", "✖": "bỏ"}
 STAGE_COLOR = {"thieu": "#ff5a5a", "tu_do": "#ffb020", "ok": "#22e5ff"}
 NEN = "NEN"
@@ -135,7 +136,9 @@ def roadmap_svg(m: Dict, title: str) -> str:
     for i, w in enumerate(waves):
         x = 40 + i * (col_w + gap)
         cur = w["id"] == m["current"]
-        border = "#22e5ff" if cur else "#2c3a48"
+        issue = "CHẶN" if any(t.get("monitor_severity") == "CHẶN" for t in w["tasks"]) else \
+            "LỚN" if any(t.get("monitor_severity") == "LỚN" for t in w["tasks"]) else ""
+        border = MONITOR_COLOR.get(issue, "#22e5ff" if cur else "#2c3a48")
         out.append(f'<rect x="{x}" y="112" width="{col_w}" height="54" rx="6" fill="{PANEL}" stroke="{border}" stroke-width="{3 if cur else 1}"/>')
         name = w["name"].split("(")[0].strip()
         out.append(f'<text x="{x + 10}" y="132" fill="{TEXT}" font-size="14" font-weight="700">{escape(w["id"] + " " + name[:28])}</text>')
@@ -147,13 +150,17 @@ def roadmap_svg(m: Dict, title: str) -> str:
         for j, t in enumerate(w["tasks"]):
             y = top + 10 + j * (box_h + 10)
             c = _task_color(t)
-            out.append(f'<rect x="{x}" y="{y}" width="{col_w}" height="{box_h}" rx="7" fill="{PANEL}" stroke="{c}" stroke-width="2"/>'
+            issue = t.get("monitor_severity")
+            border = MONITOR_COLOR.get(issue, c)
+            out.append(f'<rect x="{x}" y="{y}" width="{col_w}" height="{box_h}" rx="7" fill="{PANEL}" stroke="{border}" stroke-width="{5 if issue else 2}"/>'
                        f'<rect x="{x}" y="{y}" width="6" height="{box_h}" rx="3" fill="{c}"/>')
             out.append(f'<text x="{x + 14}" y="{y + 19}" fill="{c}" font-size="13" font-weight="700">{escape(t["id"])} · '
                        f'{escape("code xong" if t["status"] == "✅" else STATUS_NAME[t["status"]])}{" · " + escape(t["commit"]) if t["commit"] else ""}</text>')
             for k, line in enumerate(_wrap(t["title"], 44)[:2]):
                 out.append(f'<text x="{x + 14}" y="{y + 37 + k * 16}" fill="{TEXT}" font-size="12">{escape(line)}</text>')
             out.append(f'<text x="{x + 14}" y="{y + 70}" fill="{c}" font-size="11">cổng {escape(t.get("gate_status", "⬜"))}</text>')
+            if issue in MONITOR_COLOR:
+                out.append(f'<text x="{x + col_w - 76}" y="{y + 19}" fill="{MONITOR_COLOR[issue]}" font-size="11" font-weight="700">GIÁM SÁT {issue}</text>')
     out.append("</svg>")
     return "".join(out)
 
@@ -174,14 +181,15 @@ def stages_svg(m: Dict, title: str) -> str:
         out.append(f'<text x="{x}" y="{top - 4}" fill="{MUTED}" font-size="12" font-weight="700">{h}</text>')
     for i, r in enumerate(rows):
         y = top + 6 + i * (row_h + 8)
-        c = STAGE_COLOR['thieu'] if r['open_errors'] else STAGE_COLOR[r["kind"]]
+        issue = r.get("monitor_severity")
+        c = MONITOR_COLOR.get(issue, STAGE_COLOR['thieu'] if r['open_errors'] else STAGE_COLOR[r["kind"]])
         out.append(f'<rect x="40" y="{y}" width="410" height="{row_h}" rx="7" fill="{PANEL}" stroke="{c}" stroke-width="2"/>'
                    f'<text x="54" y="{y + 22}" fill="{c}" font-size="14" font-weight="700">{escape(r["id"] if r["id"] != NEN else "Nền")}</text>')
         for k, line in enumerate(_wrap(r["ten"], 46)[:2]):
             out.append(f'<text x="110" y="{y + 22 + k * 17}" fill="{TEXT}" font-size="13">{escape(line)}</text>')
         cx = hx[1]
         for n, t in enumerate(r["tasks"]):
-            tc = _task_color(t)
+            tc = MONITOR_COLOR.get(t.get("monitor_severity"), _task_color(t))
             wpx = 8 * len(t["id"]) + 18
             if cx + wpx > hx[2] - 60:
                 out.append(f'<text x="{cx}" y="{y + 32}" fill="{MUTED}" font-size="12">+{len(r["tasks"]) - n}</text>')
@@ -197,6 +205,8 @@ def stages_svg(m: Dict, title: str) -> str:
                    f'<rect x="{hx[2]}" y="{y + 22}" width="{90 * frac:.1f}" height="8" rx="4" fill="#4dff6a"/>'
                    f'<text x="{hx[2]}" y="{y + 38}" fill="{MUTED}" font-size="10">code {_pct(r["pct"])}</text>'
                    f'<text x="{hx[2]}" y="{y + 50}" fill="{MUTED}" font-size="10">cổng {_pct(r["pct_gate"])}</text>')
+        if r.get("monitor_tasks"):
+            out.append(f'<text x="{hx[3]}" y="{y + 12}" fill="{c}" font-size="9" font-weight="700">GIÁM SÁT {issue}</text>')
         err = "chưa có sổ" if r["open_errors"] is None else str(r["open_errors"])
         ec = MUTED if r["open_errors"] in (None, 0) else "#ff5a5a"
         out.append(f'<text x="{hx[3]}" y="{y + 32}" fill="{ec}" font-size="13">{escape(err)}</text>')

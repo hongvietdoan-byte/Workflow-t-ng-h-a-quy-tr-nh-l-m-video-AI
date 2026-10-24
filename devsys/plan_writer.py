@@ -62,7 +62,9 @@ def _evidence(finding: Dict) -> str:
     for item in items:
         text = str(item or "").strip().replace("\\", "/")
         if _EVIDENCE_RE.fullmatch(text):
-            return text
+            path_part = text.rsplit(":", 1)[0]
+            if all(part not in {".", ".."} for part in path_part.split("/")):
+                return text
     raise PlanWriterError("phát hiện CHẶN/LỚN cần bằng chứng file:dòng")
 
 

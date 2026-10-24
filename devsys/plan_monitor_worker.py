@@ -18,10 +18,19 @@ def main(argv=None) -> int:
     parser.add_argument("--root", default=ROOT)
     parser.add_argument("--provider", choices=("claude_cli", "mock"), default="claude_cli")
     parser.add_argument("--trigger-id", default="manual")
+    parser.add_argument("--expected-input-hash")
     args = parser.parse_args(argv)
     for _ in range(40):
-        result = plan_monitor.run_monitor(args.root, args.provider, publish_plan=plan_monitor.load_config(args.root)["publish_plan"],
-                                          note=lambda message: print(message, flush=True))
+        try:
+            result = plan_monitor.run_monitor(args.root, args.provider, publish_plan=plan_monitor.load_config(args.root)["publish_plan"],
+                                              expected_input_hash=args.expected_input_hash,
+                                              note=lambda message: print(message, flush=True))
+        except plan_monitor.PlanMonitorError as error:
+            print(f"Dừng an toàn: {error}", flush=True)
+            return 2
+        except Exception as error:
+            print(f"Không hoàn tất ({type(error).__name__}); xem lỗi đã lọc.", flush=True)
+            return 2
         if not result.get("busy"):
             if result.get("record"):
                 record = result["record"]

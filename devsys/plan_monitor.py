@@ -6,6 +6,7 @@ kế hoạch chỉ xảy ra khi caller bật publish_plan; mặc định feature
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -66,6 +67,20 @@ def config_path(root: str = collect.ROOT) -> Path:
     return Path(root) / "devsys" / "giam_sat_config.json"
 
 
+def _main_plan_path(root: str) -> Path:
+    """Only accept the configured main plan when its resolved target stays inside this checkout."""
+    repo = Path(root).resolve()
+    candidate = Path(plan_progress.main_plan_file(str(repo)))
+    try:
+        resolved = candidate.resolve(strict=True)
+        relative = resolved.relative_to(repo)
+    except (OSError, RuntimeError, ValueError):
+        raise PlanMonitorError("không xác minh được kế hoạch chính trong checkout; dừng an toàn") from None
+    if not resolved.is_file() or any(part.casefold() == "data" for part in relative.parts):
+        raise PlanMonitorError("đường dẫn kế hoạch chính không hợp lệ; dừng an toàn")
+    return resolved
+
+
 def load_config(root: str = collect.ROOT) -> Dict:
     """Automatic triggers stay off until an operator deliberately enables them."""
     cfg = _read_json(config_path(root), {})
@@ -115,10 +130,10 @@ def _capture(root: str, argv: Sequence[str], timeout: int = 20) -> str:
 
 
 def _plan_status(root: str) -> Tuple[str, Dict, Dict[str, str]]:
-    path = plan_progress.main_plan_file(root)
     try:
-        text = Path(path).read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
+        path = _main_plan_path(root)
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError, PlanMonitorError) as error:
         return f"(không đọc được kế hoạch chính: {type(error).__name__})", {"waves": [], "bad": ["không đọc được"]}, {}
     plan = plan_progress.parse(text)
     status = {task["id"]: task["status"] for wave in plan["waves"] for task in wave["tasks"]}
@@ -400,6 +415,192 @@ def monitor_lock(root: str = collect.ROOT):
             pass
 
 
+
+def latest_record(root: str = collect.ROOT) -> Tuple[Optional[Dict], List[str]]:
+    rows, errors = load_history(root)
+    if not rows:
+        return None, errors
+    return max(rows, key=lambda row: str(row.get("at") or row.get("id") or "")), errors
+
+
+def _display_text(value, limit: int = 180) -> str:
+    text = " ".join(str(value or "").replace("\r", " ").replace("\n", " ").split())
+    return "".join(char for char in text if char >= " " and char != "\x7f")[:limit]
+
+
+def _major_findings(record: Optional[Dict]) -> List[Dict]:
+    score = (record or {}).get("score") or {}
+    findings = score.get("findings") or []
+    return [row for row in findings if isinstance(row, dict)
+            and str(row.get("severity", "")).strip().casefold() in {"chặn", "chan", "lớn", "lon"}]
+
+
+def annotate_plan_map(model: Dict, findings: Iterable[Dict], task_to_stages: Optional[Mapping[str, Sequence[str]]] = None) -> Dict:
+    """Copy a plan-map model and add safe severity labels for matching tasks/waves/stages."""
+    overlay = copy.deepcopy(model)
+    by_task: Dict[str, List[Dict]] = {}
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        severity = str(finding.get("severity") or "").strip().upper()
+        if severity not in {"CHẶN", "LỚN"}:
+            continue
+        task_id = str(finding.get("task_id") or "").strip()
+        if task_id:
+            by_task.setdefault(task_id, []).append({"severity": severity})
+
+    def annotate_tasks(tasks):
+        affected = []
+        for task in tasks:
+            matches = by_task.get(str(task.get("id") or ""), [])
+            if not matches:
+                continue
+            priority = "CHẶN" if any(row["severity"] == "CHẶN" for row in matches) else "LỚN"
+            task["monitor_severity"] = priority
+            task["monitor_count"] = len(matches)
+            affected.append(task["id"])
+        return affected
+
+    for wave in overlay.get("waves") or []:
+        affected = annotate_tasks(wave.get("tasks") or [])
+        if affected:
+            wave["monitor_tasks"] = affected
+    stage_lookup = task_to_stages or {}
+    for row in overlay.get("rows") or []:
+        affected = annotate_tasks(row.get("tasks") or [])
+        affected_stages = sorted({stage for task_id in affected for stage in (stage_lookup.get(task_id) or [])
+                                  if isinstance(stage, str)})
+        if affected:
+            row["monitor_tasks"] = affected
+            row["monitor_severity"] = "CHẶN" if any(
+                task.get("monitor_severity") == "CHẶN" for task in row.get("tasks") or []
+            ) else "LỚN"
+            row["monitor_stages"] = affected_stages
+    return overlay
+
+
+def proposal_command(finding: Dict) -> str:
+    """Return a PowerShell command for the main session to review/run; never executes it here."""
+    severity = str(finding.get("severity") or "").strip().upper()
+    if severity not in {"CHẶN", "LỚN"}:
+        raise PlanMonitorError("chỉ soạn đề xuất hộp thư cho phát hiện CHẶN/LỚN")
+    task_id = _display_text(finding.get("task_id"), 32)
+    if not re.fullmatch(r"[A-Z]+[A-Z0-9._-]*", task_id):
+        raise PlanMonitorError("phát hiện thiếu mã việc hợp lệ")
+    identity = "|".join(str(finding.get(key) or "") for key in ("axis", "task_id", "type", "evidence"))
+    code = "CX24-GS-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
+    title = _display_text(f"{severity}: {finding.get('title') or finding.get('reason')}", 110)
+    evidence = _display_text(finding.get("evidence"), 120)
+    description = _display_text(
+        f"Phát hiện của giám sát kế hoạch V3.1; việc liên quan {task_id}; bằng chứng {evidence}. "
+        f"Đề xuất cần phiên chính rà soát, không tự phân công từ bảng giám sát.", 240)
+
+    def quote(value: str) -> str:
+        return "'" + value.replace("'", "''") + "'"
+
+    return (f"py tools/hop_thu.py giao {code} --to phien-chinh --title {quote(title)} "
+            f"--spec {quote('docs/CODEX_TASKS.md### CX24-GIAM-SAT')} --priority 2 "
+            f"--lane codex --text {quote(description)}")
+
+
+def render_findings(st, root: str = collect.ROOT, *, context: str = "", task_ids: Optional[Iterable[str]] = None,
+                    task_to_stages: Optional[Mapping[str, Sequence[str]]] = None) -> List[Dict]:
+    """Display only the latest review's CHẶN/LỚN findings as plain table cells (never trusted Markdown/HTML)."""
+    record, errors = latest_record(root)
+    if errors:
+        st.caption(f"Có {len(errors)} tệp lịch sử không đọc được; chúng không được dùng làm phát hiện.")
+    if not record:
+        st.info("Chưa có kết quả giám sát kế hoạch V3.1.")
+        return []
+    findings = _major_findings(record)
+    if task_ids is not None:
+        task_ids = set(task_ids)
+        findings = [finding for finding in findings if str(finding.get("task_id") or "") in task_ids]
+    if not findings:
+        st.success(f"{context + ' · ' if context else ''}Lần gần nhất ({_display_text(record.get('at'), 40)}): không có phát hiện CHẶN/LỚN liên quan.")
+        return []
+    rows = []
+    blocked_tasks, major_tasks = [], []
+    blocked_stages, major_stages = set(), set()
+    for finding in findings:
+        task_id = _display_text(finding.get("task_id"), 32)
+        stages = (task_to_stages or {}).get(task_id, ())
+        severity = _display_text(finding.get("severity"), 12).upper()
+        if severity == "CHẶN":
+            blocked_tasks.append(task_id)
+            blocked_stages.update(_display_text(stage, 24) for stage in stages)
+        else:
+            major_tasks.append(task_id)
+            major_stages.update(_display_text(stage, 24) for stage in stages)
+        rows.append({"Mức": severity, "Trục": _display_text(finding.get("axis"), 24),
+                     "Việc": task_id, "Khâu": ", ".join(_display_text(stage, 20) for stage in stages) or "chưa gắn",
+                     "Phát hiện": _display_text(finding.get("title") or finding.get("reason")),
+                     "Bằng chứng": _display_text(finding.get("evidence"), 100)})
+    if blocked_tasks:
+        st.error(f"CHẶN · việc {', '.join(sorted(set(blocked_tasks)))} · khâu {', '.join(sorted(blocked_stages)) or 'chưa gắn'}")
+    if major_tasks:
+        st.warning(f"LỚN · việc {', '.join(sorted(set(major_tasks)))} · khâu {', '.join(sorted(major_stages)) or 'chưa gắn'}")
+    st.dataframe(rows, hide_index=True, width="stretch")
+    st.caption(f"{context + ' · ' if context else ''}Nguồn: lần giám sát gần nhất {_display_text(record.get('at'), 40)}; chỉ hiển thị CHẶN/LỚN.")
+    for finding in findings:
+        try:
+            command = proposal_command(finding)
+        except PlanMonitorError:
+            continue
+        key = hashlib.sha256(command.encode("utf-8")).hexdigest()[:12]
+        if st.button("📨 Soạn đề xuất giao việc", key=f"plan_monitor_proposal_{key}"):
+            st.code(command, language="powershell")
+    return findings
+
+
+def render_summary(st, root: str = collect.ROOT) -> Optional[Dict]:
+    """Show the latest three-axis score and a compact history trend."""
+    st.subheader("Giám sát kế hoạch V3.1")
+    record, errors = latest_record(root)
+    if errors:
+        st.caption(f"{len(errors)} mục lịch sử lỗi định dạng/đọc được bỏ qua.")
+    if not record:
+        st.info("Chưa có lần giám sát; mở báo cáo sau khi chạy lần đầu.")
+        return None
+    score = record.get("score") or {}
+    axes = score.get("axes") or {}
+    cols = st.columns(4)
+    for col, label, key in zip(cols, ("Đúng hướng", "Lỗi / lỗ hổng", "Dashboard", "Điểm chung"),
+                               ("direction", "errors", "dashboard", "overall")):
+        value = score.get("overall") if key == "overall" else axes.get(key)
+        col.metric(label, "—" if value is None else f"{value:g}/10")
+    st.caption(f"Lần gần nhất: {_display_text(record.get('at'), 40)} · {score.get('label', 'chưa rõ')} · "
+               f"{_display_text(record.get('provider'), 24)} · 0 USD API")
+    rows, _ = load_history(root)
+    trend = [float((row.get("score") or {}).get("overall")) for row in sorted(rows, key=lambda row: str(row.get("at") or ""))
+             if isinstance((row.get("score") or {}).get("overall"), (int, float))][-20:]
+    if trend:
+        st.markdown("**Xu hướng điểm chung (tối đa 20 lần gần nhất)**")
+        st.line_chart(trend)
+    render_findings(st, root, context="Kế hoạch đang chạy")
+    return record
+
+
+def render_manual_control(st, root: str, spawn_fn: Callable[[Sequence[str], str], int]) -> None:
+    """Show the free scorer estimate before a person starts a manual background pass."""
+    try:
+        prepared = prepare(root)
+    except Exception as error:
+        st.warning(f"Chưa thể ước tính lượt giám sát ({type(error).__name__}); chưa chạy worker.")
+        return
+    estimate_info = prepared.get("estimate") or {}
+    st.caption(f"Ước tính trước khi chạy: {estimate_info.get('input_tokens', '—')} token vào · 0 USD API · claude_cli.")
+    if st.button("🛰 Giám sát ngay", key="plan_monitor_run"):
+        args = ["-X", "utf8", "-m", "devsys.plan_monitor_worker", "--root", root, "--provider", "claude_cli",
+                "--trigger-id", "manual", "--expected-input-hash", prepared["bundle"]["input_hash"]]
+        try:
+            pid = int(spawn_fn(args, "giam_sat/worker.log"))
+        except Exception as error:
+            st.error(f"Không khởi chạy được lượt giám sát ({type(error).__name__}); chưa gửi yêu cầu.")
+            return
+        st.success(f"Đã khởi chạy worker PID {pid}; xem log tại devsys/data/giam_sat/worker.log.")
+
+
 def run_monitor(root: str = collect.ROOT, provider: str = "claude_cli", *, publish_plan: bool = True,
                 expected_input_hash: Optional[str] = None,
                 note: Callable[[str], None] = lambda _message: None) -> Dict:
@@ -437,7 +638,6 @@ def run_monitor(root: str = collect.ROOT, provider: str = "claude_cli", *, publi
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(export_markdown(record), encoding="utf-8", newline="\n")
 
-        plan_path = plan_progress.main_plan_file(root)
         applicable = []
         for finding in raw_findings:
             if not isinstance(finding, dict):
@@ -447,7 +647,10 @@ def run_monitor(root: str = collect.ROOT, provider: str = "claude_cli", *, publi
             item.setdefault("run_no", len(load_history(root)[0]))
             applicable.append(item)
         try:
-            write_result = plan_writer.apply_findings(plan_path, applicable)
+            plan_path = _main_plan_path(root)
+            if publish_plan and applicable:
+                _publish_preflight(root, plan_path, allow_plan_modified=False)
+            write_result = plan_writer.apply_findings(str(plan_path), applicable)
             if write_result.get("changed"):
                 plan_progress.write_table(plan_path)
                 record["plan_write"] = {"changed": True, "finding_ids": write_result.get("finding_ids"),
@@ -456,7 +659,7 @@ def run_monitor(root: str = collect.ROOT, provider: str = "claude_cli", *, publi
                     record["plan_publish"] = publish_plan_file(root, plan_path)
             else:
                 record["plan_write"] = {"changed": False, "report_only": write_result.get("report_only") or []}
-        except (plan_writer.PlanWriterError, plan_progress.PlanError, OSError) as error:
+        except (PlanMonitorError, plan_writer.PlanWriterError, plan_progress.PlanError, OSError) as error:
             record["plan_write"] = {"changed": False, "error": f"{type(error).__name__}: {str(error)[:300]}"}
         _save_json(json_path, record)
         report.write_text(export_markdown(record), encoding="utf-8", newline="\n")
@@ -469,31 +672,42 @@ def run_monitor(root: str = collect.ROOT, provider: str = "claude_cli", *, publi
                 "estimate": est, "plan_write": record.get("plan_write")}
 
 
-def publish_plan_file(root: str, plan_path: str) -> Dict:
-    """Safely commit/push only the main plan; refuse if checkout, index, or origin/main is not the expected clean base."""
-    rel = os.path.relpath(plan_path, root).replace("\\", "/")
-    if rel.startswith("../") or os.path.isabs(rel):
-        raise PlanMonitorError("kế hoạch phải nằm trong repo")
-    def git(*args):
-        proc = subprocess.run(["git", *args], cwd=root, env=_child_env(), capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=30, check=False)
-        if proc.returncode:
-            raise PlanMonitorError(f"git {args[0]} thất bại ({proc.returncode}); không thử force-push")
-        return proc.stdout.strip()
-    if git("branch", "--show-current") != "main":
+def _git_output(root: str, *args: str) -> str:
+    proc = subprocess.run(["git", *args], cwd=root, env=_child_env(), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=30, check=False)
+    if proc.returncode:
+        raise PlanMonitorError(f"git {args[0]} thất bại ({proc.returncode}); không thử force-push")
+    return proc.stdout.strip()
+
+
+def _publish_preflight(root: str, plan_path: Path, *, allow_plan_modified: bool) -> str:
+    """Verify the plan is the configured in-repo file and main has no unrelated tracked changes."""
+    repo = Path(root).resolve()
+    expected = _main_plan_path(str(repo))
+    if Path(plan_path).resolve() != expected:
+        raise PlanMonitorError("chỉ cho phép file kế hoạch chính trong plans.json")
+    rel = expected.relative_to(repo).as_posix()
+    if _git_output(root, "branch", "--show-current") != "main":
         raise PlanMonitorError("chỉ cho phép publish từ nhánh main")
-    if git("rev-parse", "HEAD") != git("rev-parse", "origin/main"):
+    if _git_output(root, "rev-parse", "HEAD") != _git_output(root, "rev-parse", "origin/main"):
         raise PlanMonitorError("HEAD chưa trùng origin/main; dừng để không đẩy commit khác")
-    if git("diff", "--cached", "--name-only"):
+    if _git_output(root, "diff", "--cached", "--name-only"):
         raise PlanMonitorError("index có file đã stage; không commit để tránh gộp thay đổi khác")
-    changed = set(git("status", "--porcelain=v1", "--untracked-files=no").splitlines())
-    allowed = {f" M {rel}", f"M  {rel}", f"MM {rel}"}
-    if changed - allowed or not changed:
-        raise PlanMonitorError("worktree có thay đổi ngoài file kế hoạch hoặc kế hoạch không đổi")
-    git("add", "--", rel)
-    git("commit", "-m", "giám sát: cập nhật phát hiện kế hoạch", "--only", "--", rel)
-    git("push", "origin", "HEAD:main")
-    return {"branch": "main", "file": rel, "commit": git("rev-parse", "--short", "HEAD"), "pushed": True}
+    changed = _git_output(root, "status", "--porcelain=v1", "--untracked-files=no").splitlines()
+    if not allow_plan_modified and changed:
+        raise PlanMonitorError("worktree có thay đổi tracked trước khi áp dụng phát hiện")
+    if allow_plan_modified and (not changed or any(line[3:] != rel for line in changed)):
+        raise PlanMonitorError("worktree có thay đổi ngoài file kế hoạch")
+    return rel
+
+
+def publish_plan_file(root: str, plan_path: str) -> Dict:
+    """Commit/push only the configured main plan, with no unrelated tracked or staged changes."""
+    rel = _publish_preflight(root, Path(plan_path), allow_plan_modified=True)
+    _git_output(root, "add", "--", rel)
+    _git_output(root, "commit", "-m", "giám sát: cập nhật phát hiện kế hoạch", "--only", "--", rel)
+    _git_output(root, "push", "origin", "HEAD:main")
+    return {"branch": "main", "file": rel, "commit": _git_output(root, "rev-parse", "--short", "HEAD"), "pushed": True}
 
 
 def progress_snapshot(root: str = collect.ROOT) -> Dict:
@@ -550,17 +764,23 @@ def check_auto_triggers(root: str, spawn_fn: Callable[[Sequence[str], str], int]
         if not triggers:
             _save_json(state_path, {"snapshot": current, "seen": seen, "pending": [], "checked_at": _now()})
             return {"state": "no_change", "spawned": []}
-        args = ["-X", "utf8", "-m", "devsys.plan_monitor_worker", "--root", root,
-                "--provider", cfg["provider"], "--trigger-id", ",".join(trigger["id"] for trigger in triggers)]
         try:
+            prepared = prepare(root, provider=cfg["provider"])
+            estimate_info = prepared.get("estimate") or {}
+            args = ["-X", "utf8", "-m", "devsys.plan_monitor_worker", "--root", root,
+                    "--provider", cfg["provider"], "--trigger-id", ",".join(trigger["id"] for trigger in triggers),
+                    "--expected-input-hash", prepared["bundle"]["input_hash"]]
             pid = spawn_fn(args, "giam_sat/worker.log")
             spawned = [{**trigger, "pid": int(pid)} for trigger in triggers]
             seen.extend(trigger["id"] for trigger in triggers)
             failed, pending = [], []
-        except (OSError, ValueError, TypeError) as error:
+        except Exception as error:
+            estimate_info = {}
             spawned = []
             failed = [{**trigger, "error": type(error).__name__} for trigger in triggers]
             pending = triggers
         _save_json(state_path, {"snapshot": current, "seen": sorted(set(seen)), "pending": pending,
-                                "checked_at": _now(), "spawned": spawned, "failed": failed})
-        return {"state": "spawned" if spawned else "failed", "spawned": spawned, "failed": failed}
+                                "checked_at": _now(), "spawned": spawned, "failed": failed,
+                                "estimate": {"input_tokens": estimate_info.get("input_tokens"), "usd_api": 0.0}})
+        return {"state": "spawned" if spawned else "failed", "spawned": spawned, "failed": failed,
+                "estimate": {"input_tokens": estimate_info.get("input_tokens"), "usd_api": 0.0}}
