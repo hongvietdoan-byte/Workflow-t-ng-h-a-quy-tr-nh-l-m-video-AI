@@ -4,7 +4,7 @@ import json
 import os
 
 from . import access
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from . import lineage, llm_io, pilot, quality_tier, regen, takes
 from .pipeline import MISSING_INPUT, STALE_INPUT, Pipeline
@@ -138,11 +138,20 @@ def image_gates(p: Pipeline, project_id: int, data_dir: Optional[str] = None, sc
     return {"block": block, "warn": warn, "plates_stale": plates_stale}
 
 
-def queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir: Optional[str] = None) -> Dict:
+def queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir: Optional[str] = None,
+                 scene_ids: Optional[Iterable[int]] = None) -> Dict:
     """Image jobs for ready scenes without a live picture, and a redo for approved pictures made from an outdated spec.
     While a pilot is running only its scenes are queued. The automatic run's gates apply (image_gates): a blocking one raises
-    GateError unless the person confirmed (`confirmed=True`, recorded as a diag); warnings are recorded as diags."""
+    GateError unless the person confirmed (`confirmed=True`, recorded as a diag); warnings are recorded as diags.
+    `scene_ids` chỉ thu hẹp tập SAU pilot, trước mọi cổng; None giữ luồng cũ. `job_ids` là các job MỚI của lần gọi này
+    (không tự kèm job queued cũ), để caller truyền runner.submit_pending(only=...)."""
     access.need_edit(p, project_id, "gửi gen ảnh")
+    selected = None
+    if scene_ids is not None:
+        requested = list(scene_ids)
+        if any(isinstance(sid, bool) or not isinstance(sid, int) or sid <= 0 for sid in requested):
+            raise ValueError("Danh sách shot phải chứa mã số nguyên dương")
+        selected = set(requested)
     from . import diag
     conn = p.conn
     fresh = [r["id"] for r in conn.execute(
@@ -153,6 +162,9 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir
     fresh = [sid for sid in fresh if shots.needs_own_image(conn, sid)]   # v3 multi-shot: later shots of a group need no picture
     fresh = pilot.allowed_scenes(p, project_id, fresh)
     redo_ids = pilot.allowed_scenes(p, project_id, [sid for sid in stale if not p.has_pending_take(sid, "image_gen")])   # S14.17 rà #2
+    if selected is not None:
+        fresh = [sid for sid in fresh if sid in selected]
+        redo_ids = [sid for sid in redo_ids if sid in selected]
     if fresh or redo_ids:
         gates = image_gates(p, project_id, data_dir, scene_ids=list(fresh) + list(redo_ids))   # rà gộp 17/10: only the shots sent
         if gates.get("plates_stale") and data_dir:
@@ -167,12 +179,23 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir
                         project_id)
         for w in gates["warn"]:
             diag.record(conn, "image", "warn", w, "no_reference", project_id)
+    job_ids = []
     for sid in fresh:
-        p.create_job(sid, "image_gen")
+        job_ids.append(p.create_job(sid, "image_gen"))
     for sid in redo_ids:                              # the scene changed: the new input is the scene itself (no Vietnamese note to the model)
-        p.reopen_approved(stale[sid]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}", fix="",
+        parent_id = stale[sid]["image_job_id"]
+        before = {r[0] for r in conn.execute("SELECT id FROM jobs WHERE parent_job_id=?", (parent_id,))}
+        p.reopen_approved(parent_id, f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}", fix="",
                           reason="khong_phai_loi")   # C2: input changed, no fault
-    return {"created": len(fresh), "redo": len(redo_ids), "pilot": pilot.active(p, project_id)}
+        # reopen_approved giữ API cũ trả trạng thái, không trả id; chỉ nhận child ảnh
+        # vừa sinh từ đúng parent/shot của dự án, không lấy job queued khác.
+        children = [r[0] for r in conn.execute(
+            "SELECT id FROM jobs WHERE parent_job_id=? AND project_id=? AND scene_id=? AND type='image_gen' ORDER BY id",
+            (parent_id, project_id, sid)) if r[0] not in before]
+        if selected is not None and len(children) != 1:
+            raise GateError("Không xác minh được đúng một job ảnh làm lại — giữ chờ, không gửi lô")
+        job_ids.extend(children)
+    return {"created": len(fresh), "redo": len(redo_ids), "pilot": pilot.active(p, project_id), "job_ids": job_ids}
 
 
 def videos_to_make(p: Pipeline, project_id: int) -> List[Dict]:

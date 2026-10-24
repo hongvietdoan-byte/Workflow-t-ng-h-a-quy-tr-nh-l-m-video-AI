@@ -116,6 +116,20 @@ def test_generator_and_duplicate_scene_ids_are_consumed_once(case):
     assert len(result["job_ids"]) == 2
 
 
+def test_legacy_none_does_not_add_a_new_failure_if_reopen_has_no_child(case):
+    from core import batch
+    p, pid, sids, gates, scan, allowed, stack = case
+    old = p.create_job(sids[0], "image_gen")
+    p.conn.execute("UPDATE jobs SET state='approved'")
+    p.conn.commit()
+    scan.return_value = {sids[0]: {"image_stale": "đổi đầu vào", "image_job_id": old}}
+    stack.enter_context(patch.object(p, "reopen_approved", return_value="rejected"))
+    # Caller cũ không yêu cầu selected job IDs, nên không thêm một GateError mới.
+    result = batch.queue_images(p, pid)
+    assert result["created"] == 3 and result["redo"] == 1
+    assert len(result["job_ids"]) == 3
+
+
 def test_existing_runner_only_sends_returned_job_ids_not_other_queued_shot(case, tmp_path):
     from core import batch
     from core.providers import MockImageProvider
@@ -134,4 +148,4 @@ def test_existing_runner_only_sends_returned_job_ids_not_other_queued_shot(case,
     assert runner.submit_pending(pid, only=result["job_ids"]) == 2
     assert p.job(excluded)["state"] == "queued" and p.job(excluded)["external_id"] is None
     assert all(p.job(jid)["state"] == "running" for jid in result["job_ids"])
-    assert len(provider._tasks) == 2
+    assert len(provider.prompts) == 2
