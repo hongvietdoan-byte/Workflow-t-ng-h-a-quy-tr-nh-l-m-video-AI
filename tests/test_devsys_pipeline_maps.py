@@ -265,6 +265,71 @@ def test_measured_flag_rule_refreshes_relative_dependency_after_edit(tmp_path):
         assert second("fixture_paid")[0] is True
 
 
+def test_measured_flag_rule_refreshes_same_size_same_mtime_dependency(tmp_path):
+    from devsys import collect
+    core_dir = tmp_path / "core"
+    core_dir.mkdir()
+    dependency = core_dir / "before_run.py"
+    dependency.write_text("PAID_FLAGS = {'fixture_paid'}\n", encoding="utf-8")
+    (core_dir / "features.py").write_text(
+        "def on(name):\n    from . import before_run\n    return name not in before_run.PAID_FLAGS\n",
+        encoding="utf-8")
+    with mock.patch.object(os, "environ", {}):
+        first, _ = collect._features_rule(str(tmp_path), {})
+        assert first("fixture_paid")[0] is False
+        original = dependency.stat()
+        dependency.write_text("PAID_FLAGS = {'fixture_free'}\n", encoding="utf-8")
+        os.utime(dependency, ns=(original.st_atime_ns, original.st_mtime_ns))
+        second, _ = collect._features_rule(str(tmp_path), {})
+        assert second("fixture_paid")[0] is True
+        assert first("fixture_paid")[0] is False
+
+
+def test_measured_flag_rule_overlapping_snapshots_do_not_purge_imports(tmp_path):
+    import sys
+    import threading
+    import types
+    from devsys import collect
+    coordination = types.ModuleType("_devsys_fixture_coordination")
+    coordination.entered = threading.Event()
+    coordination.release = threading.Event()
+    core_dir = tmp_path / "core"
+    core_dir.mkdir()
+    (core_dir / "before_run.py").write_text(
+        "import threading\nimport _devsys_fixture_coordination as coordination\n"
+        "if threading.current_thread().name == 'devsys-first':\n"
+        "    coordination.entered.set()\n    coordination.release.wait(10)\n"
+        "PAID_FLAGS = {'fixture_paid'}\n", encoding="utf-8")
+    (core_dir / "features.py").write_text(
+        "from . import before_run\ndef on(name):\n    return name not in before_run.PAID_FLAGS\n",
+        encoding="utf-8")
+    results = []
+    errors = []
+
+    def load_first():
+        try:
+            rule, problem = collect._features_rule(str(tmp_path), {})
+            results.append(not problem and rule("fixture_paid")[0] is False)
+        except Exception:
+            errors.append(True)
+
+    with mock.patch.object(os, "environ", {}), mock.patch.dict(
+            sys.modules, {coordination.__name__: coordination}):
+        worker = threading.Thread(target=load_first, name="devsys-first")
+        worker.start()
+        try:
+            assert coordination.entered.wait(10)
+            second, problem = collect._features_rule(str(tmp_path), {})
+            assert not problem
+            assert second("fixture_paid")[0] is False
+        finally:
+            coordination.release.set()
+            worker.join(10)
+        assert not worker.is_alive()
+        assert not errors
+        assert results == [True]
+
+
 def test_devsys_page_renders_four_tabs_and_three_maps(tmp_path):
     from streamlit.testing.v1 import AppTest
     with mock.patch.object(PM, "HISTORY_FILE", str(tmp_path / "h.jsonl")), \
