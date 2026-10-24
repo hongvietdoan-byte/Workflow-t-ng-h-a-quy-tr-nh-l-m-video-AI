@@ -9,10 +9,11 @@ Nhánh `codex/v31-main-red`, worktree `D:\AI-Video-Pipeline\.codex-wt\v31-main-r
 - Chưa đụng `data/`, API trả phí hay máy chủ.
 
 ## Kiểm tra
-- Baseline trên `1fcb5f6e`: 3 kiểm tra được giao đều đỏ đúng nguyên nhân.
-- Xanh: `test_real_plan_and_map_agree`, nhóm `ScriptScan`, `tests/test_seedance_refs.py` — 43 passed.
+- Baseline trên `1fcb5f6e`: ba kiểm tra được giao đều đỏ đúng nguyên nhân.
+- Trước khi thêm bản đồ KPI: plan map, nhóm `ScriptScan` và toàn bộ `tests/test_seedance_refs.py` xanh — 43 passed.
+- Sau khi khai báo `tools/kpi_goc.py` và `tests/test_kpi_goc.py` trong vùng `devsys`: bốn mục tiêu liên quan xanh — 5 passed.
 - Rà độc lập `core/runner.py` + regression mới: không có finding P1/P2; cờ tắt giữ hành vi cũ.
 
-## Còn làm
-- Bổ sung `tests/test_kpi_goc.py` vào `devsys/areas.json`, hiện hoãn vì Codex 2 đang sửa cùng file trên A2F; tiếp tục khi file được giải phóng.
-- Sau khi file vùng được giải phóng: chạy lại test ánh xạ, cập nhật HANDOFF, commit và push.
+## Hoàn tất
+- Đã khai báo mã nguồn KPI gốc và test của nó vào khu vực `devsys`.
+- Nhánh đã push: `codex/v31-main-red`; không đụng `data/`, API trả phí hay máy chủ.
