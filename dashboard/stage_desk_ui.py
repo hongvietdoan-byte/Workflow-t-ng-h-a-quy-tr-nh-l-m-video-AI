@@ -6,7 +6,8 @@ v31-ep-stage-desk-actions-2026-10-21 (S-A … S-G).
 Mỗi nút gọi ĐÚNG MỘT hàm công khai của core/stage_desk (lõi C-M48-DESK-CORE: khóa S, luồng nền, write guard, quyền EP đều ở lõi — lõi kiểm
 lại mọi điều kiện khi bấm, giao diện chỉ ẩn / khóa / hỏi xác nhận):
   N1 check_inputs · N2 estimate · N3 write_prompt · N4 load_answer · N5 build_sheet · N6 approve · N7 return_ · N8 reset · N9 rerender ·
-  N10 score · N11 render_plates. Không có N12 previs (Đợt 2) / N13 API (Đợt 3) → 0 USD, không gọi Claude.
+  N10 score · N11 render_plates · N12 previs · N14 crew_user_pick · N15 refresh_world_map · N16 set_family.
+N12 dựng previs cục bộ; N13 API chưa nằm trong ORDER. Các nút hiện có không gọi Claude trả phí.
 Danh sách nút = scene_status()["buttons"] (hợp phase). Đang chạy / khóa S của người khác → mọi nút trừ 💲 Ước tính bị khóa + hiện tiến độ
 (desk_progress.json qua scene_status()["progress"]). Thao tác đổi dữ liệu (N4 nạp trả lời, N6 duyệt, N8 làm lại, N9 dựng lại, N11 render
 nền) phải tích xác nhận; N8 xem trước (S-D) rồi mới xác nhận; shot đã vẽ ảnh → xác nhận riêng (Q-D).
