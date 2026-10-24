@@ -28,3 +28,10 @@ DBfake. Child bg_poll không thấy job lô lỗi khi parent chưa commit hoặc
 chỉ thấy competitor đã commit trước và giữ nguyên competitor. Test mới1xanh2,78s;
 đối chứng tắt atomic qua mock riêng1đỏ1,38s (chạy sau xanh, không claimTDD).
 Không chạy lại25test/production, không sửa batch/pipeline ở lượt bổ sung này.
+
+Pricing optional scene_ids đã có ở c2a79019 (10đỏ→19xanh19,57s), UI chưa nối.
+Rà độc lập pricing không cóP1/P2; test d96520f2 đã lấp2gap bằng baselinebytes
+None từce04503a +scene/agentQCshared/nooutside +establishingready/free3D.
+Coder chạy5focusedxanh0,42s; reviewer đọc diff, khôngrerun/sửa production.
+RA ghi baseline chỉ chứng minh fixtuređịnhdanh, chưa toàn tổ hợp production.
+Task chưaXONG; giữ UIHOLD, chờ rootchốt/gộp và callback đúngtập+quote+runneronly.
