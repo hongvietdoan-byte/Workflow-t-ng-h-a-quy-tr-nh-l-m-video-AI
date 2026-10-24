@@ -40,3 +40,11 @@ G1-EP-ROLE6d647212 và CLI-TOKENS296fc658 **chưa là ancestor HEAD a700ead8** l
 ## Giảm tải và giới hạn
 
 Theo thư175249-xxc7/175629-mfn2: giảm tải tới22h và **chờ thư TĂNG TỐC**, không tự tăng tốc theo đồng hồ. Pytest chỉ serial targeted (trần n2), mỗi lúc chỉ một phiên test nặng; đã hỏi điều phối AppTest trước dùng. Không cả bộ, không Streamlit/Blender/headless/Computer Use. Unit checkpoint không tạo server/process nền, chỉ SQLite giả/temp. Không data thật/dashboard.env/secrets/admin_auth/special runner files/API trả phí; 0USD. Toàn task còn ĐANG LÀM, chưa thử UI thật/chưa nghiệm thu #34.
+
+## Checkpoint tiếp — nền mục 1 (chưa nối UI)
+
+`core.change_review.refresh_failed_findings(conn, project_id)` đồng bộ mục đỏ cho các shot của dự án trước khi ai gọi blocking. Dùng đúng `_hold_failed` hiện có: cùng cờ motion, quota giữ cổng, không nhân đôi mục, lỗi đã bỏ qua không mọc lại, lỗi mới mở lại, chính event reviewed/skipped thì tự đóng. Savepoint bao cả lượt; không commit transaction caller, lỗi giữa chừng hoàn tác riêng lượt đồng bộ. `open_findings` giữ chỉ đọc. Chưa caller production, chưa nối màn hình hay thay quyền/Bỏ qua: không tuyên bố đã gỡ lỗi Dashboard.
+
+RED **6 failed/0,99s** trước helper → GREEN **9 passed/0,42s** sau bổ sung ca rollback giữa chừng trong/ngoài transaction và read API không ghi. Nhóm targeted mới + hồi quy `test_change_review` **22 passed,52 deselected/4,91s**, serial, OBJECT môi trường/HOME/temp giả + keyring/winreg giả trước import. Không provider thật/server/AppTest. Reviewer độc lập rà helper/lifecycle/scope/transaction và callers autopilot/before_run/inbox_clean/prompt_rewrite/runner/change_review_ui: **0 P1/P2 trong diff mới**, root đọc lại hai lượt. Khai test ở core_infra; giữ areas.version92.
+
+Mục1 vẫn còn UI rõ lý do/lượt rà lỗi, quyền EP canonical + lý do/audit/chống bypass lỗi mới, dự toán Rà lại. G1/CLI dependency vẫn theo câu hỏi180630-j3np. Mục7 đang triển khai độc lập bằng unit hình học, không Blender; không thay registryA.

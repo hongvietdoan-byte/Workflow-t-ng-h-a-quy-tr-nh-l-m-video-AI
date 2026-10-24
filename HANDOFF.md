@@ -9,3 +9,5 @@ RAM giảm tới22h và chờ thư TĂNG TỐC: không n8/cả bộ/server/Blend
 HOP dcee43bd XONG172253-x73s; KIEM89a547ef XONG175752-3obf (50rows/6CÓ/46pass1skip), không làm lại. Codex2 đangA2F/hàngtools, WIPdelivery/post_overlays giữ; Codex3 core/quyềnKho/RA-M82B độc lập. Đọc hộp thư mới nhất trước sửa.
 
 Đây là HANDOFF WIP của task này; xóa ở commit hoàn tất, xong push rồi helper xong --push. Không báo XONG sớm.
+
+Checkpoint nền mục1: refresh_failed_findings + tests mới đã có; 6đỏ→9unitxanh,22focused4,91s, reviewer0P1P2/callers. Chưa UI/EP bypass, không báo XONG mục1. Mục7 child kiem_cong_builder đang xử lý stage_grid/solver/tools/stage_grid/stage_desk_ui/helper mới, root không sửa cùng file.

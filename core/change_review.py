@@ -731,6 +731,31 @@ def _blocking(conn, scene_id: int, data_dir: Optional[str], since: Optional[str]
             + (f" (+{len(rows) - 3})" if len(rows) > 3 else "") + " — sửa rồi gen, hoặc bấm Bỏ qua ở 📥 Việc cần bạn")
 
 
+def refresh_failed_findings(conn, project_id: int) -> None:
+    """Tạo mục rà lỗi cho màn dự án, không cần gọi cổng gen và không gọi Claude.
+
+    Dùng cùng lifecycle với blocking(): một mục mỗi shot, lỗi mới mở lại,
+    mục người đã bỏ qua không mọc lại. Savepoint giữ nguyên transaction caller;
+    lỗi giữa chừng hoàn tác cả lượt đồng bộ, không để màn hình thấy nửa kết quả.
+    Caller chỉ gọi khi được phép ghi bookkeeping; open_findings vẫn chỉ đọc.
+    """
+    if not enabled():
+        return
+    if type(project_id) is not int or project_id <= 0:
+        raise ValueError("Mã dự án không hợp lệ")
+    kinds = "('scene', 'motion')" if motion_enabled() else "('scene')"
+    ids = [r[0] for r in conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY id", (project_id,))]
+    conn.execute("SAVEPOINT refresh_failed_findings")
+    try:
+        for sid in ids:
+            _hold_failed(conn, sid, kinds)
+        conn.execute("RELEASE refresh_failed_findings")
+    except Exception:
+        conn.execute("ROLLBACK TO refresh_failed_findings")
+        conn.execute("RELEASE refresh_failed_findings")
+        raise
+
+
 def open_findings(conn, project_id: int) -> List[Dict]:
     return [dict(r) for r in conn.execute("SELECT f.*, s.idx FROM change_findings f LEFT JOIN scenes s ON s.id=f.scene_id "
                                           "WHERE f.project_id=? AND f.status='open' ORDER BY f.level, s.idx, f.id", (project_id,))]
