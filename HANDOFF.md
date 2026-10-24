@@ -1,3 +1,10 @@
+# Codex 1 — checkpoint UI M47B ngày 24/10
+
+- UI BYĐ/sổ lỗi/gói đã nối trên nhánh này; chưa commit production trước reviewer/root rà. Q6c REVIEW, không chặn khóa. Q6a ON giữ HOLD vì chưa có image-package dryrun an toàn; không tự cho vượt cổng bằng scene data.
+- Đọc phần Codex 1 cuối docs/RA_CX23_M47B_CODEX_2026-10-23.md. Test caller đỏ 9985798c đã push. Core Codex 3 giữ nguyên. Không xong mailbox tới khi dependency chốt và nghiệm thu.
+- Bước kế: kiểm lại targeted sau sửa continuity provenance (source snapshot/project/run/expected-observed); root đọc diff vòng sửa trước commit/push checkpoint. Không GUI, API trả phí, dữ liệu thật hoặc main/live.
+
+---
 # Bàn giao CX23-M47B — Codex 3
 
 - Nhánh: `codex/v31-m47b`; worktree: `D:\AI-Video-Pipeline\.codex-wt\v31-m47b`.
@@ -98,3 +105,5 @@ So GOLDEN7 117/0/0/41: 10 ca 'operation' nay đều SAME (#27 +3, #31 +7 → #31
 - Bằng chứng mới nhất: `py -m core.decisions check` → **Khớp**; `py -m pytest -q -p no:cacheprovider tests/test_decisions.py` → **43 passed / 25.18s**.
 - Báo cáo ứng viên: `docs/RA_CX24_G4_QUYET_DINH_CODEX_2026-10-24.md`; còn 52 quyết định chưa nối, có đề xuất check; không sửa nội dung quyết định cũ.
 - Chỉ dùng fixture tạm; không gọi API trả phí, không ghi dữ liệu dự án thật. G4 hoàn tất trên nhánh, chờ phiên chính rà/gộp; việc kế là CX24-G3-SO-LOI. M47B vẫn chờ Codex 1 nối UI.
+
+- Chốt checkpoint UI: 97 test targeted qua/13.32s; reviewer P2 provenance đã sửa, root đọc fixdiff lần2 không P1/P2. Q6a chờ trả lời thư 154708-xmdn, không hỏi lại. Push checkpoint rồi giữ task mở.

@@ -317,3 +317,5 @@
    - [24/10 12:45] Codex 3: heartbeat hộp thư 20 phút đã ACTIVE; heartbeat “Theo dõi hạn mức Codex” đã bật lại. Đọc README + bảng phân công/đính chính; tiếp tục CX23-M47B trên `codex/v31-m47b` (merge cập nhật main còn chờ commit). Q6(c) lõi đang rà cuối; targeted `test_v31_m47b_overrides.py + test_video_gate.py + test_shot_intent.py` = 81 passed. Chờ reviewer chốt rồi push và báo Codex 1 nối UI. Chỉ fixture, 0 USD, không ghi dữ liệu thật.
 
 - Codex 1 (24/10): tiếp CX23-M47B sau lõi Codex 3; merge main 75fb5abd. Test caller UI mới đỏ 6/6 (viewer không được có form; fingerprint finding/run; cờ OFF; HOLD Q6a khi chưa có package ảnh dry-run), chưa có code UI tích hợp. Không dữ liệu thật/API/GUI.
+
+- Codex 1 (24/10, CX23-M47B): checkpoint UI BYĐ/sổ lỗi/gói đã tích hợp trên codex/v31-m47b, Q6c REVIEW theo thư 23/10; Q6a ON giữ HOLD tới khi có helper gói ảnh dựng khô an toàn, OFF luồng cũ. Đang chốt review, chưa XONG; RA_CX23_M47B_CODEX_2026-10-23.md có bằng chứng targeted/AppTest. Không main/live/data thật/API/GUI.
