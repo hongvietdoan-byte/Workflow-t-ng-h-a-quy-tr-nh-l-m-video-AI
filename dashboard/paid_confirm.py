@@ -61,7 +61,7 @@ def mark_drawn(ss, key: str) -> None:
 
 # ---- 1. nút có giá + xác nhận một lần ----------------------------------------------------------------------------------------
 def paid_button(label: str, key: str, tag: str, container=None, *, ask: bool = True, free: bool = False,
-                question: Optional[str] = None, yes_label: str = "Có, chạy", **kwargs) -> bool:
+                off_tag: Optional[str] = None, question: Optional[str] = None, yes_label: str = "Có, chạy", **kwargs) -> bool:
     """Nút tốn tiền. `tag` = chữ giá do hàm ước tính có sẵn tính (cost.llm_button_tag, cost.video_batch_tag …) — bắt buộc; cờ BẬT mà
     rỗng thì ghi "chưa có giá" (không im lặng). True chỉ khi người dùng đã xác nhận (cờ tắt / ask=False: khi bấm nút).
     Cờ TẮT: nhãn = `label + tag` đúng như nút cũ (M8.0b — nút cũ không có giá thì không thêm chữ).
@@ -69,7 +69,7 @@ def paid_button(label: str, key: str, tag: str, container=None, *, ask: bool = T
     hằng True (tests/test_safe_paid_buttons.py)."""
     box = container if container is not None else st
     if free or not enabled():
-        return box.button(label + (tag or ""), key=key, **kwargs)
+        return box.button(label + ((tag or "") if off_tag is None else off_tag), key=key, **kwargs)
     tag = tag or " · chưa có giá"
     text = label + tag
     if not ask:
@@ -100,8 +100,8 @@ def schedule(ss, action: str, pid: int, what: str, tag: str = "", now: Optional[
     """Ghi một việc chờ hết hạn hoàn tác vào `ss` (session_state). Cùng việc + cùng dự án đang chờ → giữ mục cũ (bấm hai lần không
     gửi hai lần). Trả id mục."""
     items = ss.setdefault(UNDO_KEY, {})
-    for uid, it in items.items():
-        if it["action"] == action and it["pid"] == pid:
+    for uid, it in items.items():          # rà M8.0c: lô trả phí khác loại (ảnh / clip / giọng / nhạc) cùng dự án là việc KHÁC
+        if it["action"] == action and it["pid"] == pid and it.get("batch_action") == extra.get("batch_action"):
             return uid
     uid = uuid.uuid4().hex[:10]
     items[uid] = dict(extra, action=action, pid=pid, what=what, tag=tag, not_before=(now or time.time()) + UNDO_SEC)
@@ -174,6 +174,14 @@ def _pilot_release(p, it: Dict, start: Callable) -> str:
 
 ACTIONS: Dict[str, Callable] = {"resume": _resume, "approve_images": _approve, "approve_motion": _approve, "approve_clips": _approve,
                                 "pilot_release": _pilot_release}
+
+
+def _paid_batch(p, it, start):
+    from dashboard import paid_batch_preview
+    return paid_batch_preview.run(p, it)
+
+
+ACTIONS["paid_batch"] = _paid_batch
 
 
 def run_item(p, it: Dict, start: Callable) -> str:

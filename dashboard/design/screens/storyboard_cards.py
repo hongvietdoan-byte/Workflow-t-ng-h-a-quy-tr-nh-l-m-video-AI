@@ -285,7 +285,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
                          result=act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False, reason=rcode, reason_text=rtext)),
                          detail="loại không vẽ lại · ghi chú: " + ("có" if note else "không") + " · " + reject_reason_ui.detail(rcode, rtext))
                 st.rerun()
-            if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch", disabled=bool(rerr), help=rerr):
+            if P.paid_button("↻ Vẽ lại", key=f"r_{jid}", width="stretch", disabled=bool(rerr), help=rerr, tag=retake, container=b3, off_tag=""):
                 _t0 = time.monotonic()
                 _ok = act(_spin(lambda: p.reject(jid, "user", note or None, reason=rcode, reason_text=rtext)))
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid, result=_ok, t0=_t0,
@@ -311,8 +311,8 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
             st.caption("↻ Vẽ lại 1 ảnh" + retake)
-            if b3.button("↻ Vẽ lại", key=f"dretry_{jid}", width="stretch",
-                         help="Gen lại với câu sửa" if fix.strip() else "Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp"):
+            if P.paid_button("↻ Vẽ lại", key=f"dretry_{jid}", width="stretch",
+                         help="Gen lại với câu sửa" if fix.strip() else "Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp", tag=retake, container=b3, off_tag=""):
                 _ok = act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
                 C.log_ui(p, "gen_lai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid, result=_ok,
                          detail="câu sửa: " + ("có" if fix.strip() else "không"))
@@ -342,8 +342,8 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             from dashboard import reject_reason_ui                 # C2: bỏ duyệt = a reject, needs a reason too
             ocode, otext, oerr = reject_reason_ui.pick(f"o{jid}")
             st.caption("↻ Vẽ lại 1 ảnh" + retake)                # the price line right before the button (test_price_label_scan)
-            if b3.button("↻ Vẽ lại", key=f"reopen_{jid}", width="stretch", disabled=bool(oerr),
-                         help=oerr or "Bỏ duyệt và gen lại ảnh (motion/video làm từ ảnh này sẽ hiện ⚠ cũ)"):
+            if P.paid_button("↻ Vẽ lại", key=f"reopen_{jid}", width="stretch", disabled=bool(oerr),
+                         help=oerr or "Bỏ duyệt và gen lại ảnh (motion/video làm từ ảnh này sẽ hiện ⚠ cũ)", tag=retake, container=b3, off_tag=""):
                 _ok = act(_spin(lambda: p.reopen_approved(jid, r_note or None, reason=ocode, reason_text=otext)), "Đã bỏ duyệt, xếp hàng gen lại")
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid, result=_ok,
                          detail="bỏ duyệt ảnh đã duyệt · ghi chú: " + ("có" if r_note else "không") + " · " + reject_reason_ui.detail(ocode, otext))
@@ -352,7 +352,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
                     st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
-            if stale_reason and st.button("↻ Gen lại theo nội dung mới" + retake, key=f"stale_{jid}", type="primary", width="stretch"):
+            if stale_reason and P.paid_button("↻ Gen lại theo nội dung mới", key=f"stale_{jid}", type="primary", width="stretch", tag=retake, container=st):
                 if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix="", reason="khong_phai_loi"),
                        "Đã xếp hàng gen lại"):
                     _send_queued(p, pid)
@@ -363,7 +363,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
             if j["escalated"]:
                 st.caption("↺ Làm lại 1 ảnh" + retake)
-                if b3.button("↺ Làm lại", key=f"rs_{jid}", type="primary", width="stretch", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
+                if P.paid_button("↺ Làm lại", key=f"rs_{jid}", type="primary", width="stretch", help="Đã hết số lần thử: bắt đầu lại cảnh này", tag=retake, container=b3, off_tag=""):
                     _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
                     _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh")
                     C.log_over_limit(p, "storyboard", pid, j, _ok, _ex)      # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã

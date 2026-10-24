@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T21:56:28.916324+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "NGƯỜI DÙNG 23/10 ~21:50 mở 3 phiên Codex song song: 'Codex 1', 'Codex 2 — M48-D2', 'Codex 3'. Cả 3 cùng làn codex → PHÂN CÔNG CỐ ĐỊNH, không giẫm nhau: CODEX 1 = CX23-M80C (ưu 1, Dashboard nút tốn tiền) → xong thì nối phần UI của CX23-M47B (sau khi M80C gộp). CODEX 2 = CX23-M48-D2 (đang làm, nhánh codex/v31-m48-d2) → xong bốc CX23-M53-MAY → CX23-M60-AUDIT. CODEX 3 = CX23-M47B phần lõi Q6(c) (nhánh codex/v31-m47b, không sửa file của M80C) → xong bốc CX22-G1-EP-ROLE → CX23-M64 (tuần tự, cùng nhóm vai/quyền ghi) → CX23-M62. Việc chỉ đọc CX22-REPORT / CX22-M83-LOAD: phiên nào rảnh trước nhận. LUẬT: mỗi tin/nhan/xong ghi rõ tên phiên ('Codex 1/2/3') trong --text; KHÔNG nhận mã đang ĐANG LÀM của phiên khác; mỗi việc một worktree .codex-wt/<nhánh> riêng; push sau mỗi commit; báo XONG từng mã. Câu hỏi gửi phien-chinh như cũ."
+}

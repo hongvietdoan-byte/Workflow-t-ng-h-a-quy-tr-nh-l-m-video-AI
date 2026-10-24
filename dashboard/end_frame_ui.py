@@ -41,8 +41,10 @@ def card_block(p, pid: int, scene_id: int, act, runner=None) -> None:
         tag = cost.image_button_tag(image_models.of_project(p.project(pid)), 1)
     except Exception:  # noqa: BLE001 - an estimate never hides the button; the money gate still checks at sending
         tag = " · chưa ước được giá"
-    label = ("🔁 Vẽ lại khung cuối" if path else "🖼 Vẽ khung cuối") + tag
-    if st.button(label, key=f"efr_{scene_id}", help="Vẽ 1 ảnh khung cuối cùng khung / ánh sáng với ảnh đầu, đúng end_state của shot"):
+    label = "🔁 Vẽ lại khung cuối" if path else "🖼 Vẽ khung cuối"
+    # rà M8.0c: vẽ khung cuối = 1 lần gen ảnh trả phí (Bước 4 vẽ hàng đã hỏi) → giá + xác nhận (cờ TẮT: nhãn như cũ)
+    if P.paid_button(label, key=f"efr_{scene_id}", tag=tag, container=st,
+                     help="Vẽ 1 ảnh khung cuối cùng khung / ánh sáng với ảnh đầu, đúng end_state của shot"):
         act(lambda: end_frames.redo(p, scene_id))
         st.rerun()
 

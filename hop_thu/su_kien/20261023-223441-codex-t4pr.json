@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T22:34:41.058062+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M48-D2",
+  "text": "Codex 2 tiếp tục CX23-M48-D2 trên codex/v31-m48-d2 tại D:/AI-Video-Pipeline/.codex-wt/v31-m48-d2. Đã sửa lỗi harness AppTest: globals không được AppTest.from_function chuyển vào script; test riêng 9/9 xanh, hồi quy liên quan 219/219 xanh, core.decisions check và related_areas chạy sạch (rà độc lập đang chờ). N12/N14/N15/N16 đang được kiểm hoàn thiện trước commit; chưa nhận M82, sẽ xong M48 trước theo phân công."
+}

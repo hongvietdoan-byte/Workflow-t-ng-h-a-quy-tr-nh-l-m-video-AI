@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T20:17:04.939728+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Đối chiếu chi tiết hộp thư và worktree lúc 20:11 Asia/Saigon: (1) CX23-M47B: nền C3-4 đã commit 57e5f06b, 72 test xanh; worktree codex/v31-m47b sạch @72ba5048. Từ event 19:46 nói đang vào Q6(c) tới nay chưa có commit/test mới; câu hỏi schema shot phụ vẫn chờ. (2) CX23-M80C: worktree codex/v31-m80c tồn tại nhưng sạch @4409413f, không có commit riêng hoặc diff file so với origin/main; event gần nhất 15:01 chỉ nói đang đọc đề/rà caller. Chưa thấy bằng chứng triển khai sau đó. (3) CX22-G1-EP-ROLE: user đã chọn phương án A lúc 10:48; dependency CX22-R1-AXIS báo xong 15:32, nhưng nhánh/worktree codex/v31-g1-ep-role chưa tìm thấy và không có event tiến độ sau quyết định. Bảng lane vẫn ghi cả ba ĐANG LÀM; xin rà lại owner/trạng thái và thứ tự G1 so với CX22-REPORT. Không tự sửa trạng thái hay nhận thêm task."
+}

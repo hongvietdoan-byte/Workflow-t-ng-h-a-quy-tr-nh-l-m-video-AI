@@ -144,14 +144,24 @@ def set_family(conn, place_ids: List[int], family: str) -> None:
     fam = str(family or "").strip()
     if not fam:
         raise ValueError("cần tên họ sân khấu")
-    for pid_ in place_ids:
+    ids = list(dict.fromkeys(int(pid_) for pid_ in (place_ids or [])))
+    updates = []
+    for pid_ in ids:
         row = conn.execute("SELECT profile FROM assets WHERE id=?", (pid_,)).fetchone()
         prof = json.loads(row["profile"] or "{}") if row else {}
         if not prof.get("model3d"):
             raise ValueError(f"Kho #{pid_} chưa có model 3D")
         prof["model3d"]["stage_family"] = fam
-        conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), pid_))
-    conn.commit()
+        updates.append((json.dumps(prof, ensure_ascii=False), pid_))
+    conn.execute("SAVEPOINT stage_family_update")
+    try:
+        conn.executemany("UPDATE assets SET profile=? WHERE id=?", updates)
+        conn.execute("RELEASE SAVEPOINT stage_family_update")
+        conn.commit()
+    except Exception:
+        conn.execute("ROLLBACK TO SAVEPOINT stage_family_update")
+        conn.execute("RELEASE SAVEPOINT stage_family_update")
+        raise
 
 
 def family_hints(segs: List[Dict]) -> List[str]:
@@ -169,6 +179,40 @@ def family_hints(segs: List[Dict]) -> List[str]:
                 out.append(msg)
         seen.setdefault(sig, (g["stage"], str(g["place"]["id"])))
     return out
+
+
+def family_suggestions(segs: List[Dict]) -> List[Dict]:
+    """Nhóm bối cảnh có dấu chỗ đứng giống hệt nhưng stage khác để người dùng xem xét thủ công; không tự gộp.
+
+    Mỗi gợi ý giữ cả cấu hình khai báo ở Kho và cấu hình quan sát từ `spots`, để UI phân biệt bằng chứng với kết luận.
+    """
+    groups: Dict[str, List[Dict]] = {}
+    for g in segs or []:
+        place_id = (g.get("place") or {}).get("id")
+        if place_id is None:
+            continue
+        spots = g.get("entry", {}).get("spots") or {}
+        if not spots:
+            continue                                      # không có dấu vị trí đo được thì không đủ căn cứ gợi ý cùng họ
+        sig = json.dumps(spots, sort_keys=True, ensure_ascii=False)
+        groups.setdefault(sig, []).append({"place_id": int(place_id), "stage": str(g.get("stage") or ""),
+                                           "declared": str(g.get("entry", {}).get("stage_family") or "").strip() or None})
+    out = []
+    for sig, members in groups.items():
+        unique = {m["place_id"]: m for m in members}
+        members = list(unique.values())
+        if len(members) < 2 or len({m["stage"] for m in members}) < 2:
+            continue
+        declared = {m["declared"] for m in members if m["declared"]}
+        # Một họ đã khai thống nhất thì không còn gợi ý. Xung đột khai báo vẫn được đưa ra để người kiểm tra.
+        if len(declared) == 1 and all(m["declared"] for m in members):
+            continue
+        spots = json.loads(sig)
+        out.append({"place_ids": sorted(unique), "spots": spots,
+                    "family": next(iter(declared)) if len(declared) == 1 else None,
+                    "members": sorted(members, key=lambda m: m["place_id"]),
+                    "declared_conflict": len(declared) > 1})
+    return sorted(out, key=lambda g: g["place_ids"])
 
 
 def segments(conn, pid: int) -> List[Dict]:
@@ -1044,7 +1088,7 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
         return out
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         st = json.load(f)
-    bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+    bl = round_blocking(obj["blocking"], inputs)
     solve, v2 = tool().v2_run(bl, obj["shot_specs"], rd, k1, m3=seg["entry"], reach=True, log=log)
     draw_beats(rd, log)
     try:
@@ -1181,6 +1225,29 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
     return out_res
 
 
+def round_blocking(bl: Dict, inputs: Dict) -> Dict:
+    """blocking.json của một lượt (dạng mọi người đọc: world_map, change_review, shot_lessons, stage_solver): dàn cảnh + place / spot /
+    aspect của đầu vào."""
+    return dict(bl, place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+
+
+def fill_round_files(rd: str) -> List[str]:
+    """Bù blocking.json + shot_specs.json còn thiếu của một lượt TỪ answer.json + inputs.json của chính lượt đó (23/10: crew/final
+    trước bản sửa không ghi hai tệp này → cảnh rơi khỏi bản đồ 3D). Không ghi đè tệp đã có. Trả tên tệp đã ghi."""
+    with open(os.path.join(rd, "answer.json"), encoding="utf-8") as f:
+        ans = json.load(f)
+    with open(os.path.join(rd, "inputs.json"), encoding="utf-8") as f:
+        inputs = json.load(f)
+    wrote = []
+    for fn, data in (("blocking.json", round_blocking(ans["blocking"], inputs)), ("shot_specs.json", {"shots": ans["shot_specs"]})):
+        path = os.path.join(rd, fn)
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+            wrote.append(fn)
+    return wrote
+
+
 # ---- CHIA VAI (cờ stage_crew — docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md) ----------------------------------------------------
 CREW_DIR = "crew"
 
@@ -1226,7 +1293,7 @@ def _crew_measure(ctx: Dict, log: Callable[[str], None]):
         rd = os.path.join(ctx["crew"], f"m{n}")
         os.makedirs(rd, exist_ok=True)
         inputs = ctx["inputs"]
-        full = dict(bl, place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+        full = round_blocking(bl, inputs)
         for fn, data in (("answer.json", {"blocking": bl, "shot_specs": specs}), ("blocking.json", full),
                          ("shot_specs.json", {"shots": specs}), ("inputs.json", inputs)):
             with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
@@ -1415,12 +1482,70 @@ def _worker(state: Dict) -> str:
     return srcs[-1] if srcs else "claude_code"
 
 
+CREW_PREVIEW = "xem_ghep"                                 # crew/xem_ghep/: lượt ghép tạm cho tấm ghép N5 TRƯỚC khi duyệt (không phải lượt chốt)
+
+
+def _crew_assemble(out: str, state: Dict, v2: Dict, rd: str, inputs: Optional[Dict] = None) -> None:
+    """Gom một lượt GHÉP theo shot vào `rd`: tệp sân khấu (nền, lưới, top_cut…) của lần đo đầy đủ + đặc tả / v2 của lần đo ĐƯỢC CHỌN
+    từng shot (`v2` = _crew_merged(best=True)). crew/final (chốt) và crew/xem_ghep (N5 xem trước duyệt, 24/10) dựng CÙNG một cách →
+    ảnh người duyệt xem đúng máy N6 sẽ ghi. `inputs` None (xem trước) → bỏ inputs.json / blocking.json (chỉ lượt chốt cần)."""
+    import shutil
+    from . import stage_crew as _sc
+    os.makedirs(rd, exist_ok=True)
+    src = os.path.join(out, state.get("full_measure") or state["measure"])
+    for fn in ("stage.json", "grid.json", "cfg.json", "setups.json", "top_raw.png", "top_cut.png", "top_cut.json"):
+        if os.path.exists(os.path.join(src, fn)):
+            shutil.copyfile(os.path.join(src, fn), os.path.join(rd, fn))
+    picked_spec = {e["shot"]: e.get("spec") for e in v2["shots"] if e.get("spec")}
+    specs_ = [{k: v for k, v in (picked_spec.get(sp["shot"]) or sp).items() if k not in ("_near", "doi_phia")}
+              for sp in state["specs"]]                   # rà 16/10: đặc tả của LẦN ĐO ĐƯỢC CHỌN (rerender giải lại đúng máy đã chốt)
+    bl_ = _sc.measure_blocking(state)
+    # 23/10: final là lượt result.json trỏ tới → phải có blocking.json + shot_specs.json như lượt đo m<n> (world_map / change_review /
+    # shot_lessons đọc; thiếu thì cảnh chốt qua chia vai rơi khỏi bản đồ 3D — #31 cảnh 3)
+    files = [("answer.json", {"blocking": bl_, "shot_specs": specs_})]
+    if inputs is not None:
+        files += [("inputs.json", inputs), ("blocking.json", round_blocking(bl_, inputs))]
+    files += [("shot_specs.json", {"shots": specs_}),
+              ("v2.json", {"shots": [{k: v for k, v in e.items() if not k.startswith("_")} for e in v2["shots"]],
+                           "picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}})]
+    for fn, data in files:
+        with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+def crew_preview(data_dir: str, pid: int, seg: Dict) -> Optional[Dict]:
+    """N5 (24/10, #34): lượt chia vai ĐANG DỞ / chờ duyệt (đã có lần đo, phase chưa 'xong') → dựng crew/xem_ghep/ ghép từng shot theo
+    ĐÚNG lần đo N6 / crew_user_verdict sẽ chốt (_crew_merged(best=True) → _crew_pick: lần chọn N14 / Quay phim duyệt, không có thì lần
+    ít lỗi nhất) — không lấy lặng lần đo đầy đủ đầu. Trả {"dir", "picked": {shot: lần đo}, "notes"} hoặc None (không có lượt chia vai
+    dở). Shot không xác định được lần đo → nêu trong notes."""
+    import shutil
+    out = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    ctx = {"out": out, "crew": os.path.join(out, CREW_DIR)}
+    state = _crew_load(ctx)
+    if not state or not state.get("measure") or state.get("phase") == "xong":
+        return None
+    v2 = _crew_merged(ctx, state, best=True)
+    rd = os.path.join(ctx["crew"], CREW_PREVIEW)
+    shutil.rmtree(rd, ignore_errors=True)                 # lượt ghép tạm: dựng lại sạch mỗi lần (không giữ top_cut / ảnh của lần trước)
+    _crew_assemble(out, state, v2, rd)
+    picked = {e["shot"]: e["_rel"] for e in v2["shots"]}
+    errs = state.get("measure_errors") or {}
+    staged = {int(sp["shot"]) for sp in state.get("specs") or []}
+    notes = []
+    for n in sorted(staged - set(picked)):
+        notes.append(f"shot {n}: không xác định được lần đo ({errs.get(str(n)) or 'không có số đo trong lần đo nào'}) — tấm ghép "
+                     "KHÔNG có máy shot này")
+    for s in seg.get("shots") or []:
+        if s["idx"] not in staged and s["idx"] not in picked:
+            notes.append(f"shot {s['idx']}: không có trong đặc tả tổ sân khấu (bỏ qua / máy nền thường) — không có máy trên tấm ghép")
+    return {"dir": rd, "picked": picked, "notes": notes}
+
+
 def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: str, log: Callable[[str], None],
                    apply_now: bool, who: Optional[Dict] = None, expected_revs: Optional[Dict] = None) -> Dict:
     """Máy chốt TỪNG SHOT (tối ưu 16/10): lần đo Quay phim đã duyệt, không có thì lần đo ít lỗi nhất của shot; shot đạt Blender + luật
     kịch bản, không còn 'unresolved' → stage_camera. Gom vào crew/final/ (answer + inputs + v2 ghép + tệp sân khấu) để --beats /
     rerender dùng như một lượt; result.json như đường một vai."""
-    import shutil
     inputs, st = ctx["inputs"], ctx["st"]
     v2 = _crew_merged(ctx, state, best=True)
     waived = {}
@@ -1439,20 +1564,7 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
         cams.update(c_)
         bad.update(b_)
     rd = os.path.join(ctx["crew"], "final")
-    os.makedirs(rd, exist_ok=True)
-    src = os.path.join(ctx["out"], state.get("full_measure") or state["measure"])
-    for fn in ("stage.json", "grid.json", "cfg.json", "setups.json", "top_raw.png", "top_cut.png", "top_cut.json"):
-        if os.path.exists(os.path.join(src, fn)):
-            shutil.copyfile(os.path.join(src, fn), os.path.join(rd, fn))
-    from . import stage_crew as _sc
-    picked_spec = {e["shot"]: e.get("spec") for e in v2["shots"] if e.get("spec")}
-    specs_ = [{k: v for k, v in (picked_spec.get(sp["shot"]) or sp).items() if k not in ("_near", "doi_phia")}
-              for sp in state["specs"]]                   # rà 16/10: đặc tả của LẦN ĐO ĐƯỢC CHỌN (rerender giải lại đúng máy đã chốt)
-    for fn, data in (("answer.json", {"blocking": _sc.measure_blocking(state), "shot_specs": specs_}), ("inputs.json", inputs),
-                     ("v2.json", {"shots": [{k: v for k, v in e.items() if not k.startswith("_")} for e in v2["shots"]],
-                                  "picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}})):
-        with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=1)
+    _crew_assemble(ctx["out"], state, v2, rd, inputs)
     draw_beats(rd, log)
     for k, why in list(post_checks(inputs, v2).items()) + [(int(k), v) for k, v in (state.get("unresolved") or {}).items()]:
         if k in cams:

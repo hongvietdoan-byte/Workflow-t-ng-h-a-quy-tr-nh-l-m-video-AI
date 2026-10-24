@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T09:46:19.884601+07:00",
+  "lane": "phien-con-meo-nhay-tap2",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Lỗi Bàn đạo diễn (#34, 0 USD): N5 'Dựng tấm ghép' (core/stage_desk.py build_sheet) lấy state.full_measure = lần đo đầy đủ đầu (crew/m1), bỏ qua lần đo sửa máy sau đó (crew/m3) và cả lựa chọn 'Chọn lần đo cho shot' → EP duyệt nhìn ảnh máy CŨ (máy sát con rối 0,7 m) trong khi chốt sẽ ghi máy m3. Gợi ý: build_sheet dùng lần đo đã chọn/mới nhất từng shot (state.measure / verdicts[shot].measure / lựa chọn N7). Tôi tạm ghép tay ảnh m3 để người dùng duyệt."
+}

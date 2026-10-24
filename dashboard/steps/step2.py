@@ -287,8 +287,12 @@ def step2(p: Pipeline, pid: int):
             st.rerun()
         # KLD-1 (08/10): a picture failed on an outdated / missing input is not resent unchanged (Pipeline.retry refuses stale_input)
         failed = [{"id": jid} for jid in batch.provider_failures(p, pid, "image_gen")]
-        if c3.button(f"↻ Gửi lại ảnh lỗi ({len(failed)}){cost.price_tag(None if unit is None else unit * len(failed), len(failed))}",
-                     key="reject_all", disabled=not failed,
+        from dashboard import paid_batch_preview as BP
+        failed_ids = [j["id"] for j in failed]
+        if BP.paid_batch_button(f"↻ Gửi lại ảnh lỗi ({len(failed)})", key="reject_all",
+                     tag=cost.price_tag(None if unit is None else unit * len(failed), len(failed)), container=c3,
+                     p=p, pid=pid, action="retry_images", items=failed_ids,
+                     preview=[f"Ảnh job {jid}" for jid in failed_ids], disabled=not failed,
                      help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải, không tạo task). Ảnh ra sai thì "
                           "mở ảnh và ghi câu sửa (tiếng Anh) để lần gen có đầu vào khác."):
             for j in failed:
@@ -476,8 +480,8 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
             if a.button("✔ Duyệt", key=f"a_{jid}"):
                 C.log_ui(p, "duyet_anh", page="storyboard", project_id=pid, job_id=jid, result=act(lambda: p.approve(jid, "user")))
                 st.rerun()
-            if b.button("✖ Loại", key=f"r_{jid}", disabled=bool(rerr),
-                        help=rerr or "Loại và gen lại (câu sửa cho model ở khung chi tiết bên phải)"):
+            if P.paid_button("✖ Loại", key=f"r_{jid}", disabled=bool(rerr),
+                        help=rerr or "Loại và gen lại (câu sửa cho model ở khung chi tiết bên phải)", tag=retake, container=b, off_tag=""):
                 _t0 = time.monotonic()
                 _ok = act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"note_{jid}") or None, reason=rcode, reason_text=rtext)))
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok, t0=_t0,
@@ -498,18 +502,18 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
         elif state == "failed" and not j["escalated"]:
             a, b = st.columns(2)
             st.caption("↻ Gửi lại 1 ảnh" + retake)
-            if a.button("↻ Gửi lại", key=f"retry_{jid}", help="Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp. Muốn sửa thì 🔍 Xem → câu sửa."):
+            if P.paid_button("↻ Gửi lại", key=f"retry_{jid}", help="Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp. Muốn sửa thì 🔍 Xem → câu sửa.", tag=retake, container=a, off_tag=""):
                 act(lambda: p.retry(jid, "gửi lại (lỗi nhà cung cấp)", by_user=True))
                 st.rerun()
             if b.button("🔍 Xem", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
                 st.rerun()
         else:
-            if stale_reason and state == "approved" and st.button("↻ Gen lại theo nội dung mới" + retake, key=f"stale_{jid}", type="primary"):
+            if stale_reason and state == "approved" and P.paid_button("↻ Gen lại theo nội dung mới", key=f"stale_{jid}", type="primary", tag=retake, container=st):
                 if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix="", reason="khong_phai_loi"),
                        "Đã xếp hàng gen lại"):
                     st.rerun()
-            if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
+            if j["escalated"] and P.paid_button("↺ Làm lại từ đầu", key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này", tag=retake, container=st):
                 _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
                 _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh")
                 C.log_over_limit(p, "storyboard", pid, j, _ok, _ex)          # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
@@ -576,7 +580,7 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             from dashboard import reject_reason_ui                 # C2 15/10
             rcode, rtext, rerr = reject_reason_ui.pick(f"d{jid}")
             a, b = st.columns(2)
-            if b.button("✖ Loại & gen lại" + retake, key=f"dr_{jid}", disabled=bool(rerr), help=rerr):
+            if P.paid_button("✖ Loại & gen lại", key=f"dr_{jid}", disabled=bool(rerr), help=rerr, tag=retake, container=b):
                 _t0 = time.monotonic()
                 _ok = act(_spin(lambda: p.reject(jid, "user", note or None, reason=rcode, reason_text=rtext)))
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok, t0=_t0,
@@ -591,12 +595,12 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
         if state == "failed" and not j["escalated"]:
             fix = st.text_input("Câu sửa cho model (tiếng Anh) — để trống = gửi lại y nguyên (chỉ khi lỗi do nhà cung cấp)",
                                 key=f"dfix_{jid}")
-            if st.button(("↻ Gen lại với câu sửa" if fix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)") + retake, key=f"dretry_{jid}"):
+            if P.paid_button("↻ Gen lại với câu sửa" if fix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)", key=f"dretry_{jid}", tag=retake, container=st):
                 _ok = act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
                 C.log_ui(p, "gen_lai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok,
                          detail="câu sửa: " + ("có" if fix.strip() else "không"))
                 st.rerun()
-        if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"drs_{jid}", type="primary"):
+        if j["escalated"] and P.paid_button("↺ Làm lại từ đầu", key=f"drs_{jid}", type="primary", tag=retake, container=st):
             _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
             _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh")
             C.log_over_limit(p, "storyboard", pid, j, _ok, _ex)              # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
@@ -607,7 +611,7 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             st.caption("Bỏ duyệt: motion prompt và video làm từ ảnh này sẽ hiện ⚠ cũ để làm lại.")
             from dashboard import reject_reason_ui                 # C2: bỏ duyệt = a reject, needs a reason too
             ocode, otext, oerr = reject_reason_ui.pick(f"o{jid}")
-            if st.button("↩ Bỏ duyệt & gen lại ảnh" + retake, key=f"reopen_{jid}", disabled=bool(oerr), help=oerr):
+            if P.paid_button("↩ Bỏ duyệt & gen lại ảnh", key=f"reopen_{jid}", disabled=bool(oerr), help=oerr, tag=retake, container=st):
                 _ok = act(_spin(lambda: p.reopen_approved(jid, r_note or None, reason=ocode, reason_text=otext)), "Đã bỏ duyệt, xếp hàng gen lại")
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok,
                          detail="bỏ duyệt ảnh đã duyệt · ghi chú: " + ("có" if r_note else "không") + " · " + reject_reason_ui.detail(ocode, otext))

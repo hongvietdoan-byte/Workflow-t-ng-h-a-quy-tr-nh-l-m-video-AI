@@ -103,6 +103,7 @@ class StoryboardV2Tests(unittest.TestCase):
 
     # -- grid ------------------------------------------------------------------------------------------------------------------
     def test_grid_shows_a_card_per_scene_with_the_right_pill_and_four_visible_actions(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0c cờ tắt: bấm là chạy như cũ (cờ bật: tests/test_safe_paid_buttons.py)
         p, pid, sc = self.seed(4)
         approved = self.job_in(p, sc[0], "approved")
         review = self.job_in(p, sc[1], "pending_review")
@@ -216,16 +217,18 @@ class StoryboardV2Tests(unittest.TestCase):
 
     def test_a_redraw_is_sent_not_only_queued(self):
         """07/10 Khủng Long Đỏ: ↻ Vẽ lại queued the picture and, with nothing else running, nobody sent it."""
+        pin_off(self, "safe_paid_buttons")                # M8.0c cờ tắt: bấm là chạy như cũ (cờ bật: tests/test_safe_paid_buttons.py)
         p, pid, sc = self.seed(1)
         a = self.job_in(p, sc[0], "pending_review")
         sent = []
-        with _test_environ({"IMAGE_PROVIDER": "mock"}),                 mock.patch("core.runner.ImageRunner.submit_pending", lambda self_, pid_, **kw: sent.append(pid_) or 1):
+        with _test_environ({"IMAGE_PROVIDER": "mock", "FEATURE_SAFE_PAID_BUTTONS": "0"}),                 mock.patch("core.runner.ImageRunner.submit_pending", lambda self_, pid_, **kw: sent.append(pid_) or 1):
             at = self.board()
             at.selectbox(key=f"rreason_c{a}").set_value("nhan_vat_sai").run()             # C2: a reason first
             next(x for x in at.button if x.key == f"r_{a}").click().run()
         self.assertEqual(sent, [pid])
 
     def test_approve_reject_and_redraw_call_the_same_pipeline_functions(self):
+        pin_off(self, "safe_paid_buttons")                # M8.0c cờ tắt: bấm là chạy như cũ (cờ bật: tests/test_safe_paid_buttons.py)
         p, pid, sc = self.seed(3)
         a, b, c = (self.job_in(p, sc[i], "pending_review") for i in range(3))
         at = self.board()
@@ -500,7 +503,8 @@ class FlagOffTest(unittest.TestCase):
     def test_flag_off_keeps_the_old_cards(self):
         tmp = tempfile.mkdtemp()
         with _test_environ({"PIPELINE_DB": os.path.join(tmp, "m.sqlite"), "PIPELINE_DATA": os.path.join(tmp, "projects"),
-                            "KNOWLEDGE_USER_DIR": os.path.join(tmp, "ku"), "FEATURE_UI_V2": "0"}):
+                            "KNOWLEDGE_USER_DIR": os.path.join(tmp, "ku"), "FEATURE_UI_V2": "0",
+                            "FEATURE_SAFE_PAID_BUTTONS": "0"}):     # M8.0c: nhãn/bấm như cũ khi cờ tắt
             p = Pipeline(connect(os.environ["PIPELINE_DB"]))
             pid = p.create_project("Demo")
             sid = p.create_scene(pid, 1, "CẢNH 1")

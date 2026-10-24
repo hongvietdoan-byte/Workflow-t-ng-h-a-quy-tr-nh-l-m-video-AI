@@ -1742,3 +1742,52 @@ Trên chính nhánh `codex/v31-don-rac-tool` (@7297136b). Mỗi lỗi 1 test Đ�
 6. THẤP `find_repo_root:29`: gốc = cha của `git rev-parse --git-common-dir` (chạy trong worktree vẫn ra repo chính).
 7. THẤP `cleanup_merged_branch_worktree:414`, `cleanup_worktrees:306`: `_git` timeout=60; `git fetch --prune origin` một lần trước khi rà.
 Chạy tests/test_don_rac*.py + tests/test_hop_thu.py một lệnh. Push sau MỖI commit; XONG hộp thư (phiên chính đọc diff phần sửa rồi gộp).
+### CX23-M82 — M8.2 Chế độ Cơ bản sau cờ `simple_mode` TẮT (ưu tiên 3; Cấp 2 — EP DUYỆT CHÍNH THỨC M8.1 23/10 22:15; 0 USD; RÀ KỸ vì đụng nút tốn tiền)
+Nguồn DUY NHẤT: `docs/THIET_KE_CHE_DO_DON_GIAN_2026-10-23.md` (vòng 2, mục 0–14) + `mockup/che_do_don_gian_m81.html` (7 màn) + sổ `ep-2310-m81-approved-m82-go-2026-10-23`,
+`ep-2310-mode-labels-basic-advanced-2026-10-23`, `ep-2310-qd3-auto-spend-limit-2026-10-23`, `ep-2310-m81-r2-answers-2026-10-23`, `ep-2210-qa/qb/qc/qf/e2/e4`. Dòng roadmap M8.2.
+- Cờ mới `simple_mode` trong core/features.py, mặc định TẮT; TẮT = Dashboard giống hệt hiện tại (test so byte/khóa widget). Nhãn hiển thị "Chế độ Cơ bản" / "Chế độ Nâng cao"; tài khoản mới mặc định Cơ bản CHỈ khi cờ BẬT; đổi chế độ KHÔNG đổi quyền (test: cùng tài khoản, hai chế độ → cùng kết quả kiểm quyền/chi).
+- KHÔNG TRÙNG FILE VỚI CX23-M80C (Codex 1 đang sửa `dashboard/steps/*`, `dashboard/paid_confirm.py`, `dashboard/approve_preview.py`, storyboard_cards…). Chia 2 pha:
+  **Pha A (làm ngay):** module MỚI `dashboard/basic/` (5 màn: Ý tưởng+ngân sách, Kịch bản, Ảnh, Video, Tải bản giao + thẻ lỗi/HOLD/tạm dừng) GỌI LẠI hàm lõi sẵn có (core/*, hàm nghiệp vụ) — không chép logic, không đường gửi job mới; nút trả phí dùng đúng lớp xác nhận giá hiện có (`paid_confirm` chỉ GỌI, không sửa). Tổng tiền MỘT chỗ (ô trên cùng mở chi tiết); báo giá thao tác hiện tại nút. "Hạn mức chi của luồng tự động": CHỈ hiển thị + duyệt một lần + cảnh báo 80 % (đọc/ghi qua lớp ngân sách hiện có; nếu thiếu API lõi cho qd3 → viết hàm lõi riêng có test, KHÔNG nối vào autopilot/gửi job).
+  **Pha B (SAU KHI CX23-M80C GỘP main):** nối lối vào ở `dashboard/app.py`/`header.py` (công tắc chế độ) + nút retry/reject/reopen/voice/music trong Cơ bản (cần xác nhận của M80C). Rebase lên main mới rồi mới sửa.
+- CẤM trong M8.2: bất kỳ đường nào để MÁY TỰ gửi job trả phí (cổng M8.4 roadmap chưa ✅) — test: mọi job trả phí tạo từ Cơ bản có actor người + bước xác nhận; 'Duyệt hết' (E2) xem trước từng mục, đúng vai, mục cần EP/chưa đạt → HOLD; bộ đếm E4 (3 ảnh/2 video mỗi shot, kể cả lượt đầu) không reset; Q-C 1080p giữ PENDING_VERIFICATION (không nút tự nâng); Q-A giữ 'Phương án khác', không đổi hướng sau khi EP khóa; Q-B tách quyền duyệt prompt khỏi quyền gửi API; "Được, làm tiếp" không duyệt thay EP khâu sau.
+- Chỉ số: đếm hành động tới "xem được video đầu tiên đã ghép" (không tính tải) bằng test luồng giả (provider giả) — báo số, ghi là kết quả luồng giả, không phải đo người dùng.
+- Test: đỏ→xanh; Streamlit AppTest/Playwright cho 5 màn ở 1440 và 390 (0 pageerror, 0 tràn ngang), PNG vào docs/images/m82/. Không DB thật (bản sao theo trả lời 15:30 nếu cần), không API trả phí, không bật cờ trên máy chính.
+Nhánh `codex/v31-m82`, worktree riêng, push sau mỗi commit; báo XONG pha A riêng (mã CX23-M82) rồi pha B (tin + commit). Phiên chính RÀ KỸ trước gộp.
+
+### CX23-M23B — M2.3b phần còn của Kho forms (ưu tiên 3; Cấp 2 nằm trong duyệt M2.3; cờ `kho_forms_v2` TẮT; 0 USD; đụng DỮ LIỆU → RÀ KỸ)
+Nền: CX21-M23 đã gộp (35d76879 + 575d0288), docs/RA_CX21_M23_FIX_2026-10-23.md + docs/CODEX_TASKS.md mục "Còn dở → M2.3b" (dòng ~1489), thiết kế M0.9/M0.10.
+Làm (mỗi phần test ĐỎ→XANH, cờ TẮT = byte cũ):
+1. R5 biến thể vật: `vat[].bien_the` / `stage_shape` trong hồ sơ Kho, reader đọc qua adapter (không đọc thẳng JSON ở caller).
+2. Chính sách nhiều dạng / dạng theo nhịp (form theo beat) + cảnh báo "chưa chốt dạng" khi shot cần dạng mà Kho có >1 dạng chưa chọn (cảnh báo, không chặn im lặng).
+3. `standard_set` (bộ ảnh chuẩn) theo thiết kế M0.9; ảnh chuẩn > metadata AI.
+4. Tăng revision `location_pack` / `stage_auto` khi Kho đổi + guard ghi chung M0.10 (revision chống ghi đè, USER_LOCKED không bị AI sửa, xung đột → diff).
+5. UI duyệt `proposals` (mục REVIEW_REQUIRED) — CHỈ khi không trùng file với CX23-M80C / CX23-M47B; trùng thì làm 1–4, ghi UI vào HANDOFF chờ phiên chính.
+Không migration/backfill dữ liệu thật (Cấp 3), không data/ máy chính — fixture giả. Nhánh `codex/v31-m23b`.
+
+### CX23-A2F-ALIAS — bí danh tiếng Anh cho nơi Kho trước khi bật reader A2f (ưu tiên 3; Cấp 1 tooling + Cấp 2 nhỏ; 0 USD)
+Nền: docs/RA_CX21_M22_2026-10-23.md mục 31: A2f BẬT mà mục Kho không có bí danh Anh → bỏ tên nơi khỏi prompt + mismatch. Làm: (1) trường bí danh Anh của mục
+Kho nơi (đọc qua adapter, schema có test); (2) `tools/kho_place_alias.py`: liệt kê nơi thiếu bí danh + ĐỀ XUẤT bí danh (từ tên map FF/trường tiếng Anh sẵn có,
+không gọi API), mặc định CHỈ IN; `--lam-that` mới ghi (sao lưu qua `don_rac.py sao-luu` trước); (3) test fixture giả: thiếu bí danh → liệt kê; có bí danh → A2f
+dùng đúng tên Anh trong "Setting:" và câu nền plate. Codex KHÔNG chạy trên data thật — phiên chính chạy ở máy chính rồi trình người dùng duyệt bí danh.
+Khai areas.json. Nhánh `codex/v31-a2f-alias`.
+
+### CX23-M6B-DESIGN — thiết kế Gói M6-B: M6.5 Video Prompt Artist, M6.6 Storyboard Artist, M6.8 Sound/Editor (ưu tiên 4; Cấp 1 TÀI LIỆU; 0 USD)
+Phụ thuộc đã ✅ (M2.1, M1.9, M2.7, M2.9, M4.4). Theo docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md + dòng M6.5/M6.6/M6.8 kế hoạch chính + sổ EP 22/10 Q-B
+(VPA tự viết + Director tự chấp nhận motion prompt khi kiểm đạt; quyền duyệt prompt TÁCH quyền gửi API), E1 (bộ ref do vai đề xuất), M6-A đã duyệt (mẫu).
+Mỗi vai: đầu vào/đầu ra, file:hàm hiện có sẽ thay/bọc, cờ SHADOW TẮT, so với builder cũ (chỉ số so), test plan, rollback, câu hỏi EP (≤ 5, có phương án đề xuất).
+KHÔNG code. Ra `docs/THIET_KE_GOI_M6B_2026-10-2x.md` để phiên chính trình EP duyệt Cấp 2. Nhánh `codex/v31-m6b-design`.
+
+### CX24-DEVSYS-FIX — test hỏng sẵn trên main `test_devsys_page_renders_four_tabs_and_three_maps` (ưu tiên 2; Cấp 1; 0 USD)
+`tests/test_devsys_pipeline_maps.py::test_devsys_page_renders_four_tabs_and_three_maps` hỏng trên main từ ≤ 23/10 (cả bộ M80C/M48-D2/N5 đều thấy). Tìm GỐC (test cũ không
+theo kịp trang devsys, hay trang devsys hỏng thật) — chứng minh bằng chạy; sửa đúng phía (không nới test che lỗi). Nếu trang 8502 hỏng thật → sửa trang + ghi phiên chính
+khởi động lại 8502. Nhánh `codex/v31-devsys-fix`.
+
+### CX24-BEATS-CLI — CLI `tools/stage_auto.py --beats` dùng cùng lượt ghép xem trước như nút N5 (ưu tiên 3; Cấp 1; 0 USD)
+Sau sửa N5 (5deb6da0): `core/stage_auto.py crew_preview()` dựng crew/xem_ghep theo `_crew_pick` (lần đo N6 sẽ chốt từng shot). CLI `--beats <thư mục>` vẫn nhận thư mục người gõ.
+Thêm `--beats-crew --project N --scene S` (hoặc tự dùng crew_preview khi lượt chia vai đang dở) → cùng tấm như nút N5; in lần đo từng shot. Test fixture giả (mẫu
+tests/test_v31_m48_sheet_pick.py), Blender giả. Nhánh `codex/v31-beats-cli`.
+
+### CX24-M77-EVID — M7.7 gom BẰNG CHỨNG từng cờ K1/K2/K7 (ưu tiên 4; Cấp 1 CHỈ ĐỌC + tài liệu; 0 USD)
+Dòng M7.7 kế hoạch chính (K1 send_claim, back_view_guard; K2 video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence; K7 stale_code_alarm, diag_merge,
+budget_notice_d01, send_estimate). Mỗi cờ: test hiện có (tên), ca chạy thật đã có (sổ/nhật ký, golden, replay #31/#33), thiếu gì để khóa, đề xuất ca thử 0 USD còn thiếu.
+KHÔNG bật cờ, KHÔNG ghi CSDL/dashboard.env. Ra `docs/M7_7_BANG_CHUNG_CO_2026-10-2x.md` để phiên chính trình EP từng cờ (Cấp 3). Nhánh `codex/v31-m77-evid`.

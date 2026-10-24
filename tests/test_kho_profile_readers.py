@@ -81,7 +81,7 @@ def test_explicit_profile_sql_is_in_reviewed_inventory():
             tree=ast.parse(path.read_text(encoding='utf-8-sig'))
             parents={child:node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
             for node in ast.walk(tree):
-                if not (isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and node.func.attr=='execute' and node.args):
+                if not (isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and node.func.attr in ('execute','executemany') and node.args):
                     continue
                 sql=' '.join(n.value for n in ast.walk(node.args[0]) if isinstance(n,ast.Constant) and isinstance(n.value,str))
                 if not (re.search(r'\bprofile\b',sql,re.I) and re.search(r'\bassets\b',sql,re.I)):

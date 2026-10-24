@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T17:37:12.525330+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "CX23-M47B tiến độ: đã thêm migration overrides tường minh (savepoint/rollback, không auto-run, không phụ thuộc bảng QC cũ), API append-only revision có reason+bằng chứng JSON, kiểm edit quyền từ DB và từ chối system/Claude; cờ qc_overrides mặc định TẮT, đăng ký areas.json không đổi version. Test mới đỏ trước (module chưa có), hiện 7 passed. Chỉ DB tổng hợp :memory:, chưa áp migration/Dashboard thật. Q6 và định nghĩa nhân vật chính vẫn chờ câu trả lời; chưa sửa 3 cổng."
+}

@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T17:42:39.413478+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "M47B: xin chốt quyền sở hữu file giao diện trước khi tích hợp nút. CX23-M80C vẫn ĐANG LÀM; phần thẻ package/QC có thể cùng chạm dashboard/steps/step4.py hoặc send_preview_ui.py. Tôi sẽ giữ nhánh M47B ở module/schema/test riêng cho tới khi rõ: M80C có đang giữ các file này không, hay có thể tạo dashboard/qc_overrides_ui.py độc lập và chỉ nối caller sau khi M80C hoàn tất? Q6 vẫn là câu hỏi riêng đang chờ."
+}

@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-23T17:52:45.686065+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "C3-4 đã khép ba finding rà độc lập: API bỏ nhận actor dict, bắt buộc session token và xác minh qua core.auth.identity; migration từ chối bảng overrides trùng tên nhưng thiếu kiểu/NOT NULL/FK/UNIQUE/CHECK; ghi ngoài transaction dùng BEGIN IMMEDIATE để tuần tự hóa revision, còn transaction lồng giữ savepoint và báo conflict rõ. Test targeted C3-4 + Q6 evidence/M47A: 47 passed, 3.52s; chỉ :memory:/tmp, chưa migration dữ liệu thật, không phí. Hai câu hỏi Q6/owner UI vẫn chưa có hồi đáp; chưa nối UI hoặc sửa Q6."
+}

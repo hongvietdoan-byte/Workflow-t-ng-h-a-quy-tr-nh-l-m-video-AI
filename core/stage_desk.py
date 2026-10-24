@@ -74,6 +74,8 @@ ACTIONS = {
     "N1": "🔍 Kiểm đầu vào", "N2": "💲 Ước tính", "N3": "📝 Đề bài cho phiên Claude Code", "N4": "📥 Nạp câu trả lời vai",
     "N5": "🖼 Dựng tấm ghép", "N6": "✅ Duyệt sân khấu cảnh", "N7": "↩ Trả lại", "N8": "🗑 Làm lại từ Đạo diễn",
     "N9": "🔁 Render lại từ câu trả lời đã lưu", "N10": "🧮 Chấm lại các lượt đã lưu", "N11": "↻ Render lại nền 3D cảnh này",
+    "N12": "🎞 Previs one-shot", "N14": "🎯 Chọn lần đo cho shot", "N15": "🗺 Dựng lại world map cảnh",
+    "N16": "🏷 Khai họ sân khấu",
 }
 PHASE_LABEL = {None: "chưa dàn", "dao_dien": "đang ở vai Đạo diễn", "quay_phim": "đang ở vai Quay phim",
                "quay_phim_duyet": "Quay phim đang duyệt số đo", "dao_dien_tra_loi": "Đạo diễn đang trả lời",
@@ -368,7 +370,7 @@ def _db_path(conn) -> Optional[str]:
 
 
 def _start(conn, pid: int, data_dir: str, seg: Dict, action: str, who: Optional[Dict],
-           work: Callable[[sqlite3.Connection, Callable[[str], None]], Dict]) -> Dict:
+           work: Callable[[sqlite3.Connection, Callable[[str], None]], Dict], read_only: bool = False) -> Dict:
     """Chạy `work(conn_riêng, log)` trong luồng nền của dự án; khóa S của đoạn GIỮ NGAY ở luồng gọi (rà CAO 2: không có khe giữa kiểm và
     giữ) và nhả ở luồng nền khi xong; ghi tiến độ. Trả {"ok", "started"|"errors"}."""
     db = _db_path(conn)
@@ -404,7 +406,11 @@ def _start(conn, pid: int, data_dir: str, seg: Dict, action: str, who: Optional[
                 pass
 
         def run():
-            c = sqlite3.connect(db, timeout=60)
+            if read_only:
+                uri = __import__("pathlib").Path(db).resolve().as_uri() + "?mode=ro"
+                c = sqlite3.connect(uri, uri=True, timeout=60)
+            else:
+                c = sqlite3.connect(db, timeout=60)
             c.row_factory = sqlite3.Row
             try:
                 res = work(c, log) or {}
@@ -571,6 +577,8 @@ def scene_status(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = Non
     busy_now = bool(h) or (pr or {}).get("state") == "running"
     user_ok = stage_crew.user_approves()
     has_round = bool(result and result.get("round"))
+    shot_hist = {str(k): list(v or []) for k, v in ((state or {}).get("shot_hist") or {}).items()}
+    family_suggestions = _sa().family_suggestions(_sa().segments(conn, pid))
     btn = ["N2"]
     if not busy_now:
         btn.append("N1")
@@ -586,6 +594,16 @@ def scene_status(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = Non
             btn += ["N3", "N10"] + (["N5", "N9"] if has_round else [])
         if mine and "N11" not in btn:
             btn.append("N11")
+        if not changed:
+            if has_round:
+                btn.append("N12")
+            if any(shot_hist.values()):
+                btn.append("N14")
+            from . import world_map
+            if world_map.enabled():
+                btn.append("N15")
+            if family_suggestions:
+                btn.append("N16")
     return {"scene": seg["scene"], "seg_id": seg["id"], "stage": seg["stage"], "shots": [s["idx"] for s in seg["shots"]],
             "phase": phase, "label": PHASE_LABEL.get(phase, phase) if not changed else "đầu vào đổi — lượt dở không dùng được",
             "k1": _sa().k1_cached(seg, _sa().base_dir(data_dir, pid, seg["stage"])) is not None, "inputs_changed": changed,
@@ -594,6 +612,8 @@ def scene_status(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = Non
             "bad": {str(k): v for k, v in ((result or {}).get("bad") or {}).items()}, "round": (result or {}).get("round"),
             "sheet": sheet if os.path.exists(sheet) else None, "drawn": drawn_shots(conn, seg), "revs": _revs(conn, seg),
             "lock": h, "progress": pr, "running": running(pid), "user_approves": user_ok, "buttons": btn,
+            "shot_hist": shot_hist, "accepted": dict((state or {}).get("accepted") or {}),
+            "family_suggestions": family_suggestions,
             "reset": _read(os.path.join(d, RESET_FILE)), "reset_stale": _read(os.path.join(d, RESET_STALE_FILE))}
 
 
@@ -688,22 +708,32 @@ def _tool_who(who: Optional[Dict], name: str) -> Dict:
 
 
 def build_sheet(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> Dict:
-    """N5 (nền, 0 USD): tấm ghép của lượt đang dùng (result.json; chưa có thì lần đo chia vai hiện tại) → doan_<S>/beats/
+    """N5 (nền, 0 USD): tấm ghép — lượt chia vai dở / chờ duyệt: ghép từng shot theo lần đo N6 sẽ chốt (crew/xem_ghep, lần đo từng
+    shot ghi lên tiêu đề + notes); không có thì lượt đang dùng (result.json) → doan_<S>/beats/
     san_khau_canh<S>.png (màn XEM đọc). Không ghi CSDL. Như `tools/stage_auto.py --beats`."""
     sa = _sa()
     seg = segment(conn, pid, scene)
     d = seg_dir(data_dir, pid, seg)
 
     def work(c, log):
-        got = sa.result_round(data_dir, pid, seg)
-        if got is None:
-            st = _read(os.path.join(d, sa.CREW_DIR, "state.json")) or {}
-            meas = st.get("full_measure") or st.get("measure")
-            got = os.path.join(d, meas) if meas else None
+        # 24/10 (#34): lượt chia vai dở / chờ duyệt → ghép từng shot theo ĐÚNG lần đo N6 sẽ chốt (sa.crew_preview dùng chung
+        # _crew_merged(best=True) với crew_user_verdict) — trước đây lấy lặng lần đo đầy đủ ĐẦU (crew/m1), EP duyệt nhìn máy cũ
+        try:
+            pv = sa.crew_preview(data_dir, pid, seg)
+        except (OSError, ValueError, KeyError) as e:
+            return {"ok": False, "errors": [f"không ghép được lần đo từng shot của lượt chia vai ({type(e).__name__}: {e}) — "
+                                            "không dựng tấm ghép bằng lần đo khác"]}
+        notes, picked = [], None
+        if pv is not None:
+            got, picked = pv["dir"], pv["picked"]
+            notes += pv["notes"]
+            if picked:
+                notes.append("lần đo từng shot (máy N6 sẽ chốt): " + ", ".join(f"shot {n} ← {picked[n]}" for n in sorted(picked)))
+        else:
+            got = sa.result_round(data_dir, pid, seg)
         if got is None or not os.path.isdir(got):
             return {"ok": False, "errors": ["chưa có lượt đã lưu / lần đo nào để dựng tấm ghép"]}
         t = sa.tool()
-        notes = []
         if not os.path.exists(os.path.join(got, "top_cut.png")):
             log("cắt mái (Blender)")
             try:
@@ -715,8 +745,13 @@ def build_sheet(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> Di
         out = os.path.join(d, "beats", f"san_khau_canh{seg['scene']}.png")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         title = f"#{pid} cảnh {seg['scene']} — {seg['id']} (shot {seg['shots'][0]['idx']}–{seg['shots'][-1]['idx']})"
+        if picked:                                         # ghi lần đo từng shot lên tấm (EP biết ảnh máy nào lấy từ đâu)
+            title += " · lần đo: " + ", ".join(f"{n}←{os.path.basename(picked[n])}" for n in sorted(picked))
         path = t.stage_sheet(got, title, out)
-        return {"ok": True, "path": path if isinstance(path, str) else out, "notes": notes}
+        res = {"ok": True, "path": path if isinstance(path, str) else out, "notes": notes}
+        if picked is not None:
+            res["lan_do"] = {str(n): r for n, r in sorted(picked.items())}
+        return res
     return _start(conn, pid, data_dir, seg, "N5", who, work)
 
 
@@ -927,6 +962,106 @@ def render_plates(conn, pid: int, data_dir: str, scene, who: Optional[Dict] = No
             out["errors"] = ["không chạy được luồng render nền (CSDL trong bộ nhớ)"]
         return out
     return _sync(data_dir, pid, seg, "N11", who, conn, fn)
+
+
+def previs(conn, pid: int, data_dir: str, scene, shots=None, opts: Optional[Dict] = None,
+           who: Optional[Dict] = None, user=None) -> Dict:
+    """N12 (0 USD): chạy previs Blender một lượt trong nền; CSDL mở chỉ đọc, không xóa sản phẩm cũ."""
+    denied = _need_edit(conn, pid, user, "chạy previs sân khấu")
+    if denied:
+        return denied
+    sa = _sa()
+    seg = segment(conn, pid, scene)
+    allowed = {int(s["idx"]) for s in seg.get("shots") or []}
+    selected = None if shots is None else {int(s) for s in shots}
+    if selected is not None and not selected.issubset(allowed):
+        return {"ok": False, "errors": ["có shot được chọn nằm ngoài cảnh này"]}
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    out = os.path.join(seg_dir(data_dir, pid, seg), "previs", stamp)
+
+    def work(c, log):
+        from tools import stage_previs
+        options = dict(opts or {})
+        options["data_dir"] = data_dir
+        return stage_previs.run(c, pid, scene, shots=selected, out=out, opts=options, log=log)
+    return _start(conn, pid, data_dir, seg, "N12", who, work, read_only=True)
+
+
+def crew_user_pick(conn, pid: int, data_dir: str, scene, shot, lan_do,
+                   who: Optional[Dict] = None, user=None) -> Dict:
+    """N14 (0 USD): người dùng chọn một lần đo đã lưu trong `shot_hist`; ghi accepted của đúng shot, không sửa CSDL."""
+    denied = _need_edit(conn, pid, user, "chọn lần đo cho shot")
+    if denied:
+        return denied
+    sa = _sa()
+    seg = segment(conn, pid, scene)
+    shot_key = str(int(shot))
+
+    def fn():
+        path = os.path.join(seg_dir(data_dir, pid, seg), sa.CREW_DIR, "state.json")
+        state = _read(path)
+        if not state:
+            return {"ok": False, "errors": ["chưa có state chia vai của cảnh này"]}
+        hist = list(((state.get("shot_hist") or {}).get(shot_key) or []))
+        if lan_do not in hist:
+            return {"ok": False, "errors": [f"shot {shot_key}: lan_do '{lan_do}' không phải một lần đo của shot này "
+                                                f"({', '.join(map(str, hist))})"]}
+        state.setdefault("accepted", {})[shot_key] = lan_do
+        _write(path, state)
+        return {"ok": True, "shot": int(shot_key), "lan_do": lan_do}
+    return _sync(data_dir, pid, seg, "N14", who, conn, fn)
+
+
+def refresh_world_map(conn, pid: int, data_dir: str, scene, who: Optional[Dict] = None, user=None) -> Dict:
+    """N15 (0 USD): chỉ dựng world map khi cờ `world_map` bật; cờ tắt thì không đọc/ghi gì."""
+    from . import world_map
+    if not world_map.enabled():
+        return {"ok": False, "errors": ["cờ world_map đang tắt"]}
+    denied = _need_edit(conn, pid, user, "dựng lại world map cảnh")
+    if denied:
+        return denied
+    sa = _sa()
+    seg = segment(conn, pid, scene)
+
+    def fn():
+        k1_dir = sa.k1_cached(seg, sa.base_dir(data_dir, pid, seg["stage"]))
+        result = world_map.refresh(data_dir, pid, scene, k1_dir=k1_dir, seg_dir=seg_dir(data_dir, pid, seg))
+        if result is None:
+            return {"ok": False, "errors": ["cờ world_map đang tắt"]}
+        return {"ok": True, "kind": result.get("kind"), "why": result.get("why"),
+                "path": world_map.path(data_dir, pid, scene), "map_revision": result.get("map_revision")}
+    return _sync(data_dir, pid, seg, "N15", who, conn, fn)
+
+
+def set_family(conn, pid: int, data_dir: str, scene, place_ids: Sequence[int], family: str,
+               who: Optional[Dict] = None, user=None) -> Dict:
+    """N16 (0 USD): ghi họ sân khấu qua `stage_auto.set_family` sau khi người dùng chọn đủ một gợi ý VÀNG."""
+    denied = _need_edit(conn, pid, user, "khai họ sân khấu")
+    if denied:
+        return denied
+    sa = _sa()
+    try:
+        ids = sorted({int(x) for x in (place_ids or [])})
+    except (TypeError, ValueError):
+        return {"ok": False, "errors": ["danh sách bối cảnh không hợp lệ"]}
+    if len(ids) < 2:
+        return {"ok": False, "errors": ["cần chọn ít nhất hai bối cảnh trong cùng một gợi ý VÀNG"]}
+    suggestion_ids = {tuple(sorted(g.get("place_ids") or [])) for g in sa.family_suggestions(sa.segments(conn, pid))}
+    if tuple(ids) not in suggestion_ids:
+        return {"ok": False, "errors": ["các bối cảnh không khớp trọn một gợi ý VÀNG hiện tại — tải lại trạng thái trước khi ghi"]}
+    affected = [g for g in sa.segments(conn, pid) if int((g.get("place") or {}).get("id") or -1) in ids]
+    if not affected:
+        return {"ok": False, "errors": ["không tìm thấy cảnh phụ thuộc các bối cảnh đã chọn"]}
+    if running(pid):
+        return {"ok": False, "errors": ["dự án đang có thao tác sân khấu — chờ xong rồi khai họ"]}
+    try:
+        with hold_segments(conn, pid, data_dir, affected, "N16", who):
+            sa.set_family(conn, ids, family)
+    except DeskError as e:
+        return {"ok": False, "errors": [str(e)]}
+    except (ValueError, sqlite3.Error) as e:
+        return {"ok": False, "errors": [str(e)]}
+    return {"ok": True, "place_ids": ids, "family": str(family).strip()}
 
 
 # ---- S-C: cổng trước generation trả phí -------------------------------------------------------------------------------------

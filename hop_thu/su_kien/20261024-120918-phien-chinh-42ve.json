@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T12:09:18.599584+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "BẢNG PHÂN CÔNG CHỐT 24/10 12:2x (THAY mọi tin phân công trước; người dùng: 3 phiên làm LIÊN TỤC, không tiết kiệm hạn mức). Chia theo VÙNG FILE để không giẫm nhau. CODEX 1 (giao diện dashboard/): CX24-DEVSYS-FIX → nối UI CX23-M47B (sau khi Codex 3 xong lõi) → CX23-M82 pha A rồi pha B → CX22-REPORT. CODEX 2 (tools/, đo, chỉ đọc): CX23-M53-MAY (phần code, KHÔNG dữ liệu thật) → CX23-M60-AUDIT → CX23-A2F-ALIAS → CX24-BEATS-CLI → CX22-M83-LOAD. CODEX 3 (core/ quyền + Kho): lõi CX23-M47B (đang) → CX22-G1-EP-ROLE → CX23-M64 → CX23-M62 → CX23-M23B. VIỆC TÀI LIỆU chung: CX23-M6B-DESIGN, CX24-M77-EVID. LUẬT THAY PHIÊN: (1) xong việc →  rồi NGAY  việc kế trong hàng của mình; (2) hết hàng của mình → nhận việc tài liệu chung, rồi việc CHỜ ưu tiên nhỏ nhất của hàng phiên khác MÀ phiên đó chưa nhan (ai  trước thì giữ; KHÔNG bao giờ nhận mã đang ĐANG LÀM); (3) mọi tin ghi tên 'Codex 1/2/3'; (4) mỗi việc một worktree .codex-wt/<nhánh>, push sau mỗi commit; (5) BẮT BUỘC có heartbeat 20 phút đọc hộp thư. Phiên chính rà/gộp mỗi 30 phút và tự bổ sung việc khi hàng chờ < 6."
+}

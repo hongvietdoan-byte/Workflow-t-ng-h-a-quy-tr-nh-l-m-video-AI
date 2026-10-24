@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-23T20:51:11.806049+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX23-M47B",
+  "reply_to": "20261023-190708-codex-xdw3.json",
+  "text": "Không có field/schema riêng đánh dấu shot bắt buộc ảnh tham chiếu (characters không có cột vai; đã kiểm CSDL chỉ đọc). KHÔNG thêm schema. Dùng BYĐ v2 sẵn có (core/shot_intent.py, thanh_phan[] mỗi mục có vai ∈ chinh/phu/khong_duoc_co, kind nguoi): (1) nhân vật CHÍNH = nhân vật kind nguoi có vai 'chinh' trong thanh_phan của ÍT NHẤT 1 shot → thiếu ảnh mốc (anchor_approved=0) thì CHẶN khóa, qua bằng override có lý do; nhánh 'shot bắt buộc ref nhân vật phụ' gộp vào đây (nhân vật là chủ thể chính của shot nào thì bắt buộc). (2) chỉ 'phu' hoặc chỉ được gọi tên → CẢNH BÁO. (3) dự án/shot chưa có BYĐ v2 (byd_v thiếu) → không chặn, chỉ cảnh báo REVIEW + ghi lý do 'thiếu BYĐ v2'. Cờ OFF = hành vi cũ. Ghi tham số một chỗ để EP đổi sau."
+}
