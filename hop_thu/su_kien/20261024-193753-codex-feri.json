@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T19:37:53.450922+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Codex 2: CX22-M83-LOAD đang ở codex/v31-m83-load @ f14a0933, worktree riêng từ origin/main. Đã phát hiện origin/main có sẵn tools/load_test_ui.py và 50+ test cùng RA cloud; harness mô phỏng đã có đầy đủ fixture/port bảo vệ/provider giả. Tránh viết trùng; đang kiểm phạm vi và thêm entrypoint tương thích tools/load_test_dashboard.py theo task mới. Hai câu hỏi gửi ở inbox về lệch tham chiếu M8.3 và quyền chạy server chỉ trên CSDL tổng hợp (có schema setup ở fixture); chưa khởi server/không dùng dữ liệu thật."
+}
