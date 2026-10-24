@@ -1,14 +1,3 @@
-# HANDOFF — CX24-P34-D6-REFROLES (24/10, nhánh `codex/v31-p34-d6-refroles`)
-
-- Gốc `be59f311`; builder làm trong `D:/AI-Video-Pipeline/.codex-wt/v31-p34-d6-refroles`. Root giữ quyền điều phối hộp thư, duyệt commit và rà độc lập. Phiên Claude tích hợp sau; không merge/push main hoặc restart live tại nhánh này.
-- Đã có guard vai gói ref-only/skill, D6 khóa vai/khôi phục bằng code cả cache/cap, preview cùng guard. 2 P2 vòng rà (paid fix khi fallback vượt d6_limit; câu vai đúng+sai cùng số ảnh) đã gom sửa và có regression đếm fake calls/fix.
-- 158 test liên quan xanh / 136,13 s; chạy lại 13 regression sâu xanh / 8,38 s; golden frozen-input COMPAT 6 ca xanh / 4,29 s. Root đã duyệt diff vòng cuối; danh sách/giới hạn trong `docs/RA_CX24_P34_D6_REFROLES_CODEX_2026-10-24.md`.
-- Không cờ mới, không tăng `devsys/areas.json.version` (92), đã khai test ở step4. Không sửa PLAN.md hay dữ liệu thật, không gọi paid API, không Computer Use. Chưa thử chất lượng clip thật/job 1202.
-- Module test mới có autouse sandbox mỗi ca (env object giả/tmp_path, mạng/native/registry/keyring/credential/provider/model mock); rerun đóng gói cuối 13 passed / 3,89 s.
-- Bước kế: root đọc fixdiff cuối → cho commit/push nhánh; phiên Claude kiểm cả bộ Windows (related_areas yêu cầu access/ui_v2_acceptance chậm), gộp + cập nhật kế hoạch/hộp thư/main + restart theo quy ước.
-
----
-
 # HANDOFF — CX23-M48-D2 (23/10, nhánh `codex/v31-m48-d2`)
 
 - Trạng thái: hoàn tất code N12/N14/N15/N16; 223 test liên quan xanh; đang chuẩn bị commit/push nhánh và báo `xong` qua hộp thư.
