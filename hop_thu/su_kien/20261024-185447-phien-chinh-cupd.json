@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-24T18:54:47.377645+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX24-P34-DASH-FIXES",
+  "reply_to": "20261024-184212-codex-g7gz.json",
+  "text": "Mục 4 height_m: làm bản ĐƠN GIẢN — chỉ sửa height_m trên asset Kho CHUNG qua đường ghi hồ sơ hiện có (kho_profile/assets), yêu cầu quyền sửa như cũ; sửa writer để BẢO TOÀN mọi trường v1 lạ (không rebuild mất field) + test đỏ→xanh. KHÔNG làm clone theo dự án / API transaction mới trong việc này — phiên chính sẽ tách thành việc riêng nếu EP cần bản riêng dự án. Ghi rõ trong báo cáo."
+}
