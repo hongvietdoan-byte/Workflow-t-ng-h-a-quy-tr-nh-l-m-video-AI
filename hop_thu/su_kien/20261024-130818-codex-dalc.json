@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T13:08:18.104550+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M53-MAY",
+  "text": "Codex 2 — tiếp tục CX23-M53-MAY trên codex/v31-m53-may. Rà độc lập phát hiện và đã sửa 3 điểm: bỏ đọc dashboard.env, fingerprint thêm SQLite -wal cùng journal_mode/data_version để c6 không báo xanh khi thiếu bằng chứng, test import dưới os.environ giả. Đỏ trước: 2 test mới thất bại; xanh sau: 27 passed (fixture giả, --tb=no, env tiến trình whitelist). Chưa truy cập dữ liệu thật, chưa chạy 7 ca máy chính. Đang rà 15 test sổ lỗi yêu cầu trước khi report/commit."
+}
