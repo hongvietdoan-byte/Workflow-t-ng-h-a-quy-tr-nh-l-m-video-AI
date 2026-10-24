@@ -152,6 +152,7 @@ class Task:
         self.priority = 100
         self.ts_giao = None
         self.ts_status = None
+        self.ts_claim = None
         self.notes = []
 
     def eff_lane(self):
@@ -178,6 +179,7 @@ def compute_state(events):
                         if t.status != CHO:
                             t.notes.append(f"mở lại từ {t.status} ({hhmm})")
                         t.claimer, t.status = None, CHO
+                        t.branch, t.ts_claim = None, None
                 t.owner = to_new
                 t.title = ev.get("title") or t.title
                 t.spec = ev.get("spec") or t.spec
@@ -201,6 +203,7 @@ def compute_state(events):
                     t.notes.append(f"nhận khi đã {t.status} — bỏ ({lane} {hhmm})")
                     continue
                 t.claimer, t.status, t.ts_status = lane, DANG_LAM, ts
+                t.ts_claim, t.branch = ts, ev.get("branch")
             elif kind == "xong":
                 t.status, t.ts_status = XONG, ts
                 t.claimer = t.claimer or lane
@@ -220,6 +223,9 @@ def compute_state(events):
             answers.setdefault(ev.get("reply_to"), []).append(ev)
         elif kind == "tin":
             news.append(ev)
+            t = tasks.get(ev.get("task"))
+            if t and t.status == DANG_LAM and t.claimer == lane and ev.get("branch"):
+                t.branch = ev["branch"]
         elif kind == "het_viec":
             het_viec[lane] = ts
     # làn HẾT VIỆC = báo het_viec sau lần nhận cuối của làn đó
@@ -412,6 +418,73 @@ def render_board(state, errors, lane_filter=None):
     return "\n".join(lines) + "\n"
 
 
+def _safe_branch(branch):
+    return (isinstance(branch, str) and len(branch) <= 250
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", branch)
+            and not any(x in branch for x in ("..", "//"))
+            and all(part and not part.startswith(".") and not part.endswith((".", ".lock"))
+                    for part in branch.split("/")))
+
+
+def branch_commit_time(root, branch):
+    """Chỉ đọc refs đang có; commit riêng ngoài origin/main, không fetch/pull.
+
+    None + lý do = UNKNOWN; None + rỗng = nhánh có thật nhưng không có
+    commit riêng. Không dùng nhánh/lane suy ra từ văn bản tự do.
+    """
+    if not _safe_branch(branch):
+        return None, "thiếu hoặc sai metadata branch"
+    baseline = "refs/remotes/origin/main"
+    try:
+        if _git(root, "show-ref", "--verify", "--quiet", baseline, check=False).returncode:
+            return None, "chưa có origin/main để đối chiếu"
+        found, stamps = False, []
+        for ref in (f"refs/heads/{branch}", f"refs/remotes/origin/{branch}"):
+            probe = _git(root, "show-ref", "--verify", "--quiet", ref, check=False)
+            if probe.returncode == 1:
+                continue
+            if probe.returncode:
+                return None, "không đọc được ref Git"
+            found = True
+            # Thời gian committer; không lấy commit mới của main làm tiến độ task.
+            log = _git(root, "log", "--first-parent", "-1", "--format=%ct", ref, "--not", baseline)
+            if log.stdout.strip():
+                stamps.append(datetime.fromtimestamp(int(log.stdout.strip()), VN_TZ))
+        if not found:
+            return None, "không thấy nhánh trong refs cục bộ/origin đã fetch"
+        return max(stamps) if stamps else None, ""
+    except (HopThuError, OSError, ValueError, OverflowError):
+        return None, "không xác minh được thời gian commit Git"
+
+
+def stale_warnings(root, state, now=None, lane_filter=None):
+    """G3: quá 12h không commit → đề xuất, tuyệt đối không đổi trạng thái."""
+    now = now or now_vn()
+    warnings = []
+    for t in state["tasks"].values():
+        if t.status != DANG_LAM or (lane_filter and t.eff_lane() != lane_filter):
+            continue
+        claimed = t.ts_claim
+        if not claimed or now - claimed <= timedelta(hours=12):
+            continue
+        if not t.branch:
+            warnings.append(f"{t.code}: ĐANG LÀM > 12 giờ; chưa xác minh nhánh/commit "
+                            "(thiếu metadata branch; không suy người giữ từ lane).")
+            continue
+        stamp, why = branch_commit_time(root, t.branch)
+        if why or (stamp and stamp > now):
+            warnings.append(f"{t.code}: ĐANG LÀM > 12 giờ; chưa xác minh commit nhánh {t.branch} "
+                            f"({why or 'thời gian commit ở tương lai'}).")
+            continue
+        last = max(claimed, stamp) if stamp else claimed
+        if now - last > timedelta(hours=12):
+            evidence = f"commit riêng gần nhất {stamp:%d/%m %H:%M}" if stamp else "chưa có commit riêng ngoài origin/main"
+            warnings.append(f"{t.code}: > 12 giờ không có commit mới trên {t.branch} ({evidence}); "
+                            "đề xuất kiểm tra owner rồi đưa về CHỜ, không tự đổi trạng thái. "
+                            "Chỉ xét refs hiện có, chưa fetch trong lệnh bang.")
+    return warnings
+
+
 # ---------------------------------------------------------------- lệnh
 
 
@@ -456,7 +529,10 @@ def _claim(args, root, code):
     miss = missing_deps(state, t)
     if miss:
         raise HopThuError(f"Từ chối: {code} CHỜ ĐIỀU KIỆN — cần GỘP trước: {', '.join(miss)}.")
-    p = write_event(root, args.lane, "nhan", task=code)
+    branch = getattr(args, "branch", None)
+    if branch and not _safe_branch(branch):
+        raise HopThuError("branch không hợp lệ")
+    p = write_event(root, args.lane, "nhan", task=code, **({"branch": branch} if branch else {}))
     _finish(args, root, p, "nhan", code)
     if t.spec:
         print(f"Đề bài: {t.spec}")
@@ -549,7 +625,11 @@ def cmd_tin(args, root):
     check_lane(args.to, extra=("all",))
     if args.task:
         check_task(args.task)
-    p = write_event(root, args.lane, "tin", to=args.to, task=args.task, text=args.text)
+    branch = getattr(args, "branch", None)
+    if branch and (not args.task or not _safe_branch(branch)):
+        raise HopThuError("branch cần --task và tên nhánh hợp lệ")
+    p = write_event(root, args.lane, "tin", to=args.to, task=args.task, text=args.text,
+                    **({"branch": branch} if branch else {}))
     _finish(args, root, p, "tin", args.task)
 
 
@@ -564,6 +644,10 @@ def cmd_bang(args, root):
         check_lane(args.lane)
     state, errors = _load(root)
     sys.stdout.write(render_board(state, errors, args.lane))
+    warnings = stale_warnings(root, state, lane_filter=args.lane)
+    if warnings:
+        sys.stdout.write("\n## ⚠ Tiến độ commit cần kiểm tra (chỉ đọc)\n\n")
+        sys.stdout.write("\n".join(f"- {line}" for line in warnings) + "\n")
 
 
 def cmd_ke(args, root):
@@ -609,6 +693,7 @@ def build_parser():
 
     p = add("nhan", cmd_nhan, help_="nhận việc (tự git pull trước)")
     p.add_argument("ma")
+    p.add_argument("--branch", help="nhánh task tường minh để kiểm tiến độ commit")
     p.add_argument("--lane", required=True)
     p.add_argument("--khong-pull", action="store_true", help="không git pull trước")
 
@@ -648,6 +733,7 @@ def build_parser():
     p.add_argument("--to", default="all")
     p.add_argument("--text", required=True)
     p.add_argument("--task")
+    p.add_argument("--branch", help="nhánh task tường minh (cần --task; chỉ claimer cập nhật trạng thái nhánh)")
 
     p = add("het-viec", cmd_het_viec, help_="báo làn hết việc")
     p.add_argument("--lane", required=True)
@@ -657,6 +743,7 @@ def build_parser():
     p.add_argument("--lane")
 
     p = add("ke", cmd_ke, help_="in việc kế nên làm")
+    p.add_argument("--branch", help="nhánh tường minh khi --nhan")
     p.add_argument("--lane", required=True)
     p.add_argument("--nhan", action="store_true", help="nhận luôn việc kế")
     p.add_argument("--khong-pull", action="store_true")
