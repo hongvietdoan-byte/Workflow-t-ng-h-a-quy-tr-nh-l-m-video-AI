@@ -1810,3 +1810,34 @@ devsys/scores.py (_normalize_v2 khoản trừ có bằng chứng, overall/trend)
 - Phát hiện mở → đề xuất giao việc (KHÔNG tự giao): nút "Đưa vào hộp thư" tạo lệnh `hop_thu.py giao` cho phiên chính bấm.
 Test đỏ→xanh với client mock (không gọi Claude thật trong test): gói bằng chứng đúng nguồn, điểm từ khoản trừ, kích hoạt theo mốc đúng 1 lần, khóa chống chồng, 3 trang hiện
 (AppTest). Khai areas.json. Sau gộp phiên chính khởi động lại 8502. Nhánh `codex/v31-giam-sat`. Phiên chính RÀ KỸ (đụng lịch chạy nền).
+
+> Các việc CX24-G* dưới đây chuyển từ phát hiện LỚN/NHỎ của `docs/GIAM_SAT_KE_HOACH_V31_2026-10-24.md` (người dùng duyệt 24/10 "chuyển phát hiện LỚN thành việc cho Codex"). Số # = số phát hiện trong báo cáo.
+
+### CX24-G1-PLAN-GATES — tách "% tiến độ code" và "% cổng đạt thật" (#1, #6, #13, #15; ưu tiên 2; Cấp 1 tooling devsys; 0 USD)
+- Trạng thái việc kế hoạch chính có 2 lớp: ✅code (đã gộp, cờ TẮT/shadow) và ✅cổng (cổng nghiệm thu §3/§4a có bằng chứng CHẠY THẬT: commit/ảnh/nhật ký ui_step/sổ chi). Cú pháp ghi
+  trong dòng kế hoạch (vd `cổng: ✅ <bằng chứng>` / `cổng: ⬜ <thiếu gì>`) — tương thích ngược: dòng cũ không có = cổng ⬜. `devsys/plan_progress.py` + `tools/plan_progress.py`
+  in HAI cột (% code, % cổng) mỗi đợt + tổng; trang "📋 Kế hoạch đang chạy" và "🗺 Sơ đồ tiến độ" hiện cả hai (sơ đồ tô khác màu ✅code vs ✅cổng).
+- Luật #6: việc có màn Dashboard chỉ được ✅cổng khi có ≥ 1 lần dùng thật (ảnh chụp hoặc nhật ký ui_step) — check trong plan_progress, cảnh báo nếu thiếu.
+- #13: chọn "việc kế" bỏ qua việc ghi "CHỜ PHỤ THUỘC" / ⏸ chưa đủ điều kiện.
+- #15: sửa docstring cũ `dashboard/stage_desk_ui.py:9,25` ("không có N12").
+- Điền sẵn cột cổng cho M0–M8 theo bảng mục 3 của báo cáo giám sát (bằng chứng ghi rõ; không chắc → ⬜). KHÔNG đổi ✅ hiện có thành khác (chỉ thêm lớp cổng).
+Test đỏ→xanh (kế hoạch giả). TRÙNG devsys/app.py với CX24-DEVSYS-FIX và CX24-GIAM-SAT → làm SAU khi DEVSYS-FIX gộp; phần trang làm trước GIAM-SAT nối trang. Nhánh `codex/v31-plan-gates`.
+
+### CX24-G2-KPI-GOC — đo 5 mục tiêu gốc V3 §2 (#2; ưu tiên 2; Cấp 1 đo; 0 USD)
+Mục tiêu đo được: docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md dòng 23–29, nghiệm thu §8 dòng 139. Viết `tools/kpi_goc.py`: mỗi KPI một hàm đo từ nguồn có sẵn (CSDL mode=ro,
+sổ chi, sổ lỗi devsys/errors.json, golden/replay, lineage) — riêng MT3 "lỗi lọt cổng −50 %" định nghĩa mốc gốc (#24/#27/#31) và cách đếm. Ra bảng mốc gốc vs hiện tại + "chưa đo được vì".
+Codex CHỈ test bằng fixture giả (không đọc dữ liệu thật) — phiên chính chạy `--ban-sao` trên bản sao #31/#33 rồi ghi kết quả vào kế hoạch. Đề xuất thêm dòng việc "M5.3b đo 5 KPI gốc
+(cổng trước M5.4)" trong báo cáo (phiên chính ghi vào kế hoạch). Nhánh `codex/v31-kpi-goc`.
+
+### CX24-G3-SO-LOI — đồng bộ sổ lỗi với kế hoạch (#3, #10, #11; ưu tiên 3; Cấp 1; 0 USD)
+- `devsys/errors.json`: 73 mục OPEN/IN_PROGRESS có plan_task trỏ việc đã ✅; 0 VERIFIED; 65 mục chưa test. Viết check `py -m devsys.errors check` (hoặc thêm vào module sổ lỗi sẵn có):
+  việc ✅ mà mã lỗi liên quan còn OPEN → báo; đề xuất chuyển FIXED_UNVERIFIED khi có test/commit chứng minh (ghi `tests`, `fix_commit`), không có thì ghi lý do. KHÔNG tự đánh VERIFIED
+  (VERIFIED cần chạy thật). Áp dụng phần có bằng chứng, xuất danh sách còn lại.
+- #10: phân loại 41/158 ca golden A/B BOTH_FAIL (thiếu đầu vào hay lỗi replay) từ báo cáo docs/RA_CX21_GOLDEN7_MAYCHINH_2026-10-22.md → mục sổ lỗi.
+- #11: `tools/hop_thu.py bang` cảnh báo việc ĐANG LÀM > 12 giờ mà không có commit trên nhánh (đề xuất về CHỜ, không tự đổi).
+Test đỏ→xanh. Nhánh `codex/v31-so-loi-sync`.
+
+### CX24-G4-QUYET-DINH — nối quyết định tiền với check (#9; ưu tiên 3; Cấp 1; 0 USD)
+55/74 quyết định active không `enforced_by` (data/decisions.json). Ưu tiên 3 quyết định tiền: `ep-2210-qf…` nối test_safe_paid_buttons; `ep-2310-qd3…` (hạn mức chi luồng tự động) ghi
+`pending` + check khi CX23-M82 có hàm lõi; `v31-m6-generation-limits-policy-b…` nối check bộ đếm E4. Sau đó liệt kê các quyết định còn lại kiểm được bằng code → đề xuất check (không sửa
+chữ mục cũ; mục mới thay bằng `replaces` — quy ước 8). Chạy `py -m core.decisions check` + tests/test_decisions.py. Nhánh `codex/v31-quyet-dinh-check`.
