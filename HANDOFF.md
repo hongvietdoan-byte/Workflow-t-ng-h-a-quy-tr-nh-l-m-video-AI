@@ -1,13 +1,11 @@
 # Codex 1 — P34-DASH-FIXES đang làm
 
-Task CX24-P34-DASH-FIXES, đã nhận175930-9fnb; nhánh codex/v31-p34-dash-fixes, worktree D:/AI-Video-Pipeline/.codex-wt/v31-p34-dash-fixes. Đọc RA_CX24_P34_DASH_FIXES_CODEX_2026-10-24.md trước tiếp.
+Task CX24-P34-DASH-FIXES đã nhận175930-9fnb, nhánh codex/v31-p34-dash-fixes tại D:/AI-Video-Pipeline/.codex-wt/v31-p34-dash-fixes. Đọc docs/RA_CX24_P34_DASH_FIXES_CODEX_2026-10-24.md trước tiếp; chưa XONG, xóa HANDOFF này chỉ ở commit hoàn tất.
 
-Mục6 và11 đã code/unit/rà độc lập0P1P2; root28unit serial0,77s. Chưa XONG task: còn1/2/3/4/7/10 và hoàn thiện thiết kế8/9. Không sửa lại 6/11 trừ finding. Đã hỏi main event180630-j3np về dependency G1-EP-ROLE6d647212/CLI-TOKENS296fc658 và lượt AppTest nặng; cảhai chưaancestor basea700ead8. Đọc reply/thư mới; không tự gộp main hay thay cơ chế quyền/runner bằng bản sao. Có thể làm unit/callback nhẹ độc lập trong khi chờ, không tự cấp quyền API.
+Mục6/11 checkpoint a42b9e9b đã push, không làm lại: ref_asset_id audit/nhãn model thật,28unit0,77s,review0P1P2. Nền mục1 push00992f34: refresh_failed_findings trước blocking,savepoint/idempotent/lifecycle;6đỏ→9unitxanh;22focused4,91s;chưa caller UI/EP bypass. Mục7 vừa có code/core/K3+K4/endframe + widget qua JSON N4: camera_side theo trục A→B, phu thay_min ràng buộc;3P2 malformed/duplicate/stalewidget đã sửa và reviewer vòng2 0P1P2;root98unit/mock2,49s. Không Blender/GUI thật. Thiết kế8/9 đã hoàn thiện bảng trong RA, không triển khai.
 
-RAM giảm tới22h và chờ thư TĂNG TỐC: không n8/cả bộ/server/Blender/headless/CU, chỉ serial targeted; mỗi lúc một phiên test nặng qua điều phối hòm thư. Mọi test dùng patch.object OBJECT os.environ fake trước imports/calls, mock keyring/registry/provider/model/credential, native whitelistHOMEfake, --tb=no; không secret/realdata/API/live.
+Còn1/2/3/4/10 + QA mục7 trước XONG. Đã hỏi main180630-j3np về nhánh tích hợp G1-EP-ROLE6d647212/CLI-TOKENS296fc658 và lượt AppTest nặng; đọc reply/thư mới, cảhai chưa ancestor basea700ead8. Không nhân đôi quyền/cleanenv; khi chờ làm unit/callback độc lập được phép. Mục4 cần cả lựa chọn Kho chung/bản riêng đúng đề, không gọi kho_profile.save trực tiếp cho v1 vì tự nâng schema2. Mục10 phải giải quyết URL mới thiếus; chỉ giữtoken ởlinknội bộ chưa đủ nghiệm thu.
 
-HOP dcee43bd XONG172253-x73s; KIEM89a547ef XONG175752-3obf (50rows/6CÓ/46pass1skip), không làm lại. Codex2 đangA2F/hàngtools, WIPdelivery/post_overlays giữ; Codex3 core/quyềnKho/RA-M82B độc lập. Đọc hộp thư mới nhất trước sửa.
+RAM thư175629-mfn2: GIẢM TẢI tới22h VÀ chờ thư TĂNG TỐC;serialtargeted trầnn2, mỗi lúc một phiên testnặng qua mailbox;khôngn8/cảbộ/server/Blender/headless/CU. Không API trảphí/data thật/dashboard.env/secrets/migration/live restart. Mọi test patch.object thay OBJECT os.environ dictfake trướcimports/calls/spawns, mockkeyring/registry/credential/provider/model, nativewhitelistHOMEfake,pytest--tb=no,no showlocals/dump/inreprsecret.
 
-Đây là HANDOFF WIP của task này; xóa ở commit hoàn tất, xong push rồi helper xong --push. Không báo XONG sớm.
-
-Checkpoint nền mục1: refresh_failed_findings + tests mới đã có; 6đỏ→9unitxanh,22focused4,91s, reviewer0P1P2/callers. Chưa UI/EP bypass, không báo XONG mục1. Mục7 child kiem_cong_builder đang xử lý stage_grid/solver/tools/stage_grid/stage_desk_ui/helper mới, root không sửa cùng file.
+HOPdcee43bd vàKIEM89a547ef đã XONG/push, không làm lại. Codex2 A2F/tools/đo và giữWIPdelivery/post_overlays. Codex3 RA-M82B mới báo6546de1f (49test) nhưng helperxong từchối mã chưa giao;không tựgiao lại/nhậntrùng. Hai child mục7 vàreview đã kếtthúc, không cònphầnđộc lập cụthể thìkhôngtạo childmới.

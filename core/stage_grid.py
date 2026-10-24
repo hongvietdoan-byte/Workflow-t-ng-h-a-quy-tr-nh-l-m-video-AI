@@ -151,6 +151,46 @@ def axis_side(a: Sequence[float], b: Sequence[float], p: Sequence[float], tol_m:
     return "on" if abs(d) <= tol_m else ("left" if d > 0 else "right")
 
 
+CAMERA_SIDES = ("front", "back", "left", "right")
+
+
+def camera_axis_error(axis):
+    try:
+        if len(axis) != 2 or any(len(p) < 2 or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in p[:2]) for p in axis):
+            return "phía máy cần trục A→B có hai điểm hữu hạn"
+        if math.dist(axis[0][:2], axis[1][:2]) <= 1e-6:
+            return "phía máy cần trục A→B khác điểm, không tự đoán hướng"
+    except (TypeError, ValueError):
+        return "phía máy cần trục A→B có hai điểm, không tự đoán hướng"
+    return None
+
+
+def camera_side_error(axis, camera, side):
+    """Trái/phải giữ axis_side; trước/sau theo dot từ trung điểm trục A→B.
+
+    Đây là ràng buộc cục bộ trên world axes hiện có, không xoay/chuyển hệ tọa độ.
+    Điểm trên đường biên không được coi là đã chọn đúng một phía.
+    """
+    if side not in CAMERA_SIDES:
+        return "phía máy phải là front/back/left/right"
+    error = camera_axis_error(axis)
+    if error:
+        return error
+    try:
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in camera[:2]) or len(camera) < 2:
+            return "chưa có vị trí máy hữu hạn để kiểm phía"
+        a, b = axis
+        if side in ("left", "right"):
+            actual = axis_side(a, b, camera)
+        else:
+            dx, dy = b[0]-a[0], b[1]-a[1]
+            dot = ((camera[0]-(a[0]+b[0])/2)*dx + (camera[1]-(a[1]+b[1])/2)*dy) / math.hypot(dx, dy)
+            actual = "on" if abs(dot) <= .05 else "front" if dot > 0 else "back"
+        return None if actual == side else f"máy ở phía {actual}, yêu cầu {side} theo trục A→B"
+    except (TypeError, ValueError):
+        return "chưa có vị trí máy để kiểm phía"
+
+
 # ---- máy: nhìn, chiếu điểm, tia ---------------------------------------------------------------------------------------------
 def _norm(v):
     n = math.sqrt(sum(x * x for x in v)) or 1.0
@@ -739,7 +779,7 @@ def _seen(e: Dict) -> float:
     return float(e.get("in_pct") or 0.0) if v is None else float(v)
 
 
-def check_spec(m: Dict, spec: Dict, objs: Dict[str, Dict], th: Optional[Dict] = None) -> Dict:
+def check_spec(m: Dict, spec: Dict, objs: Dict[str, Dict], th: Optional[Dict] = None, *, axis=None) -> Dict:
     """Luật P1–P4 (vật lý) + S1–S6 (sinh từ yêu cầu khung) — mục 7.1–7.2; thay L1/L5–L10 của cách dò mù. `m` = frame_eval (+ số Blender:
     seen_pct/blocked_by từng vật, percent, cam_floor, cam_inside, occluder_pct/_m, well_hip_ratio). Số nào chưa đo thì luật đó bỏ qua
     (giai đoạn a). Không tự đổi ý đồ. Trả {'ok', 'fail': [mã], 'why': {mã: câu có số}, 'phu': {vật: đạt?}, 'miss': tổng lệch vùng}."""
@@ -747,6 +787,10 @@ def check_spec(m: Dict, spec: Dict, objs: Dict[str, Dict], th: Optional[Dict] = 
 
     def bad(code, txt):
         why.setdefault(code, []).append(txt)
+    if spec.get("camera_side") is not None:
+        side_error = camera_side_error(axis, m.get("at"), spec["camera_side"])
+        if side_error:
+            bad("C2", side_error)
     if "cam_floor" in m:
         if not (m.get("cam_floor") == "same" or (m.get("cam_floor") == "step" and spec.get("cam_on_step"))) or m.get("cam_inside"):
             bad("P1", f"sàn dưới máy '{m.get('cam_floor')}'" + (", máy nằm trong vật" if m.get("cam_inside") else ""))
@@ -782,7 +826,16 @@ def check_spec(m: Dict, spec: Dict, objs: Dict[str, Dict], th: Optional[Dict] = 
             share = FRAMING[spec["co"]][1] * 100
             lo_hi = [share * (1 - _th(th, "L3_rel")), share * (1 + _th(th, "L3_rel"))]
         if vai == "phu":
-            phu[k] = seen > 0 and zm <= tol and (not want_view or e.get("view") in want_view)
+            need = c.get("thay_min")
+            minimum_ok = True
+            if need is not None:
+                if isinstance(need, bool) or not isinstance(need, (int, float)) or not math.isfinite(need) or not 0 <= need <= 100:
+                    minimum_ok = False
+                    bad("S1", f"{lab}: thay_min phải là số hữu hạn từ 0 đến 100%")
+                elif not math.isfinite(seen) or seen < need:
+                    minimum_ok = False
+                    bad("S1", f"{lab} (phụ) thấy {seen:g}% (< {need:g}%)")
+            phu[k] = minimum_ok and seen > 0 and zm <= tol and (not want_view or e.get("view") in want_view)
             continue
         need = _th(th, {"nguoi": "S1_nguoi_pct", "moc": "S1_moc_pct"}.get(o.get("kind"), "S1_dao_cu_pct"))
         if c.get("thay_min") is not None:              # ngưỡng riêng của shot do người dùng/Director chấp nhận (vd qua vai: vai che một phần)
@@ -806,6 +859,6 @@ def check_spec(m: Dict, spec: Dict, objs: Dict[str, Dict], th: Optional[Dict] = 
             g, v = max(out_.items(), key=lambda x: x[1])
             if v > _th(th, "S6_max_pct"):
                 bad("S6", f"'{g}' (ngoài yêu cầu) chiếm {v}% khung (> {_th(th, 'S6_max_pct'):g}%)")
-    order = ["P1", "P2", "P3", "P4", "S1", "S2", "S3", "S4", "S5", "S6"]
+    order = ["P1", "P2", "P3", "P4", "S1", "S2", "S3", "S4", "S5", "S6", "C2"]
     fail = [c for c in order if c in why]
     return {"ok": not fail, "fail": fail, "why": {c: "; ".join(why[c]) for c in fail}, "phu": phu, "miss": round(miss, 3)}

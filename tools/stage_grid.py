@@ -1028,7 +1028,7 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
             if o["kind"] == "moc" and marks.get(f"{k}_object"):             # tên object mốc (tháp) do K1 đo trong lượt này
                 o["own"] = marks[f"{k}_object"]["name"]
         st["objs"] = objs
-        st["axis"] = setup.get("axis") or cfg.get("axis")
+        st["axis"] = setup.get("axis") if "axis" in setup else cfg.get("axis")
         hips = [placed[o["prop"]]["hip_z"] for o in objs.values()
                 if o["kind"] == "nguoi" and not o.get("in") and not o.get("tu_the") and o.get("prop") in placed]
         st["well_hip"] = round(placed["WELL"]["top_z"] / hips[0], 2) if ("WELL" in placed and hips) else None
@@ -1168,7 +1168,7 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
         rows = []
         for c in su["cands"]:
             m = measure(c["at"], c["aim"], c["lens"], res, coarse, spec)
-            chk = sg.check_spec(m, spec, objs)
+            chk = sg.check_spec(m, spec, objs, axis=st["axis"])
             c1 = c.get("c1_ok", True)
             rows.append({"tag": c["tag"], "fallback": c.get("fallback", False), "ok": chk["ok"] and c1, "c1_ok": c1, "check": chk, "m": m,
                          "c": c, "flip": bool(c.get("flip"))})
@@ -1178,12 +1178,12 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
         if rows:
             c = rows[0]["c"]
             m = measure(c["at"], c["aim"], c["lens"], res, fine, spec)
-            chk = sg.check_spec(m, spec, objs)
+            chk = sg.check_spec(m, spec, objs, axis=st["axis"])
             best = {"tag": c["tag"], "fallback": c.get("fallback", False), "ok": chk["ok"] and c.get("c1_ok", True),
                     "c1_ok": c.get("c1_ok", True), "check": chk, "m": m, "name": f"v2_shot{su['shot']}"}
             if c.get("end"):                                                   # máy di chuyển: đo + chấm khung CUỐI (cỡ/vùng được đổi)
                 me = measure(c["end"]["at"], c["end"]["aim"], c["lens"], res, fine, spec)
-                ce = sg.check_spec(me, ss_end_spec(spec), objs)
+                ce = sg.check_spec(me, ss_end_spec(spec), objs, axis=st["axis"])
                 best["end"] = {"m": me, "check": ce, "name": f"v2_shot{su['shot']}_cuoi"}
                 best["ok"] = best["ok"] and ce["ok"]
         shots.append({"shot": su["shot"], "spec": spec, "objs": objs, "n": len(rows), "n_ok": sum(1 for r in rows if r["ok"]), "best": best,
