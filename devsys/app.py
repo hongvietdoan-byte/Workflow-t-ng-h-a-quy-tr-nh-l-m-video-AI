@@ -121,14 +121,20 @@ def bar(s) -> str:
     return f'<div class="bar"><i class="{b}" style="width:{0 if s is None else max(2, min(100, s))}%"></i></div>'
 
 
-def spawn(args, log_name: str) -> int:
+def spawn(args, log_name: str, env_allowlist=None) -> int:
     """Start a helper script in the background (log in devsys/data/<log_name>); returns its pid."""
     os.makedirs(collect.data_dir(ROOT), exist_ok=True)
-    log = open(os.path.join(collect.data_dir(ROOT), log_name), "w", encoding="utf-8")
+    log_path = os.path.join(collect.data_dir(ROOT), log_name)
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    log = open(log_path, "w", encoding="utf-8")
     flags = 0
     if os.name == "nt":
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    if env_allowlist is None:
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    else:
+        env = {key: os.environ[key] for key in env_allowlist if key in os.environ}
+        env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
     proc = subprocess.Popen([sys.executable, *args], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, creationflags=flags, env=env)
     return proc.pid
 

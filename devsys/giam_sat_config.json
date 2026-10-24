@@ -1,0 +1,5 @@
+{
+  "auto_enabled": false,
+  "provider": "claude_cli",
+  "publish_plan": true
+}
