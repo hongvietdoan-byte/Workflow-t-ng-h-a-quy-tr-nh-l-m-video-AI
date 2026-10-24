@@ -1938,3 +1938,17 @@ Giao 24/10 19:25 (phiên chính) — Codex 3. 0 USD, nhẹ, pytest -n 2 tới 22
 2. `_ref_lint` (core/runner.py ~1310) còn chọn ảnh nền 3D không theo khung đầu, lệch với phần prompt sau D6-REFROLES (f4031e9b) —
    dùng cùng hàm chọn như đường gửi; test đỏ→xanh.
 Nhánh `codex/v31-main-red`; báo XONG kèm sha + danh sách test.
+
+### CX24-M65-VPA — M6.5 Video Prompt Artist SHADOW (ưu tiên 3; Cấp 2 shadow cờ TẮT; 0 USD)
+Giao 24/10 20:20 (phiên chính). Theo thiết kế Gói M6-B đã gộp (CX23-M6B-DESIGN, docs trong main) + EP 22/10 Q-B.
+- Cờ mới `vpa_shadow` mặc định TẮT. BẬT: từ BYĐ v2 + ảnh đã duyệt + ràng buộc model → VPA (claude_cli, gói, KHÔNG API trả phí)
+  viết motion prompt + coverage, CHỈ ghi shadow (jsonl/bảng riêng) cạnh prompt builder cũ để so; KHÔNG thay prompt gửi đi.
+- Code chỉ KIỂM (độ dài, có đủ vai ảnh như guard D6 f4031e9b, không mâu thuẫn BYĐ), kiểm trượt = ghi lý do, không im lặng.
+- Quyền duyệt prompt TÁCH quyền gửi API trả phí (không mở đường gửi mới). Cờ TẮT = gói gửi byte-y-hệt (golden COMPAT xanh).
+- Test fixture + claude giả; không chạy Claude thật / dữ liệu thật. Giảm tải RAM tới 22:00 (pytest -n 2).
+
+### CX24-M82C — M8.2 chế độ Cơ bản pha tiếp theo (ưu tiên 3; Cấp 2 sau cờ simple_mode TẮT; 0 USD)
+Giao 24/10 20:20. Phụ thuộc CX24-M82B (API gửi gen ảnh theo shot) GỘP trước. Làm phần còn của đề CX23-M82 sau pha A (d15d444d):
+nút Cơ bản dùng API theo shot (HOLD từng shot), giữ mọi guard Chuyên gia, sổ ep-2310-m84-gate-before-auto-paid (không luồng tự gửi
+trả phí trước M8.4), quyết định ep-2410-basic-post-auto (Bước 5 Cơ bản tự áp từ kịch bản khóa, thiếu dữ liệu thì báo rõ) — phần
+Bước 5 nối với CX24-P34-B5-OVERLAY khi nhánh đó GỘP. AppTest nặng chỉ chạy sau 22:00. Báo cáo + ảnh UI KHÔNG chụp bằng Computer Use.
