@@ -171,7 +171,8 @@ kiểm giá trị; không đổi `STATUSES`.
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 6 | 0 | 0 | 0 | 81,2 % |
 | M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 5 | 2 | 0 | 0 | 0 | 33,3 % |
-| **Tổng** | **75** | **54** | **4** | **1** | **0** | **72,9 %** |
+| M9 Giám sát và tối ưu theo mốc (người dùng 24/10) | 13 | 4 | 2 | 0 | 1 | 30,6 % |
+| **Tổng** | **88** | **58** | **6** | **1** | **1** | **68,5 %** |
 
 Đợt hiện tại: **M2** · việc kế: **M5.4** Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3)
 <!-- /tien-do -->
@@ -236,7 +237,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M5.1 · Repair router theo mã lỗi, trần ảnh ≤ 3 / video ≤ 2, dừng khi đổi ý đồ · nặng:3 · ✅ · DP5 cloud-C gộp 20/10, cờ repair_router TẮT, chỉ đề xuất (tự gửi = C3-10 để sau)
 - [ ] M5.2 · Release gate: shot duyệt, final QC, đối soát chi phí, lỗi nghiêm trọng mở = 0 hoặc có miễn trừ ký tên · nặng:2 · ✅ · DP6 cloud-C gộp 20/10, cờ release_gate TẮT (chỉ cảnh báo, không chặn xuất)
 - [ ] M5.3 · Pilot vòng A Offline Regression: replay lỗi #31/#33 (payload, continuity, QC, lineage, phục hồi), 0 USD · nặng:2 · 🔄 · 23/10 phần còn giao Codex CX23-M53-MAY · DP12 khung tools/pilot_a.py gộp 21/10 (rà nhẹ, 0 USD); 23/10 ĐÃ CHẠY vòng A: DAT_OFFLINE (15 ca phai_xanh xanh, golden byte giống, 0 mạng, 0 ghi data/; 0 ca OPEN có test nên c5 trống) — docs/PILOT_A_KET_QUA_2026-10-23.md; còn 7 ca MAY_CHINH (pilot_a.py chưa có tùy chọn đọc dữ liệu máy chính) + 65 mục sổ lỗi chưa có test
-- [ ] M5.4 · Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — C3-11 duyệt nguyên tắc, CHƯA duyệt chi tiêu
+- [ ] M5.4 · Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — C3-11 duyệt nguyên tắc, CHƯA duyệt chi tiêu · GIÁM SÁT 24/10 (#2): thêm cổng M9.2 — đo 5 KPI gốc V3 §2 trên bản sao #31/#33 TRƯỚC khi trình M5.4
 - [ ] M5.5 · Pilot vòng C 20–40 shot: chất lượng, tỉ lệ gen lại, continuity, chi phí, can thiệp tay (Cấp 3) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — C3-12 để sau
 
 ### M6 — Tổ làm phim có chủ (AI Video Production Team)
@@ -277,8 +278,26 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M8.4 · Tối ưu theo số đo M8.3 (gộp M6.11): cache dùng chung theo revision (không tính lại mỗi lần bấm), fragment + nạp lười ảnh/thumbnail, tóm tắt tính sẵn ở nền, MỘT bộ luồng nền cho cả server (không theo phiên), hàng đợi ghi, giới hạn việc nặng/người; nếu cần: nhiều tiến trình Streamlit + worker riêng · nặng:3 · ⬜ · Cấp 2 theo số đo; nghiệm thu: 10 người, màn chính < 2 s · LÀ CỔNG trước mọi luồng M8 tự động gửi API trả phí (sổ ep-2310-m84-gate-before-auto-paid, EP XÁC NHẬN 23/10 22:10 sổ ep-2310-m81-r2-answers, nhắc lại 24/10: cổng = M8.4 KẾ HOẠCH CHÍNH tối ưu tải 10 người; 'M8.4' ở KH 21/10 đọc là M8.0 an toàn tiền)
 > **Tham khảo, CHƯA vào kế hoạch (EP 21/10):** M8.5 phát ảnh/video dạng file tĩnh + ảnh thu nhỏ; M8.6 worker phân tán trên máy người dùng (Claude CLI theo tài khoản từng người, ffmpeg/OpenCV/MediaPipe; không chia gọi API có khóa, ghi CSDL, Blender). Phụ thuộc MÔ HÌNH TÀI KHOẢN EP chưa chốt: (1) cả công ty dùng chung một tài khoản API tính tiền ClipAI/Deepix (không phải tài khoản cá nhân EP) hay (2) tính theo tài khoản đăng nhập từng người → quyết định sổ chi, nơi giữ khóa, quyền gửi job, phân việc worker. Khi EP chốt mô hình tài khoản, phiên chính lập lại M8.5/M8.6.
 
+### M9 — Giám sát và tối ưu theo mốc (người dùng 24/10)
+> Mục tiêu: sau mỗi đợt giám sát (docs/GIAM_SAT_KE_HOACH_V31_*.md; về sau devsys tự cử theo mốc), phát hiện CHẶN/LỚN thành việc NGAY TRONG kế hoạch này (dòng M9.x, hoặc ghi chú "GIÁM SÁT <ngày> (#n)" trên dòng việc bị ảnh hưởng) + một dòng Nhật ký; đề bài Codex / hộp thư chỉ là bước thực hiện. Người dùng 24/10: "Rà soát xong thì cần tối ưu bổ sung trực tiếp vào plan hiện tại".
+> Đợt 1 (24/10, 4,6/10, 16 phát hiện): docs/GIAM_SAT_KE_HOACH_V31_2026-10-24.md. Số # = số phát hiện trong báo cáo.
+- [x] M9.0 · Luật giám sát → kế hoạch: phát hiện CHẶN/LỚN ghi thẳng vào mục này / dòng việc bị ảnh hưởng + Nhật ký trong cùng lượt rà; việc NHỎ gom vào dòng gần nhất · nặng:1 · ✅ · 24/10 người dùng; đợt 1 áp tay (M9.1–M9.12); lịch điều phối bước 3b
+- [ ] M9.1 · Tách "% tiến độ code" và "% cổng đạt thật": ✅code (đã gộp, cờ TẮT/shadow) vs ✅cổng (bằng chứng chạy thật); việc có màn Dashboard chỉ ✅cổng khi có ≥ 1 lần dùng thật (ảnh/ui_step); "việc kế" bỏ qua CHỜ PHỤ THUỘC (#1, #6, #13, #15) · nặng:2 · 🔄 · Codex 1 CX24-G1-PLAN-GATES (parser f1a4365e, 30 test; còn 2 trang devsys sau DEVSYS-FIX 0aeef4c6)
+- [ ] M9.2 · Đo 5 mục tiêu gốc V3 §2 (MT1–MT5, gồm MT3 KPI −50 %) trên BẢN SAO #31/#33, 0 USD — LÀ CỔNG trước khi trình M5.4 (#2) · nặng:2 · ⬜ · Codex CX24-G2-KPI-GOC viết tools/kpi_goc.py (fixture), phiên chính chạy trên bản sao
+- [ ] M9.3 · Đồng bộ sổ lỗi với kế hoạch: gộp việc ✅ thì mã lỗi liên quan → FIXED_UNVERIFIED + tests hoặc ghi lý do (73 mục mở dưới việc ✅); phân loại 41 ca golden BOTH_FAIL; hộp thư cảnh báo ĐANG LÀM > 12 giờ không commit (#3, #10, #11) · nặng:2 · ⬜ · Codex CX24-G3-SO-LOI (+ CX23-M53-MAY phần test sổ lỗi)
+- [x] M9.4 · Test devsys đỏ trên main + ghi "cả bộ xanh" sai (#4) · nặng:1 · ✅ · CX24-DEVSYS-FIX gộp 0aeef4c6 (cả bộ 8274 passed, 1 chập chờn cũ); ghi chú M4.8 đã sửa đúng số
+- [x] M9.5 · M4.6 ✅ khi chưa có dữ liệu benchmark (#5) · nặng:1 · ✅ · 24/10 tách M4.6a KHUNG ✅ / M4.6b DỮ LIỆU ⬜
+- [ ] M9.6 · Gom bằng chứng khóa từng cờ V3.1 (~25 cờ TẮT; K1/K2/K7…) để EP quyết M7.7 theo lô (#7) · nặng:1 · ⬜ · Codex CX24-M77-EVID (ưu 2, tài liệu); quyết bật = Cấp 3 EP
+- [ ] M9.7 · Người không chuyên dùng được: thử thật send_preview_panel trên #34 lấy bằng chứng cổng M4.7; giữ thứ tự M8.0c → M8.2 pha A (#8) · nặng:1 · 🔄 · EP duyệt 24/10, cờ BẬT (sao lưu backup_20261024-123622); chờ #34 tới Bước 4
+- [ ] M9.8 · Quyết định tiền kiểm được phải có check: nối ep-2210-qf… với test_safe_paid_buttons, qd3 ghi pending; 55/74 mục thiếu enforced_by (#9) · nặng:1 · ⬜ · Codex CX24-G4-QUYET-DINH
+- [ ] M9.9 · Hộp thư gọn: một dòng/việc theo trạng thái mới nhất, con trỏ đã đọc từng làn, câu hỏi chưa trả lời không bao giờ bị lưu trữ, tin cũ → hop_thu/luu_tru/, gom commit (#12) · nặng:2 · ⬜ · EP 24/10 duyệt; Codex 3 CX24-HOP-THU-GON (sau G3), RÀ KỸ
+- [x] M9.10 · Hai nghĩa "M8.4" (#14) · nặng:1 · ✅ · EP 24/10: M8.4 = tối ưu tải (kế hoạch chính); KH 21/10 đã ghi chú M8.4 = M8.0
+- [x] M9.11 · Làn cloud HẾT VIỆC (#16) · nặng:1 · ✖ · EP 24/10: chỉ 3 Codex, không dùng lại cloud-D/E
+- [ ] M9.12 · AI Dev System tự cử agent giám sát theo mốc (việc ✅, đợt qua 25/50/75/100 %, nút "🛰 Giám sát ngay"), chấm 3 trục, hiện trên 3 trang, và TỰ GHI phát hiện CHẶN/LỚN vào mục M9 này theo luật M9.0 · nặng:3 · ⬜ · Codex 2 CX24-GIAM-SAT (đề bổ sung 24/10), RÀ KỸ
+
 ## 6. Nhật ký
 
+- 24/10: giám sát đợt 1 (4,6/10) → người dùng: tối ưu bổ sung TRỰC TIẾP vào kế hoạch → thêm M9 (M9.0 luật + 12 việc từ 16 phát hiện), M5.4 thêm cổng M9.2 đo KPI gốc.
 - 23/10 (tối): M8.1 vòng 2 theo góp ý EP — nhãn Cơ bản/Nâng cao, Q-D qd3 hạn mức chi của luồng tự động, cổng M8.4 trước luồng tự động trả phí (dòng M8.2, M8.4), mockup 7 màn; chờ EP duyệt chính thức.
 - 23/10: M8.0 an toàn tiền ✅ gộp main.
 - 23/10: M5.3 pilot vòng A offline DAT_OFFLINE (801 test, 88 s); còn ca MAY_CHINH. M8.0 an toàn tiền đang làm (agent).

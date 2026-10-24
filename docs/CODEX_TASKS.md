@@ -1808,6 +1808,14 @@ devsys/scores.py (_normalize_v2 khoản trừ có bằng chứng, overall/trend)
 - HIỆN trên 3 trang: "Kế hoạch đang chạy" thêm thẻ điểm 3 trục + xu hướng + phát hiện CHẶN/LỚN mở; "Sơ đồ tiến độ" tô việc/đợt có phát hiện (overlay); "Sơ đồ dây chuyền"
   đánh dấu khâu có lỗ hổng. Lịch sử mỗi đợt giám sát devsys/data/giam_sat/*.json + xuất .md.
 - Phát hiện mở → đề xuất giao việc (KHÔNG tự giao): nút "Đưa vào hộp thư" tạo lệnh `hop_thu.py giao` cho phiên chính bấm.
+- BỔ SUNG 24/10 (người dùng: "Rà soát xong thì cần tối ưu bổ sung trực tiếp vào plan hiện tại"; luật M9.0 kế hoạch chính): sau mỗi đợt giám sát, phát hiện
+  CHẶN/LỚN được GHI THẲNG vào file kế hoạch chính (đường dẫn từ devsys/plans.json "chinh"): (a) dòng `- [ ] M9.<n> · … · nặng:N · ⬜ · GIÁM SÁT <ngày> (#k) <nguồn>`
+  trong mục `### M9`, đánh số tiếp, KHÔNG trùng (khóa = mã phát hiện ổn định: trục + file:dòng + loại; đã có dòng thì chỉ thêm ghi chú lần thấy mới);
+  (b) ghi chú ` · GIÁM SÁT <ngày> (#k): …` vào cuối dòng việc bị ảnh hưởng (không đổi trạng thái ✅ có sẵn, không xóa chữ cũ); (c) 1 dòng `## 6. Nhật ký`.
+  Viết qua một hàm `devsys/plan_writer.py apply_findings(plan_path, findings)` idempotent (chạy 2 lần = 1 lần), sao lưu trước, giữ đúng TASK_RE của
+  devsys/plan_progress.py (test: plan_progress đọc được dòng mới), rồi `plan_progress --write`. Commit + push CHỈ file kế hoạch, message `giám sát: …`
+  (giống hop_thu --push: pull --rebase, thử lại). Việc NHỎ: chỉ trong báo cáo, không ghi kế hoạch. Đổi phạm vi/ưu tiên việc cũ = KHÔNG tự làm (phiên chính/EP).
+  Test: kế hoạch giả trong tmp, không đụng file thật.
 Test đỏ→xanh với client mock (không gọi Claude thật trong test): gói bằng chứng đúng nguồn, điểm từ khoản trừ, kích hoạt theo mốc đúng 1 lần, khóa chống chồng, 3 trang hiện
 (AppTest). Khai areas.json. Sau gộp phiên chính khởi động lại 8502. Nhánh `codex/v31-giam-sat`. Phiên chính RÀ KỸ (đụng lịch chạy nền).
 
