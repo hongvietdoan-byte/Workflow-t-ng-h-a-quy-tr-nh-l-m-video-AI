@@ -821,6 +821,12 @@ def _flush_pending(root, git, message=None, tries=3, co_author=""):
                     raise ValueError("file queue không phải file thường")
                 content = source.read_bytes()
                 if hashlib.sha256(content).hexdigest() != row["sha256"]:
+                    # Rà gộp 25/10: core.autocrlf=true checkout lại event đã track thành CRLF;
+                    # bản LF đúng hash manifest = cùng sự kiện, gửi bytes LF đã đăng ký.
+                    normalized = content.replace(b"\r\n", b"\n")
+                    if hashlib.sha256(normalized).hexdigest() == row["sha256"]:
+                        content = normalized
+                if hashlib.sha256(content).hexdigest() != row["sha256"]:
                     raise ValueError("file queue đã đổi; cần đăng ký lại, không gửi snapshot cũ")
                 updates[rel] = content
             manifests.append((path, raw))

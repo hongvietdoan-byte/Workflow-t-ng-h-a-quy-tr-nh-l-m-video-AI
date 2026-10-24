@@ -219,3 +219,23 @@ def test_git_timeout_is_bounded_generic_and_keeps_queue(tmp_path,capsys):
     assert "hết thời gian" in str(error.value)
     assert "Đã gửi" not in capsys.readouterr().out
     assert path.exists() and list((store.local_dir(tmp_path)/"pending").glob("*.json"))
+
+
+def test_crlf_checkout_of_registered_event_still_flushes_lf_bytes(tmp_path):
+    # Rà gộp 25/10: autocrlf đổi event đã track sang CRLF làm kẹt cả hàng chờ.
+    rel = 'hop_thu/su_kien/crlf.json'
+    content = store.canonical({'ts':'2026-10-01T00:00:00+07:00','lane':'phien-chinh','kind':'tin','text':'a'}) + b'\n'
+    path = tmp_path / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    store.queue_path(tmp_path, path)
+    path.write_bytes(content.replace(b'\n', b'\r\n'))
+    git = mock.Mock(return_value=SimpleNamespace(stdout='b'*40,returncode=0))
+    with mock.patch.object(store, '_remote_files', side_effect=[('a'*40,{}),('b'*40,{rel: content})]):
+        assert store.flush_pending(tmp_path,git)['paths'] == 1
+    assert not list(store._local_path(tmp_path,'pending').glob('*.json'))
+    path.write_bytes(content + b' ')
+    store.queue_path(tmp_path, path)
+    path.write_bytes(content + b'x')
+    with pytest.raises(ValueError, match='đăng ký lại'):
+        store.flush_pending(tmp_path, git)
