@@ -817,6 +817,60 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     return text
 
 
+def role_clauses(text: str) -> List[str]:
+    """Các câu vai do builder viết: giữ nguyên cả ràng buộc sau mã ảnh, không chỉ số.
+
+    Builder đặt vai ở đầu mệnh đề ``Image N is/shows``. Một dòng có nhiều vai
+    (identity/place); dấu chấm bên trong vai và câu cấm theo sau thuộc cùng khóa.
+    Không suy vai từ một lần nhắc tên ảnh trong phần diễn biến shot.
+    """
+    out = []
+    for line in (text or "").splitlines():
+        matches = list(re.finditer(r"(?<!\w)@?Image \d+ (?:is|shows)\b", line))
+        for i, match in enumerate(matches):
+            stop = matches[i + 1].start() if i + 1 < len(matches) else len(line)
+            clause = line[match.start():stop].strip()
+            # Một nhãn trần "Image 2 is KELLY" chưa phải câu vai chuẩn. Không
+            # khóa cả phần diễn biến tùy ý sau nhãn của prompt ảnh đời cũ.
+            if any(word in clause for word in ("identity only", "starts with exactly", "render for Shot",
+                                              "use only", "turnaround sheet", "shows the phases", "is the first frame.",
+                                              "is the LAST frame:", "the object ", "the OUTFIT ", "whole body, clothes")):
+                out.append(clause)
+        if not matches and ("banner" in line.lower() and "annotation" in line.lower()):
+            out.append(line.strip())
+    return out
+
+
+def role_conflicts(roles: List[str], text: str) -> bool:
+    """Cùng số ảnh nhưng khai vai khác: không gửi hai chỉ dẫn trái nhau."""
+    expected = {}
+    for role in roles:
+        for clause in role_clauses(role):
+            match = re.match(r"@?Image (\d+) (?:is|shows)\b", clause)
+            if match:
+                expected[int(match.group(1))] = clause
+    for line in (text or "").splitlines():
+        matches = list(re.finditer(r"(?<!\w)@?Image (\d+) (?:is|shows)\b", line))
+        for i, match in enumerate(matches):
+            stop = matches[i + 1].start() if i + 1 < len(matches) else len(line)
+            want = expected.get(int(match.group(1)))
+            if want and not line[match.start():stop].strip().startswith(want):
+                return True
+    return False
+
+
+def keep_roles(assembled: str, rewritten: str, limit: int) -> str:
+    """Khôi phục đoạn KHÓA bằng code, không chi thêm lượt LLM chỉ để chép vai."""
+    roles = role_clauses(assembled)
+    if role_conflicts(roles, rewritten):
+        return assembled
+    missing = [role for role in roles if role not in rewritten]
+    if not missing:
+        return rewritten
+    fixed = rewritten + "\n" + "\n".join(missing)
+    return fixed if len(fixed) <= limit else assembled
+
+
 def prompt_limit(model: Optional[str]) -> int:
     """F1-C: the model's prompt limit in characters — data/provider_rules.json `prompt_limit` (core.video_rules.rule), else the
     adapter's table (clipai.PROMPT_LIMITS), else 5 000 for a model that reads seconds (2.5) / PROMPT_MAX."""
