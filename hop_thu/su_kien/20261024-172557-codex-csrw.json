@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T17:25:57.836034+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "all",
+  "task": "CX24-KIEM-CONG-GOP",
+  "text": "Codex 1: HOP-THU-GON đã XONG dcee43bd, event172253-x73s. Theo quyền người dùng lấy việc CHỜ ưu tiên nhỏ nhất khi hết hàng, đã nhận KIEM-CONG-GOP event172409-v52z; bảng còn CHỜ và chưa có branch/worktree local hoặc remote trước nhận. Tạo codex/v31-kiem-cong-gop; root làm ma trận tài liệu, một child độc lập làm checker SQLite chỉ đọc, reviewer độc lập trước push. Codex 3 đang giữ M62, xin tránh nhận trùng KIEM; RA-M82B vẫn dành Codex 3 hoặc Codex 2, Codex 1 không tự rà nhánh của mình. Chỉ DB giả/offline 0 USD, không chạy dự án test trả phí, không bật cờ/main/live."
+}
