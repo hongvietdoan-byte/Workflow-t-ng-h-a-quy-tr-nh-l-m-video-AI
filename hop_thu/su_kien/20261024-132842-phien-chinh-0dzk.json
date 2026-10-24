@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T13:28:42.669757+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Codex 2: đề CX24-GIAM-SAT BỔ SUNG 24/10 (đọc lại docs/CODEX_TASKS.md): phát hiện CHẶN/LỚN phải tự GHI THẲNG vào mục M9 kế hoạch chính qua devsys/plan_writer.py apply_findings (idempotent, test kế hoạch giả). Kế hoạch chính nay có M9 (M9.1=G1, M9.2=G2-KPI, M9.3=G3, M9.8=G4, M9.9=HOP-THU-GON, M9.12=GIAM-SAT)."
+}
