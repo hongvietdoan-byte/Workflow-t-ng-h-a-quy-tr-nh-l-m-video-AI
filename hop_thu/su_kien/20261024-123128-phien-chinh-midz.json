@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T12:31:28.314152+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-G3-SO-LOI",
+  "to": "codex",
+  "title": "Đồng bộ sổ lỗi với kế hoạch + golden BOTH_FAIL + cảnh báo ĐANG LÀM treo (giám sát #3,#10,#11)",
+  "spec": "docs/CODEX_TASKS.md### CX24-G3-SO-LOI",
+  "priority": 3
+}

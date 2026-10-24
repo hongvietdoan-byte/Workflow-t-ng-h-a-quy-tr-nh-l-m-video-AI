@@ -1791,3 +1791,94 @@ tests/test_v31_m48_sheet_pick.py), Blender giả. Nhánh `codex/v31-beats-cli`.
 Dòng M7.7 kế hoạch chính (K1 send_claim, back_view_guard; K2 video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence; K7 stale_code_alarm, diag_merge,
 budget_notice_d01, send_estimate). Mỗi cờ: test hiện có (tên), ca chạy thật đã có (sổ/nhật ký, golden, replay #31/#33), thiếu gì để khóa, đề xuất ca thử 0 USD còn thiếu.
 KHÔNG bật cờ, KHÔNG ghi CSDL/dashboard.env. Ra `docs/M7_7_BANG_CHUNG_CO_2026-10-2x.md` để phiên chính trình EP từng cờ (Cấp 3). Nhánh `codex/v31-m77-evid`.
+
+### CX24-GIAM-SAT — AI Dev System cử agent GIÁM SÁT kế hoạch build theo mốc (ưu tiên 2; NGƯỜI DÙNG YÊU CẦU 24/10; Cấp 1 tooling devsys; 0 USD API)
+Người dùng 24/10: dựa vào 3 mục devsys "📋 Kế hoạch đang chạy" (app.py page_plan :958), "🗺 Sơ đồ tiến độ" (page_plan_map :1033), "🧭 Sơ đồ dây chuyền"
+(page_pipeline_maps :1064), AI Dev System phải cử agent chấm điểm + rà soát + giám sát kế hoạch chính (devsys/plans.json "chinh") theo 3 trục:
+(1) ĐÚNG HƯỚNG so mục tiêu gốc (docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md §2, §8) và cổng nghiệm thu (master §3, §4a);
+(2) LỖI / LỖ HỔNG phát sinh khi build (trạng thái kế hoạch lệch thực tế, test hỏng trên main, quyết định thiếu check, cờ thiếu test TẮT=byte cũ, đường trả phí mới chưa xác nhận, việc rơi giữa làn);
+(3) CHẤT LƯỢNG DASHBOARD theo từng mốc (màn của đợt có mặt, sau cờ nào, nút tốn tiền có xác nhận, người không chuyên dùng được).
+Đợt 1 làm tay đã có: `docs/GIAM_SAT_KE_HOACH_V31_2026-10-24.md` (phiên chính cử agent; có mục "RUBRIC ĐỀ XUẤT") — ĐỌC TRƯỚC, mã hóa đúng rubric đó.
+Làm (TÁI DÙNG khung chấm sẵn có, KHÔNG viết khung thứ hai): devsys/scorer.py (build_bundle/plan/estimate/run/make_client claude_cli|mock/import_score),
+devsys/scores.py (_normalize_v2 khoản trừ có bằng chứng, overall/trend), devsys/rubric.md, spawn (app.py:124):
+- `devsys/rubric_plan.md` (3 trục, khoản trừ CHẶN/LỚN/NHỎ, trọng số 0,4/0,35/0,25) + "khu vực" kiểu `plan:V3.1` để scorer gom gói bằng chứng KẾ HOẠCH (mục tiêu gốc,
+  bảng việc + trạng thái, plan_progress, decisions check, errors.json, đối soát devsys/doi_soat.py, git log, hộp thư bang, kết quả test gần nhất, cờ core.features) — điểm do CODE tính từ khoản trừ.
+- KÍCH HOẠT THEO MỐC: tự cử khi (a) một việc kế hoạch chính chuyển ✅, (b) một đợt M qua 25/50/75/100 %, (c) nút "🛰 Giám sát ngay" — chạy nền bằng spawn + claude_cli
+  (lượt gói, 0 USD API); chống chạy chồng (khóa), log devsys/data/; ước tính trước khi chạy như scorer.estimate.
+- HIỆN trên 3 trang: "Kế hoạch đang chạy" thêm thẻ điểm 3 trục + xu hướng + phát hiện CHẶN/LỚN mở; "Sơ đồ tiến độ" tô việc/đợt có phát hiện (overlay); "Sơ đồ dây chuyền"
+  đánh dấu khâu có lỗ hổng. Lịch sử mỗi đợt giám sát devsys/data/giam_sat/*.json + xuất .md.
+- Phát hiện mở → đề xuất giao việc (KHÔNG tự giao): nút "Đưa vào hộp thư" tạo lệnh `hop_thu.py giao` cho phiên chính bấm.
+- BỔ SUNG 24/10 (người dùng: "Rà soát xong thì cần tối ưu bổ sung trực tiếp vào plan hiện tại"; luật M9.0 kế hoạch chính): sau mỗi đợt giám sát, phát hiện
+  CHẶN/LỚN được GHI THẲNG vào file kế hoạch chính (đường dẫn từ devsys/plans.json "chinh"): (a) dòng `- [ ] M9.<n> · … · nặng:N · ⬜ · GIÁM SÁT <ngày> (#k) <nguồn>`
+  trong mục `### M9`, đánh số tiếp, KHÔNG trùng (khóa = mã phát hiện ổn định: trục + file:dòng + loại; đã có dòng thì chỉ thêm ghi chú lần thấy mới);
+  (b) ghi chú ` · GIÁM SÁT <ngày> (#k): …` vào cuối dòng việc bị ảnh hưởng (không đổi trạng thái ✅ có sẵn, không xóa chữ cũ); (c) 1 dòng `## 6. Nhật ký`.
+  Viết qua một hàm `devsys/plan_writer.py apply_findings(plan_path, findings)` idempotent (chạy 2 lần = 1 lần), sao lưu trước, giữ đúng TASK_RE của
+  devsys/plan_progress.py (test: plan_progress đọc được dòng mới), rồi `plan_progress --write`. Commit + push CHỈ file kế hoạch, message `giám sát: …`
+  (giống hop_thu --push: pull --rebase, thử lại). Việc NHỎ: chỉ trong báo cáo, không ghi kế hoạch. Đổi phạm vi/ưu tiên việc cũ = KHÔNG tự làm (phiên chính/EP).
+  Test: kế hoạch giả trong tmp, không đụng file thật.
+Test đỏ→xanh với client mock (không gọi Claude thật trong test): gói bằng chứng đúng nguồn, điểm từ khoản trừ, kích hoạt theo mốc đúng 1 lần, khóa chống chồng, 3 trang hiện
+(AppTest). Khai areas.json. Sau gộp phiên chính khởi động lại 8502. Nhánh `codex/v31-giam-sat`. Phiên chính RÀ KỸ (đụng lịch chạy nền).
+
+> Các việc CX24-G* dưới đây chuyển từ phát hiện LỚN/NHỎ của `docs/GIAM_SAT_KE_HOACH_V31_2026-10-24.md` (người dùng duyệt 24/10 "chuyển phát hiện LỚN thành việc cho Codex"). Số # = số phát hiện trong báo cáo.
+
+### CX24-G1-PLAN-GATES — tách "% tiến độ code" và "% cổng đạt thật" (#1, #6, #13, #15; ưu tiên 2; Cấp 1 tooling devsys; 0 USD)
+- Trạng thái việc kế hoạch chính có 2 lớp: ✅code (đã gộp, cờ TẮT/shadow) và ✅cổng (cổng nghiệm thu §3/§4a có bằng chứng CHẠY THẬT: commit/ảnh/nhật ký ui_step/sổ chi). Cú pháp ghi
+  trong dòng kế hoạch (vd `cổng: ✅ <bằng chứng>` / `cổng: ⬜ <thiếu gì>`) — tương thích ngược: dòng cũ không có = cổng ⬜. `devsys/plan_progress.py` + `tools/plan_progress.py`
+  in HAI cột (% code, % cổng) mỗi đợt + tổng; trang "📋 Kế hoạch đang chạy" và "🗺 Sơ đồ tiến độ" hiện cả hai (sơ đồ tô khác màu ✅code vs ✅cổng).
+- Luật #6: việc có màn Dashboard chỉ được ✅cổng khi có ≥ 1 lần dùng thật (ảnh chụp hoặc nhật ký ui_step) — check trong plan_progress, cảnh báo nếu thiếu.
+- #13: chọn "việc kế" bỏ qua việc ghi "CHỜ PHỤ THUỘC" / ⏸ chưa đủ điều kiện.
+- #15: sửa docstring cũ `dashboard/stage_desk_ui.py:9,25` ("không có N12").
+- Điền sẵn cột cổng cho M0–M8 theo bảng mục 3 của báo cáo giám sát (bằng chứng ghi rõ; không chắc → ⬜). KHÔNG đổi ✅ hiện có thành khác (chỉ thêm lớp cổng).
+Test đỏ→xanh (kế hoạch giả). TRÙNG devsys/app.py với CX24-DEVSYS-FIX và CX24-GIAM-SAT → làm SAU khi DEVSYS-FIX gộp; phần trang làm trước GIAM-SAT nối trang. Nhánh `codex/v31-plan-gates`.
+
+### CX24-G2-KPI-GOC — đo 5 mục tiêu gốc V3 §2 (#2; ưu tiên 2; Cấp 1 đo; 0 USD)
+Mục tiêu đo được: docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md dòng 23–29, nghiệm thu §8 dòng 139. Viết `tools/kpi_goc.py`: mỗi KPI một hàm đo từ nguồn có sẵn (CSDL mode=ro,
+sổ chi, sổ lỗi devsys/errors.json, golden/replay, lineage) — riêng MT3 "lỗi lọt cổng −50 %" định nghĩa mốc gốc (#24/#27/#31) và cách đếm. Ra bảng mốc gốc vs hiện tại + "chưa đo được vì".
+Codex CHỈ test bằng fixture giả (không đọc dữ liệu thật) — phiên chính chạy `--ban-sao` trên bản sao #31/#33 rồi ghi kết quả vào kế hoạch. Đề xuất thêm dòng việc "M5.3b đo 5 KPI gốc
+(cổng trước M5.4)" trong báo cáo (phiên chính ghi vào kế hoạch). Nhánh `codex/v31-kpi-goc`.
+
+### CX24-G3-SO-LOI — đồng bộ sổ lỗi với kế hoạch (#3, #10, #11; ưu tiên 3; Cấp 1; 0 USD)
+- `devsys/errors.json`: 73 mục OPEN/IN_PROGRESS có plan_task trỏ việc đã ✅; 0 VERIFIED; 65 mục chưa test. Viết check `py -m devsys.errors check` (hoặc thêm vào module sổ lỗi sẵn có):
+  việc ✅ mà mã lỗi liên quan còn OPEN → báo; đề xuất chuyển FIXED_UNVERIFIED khi có test/commit chứng minh (ghi `tests`, `fix_commit`), không có thì ghi lý do. KHÔNG tự đánh VERIFIED
+  (VERIFIED cần chạy thật). Áp dụng phần có bằng chứng, xuất danh sách còn lại.
+- #10: phân loại 41/158 ca golden A/B BOTH_FAIL (thiếu đầu vào hay lỗi replay) từ báo cáo docs/RA_CX21_GOLDEN7_MAYCHINH_2026-10-22.md → mục sổ lỗi.
+- #11: `tools/hop_thu.py bang` cảnh báo việc ĐANG LÀM > 12 giờ mà không có commit trên nhánh (đề xuất về CHỜ, không tự đổi).
+Test đỏ→xanh. Nhánh `codex/v31-so-loi-sync`.
+
+### CX24-G4-QUYET-DINH — nối quyết định tiền với check (#9; ưu tiên 3; Cấp 1; 0 USD)
+55/74 quyết định active không `enforced_by` (data/decisions.json). Ưu tiên 3 quyết định tiền: `ep-2210-qf…` nối test_safe_paid_buttons; `ep-2310-qd3…` (hạn mức chi luồng tự động) ghi
+`pending` + check khi CX23-M82 có hàm lõi; `v31-m6-generation-limits-policy-b…` nối check bộ đếm E4. Sau đó liệt kê các quyết định còn lại kiểm được bằng code → đề xuất check (không sửa
+chữ mục cũ; mục mới thay bằng `replaces` — quy ước 8). Chạy `py -m core.decisions check` + tests/test_decisions.py. Nhánh `codex/v31-quyet-dinh-check`.
+
+### CX24-HOP-THU-GON — tối ưu hộp thư: gộp theo trạng thái, lưu trữ tin cũ, ít commit, KHÔNG sót tin (giám sát #12; ưu tiên 3; người dùng DUYỆT 24/10; Cấp 1 tooling; 0 USD)
+Người dùng 24/10: "tìm cách tối ưu hóa hộp thư, tin cũ loại bỏ, gộp lại theo trạng thái và tin mới nhất, tránh để miss thông tin". Hiện tin hộp thư = 47 % commit main 7 ngày.
+1. GỘP THEO TRẠNG THÁI: `bang` mỗi mã MỘT dòng = trạng thái mới nhất + người giữ + commit/nhánh + tin mới nhất của mã; lịch sử mã xem bằng `hop_thu.py lich-su <mã>`.
+2. KHÔNG SÓT TIN: mỗi làn có con trỏ đã-đọc (file nhỏ theo làn, trong git). `hop_thu.py chua-doc --lane <làn>` liệt kê MỌI tin/hỏi gửi làn đó chưa xác nhận (kể cả đã lưu trữ);
+   `da-doc --lane <làn> [--den <id>]` xác nhận. `bang` đầu trang có "Chưa đọc: làn → số". Câu HỎI chưa trả lời KHÔNG BAO GIỜ bị lưu trữ.
+3. LƯU TRỮ TIN CŨ: sự kiện của mã đã GỘP/BỎ > 3 ngày và tin thường đã được làn nhận đọc > 3 ngày → gộp vào `hop_thu/luu_tru/<yyyy-mm>.jsonl` (một file/tháng), xóa file sự kiện lẻ;
+   `bang`/trạng thái tính từ cả lưu trữ (kết quả bảng TRƯỚC/SAU lưu trữ giống hệt — test).
+4. ÍT COMMIT: tin thường xếp hàng cục bộ, đẩy GOM một commit "hộp thư: lô N sự kiện" (khi có sự kiện hỏi/xong/gop/giao thì đẩy NGAY cả lô); `--push` giữ tương thích.
+   Đồng thời hai phiên đẩy: giữ cơ chế thử lại hiện có, không mất sự kiện (test 2 tiến trình).
+5. Cập nhật hop_thu/README.md + hop_thu/LICH_DIEU_PHOI.md (bước đọc dùng `chua-doc`) — đề xuất sửa LICH_DIEU_PHOI ghi trong báo cáo, phiên chính áp.
+Test đỏ→xanh: không mất tin khi lưu trữ; hỏi chưa trả lời không bị lưu trữ; bảng trước/sau giống; lô đẩy đúng. TRÙNG tools/hop_thu.py với CX24-G3-SO-LOI (#11) → làm SAU G3, cùng phiên.
+Nhánh `codex/v31-hop-thu-gon`. Phiên chính RÀ KỸ (đường trao đổi của mọi làn).
+
+### CX24-M82B — API core gửi gen ảnh THEO SHOT (cho chế độ Cơ bản giữ HOLD từng shot E4)
+Giao: Codex 1 (sau CX24-G1-PLAN-GATES). Mức rà: RÀ KỸ (đụng tiền + vòng đời job). Nhánh `codex/v31-m82b-targeted`.
+- `core/batch.py:141 queue_images(...)`: thêm tham số `scene_ids: Optional[Iterable[int]] = None`; khi có thì lọc CẢ `fresh` lẫn `redo_ids`
+  theo tập này (sau `pilot.allowed_scenes`, trước `image_gates`), cổng `image_gates(scene_ids=...)` chỉ xét shot được gửi. Mặc định None = hành vi cũ y hệt.
+  Trả về thêm `job_ids` mới tạo để bên gọi truyền `only=`.
+- `core/runner.py:382 submit_pending(only=...)` ĐÃ CÓ: UI Cơ bản gọi với `only=job_ids` của tập shot đã xác nhận; shot đang HOLD E4 không bị gửi.
+- Không đổi luồng tự động/autopilot/bg_poll (vẫn gọi không có scene_ids). Không có giá mới: giá ước tính tính trên đúng tập shot gửi (dùng hàm giá hiện có, không tính tay).
+- Test (fixture, 0 USD): (1) scene_ids=None → kết quả giống hệt trước (so job tạo ra); (2) chọn 2/4 shot → chỉ 2 job, shot HOLD không có job; (3) shot ngoài pilot vẫn bị chặn;
+  (4) redo shot cũ ngoài tập không bị tạo lại; (5) cổng chặn chỉ tính shot được gửi; (6) submit_pending(only=) không gửi job shot khác đang chờ.
+- Sau gộp: nối UI M82 (bỏ fail-closed HOLD cả lô → HOLD từng shot). Khai `devsys/areas.json` nếu có file mới, không tăng version.
+
+### CX24-KIEM-CONG-GOP — Bảng + công cụ kiểm cổng gộp cho dự án test 25/10 (M9.13; ưu tiên 1; Cấp 1; 0 USD)
+Giao: Codex 3 (vừa xong M77-EVID). Hạn: trước 25/10 08:00. Nhánh `codex/v31-kiem-cong-gop`. Không điều khiển máy (AGENTS.md), không dữ liệu thật, không API.
+EP 24/10: "code xong nhiều mà cổng chưa đạt → gộp vào kiểm tra, sửa cho đạt 1 lượt". Dự án test 25/10: clip rối funny 30–50 s (~8–12 shot), trần 20 USD, A/B gói gọn (lean_package) nửa số shot.
+1. `docs/KIEM_CONG_GOP_2026-10-25.md`: MỌI việc kế hoạch chính có ✅code mà cổng ⬜ (đọc bằng devsys/plan_progress.py lớp cổng của G1) → cột: việc · tiêu chí cổng (master §3/§4a + dòng việc) · cờ phải BẬT (đối chiếu docs/M7_7_BANG_CHUNG_CO_2026-10-24.md) · bằng chứng cần thu · thu ở bước Dashboard nào / bảng CSDL nào / file nào · KIỂM ĐƯỢC trên 1 dự án (CÓ / KHÔNG → cách đo offline 0 USD) · rủi ro khi bật.
+   Cuối file: DANH SÁCH CỜ ĐỀ XUẤT BẬT cho buổi test (gộp từ bảng), cờ giữ học việc/chỉ báo (chặn hoặc tự tiêu tiền), thứ tự bước chạy dự án và điểm dừng hỏi EP (gen ảnh, gen video, 1080p).
+2. `tools/kiem_cong.py --project N [--since <ts>] [--md out.md]` CHỈ ĐỌC (sqlite mode=ro như pilot_a --may-chinh): sau dự án, tự gom bằng chứng từng dòng bảng (jobs/sent_package/diag_events/ui_step/sổ chi/qc/overrides) → ĐẠT / CHƯA ĐẠT / THIẾU DỮ LIỆU kèm lý do; tái dùng tools/kpi_goc.py (G2) nếu đã có, pilot_a, core.cost.
+   Test fixture CSDL giả: đủ / thiếu / lỗi từng loại bằng chứng; không bao giờ báo ĐẠT khi thiếu dữ liệu.
+Khai devsys/areas.json, không tăng version. Báo XONG kèm số dòng bảng + số kiểm được trên 1 dự án.

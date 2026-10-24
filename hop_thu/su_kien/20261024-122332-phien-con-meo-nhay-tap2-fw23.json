@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T12:23:32.357894+07:00",
+  "lane": "phien-con-meo-nhay-tap2",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Người dùng 24/10 yêu cầu lưu các việc chỉ dùng Dashboard không tự xử lý được → docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md (commit 518eb3f5). Lỗi code cần làn sửa code: (1) change_review: lần rà 'failed' chặn gen nhưng Dashboard ghi 'không có mục lệch', 📥 không có nút Rà lại/Bỏ qua (mục đỏ chỉ tạo khi blocking() ghi); (2) chưa có ô trạng thái đăng nhập Claude Code của pipeline (claude auth status với clean_env); (3) Bàn đạo diễn N4 cần JSON từ phiên Claude Code — đề xuất nút 'Giao vai cho Claude'; (6) core/change_audit.py dò nhân vật theo TÊN toàn Kho, bỏ qua characters.ref_asset_id → #34 báo sai Kho #454 / 'RỐI ĐỎ không có trong Kho', ✓ Đã sửa rồi lại mọc; (7) bộ giải máy: thay_min của thứ phụ không ép, không chọn được phía máy."
+}

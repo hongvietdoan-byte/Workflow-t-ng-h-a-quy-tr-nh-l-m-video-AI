@@ -107,3 +107,55 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
 - `pregen_check` lần 4 (`pregen_check_4.txt`): 1 ảnh ≈ 0.22 usd (tối đa 0.88); video bản cao 1 shot ≈ 7.84 USD; cổng không có; nền 3D 0 shot
   chưa sẵn; **CÒN CHẶN** duy nhất: Tổ rà soát lỗi OAuth Claude Code hết hạn. Còn phải khóa Character Bible trước khi gen
   (`image_model` CSDL = gpt-image-2.5-sunburst; "Ảnh: deepix" trên Dashboard là nhà cung cấp).
+- 24/10 người dùng "đã đăng nhập claude, rà lại và khóa Character Bible": **khóa Character Bible** (nút ✔ Duyệt & khóa → Storyboard,
+  0 USD; RỐI TÍM/ĐỎ locked = 1, dự án vẫn paused). Đóng 3 mục cũ của Tổ rà soát (✓ Đã sửa). **Rà lại** 13 lần lỗi (gọi đúng hàm nút
+  ↻ Rà lại vì Dashboard không hiện nút — xem `docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md` mục 1) → vẫn LỖI OAuth: `claude auth status`
+  của pipeline = `loggedIn: false` (tệp đăng nhập vẫn 23/10 23:03). `pregen_check` lần 5 (`pregen_check_5.txt`): 1 ảnh ≈ 0.22 usd (tối đa
+  0.88), CÒN CHẶN duy nhất vì Tổ rà soát.
+- 24/10 người dùng `/login` trong terminal máy chính → `claude auth status` (môi trường pipeline) `loggedIn: true` (claude.ai). Rà lại 13 thay
+  đổi: reviewed 13, failed 0, sổ chi ghi 0.253 USD (claude_cli). Còn 2 mục vàng báo SAI (luật dò tên Kho — DASHBOARD_CHUA_TU_LAM_DUOC mục 6).
+- **`pregen_check` lần 6 (`pregen_check_6.txt`): mã thoát 0 — "GEN ĐƯỢC — xin duyệt với giá ≈ 0.22 usd"** (tối đa 0.88): ảnh khung đầu
+  0.052 · D6 0.088 · QC 0.065 · Claude khác 0.014. Video bản cao (cổng riêng) ≈ 7.84 USD. **DỪNG ở cổng gen ảnh, chờ người dùng "gen".**
+- **24/10 12:46 người dùng "Chấp nhận duyệt" → gen ảnh khung đầu trên Dashboard** (▶ Tiếp tục bỏ tạm dừng → ▶ Gen ảnh … ≈ 0.22 USD →
+  Có, chạy). Job 1197 `succeeded` 12:51 → `data/projects/34/images/job_1197.png` (gpt-image-2.5-sunburst, 1152×2048), sổ chi ghi 1 ảnh
+  (deepix). Bản sao gửi người dùng: `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/anh_khung_dau_job1197.png`. Ảnh: RỐI TÍM đứng một chân
+  dang tay, RỐI ĐỎ ngồi cầm điện thoại, biệt thự trái, cây phải, 1/3 dưới nền đá trống (chỗ ghép mèo thật). Claude tự kiểm ảnh còn
+  "đang tự kiểm tra" sau > 6 phút (chưa có qc_results). **Chờ người dùng duyệt ảnh; gen video là cổng riêng (≈ 7.84 USD bản cao).**
+- 24/10 người dùng so ảnh 1197 với 2 con mèo: mèo xám có di chuyển (nghiêng, nhổm dậy bước theo ở ~3 s) → **RỐI ĐỎ ngồi XỔM** (không
+  ngồi bệt duỗi chân), quay lưng nửa về máy, nhìn RỐI TÍM; **điện thoại thường** (vỏ xanh đậm, 1 ống kính, không logo, KHÔNG iPhone).
+  Giữ chỗ đứng sân khấu đã duyệt. Ảnh so sánh `so_sanh_meo_vs_anh1197.jpg`. Sửa `scenes.data` (image_prompt, action, performance.body)
+  + `motion_prompts` (vai ĐỎ: ngồi xổm, nghiêng, nhổm dậy bước theo, về lại thế xổm; negative thêm "no iPhone, no brand logo")
+  — sao lưu `data/_luu_tru_manifest_truoc_p34_ngoi_xom_1314.sqlite`. Tổ rà soát rà 2 thay đổi (0.12 USD), 0 chặn; mục vàng #903/#905
+  lại là luật dò tên Kho #454 (báo sai). QC tự kiểm ảnh 1197 = giữ (0.00). `pregen_check_7`: mã 0. Vẽ lại 1 ảnh ≈ 0.16 USD chờ duyệt.
+- 24/10 người dùng "Vẽ lại … dáng ngồi", rồi nói rõ **ngồi xổm = mông không chạm đất**. Vẽ lại trên Dashboard (Câu sửa tiếng Anh + Lý do
+  "Nhân vật sai" — nút ↻ Vẽ lại bị khóa tới khi chọn lý do) → job 1197 `rejected`, **job 1198 `succeeded`** (`job_1198.png`, bản sao
+  `anh_khung_dau_job1198_ngoi_xom.png`, so sánh `so_sanh_1197_vs_1198.jpg`): RỐI ĐỎ ngồi xổm, mông không chạm đất, lưng nửa về máy, điện
+  thoại đen trơn. Khác bản cũ: RỐI TÍM mặc áo xanh + quần xanh đậm (đúng must_keep Kho), góc phải trời có trăng. Chờ người dùng duyệt ảnh.
+
+## 10. Video + hậu kỳ (24/10, người dùng "Duyệt làm đến video cuối cùng")
+- Trên Dashboard: ✔ Duyệt ảnh 1198 → (sửa motion: "colours fixed … no other colour" → "colours, clothes and the phone exactly as in
+  the first image" vì Tổ rà soát #903/#905 cảnh báo nhuộm đồ xanh RỐI TÍM; rà lại 0.10 USD) → ✔ Duyệt tất cả (1 prompt) → Có (chờ 30 s)
+  → ▶ Gen video (ước tính 2 clip ≈ 6.16 vì shot ⭐ hero, thực tế gửi 1) → **job 1199 nháp 480p** (Dashboard "đã chi 1.34 USD"): RỐI ĐỎ
+  ngồi xổm, nhổm dậy đá chân/bước theo ở ~3 s, về lại thế xổm; RỐI TÍM theo đúng bài mèo cam → ✔ Duyệt clip → ⬆ Gen bản cao (≈ 6.85 USD)
+  → **job 1200 bản cao 1080×1920** 24 fps 12,6 s (sổ chi 13,04 s 1080p). Bản sao `clip_ai_1080p_job1200.mp4`.
+- Hậu kỳ (ngoài Dashboard, 0 USD) `hau_ky/hau_ky.sh`: nền = clip AI phóng 1080×1920 30 fps; mèo = TikTok cắt vùng 880×900 (x 100, y 640 —
+  khung bao mèo cả clip x 120–961, y 662–1528), `chromakey 0x00FF00:0.16:0.08 + despill`, thu 480 px rộng, giữa đáy; chữ UTM Impact 64
+  viền đen 5: dòng 1 trắng "Cốt tôi var cực mạnh với team địch", dòng 2 vàng "Tôi và Con Rối team địch kiểu:" (y 120 / 205); tiếng gốc
+  TikTok; cắt 12,6 s. **Bản giao `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/MEO_NHAY_TAP2_FINAL.mp4`** (12,5 MB) — đã gửi người dùng.
+- Chi phí lượt này: ảnh 2 × gpt-image (job 1197, 1198) + nháp 1.34 + bản cao ≈ 6.85 (ước tính) + Claude rà soát 0.12 + 0.10.
+
+## 11. Sửa điện thoại cầm ngược (24/10)
+- Người dùng: điện thoại quay lưng, ống kính về chính RỐI ĐỎ. Đúng: ảnh 1198 + clip 1199/1200 thấy LƯNG máy có ống kính quay về người
+  xem, màn hình quay về RỐI TÍM (mèo xám: màn hình quay về nó/máy quay). Ảnh `loi_huong_dien_thoai.jpg`.
+- Sửa `image_prompt`: lưng máy + ống kính hướng RỐI TÍM, màn hình sáng hướng RỐI ĐỎ và máy quay, thấy màn hình hiện RỐI TÍM qua vai;
+  motion cùng ý + negative "no phone held backwards, no phone lens facing the filmer". Tổ rà soát 0.11 USD.
+- Dashboard "↻ Gen lại theo nội dung mới" → **ảnh 1201** (`anh_khung_dau_job1201_dien_thoai_dung.png`, máy cầm ngang) → người dùng duyệt,
+  chọn "ảnh + thẳng bản cao" — nhưng **Seedance 2.5 không có 1080p trực tiếp** (luật API; chỉ nháp 480p → nâng) → hỏi lại, chọn nháp → 1080p.
+- Duyệt lại motion (đã "cũ" vì ảnh thay; nút ✔ Duyệt của shot, KHÔNG bấm 🤖 Viết motion — sẽ ghi đè bản sửa tay).
+- **Lỗi job 1202 (nháp)**: chữ "CHARACTER SHEET REFERENCE" + dấu + đỏ in cứng cả clip. Nguyên nhân: D6 viết lại prompt khi "↻ Gen lại theo
+  ảnh/prompt mới" làm rơi câu vai ảnh "Image 2/3 … identity only" (1199 còn) → Seedance chép bố cục ảnh Kho 456/457. Đã báo phiên chính
+  (hộp thư 20261024-151304). Chặn tạm: thêm câu "Image 2/3 identity sheets only — never copy banner/text/plus marks" vào motion + negative.
+  Kiểm "📦 Gói sẽ gửi → Dựng gói (0 USD)" trước khi gửi.
+- **Job 1203 nháp** sạch, điện thoại đúng chiều từ ~4 s (0–3 s RỐI ĐỎ nhổm dậy, máy nghiêng cạnh) → ✔ Duyệt clip → ⬆ Gen bản cao → **job 1204
+  1080p**. Hậu kỳ cùng `hau_ky/hau_ky.sh` → **`MEO_NHAY_TAP2_FINAL.mp4` (bản mới)**; bản cũ đổi tên `MEO_NHAY_TAP2_FINAL_v1_dien_thoai_nguoc.mp4`.
+- Chi phí thêm lượt này: ảnh 1201 ≈ 0.16 · nháp 1202 (hỏng) + nháp 1203 ≈ 1.34 × 2 · bản cao 1204 ≈ 6.85 · rà soát 0.11.

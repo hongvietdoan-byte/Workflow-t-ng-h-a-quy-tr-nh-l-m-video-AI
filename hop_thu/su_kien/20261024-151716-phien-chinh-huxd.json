@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T15:17:16.079820+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-KIEM-CONG-GOP",
+  "to": "codex",
+  "title": "Bảng + công cụ kiểm cổng gộp cho dự án test 25/10 (M9.13)",
+  "spec": "docs/CODEX_TASKS.md### CX24-KIEM-CONG-GOP",
+  "priority": 1
+}

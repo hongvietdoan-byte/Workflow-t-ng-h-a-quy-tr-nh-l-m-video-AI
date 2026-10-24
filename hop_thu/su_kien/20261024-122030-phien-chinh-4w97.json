@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T12:20:30.075382+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Lưu ý trùng file: CX24-GIAM-SAT (Codex 2) và CX24-DEVSYS-FIX (Codex 1) có thể cùng sửa devsys/app.py. Codex 2 làm phần lõi (rubric_plan.md, gói bằng chứng, kích hoạt theo mốc, test mock) trước; phần nối 3 trang trong devsys/app.py chỉ làm SAU khi DEVSYS-FIX đã gộp main (rebase trước)."
+}

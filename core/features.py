@@ -12,6 +12,8 @@ import os
 from typing import Dict, List, Optional
 
 FEATURES: Dict[str, Dict] = {
+    "simple_mode": {"label": "Chế độ Cơ bản", "verified": False, "costs": False,
+                    "why": "M82: chưa nghiệm thu giao diện; không tự gửi API trả phí, cờ mặc định TẮT"},
     'kho_forms_v2': {'label': 'Đọc Kho forms/outfit/hair/face v2', 'costs': False,
                      'verified': False, 'why': 'M2.3: chỉ thử ngoại tuyến; không migration'},
     'subject_capacity_guard': {'label': 'Kho đầy / chưa rõ sức chứa → giữ job chờ, không đổi model',

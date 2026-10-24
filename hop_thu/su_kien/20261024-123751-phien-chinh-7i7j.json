@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T12:37:51.146261+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-HOP-THU-GON",
+  "to": "codex",
+  "title": "Tối ưu hộp thư: gộp theo trạng thái, lưu trữ tin cũ, ít commit, không sót tin (giám sát #12)",
+  "spec": "docs/CODEX_TASKS.md### CX24-HOP-THU-GON",
+  "priority": 3
+}

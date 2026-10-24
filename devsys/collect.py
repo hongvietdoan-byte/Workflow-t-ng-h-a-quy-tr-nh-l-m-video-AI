@@ -639,15 +639,55 @@ def _features_rule(root: str, from_file: Dict[str, str]):
     settings_path() is <root>/data/feature_settings.json: the 🧪 screen choice and preset), its `_env` widened to dashboard.env (the
     environment still wins, as core/adapters/check.load_dashboard_env does). None when that file has no `on()` (another repo / a test
     repo) — the caller then keeps the ast reading."""
+    import importlib.abc
+    import importlib.machinery
     import importlib.util
+    import types
+    import uuid
+    import weakref
     path = os.path.join(root, "core", "features.py")
+
+    class SourceOnlyLoader(importlib.machinery.SourceFileLoader):
+        def get_code(self, fullname):
+            # Snapshot phải đọc source hiện tại kể cả size/mtime giữ nguyên; không ghi/xóa pyc.
+            return self.source_to_code(self.get_data(self.path), self.path)
+
+    tag = hashlib.sha1(os.path.abspath(path).encode("utf-8")).hexdigest()[:10]
+    package_name = f"_devsys_core_{tag}_{uuid.uuid4().hex}"
+
+    class SnapshotFinder(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, search_path=None, target=None):
+            if not fullname.startswith(package_name + "."):
+                return None
+            found = importlib.machinery.PathFinder.find_spec(fullname, search_path)
+            if found and isinstance(found.loader, importlib.machinery.SourceFileLoader):
+                found.loader = SourceOnlyLoader(fullname, found.origin)
+            return found
+
+    finder = SnapshotFinder()
+
+    def release_snapshot():
+        # Namespace riêng: collect đồng thời không xóa import của nhau.
+        for name in tuple(sys.modules):
+            if name == package_name or name.startswith(package_name + "."):
+                sys.modules.pop(name, None)
+        if finder in sys.meta_path:
+            sys.meta_path.remove(finder)
+
     try:
-        tag = hashlib.sha1(os.path.abspath(path).encode("utf-8")).hexdigest()[:10]
-        spec = importlib.util.spec_from_file_location(f"_devsys_features_{tag}", path)
+        # Mỗi rule giữ package và dependencies riêng tới khi closure không còn được dùng.
+        package = types.ModuleType(package_name)
+        package.__path__ = [os.path.dirname(path)]
+        sys.modules[package_name] = package
+        sys.meta_path.insert(0, finder)
+        name = f"{package_name}.features"
+        spec = importlib.util.spec_from_file_location(name, path, loader=SourceOnlyLoader(name, path))
         mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
         spec.loader.exec_module(mod)
         on, why, state_of = mod.on, getattr(mod, "why_state", None), getattr(mod, "state", None)
     except (OSError, ImportError, SyntaxError, AttributeError, ValueError, TypeError) as e:
+        release_snapshot()
         return None, f"{type(e).__name__}: {e}"
     env_of = getattr(mod, "_env", None)
 
@@ -663,6 +703,7 @@ def _features_rule(root: str, from_file: Dict[str, str]):
             return is_on, (why(name) if why else "core.features.on"), (state_of(name) if state_of else ("on" if is_on else "off"))
         except KeyError:                         # in the ast FEATURES but not in the loaded module: say so, never guess silently
             return None, "cờ không có trong FEATURES khi nạp core/features.py", None
+    weakref.finalize(rule, release_snapshot)
     return rule, ""
 
 

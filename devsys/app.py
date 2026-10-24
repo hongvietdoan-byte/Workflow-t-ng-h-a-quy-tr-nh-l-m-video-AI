@@ -813,7 +813,8 @@ def _task_row(t: dict, key: str, detail: bool = True) -> None:
     full = t["title"]
     extra = bool(t["note"] or t["commit"] or len(full) > 96 or True)
     c1, c2 = st.columns([14, 1], vertical_alignment="center")
-    c1.markdown(f"<div class='row'><span class='chip {STATUS_BAND[t['status']]}'>{t['status']} {plan_progress.STATUS[t['status']]}</span> "
+    c1.markdown(f"<div class='row'><span class='chip {STATUS_BAND[t['status']]}'>{t['status']} code {plan_progress.STATUS[t['status']]}</span> "
+                f"<span class='chip {'ok' if t.get('gate_status') == '✅' else 'grey'}'>cổng {t.get('gate_status', '⬜')}</span> "
                 f"<b>{escape(t['id'])}</b> {escape(_short(full))}</div>", unsafe_allow_html=True)
     if detail and extra:
         with c2.popover("ⓘ", help="Xem chi tiết việc này"):
@@ -902,7 +903,8 @@ def _wave_body(w: dict, r: dict, key: str, ans=None) -> None:
         st.caption("Không còn việc nào chưa xong.")
     if done:
         with st.expander(f"Đã xong ({len(done)} việc)", expanded=False):
-            st.markdown("".join(f"<div class='row'><span class='chip {STATUS_BAND[t['status']]}'>{t['status']}</span> <b>{escape(t['id'])}</b> "
+            st.markdown("".join(f"<div class='row'><span class='chip {STATUS_BAND[t['status']]}'>{t['status']} code</span> "
+                                f"<span class='chip {'ok' if t.get('gate_status') == '✅' else 'grey'}'>cổng {t.get('gate_status', '⬜')}</span> <b>{escape(t['id'])}</b> "
                                 f"{escape(_short(t['title'], 110))}</div>" for t in done), unsafe_allow_html=True)
 
 
@@ -965,7 +967,7 @@ def page_plan():
         st.info(f"Chưa có file kế hoạch `{_rel(path)}`.")
         return
     with t2.popover("ⓘ", help="Nguồn và cách tính"):
-        st.markdown(f"Nguồn: `{_rel(path)}`. Câu trả lời cho việc ⏸: `{_rel(answers.default_path())}` (không vào git). % do code tính từ danh sách việc: ✅ tính đủ, 🔄 tính nửa, ✖ không tính; "
+        st.markdown(f"Nguồn: `{_rel(path)}`. Câu trả lời cho việc ⏸: `{_rel(answers.default_path())}` (không vào git). % code: ✅ tính đủ, 🔄 tính nửa, ✖ không tính; % cổng chỉ tính ✅ có khai báo bằng chứng chạy thật, Dashboard cần ảnh/ui_step; "
                     "trọng số nặng 1/2/3. Đặt tay đợt hiện tại bằng dòng `> Đợt ưu tiên: M0` ở đầu file. Kế hoạch chính = mục `\"chinh\": true` trong `devsys/plans.json`; kế hoạch không có dòng `Trần đợt:` thì không hiện ô tiền đợt.")
     if plan["bad"]:
         st.error("Dòng việc không đọc được (sửa trong file kế hoạch):\n\n" + "\n".join(f"- {b}" for b in plan["bad"]))
@@ -979,7 +981,8 @@ def page_plan():
     except Exception as e:  # noqa: BLE001 - the page still shows progress; the reason is shown
         st.warning(f"Không đọc được sổ chi: {e}")
     cur = next((r for r in s["waves"] if r["id"] == s["current"]), None)
-    tiles = [kpi("Tiến độ tổng", _pct_text(total), f"{done}/{n} việc xong", "ok" if total >= 80 else "warn" if total >= 30 else "none"),
+    tiles = [kpi("Tiến độ code", _pct_text(total), f"{done}/{n} việc xong code", "ok" if total >= 80 else "warn" if total >= 30 else "none"),
+             kpi("Cổng nghiệm thu", _pct_text(s["total_gate"]), "Có bằng chứng chạy thật; không suy từ code/test"),
              kpi("Đợt hiện tại", s["current"] or "—", _wave_name(cur["name"]) if cur else ""),
              kpi("Việc kế", s["next"]["id"] if s["next"] else "—", _short(s["next"]["title"], 60) if s["next"] else ""),
              kpi("Chờ người dùng", str(len(s["waiting"])), ", ".join(t["id"] for t in s["waiting"]) or "không", "bad" if s["waiting"] else "none")]
@@ -988,6 +991,9 @@ def page_plan():
                          f"Claude {money['llm_usd']:.2f} / {money['cap_llm']:g} USD", "bad" if money["usd"] > money["cap_usd"] else "none"))
     st.markdown('<div class="kpis">' + "".join(tiles) + "</div>", unsafe_allow_html=True)
     st.progress(min(1.0, total / 100.0))
+    st.progress(min(1.0, (s["total_gate"] or 0.0) / 100.0), text="Cổng nghiệm thu chạy thật")
+    for warning in s["gate_warnings"]:
+        st.warning(warning)
 
     waves = {w["id"]: (w, r) for w, r in zip(plan["waves"], s["waves"])}
     finished = [wid for wid, (w, r) in waves.items() if r["pct"] is not None and r["pct"] >= 100]
@@ -1013,18 +1019,19 @@ def page_plan():
             c1, c2 = st.columns([5, 1], vertical_alignment="center")
             c1.markdown(f"**▶ {escape(w['id'])} — {escape(_wave_name(w['name']))}**  <span class='muted'>{r['done']}/{r['n']} xong"
                         f"{' · ' + str(r['doing']) + ' đang làm' if r['doing'] else ''}</span>", unsafe_allow_html=True)
-            c2.markdown(f"<div style='text-align:right;font-weight:800'>{_pct_text(r['pct'])}</div>", unsafe_allow_html=True)
+            c2.markdown(f"<div style='text-align:right;font-weight:800'>code {_pct_text(r['pct'])}<br>cổng {_pct_text(r['pct_gate'])}</div>", unsafe_allow_html=True)
             st.progress(min(1.0, (r["pct"] or 0.0) / 100.0))
             _wave_body(w, r, "cur", ans)
     for wid in others:
         w, r = waves[wid]
-        with st.expander(f"{wid} — {_wave_name(w['name'])} · {_pct_text(r['pct'])} · {r['done']}/{r['n']} xong"
+        with st.expander(f"{wid} — {_wave_name(w['name'])} · code {_pct_text(r['pct'])} / cổng {_pct_text(r['pct_gate'])} · {r['done']}/{r['n']} xong code"
                          + (f" · {r['waiting']} chờ bạn" if r["waiting"] else ""), expanded=False):
             st.progress(min(1.0, (r["pct"] or 0.0) / 100.0))
             _wave_body(w, r, wid, ans)
     if finished:
-        with st.expander(f"✅ Đã xong ({len(finished)} đợt)", expanded=False):
-            st.markdown("".join(f"<div class='row'><span class='chip ok'>✅ 100 %</span> <b>{escape(wid)}</b> "
+        with st.expander(f"✅ Code đã xong ({len(finished)} đợt)", expanded=False):
+            st.markdown("".join(f"<div class='row'><span class='chip ok'>code 100 %</span> "
+                                f"<span class='chip'>cổng {_pct_text(waves[wid][1]['pct_gate'])}</span> <b>{escape(wid)}</b> "
                                 f"{escape(_wave_name(waves[wid][0]['name']))} <span class='muted'>· {waves[wid][1]['n']} việc</span></div>"
                                 for wid in finished), unsafe_allow_html=True)
 
@@ -1035,7 +1042,7 @@ def page_plan_map():
     st.title("🗺 Sơ đồ tiến độ")
     st.caption("Vẽ lại mỗi lần mở từ file kế hoạch chính (mục \"chinh\" trong `devsys/plans.json`), sổ khâu `devsys/stages.json` (theo cờ thật), "
                "bảng việc ↔ khâu `devsys/plan_map.json` và sổ lỗi `devsys/errors.json` (khi có). Đổi trạng thái một việc trong file kế hoạch "
-               "(⬜ → 🔄 → ✅) là sơ đồ đổi màu theo — không tô tay. Xuất SVG: `py -m devsys.plan_map <thư mục>`.")
+               "(⬜ → 🔄 → ✅code / ✅cổng) là sơ đồ đổi màu theo — không tô tay. Xuất SVG: `py -m devsys.plan_map <thư mục>`.")
     try:
         m, roadmap, stage_map = plan_map.build()
     except (OSError, ValueError) as e:
@@ -1047,6 +1054,11 @@ def page_plan_map():
         st.info("Mã việc trong `devsys/plan_map.json` không còn trong kế hoạch: " + ", ".join(m["stale"]))
     if m["unknown_stage"]:
         st.warning("Mã khâu trong `devsys/plan_map.json` không có trong `devsys/stages.json`: " + ", ".join(m["unknown_stage"]))
+    st.markdown('<div class="kpis">' + kpi("Tiến độ code", _pct_text(m["total"]))
+                + kpi("Cổng nghiệm thu", _pct_text(m["total_gate"])) + '</div>', unsafe_allow_html=True)
+    st.caption("Xanh dương = code xong nhưng cổng chưa đạt; xanh lá = cổng đạt có khai báo bằng chứng chạy thật.")
+    for warning in m["gate_warnings"]:
+        st.warning(warning)
     tab1, tab2 = st.tabs(["Lộ trình theo milestone", "Khâu × việc"])
     with tab1:
         st.markdown(roadmap, unsafe_allow_html=True)
