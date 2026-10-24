@@ -34,10 +34,15 @@ def case(tmp_path):
         yield p, pid, ids, pricing, cost, stack, scan, allowed
         p.conn.close()
 
+# Baseline lấy từ core/cost.py tại ce04503a (c2a79019^), nạp module riêng
+# trong môi trường giả, DB fixture và cùng mock D6/QC; không chạy mã cũ ở production.
+LEGACY_QUOTE_BYTES = b'{"kind":"image","items":4,"seconds":0,"unit_price":3.0,"known":true,"unit_over":3.0,"currency":"USD","max_retry":2,"end_frames":0,"establishing":0,"chat_prompt":0.4,"min":13.44,"max":40.32,"outside_note":"","parts":[{"label":"\\u1ea3nh khung \\u0111\\u1ea7u c\\u00e1c shot","count":4,"usd":12.0},{"label":"Claude vi\\u1ebft l\\u1ea1i prompt tr\\u01b0\\u1edbc khi g\\u1eedi (D6)","count":4,"usd":0.4},{"label":"Claude ch\\u1ea5m \\u1ea3nh (QC)","count":4,"usd":1.04}],"qc":1.04,"outside":0.0,"total":13.44}'
+
 def test_none_preserves_exact_serialized_quote(case):
     p, pid, ids, pricing, cost, *_ = case
-    old = cost.estimate_images(p, pid, pricing, "fake")
-    assert json.dumps(old) == json.dumps(cost.estimate_images(p, pid, pricing, "fake", scene_ids=None))
+    for kwargs in ({}, {"scene_ids": None}):
+        actual = cost.estimate_images(p, pid, pricing, "fake", **kwargs)
+        assert json.dumps(actual, separators=(",", ":")).encode("ascii") == LEGACY_QUOTE_BYTES
 
 def test_two_selected_keep_existing_d6_qc_and_retry_formula(case):
     p, pid, ids, pricing, cost, *_ = case
@@ -91,3 +96,31 @@ def test_unknown_model_uses_same_existing_money_policy_fallback(case):
     result = cost.estimate_images(p, pid, pricing, "unpriced-fake", scene_ids=ids[:1])
     assert result["known"] is False and result["unit_over"] == 7 and result["total"] == 7.36
     assert fallback.call_count == 1
+
+@pytest.mark.parametrize("mode", ["scene", "agent"])
+def test_selected_qc_shared_scene_once_and_no_outside_scene(case, mode):
+    p, pid, ids, pricing, cost, stack, *_ = case
+    from core import qc_scene, qc_agent
+    stack.enter_context(patch.object(qc_scene, "active", return_value=True))
+    stack.enter_context(patch.object(qc_scene, "claude_on", return_value=True))
+    stack.enter_context(patch.object(qc_agent, "enabled", return_value=mode == "agent"))
+    result = cost.estimate_images(p, pid, pricing, "fake", scene_ids=ids[:2])
+    # Hai shot đầu chung story_scene=1; story_scene=2 ngoài lựa chọn không được tính.
+    expected = cost.AGENT_SCENE_USD if mode == "agent" else .2 * (1 + cost.REDRAW_SHARE)
+    assert result["qc"] == pytest.approx(expected * cost.LLM_MARGIN)
+    assert result["total"] == round(6 + .2 + expected * cost.LLM_MARGIN, 4)
+
+@pytest.mark.parametrize("reused", ["ready_picture", "free_3d"])
+def test_selected_establishing_reuses_existing_picture_or_free_render(case, reused):
+    p, pid, ids, pricing, cost, stack, *_ = case
+    from core import scene_establish, place_refs
+    stack.enter_context(patch.object(scene_establish, "enabled", return_value=True))
+    picture = stack.enter_context(patch.object(scene_establish, "picture", return_value="fake-ready" if reused == "ready_picture" else None))
+    stack.enter_context(patch.object(place_refs, "enabled", return_value=True))
+    rows = stack.enter_context(patch.object(scene_establish, "scene_rows", return_value=[{"fake": "rows"}]))
+    render = stack.enter_context(patch.object(place_refs, "scene_render_rec", return_value={"fake": "render"}))
+    result = cost.estimate_images(p, pid, pricing, "fake", data_dir="fake-root", scene_ids=ids[:2])
+    assert result["establishing"] == 0 and result["items"] == 2
+    assert picture.call_count == 1 and picture.call_args.args == ("fake-root", pid, 1)
+    assert rows.call_count == (0 if reused == "ready_picture" else 1)
+    assert render.call_count == (0 if reused == "ready_picture" else 1)
