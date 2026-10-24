@@ -1873,3 +1873,12 @@ Giao: Codex 1 (sau CX24-G1-PLAN-GATES). Mức rà: RÀ KỸ (đụng tiền + v�
 - Test (fixture, 0 USD): (1) scene_ids=None → kết quả giống hệt trước (so job tạo ra); (2) chọn 2/4 shot → chỉ 2 job, shot HOLD không có job; (3) shot ngoài pilot vẫn bị chặn;
   (4) redo shot cũ ngoài tập không bị tạo lại; (5) cổng chặn chỉ tính shot được gửi; (6) submit_pending(only=) không gửi job shot khác đang chờ.
 - Sau gộp: nối UI M82 (bỏ fail-closed HOLD cả lô → HOLD từng shot). Khai `devsys/areas.json` nếu có file mới, không tăng version.
+
+### CX24-KIEM-CONG-GOP — Bảng + công cụ kiểm cổng gộp cho dự án test 25/10 (M9.13; ưu tiên 1; Cấp 1; 0 USD)
+Giao: Codex 3 (vừa xong M77-EVID). Hạn: trước 25/10 08:00. Nhánh `codex/v31-kiem-cong-gop`. Không điều khiển máy (AGENTS.md), không dữ liệu thật, không API.
+EP 24/10: "code xong nhiều mà cổng chưa đạt → gộp vào kiểm tra, sửa cho đạt 1 lượt". Dự án test 25/10: clip rối funny 30–50 s (~8–12 shot), trần 20 USD, A/B gói gọn (lean_package) nửa số shot.
+1. `docs/KIEM_CONG_GOP_2026-10-25.md`: MỌI việc kế hoạch chính có ✅code mà cổng ⬜ (đọc bằng devsys/plan_progress.py lớp cổng của G1) → cột: việc · tiêu chí cổng (master §3/§4a + dòng việc) · cờ phải BẬT (đối chiếu docs/M7_7_BANG_CHUNG_CO_2026-10-24.md) · bằng chứng cần thu · thu ở bước Dashboard nào / bảng CSDL nào / file nào · KIỂM ĐƯỢC trên 1 dự án (CÓ / KHÔNG → cách đo offline 0 USD) · rủi ro khi bật.
+   Cuối file: DANH SÁCH CỜ ĐỀ XUẤT BẬT cho buổi test (gộp từ bảng), cờ giữ học việc/chỉ báo (chặn hoặc tự tiêu tiền), thứ tự bước chạy dự án và điểm dừng hỏi EP (gen ảnh, gen video, 1080p).
+2. `tools/kiem_cong.py --project N [--since <ts>] [--md out.md]` CHỈ ĐỌC (sqlite mode=ro như pilot_a --may-chinh): sau dự án, tự gom bằng chứng từng dòng bảng (jobs/sent_package/diag_events/ui_step/sổ chi/qc/overrides) → ĐẠT / CHƯA ĐẠT / THIẾU DỮ LIỆU kèm lý do; tái dùng tools/kpi_goc.py (G2) nếu đã có, pilot_a, core.cost.
+   Test fixture CSDL giả: đủ / thiếu / lỗi từng loại bằng chứng; không bao giờ báo ĐẠT khi thiếu dữ liệu.
+Khai devsys/areas.json, không tăng version. Báo XONG kèm số dòng bảng + số kiểm được trên 1 dự án.

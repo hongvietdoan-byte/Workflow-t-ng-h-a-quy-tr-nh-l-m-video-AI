@@ -171,8 +171,8 @@ kiểm giá trị; không đổi `STATUSES`.
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % | 0 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 6 | 0 | 0 | 0 | 81,2 % | 0 % |
 | M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 5 | 2 | 1 | 0 | 0 | 45,8 % | 0 % |
-| M9 Giám sát và tối ưu theo mốc (người dùng 24/10) | 13 | 7 | 1 | 0 | 1 | 47,2 % | 0 % |
-| **Tổng** | **88** | **61** | **6** | **1** | **1** | **71,1 %** | **9,2 %** |
+| M9 Giám sát và tối ưu theo mốc (người dùng 24/10) | 14 | 7 | 1 | 0 | 1 | 40,5 % | 0 % |
+| **Tổng** | **89** | **61** | **6** | **1** | **1** | **69,9 %** | **9,1 %** |
 
 Đợt hiện tại: **M2** · việc kế: **M7.8** Kiểm tuyến QC thay thế rồi trình tắt scene_qc_claude (Cấp 3 riêng)
 <!-- /tien-do -->
@@ -268,7 +268,7 @@ Lớp cổng khởi tạo theo báo cáo giám sát 24/10 §3; M0.8 giữ ⬜ do
 - [ ] M7.4 · Gói B sửa cờ (F-B): video_gate, two_tier_quality (±5 % + tiêu chí chất lượng), motion_consistency_lint, end_frames, scene_qc, lip_sync + dialogue_take, bg_autoqc… · nặng:3 · ✅ · C-M74 gộp 22/10 (rà kỹ: không thêm chặn/tiền với cờ đang BẬT; release_gate+final_black_freeze bật cùng = điểm chặn mới, Cấp 3) · Cấp 2 DUYỆT 21/10; khóa từng cờ sau correctness + benchmark + chi phí · cổng: ⬜ chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)
 - [ ] M7.5 · Gói C (F-C): audit + thiết kế + BẢNG QUYẾT ĐỊNH từng cờ (audio_first tùy chọn thử nghiệm — F-Q2) trình EP trước khi đổi hành vi production · nặng:1 · ✅ · C-M75 bảng quyết định Gói C gộp 21/10 (KE_HOACH_SUA_20_CO mục 6) — TRÌNH EP duyệt từng dòng · chỉ tài liệu · cổng: ⬜ chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)
 - [ ] M7.6 · Test không phụ thuộc mặc định 8 cờ đề nghị khóa (155 test nhóm A) · nặng:2 · ✅ · C-FLAGTEST8 cloud-C gộp 21/10: cả bộ 6914 qua; ép 8 cờ khóa BẬT 164 → 7 đỏ (đều là test "cờ mặc định TẮT" — đổi khi khóa thật) · cổng: ⬜ chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)
-- [ ] M7.7 · Kiểm chứng + khóa TỪNG cờ: K1 send_claim, back_view_guard (dependency, 2 worker, crash/reconcile, replay production); K2 video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence (+ two_tier_quality, video_gate sau M7.4); K7 bốn cờ chỉ-ghi (stale_code_alarm, diag_merge, budget_notice_d01, send_estimate) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — Cấp 3 từng cờ — trình khi đủ bằng chứng; refusal_skip_same_picture CHƯA bật; qc_false_alarm_fix + horizon_needs_sky chờ replay #31/#33 · cổng: ⬜ chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)
+- [ ] M7.7 · Kiểm chứng + khóa TỪNG cờ: K1 send_claim, back_view_guard (dependency, 2 worker, crash/reconcile, replay production); K2 video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence (+ two_tier_quality, video_gate sau M7.4); K7 bốn cờ chỉ-ghi (stale_code_alarm, diag_merge, budget_notice_d01, send_estimate) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — Cấp 3 từng cờ — trình khi đủ bằng chứng; refusal_skip_same_picture CHƯA bật; qc_false_alarm_fix + horizon_needs_sky chờ replay #31/#33 · cổng: ⬜ chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3) · EP 24/10: mỗi cờ sau kiểm chứng chỉ nhận 1 kết quả KHÓA BẬT / SỬA / BỎ (không phân loại riêng, không thêm M7.9); cờ kỹ thuật dựng phim (lip_sync, j_cut, narration_offscreen, shot_transitions…) khóa bật như NĂNG LỰC, dùng hay không do Đạo diễn AI quyết theo kịch bản từng shot, có ghi lý do
 - [ ] M7.8 · Kiểm tuyến QC thay thế rồi trình tắt scene_qc_claude (Cấp 3 riêng) · nặng:1 · ⬜ · F-A: tắt KHÔNG nằm trong duyệt code · cổng: ⬜ chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)
 
 ### M8 — Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10)
@@ -297,9 +297,11 @@ Lớp cổng khởi tạo theo báo cáo giám sát 24/10 §3; M0.8 giữ ⬜ do
 - [x] M9.10 · Hai nghĩa "M8.4" (#14) · nặng:1 · ✅ · EP 24/10: M8.4 = tối ưu tải (kế hoạch chính); KH 21/10 đã ghi chú M8.4 = M8.0
 - [x] M9.11 · Làn cloud HẾT VIỆC (#16) · nặng:1 · ✖ · EP 24/10: chỉ 3 Codex, không dùng lại cloud-D/E
 - [ ] M9.12 · AI Dev System tự cử agent giám sát theo mốc (việc ✅, đợt qua 25/50/75/100 %, nút "🛰 Giám sát ngay"), chấm 3 trục, hiện trên 3 trang, và TỰ GHI phát hiện CHẶN/LỚN vào mục M9 này theo luật M9.0 · nặng:3 · ⬜ · Codex 2 CX24-GIAM-SAT (đề bổ sung 24/10), RÀ KỸ
+- [ ] M9.13 · ĐỢT KIỂM CỔNG GỘP 25/10 (EP 24/10: "code xong nhiều mà cổng chưa đạt → gộp kiểm, sửa cho đạt 1 lượt"): một dự án test thật (clip rối 30–50 s, trần 20 USD, A/B gói gọn nửa số shot) thu bằng chứng cho MỌI việc ✅code kiểm được trên 1 dự án; bảng việc → tiêu chí cổng → cờ cần bật → bằng chứng ở bước nào; lỗi gom 1 đợt sửa; cổng không kiểm được trên 1 dự án (tải 10 người, benchmark ≥ 20 lỗi, replay #27/#31) tách đo offline 0 USD · nặng:3 · ⬜ · Codex 3 CX24-KIEM-CONG-GOP (bảng + công cụ thu bằng chứng) trước 25/10 sáng; phiên chính chạy dự án
 
 ## 6. Nhật ký
 
+- 24/10 (chiều): EP — cờ sau kiểm chứng chỉ KHÓA BẬT/SỬA/BỎ, kỹ thuật dựng phim do Đạo diễn AI chọn theo shot (ghi dòng M7.7, bỏ M7.9); thêm M9.13 đợt kiểm cổng gộp trên dự án test 25/10.
 - 24/10: giám sát đợt 1 (4,6/10) → người dùng: tối ưu bổ sung TRỰC TIẾP vào kế hoạch → thêm M9 (M9.0 luật + 12 việc từ 16 phát hiện), M5.4 thêm cổng M9.2 đo KPI gốc.
 - 23/10 (tối): M8.1 vòng 2 theo góp ý EP — nhãn Cơ bản/Nâng cao, Q-D qd3 hạn mức chi của luồng tự động, cổng M8.4 trước luồng tự động trả phí (dòng M8.2, M8.4), mockup 7 màn; chờ EP duyệt chính thức.
 - 23/10: M8.0 an toàn tiền ✅ gộp main.
