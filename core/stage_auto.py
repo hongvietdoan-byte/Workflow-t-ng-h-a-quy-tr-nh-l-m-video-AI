@@ -813,6 +813,11 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
     """K1 → đề bài → Đạo diễn (≤ MAX_ROUNDS lượt, sổ chi) → K3 + K4 → máy từng shot. Không ghi CSDL (apply làm việc đó).
     Trả {"cams", "bad" {shot: lý do}, "missing" [..], "state", "reused"}; kết quả lưu <data_dir>/<pid>/stage/<sân khấu>/<đoạn>/
     result.json theo vân tay đầu vào — chạy lại cùng đầu vào không gọi Claude lần nữa."""
+    pending_out = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    if rerender_pending(_crew_load({"crew": os.path.join(pending_out, CREW_DIR)})):
+        why = "Render lại đang chờ EP duyệt; không chuyển sang luồng tự động một vai."
+        return {"cams": {}, "bad": {s["idx"]: why for s in seg["shots"]}, "missing": [],
+                "state": None, "reused": False, "waiting": why, "preserve_approved": True}
     from . import llm_runner
     from . import stage_director as sd
     base = base_dir(data_dir, pid, seg["stage"])
@@ -1059,10 +1064,84 @@ def last_answer(data_dir: str, pid: int, seg: Dict) -> Optional[Tuple[str, Dict]
         return rd, json.load(f)
 
 
+def rerender_pending(state: Optional[Dict]) -> bool:
+    """Dấu chờ EP đã lưu không mất hiệu lực khi cờ thay đổi."""
+    return isinstance(state, dict) and isinstance(state.get("rerender_reapproval"), dict) and state["rerender_reapproval"].get("pending") is True
+
+
+def _pending_rerender_state(data_dir: str, pid: int, seg: Dict) -> Optional[Dict]:
+    out = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    state = _crew_load({"crew": os.path.join(out, CREW_DIR)})
+    return state if rerender_pending(state) else None
+
+
+def _rerender_proposal(ctx: Dict, state: Dict, obj: Dict, log) -> Dict:
+    import copy
+    from . import stage_crew as sc
+    result = {"applied": [], "held": [], "missing": []}
+    if not sc.user_approves():
+        result["missing"] = ["Render lại cần bật duyệt sân khấu bởi EP; chưa đo hay thay đổi sản phẩm đã duyệt."]
+        return result
+    required = {s["idx"] for s in ctx["seg"]["shots"]} - set(ctx["inputs"].get("bo_qua") or [])
+    specs = obj.get("shot_specs")
+    if (not isinstance(specs, list) or any(not isinstance(s, dict) or type(s.get("shot")) is not int for s in specs)
+            or len({s["shot"] for s in specs}) != len(specs) or {s["shot"] for s in specs} != required):
+        result["missing"] = ["Đặc tả đã lưu thiếu hoặc trùng shot; không dùng số đo cũ để dựng lại."]
+        return result
+    proposal = copy.deepcopy(state)
+    proposal["history"].append({"phase": "rerender", "source": "stage_desk.rerender",
+                                "previous_approval": {k: copy.deepcopy(state.get(k)) for k in
+                                                      ("approved_by", "measure", "shot_measure", "accepted", "keep", "waive", "verdicts", "unresolved", "shot_hist")}})
+    proposal.update(blocking=copy.deepcopy(obj["blocking"]), specs=copy.deepcopy(specs), phase="duyet",
+                    approved_by=None, keep={}, verdicts={}, unresolved={}, shot_measure={},
+                    rerender_reapproval={"pending": True, "previous_measure": state.get("measure")})
+    sc.reset_measures(proposal)
+    try:
+        sc._measure(proposal, _crew_measure(ctx, log, fresh=True))
+        if proposal.get("measure_errors") or set(proposal.get("shot_measure") or {}) != {str(n) for n in required}:
+            raise ValueError("lần đo mới không đủ shot")
+    except Exception as error:
+        result["missing"] = [f"Không tạo được số đo mới để EP duyệt ({type(error).__name__}); bản đã duyệt giữ nguyên."]
+        return result
+    _crew_save(ctx, proposal)
+    result.update(pending=True, phase="duyet", measure=proposal["measure"])
+    return result
+
+
 def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None] = lambda m: None, who: Optional[Dict] = None) -> Dict:
     """Đo + render lại (K3 + K4 Blender, 0 USD) từ câu trả lời Đạo diễn ĐÃ trả tiền của lượt cuối — không gọi Claude. Dùng khi ảnh
-    clay / số đo hỏng (16/10: Blender ghi sai chỗ). Ghi máy vào shot như run (apply). Trả {"applied", "held", "missing"}."""
+    clay / số đo hỏng (16/10: Blender ghi sai chỗ). Ghi máy vào shot như run (apply). Trả {"applied", "held", "missing"}.
+    stage_rerender_reapprove BẬT: lượt đã EP duyệt tạo số đo mới, chờ EP và chưa apply; TẮT giữ đường cũ nếu không có pending."""
     out: Dict = {"applied": [], "held": [], "missing": []}
+    base = base_dir(data_dir, pid, seg["stage"])
+    seg_dir = os.path.join(base, f"doan_{key_of(seg['scene'])}")
+    ctx = {"out": seg_dir, "crew": os.path.join(seg_dir, CREW_DIR), "seg": seg}
+    state = _crew_load(ctx)
+    if rerender_pending(state):
+        out["missing"] = ["Lần render lại đang chờ EP duyệt; không dựng lại hoặc tự ghi máy khi còn chờ."]
+        return out
+    reapprove = features.on("stage_rerender_reapprove")
+    if reapprove:
+        try:
+            with open(os.path.join(seg_dir, "result.json"), encoding="utf-8") as file:
+                old_result = json.load(file)
+            if not isinstance(old_result, dict):
+                raise ValueError("result sai cấu trúc")
+        except FileNotFoundError:
+            old_result = {}
+        except (OSError, ValueError):
+            out["missing"] = ["Không xác minh được kết quả đã duyệt; chưa render lại."]
+            return out
+        crew_path = os.path.join(ctx["crew"], "state.json")
+        if "crew" in old_result or os.path.exists(crew_path):
+            if (not isinstance(state, dict) or state.get("phase") != "xong"
+                    or state.get("approved_by") != "nguoi_dung"):
+                out["missing"] = ["Không xác minh được lượt chia vai đã được EP duyệt; chưa render lại."]
+                return out
+            from . import stage_crew as sc
+            if not sc.user_approves():
+                out["missing"] = ["Render lại cần bật duyệt sân khấu bởi EP; chưa đo hay thay đổi sản phẩm đã duyệt."]
+                return out
     got = last_answer(data_dir, pid, seg)
     if got is None:
         out["missing"].append(f"sân khấu {seg['id']}: chưa có câu trả lời Đạo diễn đã lưu — phải chạy có trả tiền trước")
@@ -1086,6 +1165,12 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
         out["missing"].append(f"sân khấu {seg['id']}: đầu vào (kịch bản / Kho / cảnh trước) đã đổi so với lần trả tiền — không dựng lại "
                               "từ câu trả lời cũ; phải chạy có trả tiền")
         return out
+    if reapprove and state and state.get("phase") == "xong":
+        if state.get("fp") != fp:
+            out["missing"] = ["Đầu vào đã đổi so với lượt chia vai đã duyệt; không dựng lại từ trạng thái cũ."]
+            return out
+        ctx.update(k1=k1, inputs=inputs, missing=missing, fp=fp)
+        return _rerender_proposal(ctx, state, obj, log)
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         st = json.load(f)
     bl = round_blocking(obj["blocking"], inputs)
@@ -1142,6 +1227,8 @@ def _archive_rounds(out: str, only=None) -> None:
 def offline_prompt(conn, pid: int, seg: Dict, data_dir: str) -> Tuple[str, List[str]]:
     """(đề bài đầy đủ gửi Đạo diễn = build_prompt + khuôn định dạng, lỗi cổng 0 USD / thiếu đầu vào) — KHÔNG gọi API. Người hoặc một
     phiên Claude Code đọc đề bài này, viết câu trả lời JSON rồi đưa vào offline_answer."""
+    if _pending_rerender_state(data_dir, pid, seg):
+        return "", ["Render lại đang chờ EP duyệt; không chuyển sang đề bài ngoại tuyến một vai."]
     from . import stage_director as sd
     base = base_dir(data_dir, pid, seg["stage"])
     k1 = ensure_k1_seg(seg, base)
@@ -1156,6 +1243,9 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
     """Câu trả lời Đạo diễn VIẾT NGOÀI (người / phiên Claude Code) thay cho lời gọi Claude — 0 USD. Chạy đúng các bước của run_segment:
     bộ kiểm (luật kịch bản + K3) → K3 + K4 Blender → số đo (post_checks). Lỗi → {"ok": False, "errors": [...]} (người viết sửa rồi
     chạy lại, không ghi máy); đạt → ghi stage_camera như đường thường, result.json ghi nguồn `source` + 0 USD."""
+    if _pending_rerender_state(data_dir, pid, seg):
+        return {"ok": False, "errors": ["Render lại đang chờ EP duyệt; không nạp câu trả lời ngoại tuyến một vai."],
+                "applied": [], "removed": [], "soft": {}}
     import copy as _c
     from . import llm_io
     from . import stage_director as sd
@@ -1285,13 +1375,17 @@ def _crew_reset(ctx: Dict) -> None:
         shutil.move(ctx["crew"], os.path.join(ctx["out"], "crew_cu_" + time.strftime("%Y%m%d_%H%M%S")))
 
 
-def _crew_measure(ctx: Dict, log: Callable[[str], None]):
+def _crew_measure(ctx: Dict, log: Callable[[str], None], fresh: bool = False):
     """measure(bl, specs) cho stage_crew.ingest: K3 + K4 Blender (0 USD) vào crew/m<n>/ + top_beats.png → (thư mục tương đối, v2)."""
     def measure(bl: Dict, specs: List[Dict]):
         os.makedirs(ctx["crew"], exist_ok=True)
-        n = 1 + sum(1 for d in os.listdir(ctx["crew"]) if re.fullmatch(r"m\d+", d))
-        rd = os.path.join(ctx["crew"], f"m{n}")
-        os.makedirs(rd, exist_ok=True)
+        if fresh:
+            import tempfile
+            rd = tempfile.mkdtemp(prefix="m_rerender_", dir=ctx["crew"])
+        else:
+            n = 1 + sum(1 for d in os.listdir(ctx["crew"]) if re.fullmatch(r"m\d+", d))
+            rd = os.path.join(ctx["crew"], f"m{n}")
+            os.makedirs(rd, exist_ok=True)
         inputs = ctx["inputs"]
         full = round_blocking(bl, inputs)
         for fn, data in (("answer.json", {"blocking": bl, "shot_specs": specs}), ("blocking.json", full),
@@ -1403,6 +1497,9 @@ def _crew_view(ctx: Dict, state: Dict, limit: Optional[int] = None) -> Tuple[Opt
 def crew_prompt(conn, pid: int, seg: Dict, data_dir: str, reset: bool = False) -> Tuple[str, List[str], Dict]:
     """NGOẠI TUYẾN 0 USD: (đề bài của vai đang tới lượt, vấn đề, state). Người / phiên Claude Code đóng vai đó rồi đưa câu trả lời vào
     crew_answer. `reset` = cất lượt cũ, bắt đầu lại từ Đạo diễn."""
+    pending = _pending_rerender_state(data_dir, pid, seg)
+    if pending and (reset or pending.get("phase") == "duyet"):
+        return "", ["Render lại đang chờ EP duyệt; không reset hoặc tự tạo đề bài để vượt bước duyệt."], pending
     from . import stage_crew as sc
     ctx = _crew_ctx(conn, pid, seg, data_dir)
     problems = list(ctx["missing"]) + preflight(ctx["inputs"], ctx["st"].get("marks"))
@@ -1415,7 +1512,7 @@ def crew_prompt(conn, pid: int, seg: Dict, data_dir: str, reset: bool = False) -
     _crew_save(ctx, state)
     if state["phase"] == "xong":
         return "", problems + ["lượt chia vai đã xong (đã ghi máy) — --crew-reset để làm lại"], state
-    if state["phase"] == "duyet" and sc.user_approves():
+    if state["phase"] == "duyet" and (sc.user_approves() or rerender_pending(state)):
         return "", problems + ["chờ NGƯỜI DÙNG duyệt ảnh ghép (--beats) rồi --crew-approve / --crew-tra-lai"], state
     table, extra, _ = _crew_view(ctx, state)
     return sc.prompt_for(state, ctx["inputs"], table, extra), problems, state
@@ -1440,7 +1537,7 @@ def crew_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: str
     if state["phase"] == "xong":
         res["errors"] = ["lượt chia vai đã xong — --crew-reset để làm lại"]
         return res
-    if state["phase"] == "duyet" and sc.user_approves() and source != "nguoi_dung":
+    if state["phase"] == "duyet" and (sc.user_approves() or rerender_pending(state)) and source != "nguoi_dung":
         # rà 16/10 (quyết định stage-crew-plan-2026-10-16 (1)): duyệt chốt chỉ do NGƯỜI DÙNG — phiên Claude không tự duyệt
         res["errors"] = ["bước duyệt chốt chỉ nhận từ người dùng (--crew-approve / --crew-tra-lai sau khi người dùng nói trong chat)"]
         return res
@@ -1458,17 +1555,27 @@ def crew_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: str
     with open(os.path.join(ctx["crew"], f"answer_{len(state['history']) + 1:02d}_{state['phase']}.json"), "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1)
     try:
-        sc.ingest(state, obj, _crew_measure(ctx, log), source)
+        sc.ingest(state, obj, _crew_measure(ctx, log, fresh=rerender_pending(state)), source)
     except Exception as e:  # noqa: BLE001 - Blender đo lỗi: state cũ giữ nguyên (không lưu), nói rõ
         res["errors"] = [f"không đo được (K3 / K4): {type(e).__name__}: {e}"]
         return res
-    _crew_save(ctx, state)
+    deferred_approval = rerender_pending(state) and state["phase"] == "xong"
+    if not deferred_approval:
+        _crew_save(ctx, state)
     res.update(ok=True, phase=state["phase"], measure=state.get("measure"))
     if state.get("can_hoi"):
         res["can_hoi"] = state["can_hoi"]
     if state["phase"] == "xong":
-        res.update(_crew_finalize(conn, pid, seg, ctx, state, _worker(state), log, apply_now=True, who=who,
-                                  expected_revs=expected_revs))
+        try:
+            res.update(_crew_finalize(conn, pid, seg, ctx, state, _worker(state), log, apply_now=True, who=who,
+                                      expected_revs=expected_revs))
+        except Exception:
+            if not deferred_approval:
+                raise
+            return {"ok": False, "phase": "duyet", "errors": ["Chưa ghi được lần duyệt render lại; vẫn giữ trạng thái chờ EP."]}
+        if deferred_approval:
+            state["rerender_reapproval"] = dict(state["rerender_reapproval"], pending=False)
+            _crew_save(ctx, state)
         held: Dict = {"held": []}
         _say_guides(conn, pid, seg, res["result"], held, log)
         res["held"] = held["held"]
@@ -1612,7 +1719,11 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
         c_, b_ = cameras_from(st, {"shots": [e]}, seg["id"], e["_rd"], _crew_colours(ctx, e["_rd"]))
         cams.update(c_)
         bad.update(b_)
-    rd = os.path.join(ctx["crew"], "final")
+    if rerender_pending(state):
+        import tempfile
+        rd = tempfile.mkdtemp(prefix="final_rerender_", dir=ctx["crew"])
+    else:
+        rd = os.path.join(ctx["crew"], "final")
     _crew_assemble(ctx["out"], state, v2, rd, inputs)
     draw_beats(rd, log)
     for k, why in list(post_checks(inputs, v2).items()) + [(int(k), v) for k, v in (state.get("unresolved") or {}).items()]:
@@ -1629,21 +1740,28 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
             cam["source"] += f" · Quay phim giữ lệch, miễn {', '.join(waived[idx])}: {(state.get('keep') or {}).get(str(idx))}"
     res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, {"blocking": state["blocking"], "shot_specs": state["specs"]},
                                                                       seg["scene"]),
-           "fp": ctx["fp"], "guide_missing": guides_missing(cams), "round": f"{CREW_DIR}/final", "nguon": source,
+           "fp": ctx["fp"], "guide_missing": guides_missing(cams), "round": os.path.relpath(rd, ctx["out"]).replace(os.sep, "/"), "nguon": source,
            "soft": soft_checks(inputs, v2),
            "crew": {k: state.get(k) for k in ("verdicts", "keep", "replies", "unresolved", "approved_by", "reviews", "n_measure",
                                                  "accepted", "s0", "n_returns")} | {"picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}}}
     if source != "claude_api":
         res["usd"] = 0.0
-    with open(os.path.join(ctx["out"], "inputs.json"), "w", encoding="utf-8") as f:
-        json.dump(inputs, f, ensure_ascii=False, indent=1)
-    _save(os.path.join(ctx["out"], "result.json"), res)
+    def publish():
+        with open(os.path.join(ctx["out"], "inputs.json"), "w", encoding="utf-8") as f:
+            json.dump(inputs, f, ensure_ascii=False, indent=1)
+        _save(os.path.join(ctx["out"], "result.json"), res)
+    if not rerender_pending(state):
+        publish()
     out = {"result": res}
     if apply_now:
         changed = apply(conn, seg, cams, inputs.get("bo_qua") or [], who=who, expected_revs=expected_revs)
         out.update(applied=[i for i in changed if i in cams], removed=[i for i in changed if i not in cams], bad=bad)
         _say(conn, pid, "info", f"Sân khấu {seg['id']}: máy đặt bởi tổ sân khấu (Đạo diễn + Quay phim, {source}) — shot "
                                 + ", ".join(map(str, sorted(cams))), log)
+    if rerender_pending(state):
+        if not apply_now:
+            raise ValueError("Render lại chỉ được chốt qua bước EP ghi máy")
+        publish()
     return out
 
 
@@ -1663,12 +1781,22 @@ def run_segment_crew(conn, pid: int, seg: Dict, data_dir: str, client, prev_stat
     from . import llm_runner
     from . import stage_crew as sc
     res: Dict = {"cams": {}, "bad": {}, "missing": [], "state": None, "reused": False}
+    pending_out = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    if rerender_pending(_crew_load({"crew": os.path.join(pending_out, CREW_DIR)})):
+        why = "Render lại đang chờ EP duyệt; không tự dựng hoặc gọi Claude để duyệt."
+        res.update(waiting=why, bad={s["idx"]: why for s in seg["shots"]}, preserve_approved=True)
+        return res
     try:
         ensure_k1_seg(seg, base_dir(data_dir, pid, seg["stage"]), log)
     except Exception as e:  # noqa: BLE001 - Blender / model 3D: nói rõ, đoạn không chạy
         res["missing"].append(f"không đo được sân khấu K1 chỗ đứng '{seg['main_spot']}': {type(e).__name__}: {e}")
         return res
     ctx = _crew_ctx(conn, pid, seg, data_dir, prev_state, stored=False, log=log)
+    pending_state = _crew_load(ctx)
+    if rerender_pending(pending_state):
+        why = "Render lại đang chờ EP duyệt; không dùng kết quả cũ hoặc tự gọi Claude để duyệt."
+        res.update(waiting=why, bad={s["idx"]: why for s in seg["shots"]}, preserve_approved=True)
+        return res
     inputs = ctx["inputs"]
     if ctx["missing"]:
         res["missing"], res["stale"] = ctx["missing"], True
@@ -1709,7 +1837,7 @@ def run_segment_crew(conn, pid: int, seg: Dict, data_dir: str, client, prev_stat
     for step in range(12):                                # chặn vòng: 1 + 1 + ≤ 2 duyệt + 1 trả lời + ≤ 2 duyệt chốt + dư
         if state["phase"] == "xong":
             break
-        if state["phase"] == "duyet" and sc.user_approves():
+        if state["phase"] == "duyet" and (sc.user_approves() or rerender_pending(state)):
             _crew_save(ctx, state)
             why = (f"chờ người dùng duyệt sân khấu (ảnh ghép: py tools/stage_auto.py --project {pid} --scene {seg['scene']} --beats "
                    f"<thư mục>) rồi --crew-approve / --crew-tra-lai")
@@ -1878,6 +2006,12 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
         if scenes is not None and seg["scene"] not in scenes:
             state[seg["stage"]] = stored_state(data_dir, pid, seg) or state.get(seg["stage"])
             continue
+        if _pending_rerender_state(data_dir, pid, seg):
+            waiting[seg["stage"]] = seg["id"]
+            line = f"sân khấu {seg['id']}: render lại đang chờ EP duyệt — giữ nguyên máy đã duyệt"
+            _say(conn, pid, "warn", line, log)
+            out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
+            continue
         done = drawn_shots(conn, seg)
         if done and not force:
             state[seg["stage"]] = stored_state(data_dir, pid, seg) or state.get(seg["stage"])
@@ -1896,7 +2030,8 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
         r = seg_run(conn, pid, seg, data_dir, client, state.get(seg["stage"]), log, force=again)
         if r.get("waiting"):
             waiting[seg["stage"]] = seg["id"]
-            apply(conn, seg, {}, who=who)                 # máy tự động cũ theo dàn cảnh chưa duyệt không dùng tiếp
+            if not r.get("preserve_approved"):
+                apply(conn, seg, {}, who=who)             # lượt dở cũ; pending N9 giữ sản phẩm đã duyệt
             line = f"sân khấu {seg['id']}: {r['waiting']}"
             _say(conn, pid, "warn", line, log)
             out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
