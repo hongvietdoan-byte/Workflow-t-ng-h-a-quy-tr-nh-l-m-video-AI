@@ -60,7 +60,8 @@ def stretch_spec(entry: Dict) -> List[Dict]:
 
 def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_spot: Optional[str] = None,
                 anchor: Optional[List[float]] = None, real_height_m: Optional[float] = None, sun_azimuth: float = 250.0,
-                notes: str = "", light: Optional[Dict] = None) -> Dict:
+                notes: str = "", light: Optional[Dict] = None, *, actor: Optional[Dict] = None,
+                expected_revision: Optional[int] = None) -> Dict:
     """Register (or update) the 3D model of a place. The other profile keys are kept. `light`: {"day": {sun_elevation, and sky keys
     such as view_transform / look / exposure / strength / sun_strength / sun_color}} — how this model looks like the game in daylight
     (2026-09-29, official FF export: Blender's default view washed it out); None keeps what the place had."""
@@ -75,6 +76,8 @@ def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_
     if row is None or row["kind"] != "location":
         raise LocationPackError("chỉ gắn mô hình 3D cho mục loại bối cảnh")
     prof = json.loads(row["profile"]) if row["profile"] else {}
+    snapshot_revision = prof.get("revision", 0)
+    old = prof.get("model3d") or {}
     if light is None:
         light = (prof.get("model3d") or {}).get("light")
     prof["model3d"] = {"path": os.path.abspath(path), "sha256": _file_sha(path), "real_height_m": real_height_m, "anchor": anchor,
@@ -91,23 +94,26 @@ def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_
                            for k, sp in spots.items()},
                        "default_spot": default_spot if default_spot in spots else next(iter(spots)), "sun_azimuth": float(sun_azimuth),
                        "notes": notes, **({"light": light} if light else {})}
-    old = (json.loads(row["profile"]) if row["profile"] else {}).get("model3d") or {}
     if old.get("landmark"):
         prof["model3d"]["landmark"] = old["landmark"]
     if old.get("stage_family"):                         # 15/10 sân khấu tự động: họ sân khấu (447 + 448 cùng phòng) giữ khi đăng ký lại
         prof["model3d"]["stage_family"] = old["stage_family"]
     if old.get("stretch"):                              # G8 19/10: chiều cao vật đo theo game giữ khi đăng ký lại
         prof["model3d"]["stretch"] = old["stretch"]
-    conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), asset_id))
+    kho_profile.write_fields(conn, asset_id, {"model3d": prof["model3d"]},
+                             actor if actor is not None else {"kind":"human", "who":"location_pack"},
+                             snapshot_revision if expected_revision is None else expected_revision)
     conn.commit()
     return prof["model3d"]
 
 
-def set_script_view(conn, asset_id: int, spot_names: List[str], on: bool = True, landmark: Optional[str] = None) -> Dict:
+def set_script_view(conn, asset_id: int, spot_names: List[str], on: bool = True, landmark: Optional[str] = None, *,
+                    actor: Optional[Dict] = None, expected_revision: Optional[int] = None) -> Dict:
     """S5.7: mark spots whose camera direction is chosen per shot from the script (`"direction": "script"` — a shot there without
     `plate_view` gets no plate and is reported), and optionally name the landmark in English for prompts ("the clock tower")."""
     row = conn.execute("SELECT profile FROM assets WHERE id=?", (asset_id,)).fetchone()
     prof = json.loads(row["profile"]) if row is not None and row["profile"] else {}
+    snapshot_revision = prof.get("revision", 0)
     entry = prof.get("model3d")
     if not isinstance(entry, dict):
         raise LocationPackError("bối cảnh này chưa gắn mô hình 3D")
@@ -120,7 +126,9 @@ def set_script_view(conn, asset_id: int, spot_names: List[str], on: bool = True,
             entry["spots"][name].pop("direction", None)
     if landmark is not None:
         entry["landmark"] = landmark.strip() or None
-    conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), asset_id))
+    kho_profile.write_fields(conn, asset_id, {"model3d": entry},
+                             actor if actor is not None else {"kind":"human", "who":"location_pack"},
+                             snapshot_revision if expected_revision is None else expected_revision)
     conn.commit()
     return entry
 

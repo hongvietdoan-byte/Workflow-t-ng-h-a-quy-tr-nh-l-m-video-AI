@@ -237,7 +237,7 @@ def _check_may(may, out: List[Dict]) -> None:
         _enum(out, "may.chuyen_dong", cd, CHUYEN_DONG)
 
 
-def _check_thanh_phan(items, out: List[Dict]) -> None:
+def _check_thanh_phan(items, out: List[Dict], *, allow_unset_dang=False) -> None:
     if not isinstance(items, list) or not items:
         out.append(_issue("do", "thanh_phan", "phải có ít nhất một thứ trong khung"))
         return
@@ -257,7 +257,7 @@ def _check_thanh_phan(items, out: List[Dict]) -> None:
             if v.strip():
                 _enum(out, f"{t}.thay", v.strip(), THAY)
         if "dang" in c:
-            _check_dang(c["dang"], f"{t}.dang", out)
+            _check_dang(c["dang"], f"{t}.dang", out, allow_unset=allow_unset_dang)
 
 
 def _dang_ok(v) -> bool:
@@ -265,9 +265,15 @@ def _dang_ok(v) -> bool:
                                                         and all(isinstance(x, str) and x.strip() for x in v))
 
 
-def _check_dang(v, t: str, out: List[Dict]) -> None:
+def _check_dang(v, t: str, out: List[Dict], *, allow_unset=False) -> None:
     """K1a (i) `thanh_phan[].dang` (tùy chọn): dạng của nhân vật có mặt — chữ / danh sách chữ / {nhip (NHIP_HD): chữ|danh sách}
     (shot biến hình khai dạng theo nhịp: {"bat_dau": "dang1", "ket_thuc": "dang2"})."""
+    if v in (None, '', [], {}):
+        if allow_unset:
+            return  # M2.3b: Kho adapter sẽ phát REVIEW hoặc cảnh báo chưa kiểm được
+        message = "bảng dạng theo nhịp rỗng" if isinstance(v, dict) else "dạng phải là chữ, danh sách chữ hoặc bảng {nhip: dạng}"
+        out.append(_issue("do", t, message))
+        return
     if isinstance(v, dict):
         if not v:
             out.append(_issue("do", t, "bảng dạng theo nhịp rỗng"))
@@ -393,7 +399,15 @@ def _check_kho_dang(byd, conn, project_id, out):
         if declared not in (None, "", [], {}) and kho_profile.scalar_form(declared) is None:
             out.append({"muc":"vang", "ma":"dang_chua_chon_duoc", "level":"REVIEW",
                         "truong":f"thanh_phan[{i}].dang",
-                        "loi":"Đã khai nhiều dạng hoặc dạng theo nhịp; chưa có quy tắc chọn ảnh dạng, cần người duyệt"})
+                        "loi":"Shot chuyển nhiều dạng theo nhịp hoặc còn nhiều dạng — tách shot để có một bộ ảnh rõ ràng cho mỗi dạng"})
+        elif "dang" in item and declared in (None, "", [], {}):
+            if conn is None or type(project_id) is not int or project_id <= 0:
+                issues = [{"muc":"vang", "ma":"dang_khong_kiem_duoc", "level":"REVIEW",
+                           "loi":"chưa kiểm dạng Kho (thiếu kết nối CSDL hoặc mã dự án)"}]
+            else:
+                issues = kho_profile.validate_form_choice(conn, project_id, item["vat"], declared,
+                                                           asset_id=item.get("kho_id"))
+            out.extend(dict(issue, truong=f"thanh_phan[{i}].dang", level=issue.get("level", "REVIEW")) for issue in issues)
         for path, dang in leaves(item.get("dang"), f"thanh_phan[{i}].dang"):
             if conn is None or type(project_id) is not int or project_id <= 0:
                 issues = [{"muc": "vang", "ma": "dang_khong_kiem_duoc", "level": "REVIEW",
@@ -402,6 +416,26 @@ def _check_kho_dang(byd, conn, project_id, out):
                 issues = kho_profile.validate_dang(conn, project_id, item["vat"], dang, asset_id=item.get("kho_id"))
             # "không kiểm được" / "ngoài forms Kho" là chỗ người phải xem: giữ REVIEW như M2.1, không hạ WARN.
             out.extend(dict(issue, truong=path, level=issue.get("level", "REVIEW")) for issue in issues)
+
+
+def _check_kho_bien_the(byd, conn, project_id, out):
+    """M2.3b R5: kiểm biến thể vật bằng adapter Kho, không đọc assets.profile ở caller."""
+    from . import kho_profile
+    if not kho_profile.enabled():
+        return
+    items = byd.get("vat")
+    if not isinstance(items, list):
+        return
+    if conn is None or type(project_id) is not int or project_id <= 0:
+        return  # `_check_v2` giữ cảnh báo chưa kiểm được khi BYĐ có khai bien_the
+    for i, item in enumerate(items):
+        if not isinstance(item, dict) or type(item.get("kho_id")) is not int or "bien_the" not in item:
+            continue
+        field = f"vat[{i}].bien_the"
+        out[:] = [issue for issue in out if not (issue.get("truong") == field
+                                                  and "bien_the_khong_kiem_duoc" in issue.get("loi", ""))]
+        issues = kho_profile.validate_bien_the(conn, project_id, item["kho_id"], item.get("bien_the"))
+        out.extend(dict(issue, truong=field, level=issue.get("level", "REVIEW")) for issue in issues)
 
 
 def validate(byd: Dict, conn=None, *, project_id=None) -> List[Dict]:
@@ -414,6 +448,8 @@ def validate(byd: Dict, conn=None, *, project_id=None) -> List[Dict]:
         if k not in byd:
             out.append(_issue("do", k, "thiếu trường bắt buộc"))
     v2 = version(byd) == BYD_V
+    from . import kho_profile
+    allow_unset_dang = kho_profile.enabled()
     if "byd_v" in byd and byd["byd_v"] not in (1, BYD_V):
         out.append(_issue("do", "byd_v", f"phiên bản BYĐ lạ ({byd['byd_v']!r}) — 2 hoặc thiếu (= v1)"))
     groups = GROUPS + (V2_GROUPS if v2 else ())
@@ -423,7 +459,7 @@ def validate(byd: Dict, conn=None, *, project_id=None) -> List[Dict]:
     if "shot" in byd and not isinstance(byd["shot"], int):
         out.append(_issue("do", "shot", "phải là số shot"))
     if "thanh_phan" in byd:
-        _check_thanh_phan(byd["thanh_phan"], out)
+        _check_thanh_phan(byd["thanh_phan"], out, allow_unset_dang=allow_unset_dang)
     if "may" in byd:
         _check_may(byd["may"], out)
     names = {c.get("vat") for c in byd.get("thanh_phan") or [] if isinstance(c, dict)}
@@ -441,6 +477,8 @@ def validate(byd: Dict, conn=None, *, project_id=None) -> List[Dict]:
     if v2:
         _check_v2(byd, names, out)
     _check_kho_dang(byd, conn, project_id, out)
+    if v2:
+        _check_kho_bien_the(byd, conn, project_id, out)
     ids = _kho_ids(byd)
     if ids and conn is None:
         out.append(_issue("vang", "kho_id", "chưa kiểm mã Kho (không có kết nối CSDL)"))

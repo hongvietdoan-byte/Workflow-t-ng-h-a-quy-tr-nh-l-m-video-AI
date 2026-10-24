@@ -31,6 +31,18 @@ def test_ai_cannot_overwrite_and_revision_cas(db):
         with pytest.raises(k.ProfileError):
             k.save(db, 1, {}, human, 0)
 
+
+def test_shared_profile_guard_keeps_v1_and_exposes_stale_diff(db):
+    from core import kho_profile as k
+    first = k.write_fields(db, 1, {'identity':'Kelly'}, {'kind':'human','who':'fixture'}, 0)
+    assert first['revision'] == 1 and 'schema_version' not in first
+    with pytest.raises(k.ProfileConflict) as caught:
+        k.write_fields(db, 1, {'identity':'Replacement'}, {'kind':'human','who':'fixture'}, 0)
+    assert caught.value.diff['expected_revision'] == 0
+    field = next(row for row in caught.value.diff['fields'] if row['field'] == 'identity')
+    assert field['current'] == 'Kelly' and field['requested'] == 'Replacement'
+    assert db.execute('SELECT profile FROM assets WHERE id=1').fetchone()[0].find('"identity": "Kelly"') >= 0
+
 def test_approved_image_beats_ai_text(db):
     from core import kho_profile as k
     p = {'schema_version':2, 'hair':{'text_en':'blonde', 'ref_image_ids':[7], '_p':{'source':'ai','model':'fixture','from_text':'fixture','state':'REVIEW_REQUIRED'}}}

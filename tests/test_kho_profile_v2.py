@@ -61,7 +61,7 @@ def test_byd_checks_declared_forms_with_project_context(adapter,byd_conn,dang):
     from core import shot_intent as s
     byd=s.empty(1);byd.update(byd_v=2,thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':dang}])
     issues = [i for i in s.assess(byd,byd_conn,project_id=1) if '.dang' in i['truong']]
-    assert [i.get('ma') for i in issues] == (['dang_chua_chon_duoc'] if isinstance(dang,dict) else [])
+    assert [i.get('ma') for i in issues] == []
 
 
 def test_byd_unknown_form_reviews_at_exact_beat(adapter,byd_conn):
@@ -103,7 +103,131 @@ def test_single_form_list_selects_same_reference_as_scalar(adapter):
     assert k.outfit_for(None, 1, 'KELLY', scene)['id'] == 'ghost_form'
 
 
-@pytest.mark.parametrize('dang', [['ghost_form','ghost_form'], {'bat_dau':'ghost_form','ket_thuc':'ghost_form'}])
+def test_same_form_across_beats_is_one_shot_form(adapter):
+    k, a = adapter
+    from core import shot_intent as s
+    scene = {'characters':['KELLY'], 'byd':{'byd_v':2, 'thanh_phan':[{
+        'vat':'KELLY', 'dang':{'bat_dau':'ghost_form', 'dinh':['ghost_form'], 'ket_thuc':'ghost_form'}}]}}
+    assert k.scalar_form(scene['byd']['thanh_phan'][0]['dang']) == 'ghost_form'
+    assert k.forms_for_shot(None, 1, scene)['KELLY']['ma'] == 'ghost_form'
+    assert [i['id'] for i in k.selected_images(a, scene, 'KELLY')] == [9]
+    assert not any(i.get('ma') == 'dang_chua_chon_duoc' for i in s.assess(scene['byd']))
+
+
+def test_object_variant_adapter_reads_stage_shape_and_reports_ambiguity(adapter):
+    k, a = adapter
+    p = profile()
+    p['forms'] = [
+        dict(p['forms'][0], ma='flat_wall', ten_en='flat wall', applies_to=[], stage_shape={'kind':'dao_cu'}),
+        dict(p['forms'][0], ma='curved_wall', ten_en='curved wall', applies_to=[],
+             stage_shape={'kind':'gieng', 'hollow':True}),
+    ]
+    import sqlite3
+    conn = sqlite3.connect(':memory:')
+    conn.row_factory = sqlite3.Row
+    conn.executescript('CREATE TABLE asset_images(id INTEGER, asset_id INTEGER, status TEXT); '
+                       "INSERT INTO asset_images VALUES(8,1,'approved'); INSERT INTO asset_images VALUES(9,1,'approved');")
+    with patch.object(k.assets, 'project_assets', return_value=[a]), patch.object(k.assets, 'get_profile', return_value=p):
+        assert k.object_variant(conn, 1)['ma'] == 'flat_wall'
+        selected = k.object_variant(conn, 1, 'curved_wall')
+        assert selected['stage_shape'] == {'kind':'gieng', 'hollow':True}
+        issues = k.validate_bien_the(conn, 1, 1, None)
+        assert issues[0]['ma'] == 'bien_the_chua_chot'
+        unknown = k.validate_bien_the(conn, 1, 1, 'round_wall')
+        assert unknown[0]['ma'] == 'bien_the_khong_trong_kho'
+    conn.close()
+
+
+def test_byd_object_variant_is_checked_through_kho_adapter(adapter):
+    k, a = adapter
+    import sqlite3
+    conn = sqlite3.connect(':memory:')
+    conn.row_factory = sqlite3.Row
+    conn.executescript('CREATE TABLE assets(id INTEGER); INSERT INTO assets VALUES(1); '
+                       'CREATE TABLE asset_images(id INTEGER, asset_id INTEGER, status TEXT); '
+                       "INSERT INTO asset_images VALUES(8,1,'approved'); INSERT INTO asset_images VALUES(9,1,'approved');")
+    p = profile()
+    p['forms'] = [dict(p['forms'][0], ma='flat_wall', applies_to=[], stage_shape={'kind':'dao_cu'}),
+                  dict(p['forms'][0], ma='curved_wall', applies_to=[], stage_shape={'kind':'gieng','hollow':True})]
+    byd = {'shot':1, 'byd_v':2, 'thanh_phan':[], 'vat':[{'vat':'wall','kho_id':1,'cach':'dat','bien_the':'curved_wall'}],
+           'may':{}, 'noi_chon':{'kho_id':1}}
+    with patch.object(os, 'environ', {'FEATURE_KHO_FORMS_V2':'1'}), \
+         patch.object(k.assets, 'project_assets', return_value=[a]), patch.object(k.assets, 'get_profile', return_value=p):
+        from core import shot_intent as s
+        del byd['vat'][0]['bien_the']
+        issues = s.assess(byd, conn, project_id=1)
+        assert not any(i.get('truong') == 'vat[0].bien_the' for i in issues)
+        byd['vat'][0]['bien_the'] = 'curved_wall'
+        issues = s.assess(byd, conn, project_id=1)
+        assert not any(i.get('truong') == 'vat[0].bien_the' for i in issues)
+        byd['vat'][0]['bien_the'] = 'unknown'
+        issues = s.assess(byd, conn, project_id=1)
+    assert any(i.get('ma') == 'bien_the_khong_trong_kho' and i.get('level') == 'REVIEW' for i in issues)
+    for malformed_id in (1.0, True):
+        byd['vat'][0]['kho_id'] = malformed_id
+        issues = s.assess(byd, conn, project_id=1)
+        assert any('bien_the_khong_kiem_duoc' in i.get('loi', '')
+                   and i.get('truong') == 'vat[0].bien_the' for i in issues)
+    conn.close()
+
+
+def test_missing_form_choice_warns_when_shot_declares_need_and_kho_has_many_forms(adapter, byd_conn):
+    k, a = adapter
+    p = profile()
+    p['forms'].append(dict(p['forms'][0], ma='ice_form', ten_en='ice form', image_ids=[8]))
+    byd = {'byd_v':2, 'thanh_phan':[{'vat':'KELLY', 'dang':None}]}
+    with patch.object(k.assets, 'link_characters', return_value={'KELLY':a}), patch.object(k.assets, 'get_profile', return_value=p):
+        from core import shot_intent as s
+        issues = s.assess(byd, byd_conn, project_id=1)
+    assert any(i.get('ma') == 'dang_chua_chot' and i.get('level') == 'REVIEW' for i in issues)
+
+
+def test_missing_form_choice_without_kho_asset_is_not_silent(adapter, byd_conn):
+    k, _ = adapter
+    with patch.object(k.assets, 'link_characters', return_value={}):
+        issues = k.validate_form_choice(byd_conn, 1, 'MISSING', None)
+    assert any(i.get('ma') == 'dang_khong_kiem_duoc' and i.get('level') == 'REVIEW' for i in issues)
+
+
+def test_missing_form_choice_with_legacy_profile_is_not_silent(adapter, byd_conn):
+    k, a = adapter
+    with patch.object(k.assets, 'link_characters', return_value={'KELLY':a}), \
+         patch.object(k.assets, 'get_profile', return_value={'schema_version':1}):
+        issues = k.validate_form_choice(byd_conn, 1, 'KELLY', None)
+    assert any(i.get('ma') == 'dang_khong_kiem_duoc' and i.get('level') == 'REVIEW' for i in issues)
+
+
+def test_corrupt_v2_profile_does_not_silently_mean_no_forms(adapter, byd_conn):
+    k, _ = adapter
+    corrupt = {'schema_version':2, 'approved':True, 'outfit':{'sets':['bad']}}
+    with patch.object(k.assets, 'get_profile', return_value=corrupt):
+        character = k.validate_form_choice(byd_conn, 1, 'KELLY', None)
+        object_variant = k.validate_bien_the(byd_conn, 1, 1, None)
+    assert any(i.get('ma') == 'dang_khong_kiem_duoc' and i.get('level') == 'REVIEW' for i in character)
+    assert any(i.get('ma') == 'bien_the_khong_kiem_duoc' and i.get('level') == 'REVIEW' for i in object_variant)
+
+
+def test_empty_form_keeps_legacy_error_when_forms_flag_is_off():
+    from core import shot_intent as s
+    byd = s.empty(1)
+    byd.update(byd_v=2, thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':None}])
+    with patch.object(os, 'environ', {}):
+        issues = s.assess(byd)
+    assert any(i.get('truong') == 'thanh_phan[0].dang' and 'dạng phải là chữ' in i.get('loi', '')
+               for i in issues)
+
+
+def test_empty_form_with_flag_on_and_no_context_is_not_silent():
+    from core import shot_intent as s
+    byd = s.empty(1)
+    byd.update(byd_v=2, thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':None}])
+    with patch.object(os, 'environ', {'FEATURE_KHO_FORMS_V2':'1'}):
+        issues = s.assess(byd)
+    assert any(i.get('ma') == 'dang_khong_kiem_duoc' and i.get('level') == 'REVIEW'
+               and i.get('truong') == 'thanh_phan[0].dang' for i in issues)
+
+
+@pytest.mark.parametrize('dang', [['ghost_form','ghost_form'], {'bat_dau':'ghost_form','ket_thuc':'ice_form'}])
 def test_non_scalar_form_selection_remains_visible_review(adapter, byd_conn, dang):
     k, _ = adapter
     from core import shot_intent as s

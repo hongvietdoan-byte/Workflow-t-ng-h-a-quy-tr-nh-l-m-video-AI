@@ -142,6 +142,75 @@ class PackTests(unittest.TestCase):
         location_pack.ensure_plates(self.p.conn, other, data, self.tmp, (W, H), blender="x", render=self.fake_render)
         self.assertEqual(len(self.calls), 2)                                    # nothing rendered again
 
+    def test_profile_writer_increments_revision_and_stale_write_returns_diff(self):
+        from core import kho_profile
+        raw = {"schema_version":2, "revision":4, "approved":False, "forms":[], "outfit":{"sets":[]}}
+        self.p.conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(raw), self.place))
+        self.p.conn.commit()
+        location_pack.set_model3d(self.p.conn, self.place, self.model,
+                                  {"giua_phong":{"at":[1, 2, 0], "facing":0}}, expected_revision=4)
+        saved = assets.get_profile(self.p.conn, self.place)
+        self.assertEqual(saved["revision"], 5)
+        self.assertIn("_p", saved["model3d"])
+        with self.assertRaises(kho_profile.ProfileConflict) as caught:
+            location_pack.set_script_view(self.p.conn, self.place, ["giua_phong"], expected_revision=4)
+        self.assertEqual(caught.exception.diff["expected_revision"], 4)
+        self.assertEqual(caught.exception.diff["current_revision"], 5)
+        self.assertIn("model3d", [field["field"] for field in caught.exception.diff["fields"]])
+        self.assertEqual(assets.get_profile(self.p.conn, self.place)["revision"], 5)
+
+    def test_location_writers_preserve_approval_but_revoke_pending_profile(self):
+        for pending in (False, True):
+            raw = {"schema_version":2, "revision":4, "approved":True,
+                   "model3d":{"spots":{"center":{"at":[1, 2, 0], "facing":0}}}}
+            if pending:
+                raw["_p"] = {"identity":{"source":"human", "by":"fixture", "state":"REVIEW_REQUIRED"}}
+            for writer in ("model3d", "script_view"):
+                with self.subTest(writer=writer, pending=pending):
+                    self.p.conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(raw), self.place))
+                    self.p.conn.commit()
+                    if writer == "model3d":
+                        location_pack.set_model3d(
+                            self.p.conn, self.place, self.model,
+                            {"center":{"at":[1, 2, 0], "facing":0}},
+                        )
+                    else:
+                        location_pack.set_script_view(self.p.conn, self.place, ["center"])
+                    saved = assets.get_profile(self.p.conn, self.place)
+                    self.assertEqual(saved["approved"], not pending)
+                    self.assertEqual(saved["revision"], 5)
+
+    def test_location_writers_guard_the_revision_of_the_snapshot_they_edit(self):
+        from core import kho_profile
+        original_write = kho_profile.write_fields
+        raw = {"schema_version":2, "revision":4, "approved":False, "forms":[], "outfit":{"sets":[]},
+               "model3d":{"landmark":"before","spots":{"center":{}}}}
+
+        def concurrent_write(conn, asset_id, changes, actor, expected_revision=None, **kwargs):
+            current = json.loads(conn.execute("SELECT profile FROM assets WHERE id=?", (asset_id,)).fetchone()[0])
+            current["revision"] = 5
+            current["model3d"]["landmark"] = "concurrent update"
+            conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(current), asset_id))
+            conn.commit()
+            return original_write(conn, asset_id, changes, actor, expected_revision, **kwargs)
+
+        for writer in ("model3d", "script_view"):
+            with self.subTest(writer=writer):
+                self.p.conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(raw), self.place))
+                self.p.conn.commit()
+                with mock.patch.object(kho_profile, "write_fields", side_effect=concurrent_write):
+                    with self.assertRaises(kho_profile.ProfileConflict):
+                        if writer == "model3d":
+                            location_pack.set_model3d(
+                                self.p.conn, self.place, self.model,
+                                {"center":{"at":[1, 2, 0], "facing":0}},
+                            )
+                        else:
+                            location_pack.set_script_view(self.p.conn, self.place, ["center"])
+                saved = assets.get_profile(self.p.conn, self.place)
+                self.assertEqual(saved["revision"], 5)
+                self.assertEqual(saved["model3d"]["landmark"], "concurrent update")
+
     def test_stretch_reaches_blender_and_survives_a_new_registration(self):
         """G8 19/10: the place's `model3d.stretch` goes to the Blender config of its plates; registering the model again keeps it."""
         prof = assets.get_profile(self.p.conn, self.place)

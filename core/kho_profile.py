@@ -16,6 +16,13 @@ _log = logging.getLogger(__name__)
 class ProfileError(ValueError):
     pass
 
+
+class ProfileConflict(ProfileError):
+    """Ghi hồ sơ trên revision cũ; `diff` chứa trước / hiện tại / đề nghị để người dùng đối chiếu."""
+    def __init__(self, message, diff):
+        super().__init__(message)
+        self.diff = diff
+
 def enabled():
     return features.on('kho_forms_v2')
 
@@ -93,13 +100,13 @@ def read(conn, asset_id):
     if not enabled():
         return raw
     if not isinstance(raw,dict):
-        return {'schema_version':2,'approved':False,'forms':[],'outfit_sets':[],'face':None,'hair':None,'gaps':['Hồ sơ không phải object'],'kho_id':asset_id,'revision':0}
+        return {'schema_version':2,'approved':False,'forms':[],'outfit_sets':[],'face':None,'hair':None,'gaps':['Hồ sơ không phải object'],'_read_error':'Hồ sơ không phải object','kho_id':asset_id,'revision':0}
     p = copy.deepcopy(raw)
     if raw.get('schema_version',1) != 1:
         try:
             validate(raw,conn,asset_id)
         except (ProfileError, TypeError, KeyError) as exc:
-            return {'schema_version':2,'approved':False,'forms':[],'outfit_sets':[],'face':None,'hair':None,'gaps':[str(exc)],'kho_id':asset_id,'revision':raw.get('revision',0)}
+            return {'schema_version':2,'approved':False,'forms':[],'outfit_sets':[],'face':None,'hair':None,'gaps':[str(exc)],'_read_error':str(exc),'kho_id':asset_id,'revision':raw.get('revision',0)}
     p.update(kho_id=asset_id, revision=raw.get('revision', 0), schema_version=raw.get('schema_version', 1))
     p['gaps'] = []
     p['provenance'] = {}
@@ -164,12 +171,172 @@ def _mentions_form(text, label):
 
 
 def scalar_form(value):
-    """Chỉ một dạng rõ ràng; nhiều dạng/theo nhịp cần người quyết cách chọn ảnh."""
+    """Một dạng rõ ràng cho cả shot; nhịp đều cùng dạng dùng được, chuyển dạng phải tách shot."""
     if isinstance(value, str):
         return value
     if isinstance(value, list) and len(value) == 1 and isinstance(value[0], str):
         return value[0]
+    if isinstance(value, dict) and value and set(value).issubset({'bat_dau', 'dinh', 'ket_thuc'}):
+        beat_forms = [scalar_form(form) for form in value.values()]
+        if beat_forms and all(beat_forms) and len(set(beat_forms)) == 1:
+            return beat_forms[0]
     return None
+
+
+def object_forms(profile):
+    """Các biến thể vật đã được người duyệt; vật dùng forms[].ma và stage_shape qua adapter này."""
+    return [copy.deepcopy(f) for f in (profile.get('forms') or [])
+            if isinstance(f, dict) and not f.get('applies_to') and f.get('_p', {}).get('state') == 'USER_LOCKED']
+
+
+def object_variant(conn, asset_id, variant=None):
+    """Đọc biến thể vật từ adapter. Không đoán khi mã không khớp hoặc nhiều biến thể chưa chốt."""
+    p = read(conn, asset_id)
+    forms = object_forms(p) if p.get('schema_version') == 2 else []
+    if variant in (None, ''):
+        return forms[0] if forms else None  # M0.9: thứ tự forms là thứ tự mặc định của vật
+    if not isinstance(variant, str):
+        return None
+    return next((f for f in forms if f.get('ma') == variant.strip()), None)
+
+
+def validate_bien_the(conn, project_id, asset_id, variant=None):
+    """Kiểm `vat[].bien_the` bằng forms Kho đã duyệt; chỉ cảnh báo, không đổi BYĐ."""
+    if not enabled():
+        return []
+    if conn is None or type(project_id) is not int or project_id <= 0:
+        return [{'muc':'vang', 'ma':'bien_the_khong_kiem_duoc', 'level':'REVIEW', 'loi':'chưa kiểm được biến thể Kho (thiếu kết nối hoặc mã dự án)'}]
+    if type(asset_id) is not int or asset_id <= 0:
+        return [{'muc':'vang', 'ma':'bien_the_khong_kiem_duoc', 'level':'REVIEW', 'loi':'BYĐ thiếu mã Kho vật'}]
+    asset = next((a for a in assets.project_assets(conn, project_id) if a.get('id') == asset_id), None)
+    if asset is None:
+        return [{'muc':'vang', 'ma':'bien_the_kho_khong_khop', 'level':'REVIEW', 'loi':'mã Kho vật không thuộc dự án'}]
+    p = read(conn, asset_id)
+    if p.get('_read_error'):
+        return [{'muc':'vang', 'ma':'bien_the_khong_kiem_duoc', 'level':'REVIEW',
+                 'loi':'không kiểm được biến thể vì hồ sơ Kho không hợp lệ'}]
+    forms = object_forms(p) if p.get('schema_version') == 2 else []
+    if variant in (None, '', [], {}):
+        if len(forms) > 1:
+            return [{'muc':'vang', 'ma':'bien_the_chua_chot', 'level':'REVIEW', 'loi':'shot cần dạng nhưng Kho có nhiều biến thể chưa chốt'}]
+        return []
+    if not isinstance(variant, str):
+        return [{'muc':'vang', 'ma':'bien_the_chua_chot', 'level':'REVIEW', 'loi':'biến thể phải là một mã forms Kho; không tự chọn nhiều dạng'}]
+    if not any(f.get('ma') == variant.strip() for f in forms):
+        code = 'bien_the_khong_kiem_duoc' if not forms else 'bien_the_khong_trong_kho'
+        return [{'muc':'vang', 'ma':code, 'level':'REVIEW', 'loi':'Kho chưa có biến thể đã duyệt khớp mã BYĐ'}]
+    return []
+
+
+def validate_form_choice(conn, project_id, name, declared=None, *, asset_id=None):
+    """Cảnh báo shot đã khai trường `dang` nhưng chưa chốt, khi Kho có nhiều forms nhân vật."""
+    if not enabled() or declared not in (None, '', [], {}):
+        return []
+    if conn is None or type(project_id) is not int or project_id <= 0:
+        return []
+    a = assets.link_characters(conn, project_id, [name]).get(name)
+    if asset_id is not None and (type(asset_id) is not int or not a or a.get('id') != asset_id):
+        return [{'muc':'vang', 'ma':'dang_kho_khong_khop', 'level':'REVIEW', 'loi':'mã Kho BYĐ không khớp mục nhân vật'}]
+    if not a:
+        return [{'muc':'vang', 'ma':'dang_khong_kiem_duoc', 'level':'REVIEW',
+                 'loi':'chưa tìm thấy mục Kho để kiểm dạng đã chốt'}]
+    p = read(conn, a['id'])
+    if p.get('_read_error'):
+        return [{'muc':'vang', 'ma':'dang_khong_kiem_duoc', 'level':'REVIEW',
+                 'loi':'không kiểm được dạng vì hồ sơ Kho không hợp lệ'}]
+    if p.get('schema_version') != 2:
+        return [{'muc':'vang', 'ma':'dang_khong_kiem_duoc', 'level':'REVIEW',
+                 'loi':'hồ sơ Kho chưa có forms v2 để kiểm dạng đã chốt'}]
+    forms = [f for f in p.get('forms') or [] if isinstance(f, dict)
+             and str(name).strip().upper() in {str(n).strip().upper() for n in f.get('applies_to') or []}
+             and f.get('_p', {}).get('state') == 'USER_LOCKED']
+    if len(forms) > 1:
+        return [{'muc':'vang', 'ma':'dang_chua_chot', 'level':'REVIEW',
+                 'loi':'shot cần dạng nhưng Kho có nhiều dạng chưa chọn; chốt `dang` hoặc khai cùng một dạng cho từng nhịp'}]
+    return []
+
+
+def _profile_diff(expected_revision, current, changes, base_profile=None):
+    base = base_profile if isinstance(base_profile, dict) else {}
+    keys = set(changes)
+    keys.update(key for key in set(base) | set(current) if base.get(key) != current.get(key))
+    return {
+        'expected_revision': expected_revision,
+        'current_revision': current.get('revision', 0),
+        'fields': [{'field': key,
+                    **({'before': copy.deepcopy(base[key])} if key in base else {}),
+                    **({'current': copy.deepcopy(current[key])} if key in current else {}),
+                    **({'requested': copy.deepcopy(changes[key])} if key in changes else {})}
+                   for key in sorted(keys)],
+    }
+
+
+def write_fields(conn, asset_id, changes, actor, expected_revision=None, *, reason=None):
+    """Guard dùng chung cho writer Kho: CAS, revision, proposal khi khóa và diff khi stale; không nâng schema v1 lên v2."""
+    row = conn.execute('SELECT profile FROM assets WHERE id=?', (asset_id,)).fetchone()
+    if row is None:
+        raise ProfileError('Không tìm thấy mục Kho')
+    raw = row['profile']
+    try:
+        old = json.loads(raw) if raw else {}
+    except (ValueError, TypeError):
+        raise ProfileError('Hồ sơ nguồn không phải JSON hợp lệ') from None
+    if not isinstance(old, dict):
+        raise ProfileError('Hồ sơ nguồn phải là object')
+    current_revision = old.get('revision', 0)
+    if type(current_revision) is not int or current_revision < 0:
+        raise ProfileError('revision không hợp lệ')
+    if expected_revision is None:
+        expected_revision = current_revision
+    if type(expected_revision) is not int or expected_revision < 0:
+        raise ProfileError('expected_revision không hợp lệ')
+    if current_revision != expected_revision:
+        raise ProfileConflict('revision đã đổi; cần đối chiếu diff trước khi ghi',
+                              _profile_diff(expected_revision, old, changes))
+    if old.get('schema_version', 1) == 2:
+        return save(conn, asset_id, changes, actor, expected_revision, reason=reason, base_profile=old)
+    if not isinstance(actor, dict) or actor.get('kind') not in ('human', 'ai', 'auto', 'tool') \
+            or not isinstance(actor.get('who'), str) or not actor['who'].strip():
+        raise ProfileError('Cần actor hợp lệ')
+    if not isinstance(changes, dict):
+        raise ProfileError('Thay đổi hồ sơ phải là object')
+    if set(changes) & {'revision', 'schema_version', 'proposals', 'approved', 'history', '_p'}:
+        raise ProfileError('Trường hệ thống không được ghi trực tiếp')
+    p = copy.deepcopy(old)
+    locked = actor['kind'] != 'human' and bool(old.get('approved'))
+    if locked:
+        p.setdefault('proposals', {}).update(copy.deepcopy(changes))
+    else:
+        p.update(copy.deepcopy(changes))
+    p['revision'] = expected_revision + 1
+    conn.execute('SAVEPOINT kho_profile_v1_write')
+    try:
+        changed = conn.execute('UPDATE assets SET profile=? WHERE id=? AND profile IS ?',
+                               (json.dumps(p, ensure_ascii=False), asset_id, raw)).rowcount
+        if changed != 1:
+            current_row = conn.execute('SELECT profile FROM assets WHERE id=?', (asset_id,)).fetchone()
+            try:
+                current = json.loads(current_row['profile']) if current_row and current_row['profile'] else {}
+            except (ValueError, TypeError):
+                current = {}
+            raise ProfileConflict('revision đã đổi; cần đối chiếu diff trước khi ghi',
+                                  _profile_diff(expected_revision, current, changes, old))
+        detail = {'kho_id': asset_id, 'actor_kind': actor['kind'], 'before_revision': expected_revision,
+                  'revision': p['revision'], 'changed_keys': sorted(changes),
+                  'before_hash': hashlib.sha256((raw or '').encode('utf-8')).hexdigest(),
+                  'after_hash': hashlib.sha256(json.dumps(p, ensure_ascii=False).encode('utf-8')).hexdigest()}
+        conn.execute('INSERT INTO audit_log(at,email,action,detail) VALUES(?,?,?,?)',
+                     (datetime.now(timezone.utc).isoformat(), actor['who'], 'kho_profile', json.dumps(detail, ensure_ascii=False)))
+        conn.execute('RELEASE kho_profile_v1_write')
+    except Exception as exc:
+        conn.execute('ROLLBACK TO kho_profile_v1_write')
+        conn.execute('RELEASE kho_profile_v1_write')
+        if isinstance(exc, (sqlite3.Error, ProfileConflict)):
+            if isinstance(exc, ProfileConflict):
+                raise
+            raise ProfileError('Không ghi được hồ sơ và audit; đã hoàn tác lần lưu') from None
+        raise
+    return p
 
 
 def _requested(scene):
@@ -369,7 +536,7 @@ def pending_review(profile):
     return out
 
 
-def save(conn, asset_id, changes, actor, expected_revision, *, approved=None, reason=None):
+def save(conn, asset_id, changes, actor, expected_revision, *, approved=None, reason=None, base_profile=None):
     """Ghi có actor, giữ trường khóa, lưu đề xuất và CAS nguyên JSON (không migration)."""
     if not isinstance(actor,dict) or actor.get('kind') not in ('human','ai','auto','tool') or not isinstance(actor.get('who'),str) or not actor['who'].strip():
         raise ProfileError('Cần actor hợp lệ')
@@ -390,7 +557,8 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None, re
     if old.get('schema_version',1) != 1:
         validate(old,conn,asset_id)
     if old.get('revision',0) != expected_revision:
-        raise ProfileError('revision đã đổi; tải lại')
+        raise ProfileConflict('revision đã đổi; cần đối chiếu diff trước khi ghi',
+                              _profile_diff(expected_revision, old, changes, base_profile))
     p = copy.deepcopy(old)
     human = actor['kind']=='human'
     for key,value in changes.items():
@@ -425,7 +593,13 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None, re
         p[key]=value
     p.update(schema_version=2,revision=expected_revision+1)
     fields = [p[k] for k in ('face','hair') if p.get(k)] + p.get('forms',[]) + p.get('outfit',{}).get('sets',[])
-    p['approved'] = bool(fields) and not pending_review(p)
+    if set(changes) & {'face', 'hair', 'forms', 'outfit'}:
+        p['approved'] = bool(fields) and not pending_review(p)
+    else:
+        # Metadata-only writers (for example location_pack.model3d) must not revoke
+        # approval for a profile that intentionally has no character forms, but a
+        # previously pending field still prevents the profile from remaining approved.
+        p['approved'] = bool(old.get('approved', False)) and not pending_review(p)
     if reason and str(reason).strip():
         # Kế hoạch V4 4.4: đổi hồ sơ ghi lý do — writer v2 giữ `history` như writer v1.
         p['history'] = list(old.get('history') or []) + [{'date': datetime.now(timezone.utc).date().isoformat(), 'why': str(reason).strip(), 'by': actor['who']}]
@@ -437,7 +611,13 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None, re
     try:
         changed = conn.execute('UPDATE assets SET profile=? WHERE id=? AND profile IS ?',(json.dumps(p,ensure_ascii=False),asset_id,raw)).rowcount
         if changed != 1:
-            raise ProfileError('revision đã đổi; tải lại')
+            current_row = conn.execute('SELECT profile FROM assets WHERE id=?', (asset_id,)).fetchone()
+            try:
+                current = json.loads(current_row['profile']) if current_row and current_row['profile'] else {}
+            except (ValueError, TypeError):
+                current = {}
+            raise ProfileConflict('revision đã đổi; cần đối chiếu diff trước khi ghi',
+                                  _profile_diff(expected_revision, current, changes, base_profile or old))
         detail = {'kho_id':asset_id,'actor_kind':actor['kind'],
                   'before_revision':expected_revision,'revision':p['revision'],
                   'changed_keys':sorted(k for k in changes if old.get(k) != p.get(k)),
