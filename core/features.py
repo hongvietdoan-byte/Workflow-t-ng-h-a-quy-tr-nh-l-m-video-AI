@@ -23,6 +23,8 @@ FEATURES: Dict[str, Dict] = {
                                'verified': False, 'why': 'Đ20 M1.5: chỉ thử offline; chưa có allocator đa tiến trình'},
     "motion_sfx": {"label": "SFX theo nhịp BYĐ (code 0 USD)", "verified": False,
                    "why": "Đ12v2: mốc ước tính, chưa nối caller Bước 5/chưa thử sản xuất"},
+    "vpa_shadow": {"label": "VPA đề xuất motion prompt ở chế độ bóng (0 USD API)", "verified": False, "costs": False,
+                   "why": "CX24-M65: cờ mặc định TẮT; chỉ sinh proposal bóng, không ghi BYĐ/prompt gửi hoặc cấp quyền gửi API"},
     'blockout_clay_sheet': {'label':'Tấm duyệt khối clay (Blender cục bộ, 0 USD)', 'verified':False,
                            'why':'Đ11v2: chưa nghiệm thu ảnh Kho thật'},
     'director_blockout': {'label':'Đạo diễn khai sơ đồ khối (Claude, cần báo giá)', 'verified':False,
@@ -1068,7 +1070,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
+OPT_IN_ONLY: tuple = ("motion_sfx", "vpa_shadow", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
                       "stage_handheld_props",
                       "whitebox_height_dummy",   # C-3D-GOC-A: đổi máy nền 3D gửi model (slightly_high, high giữ % khung) — chọn riêng
                       "ui_step_log",           # C-DEVSYS-MAPS: ghi CSDL mỗi bước bấm — chỉ bật khi chọn riêng (preset Thử nghiệm không bật)
