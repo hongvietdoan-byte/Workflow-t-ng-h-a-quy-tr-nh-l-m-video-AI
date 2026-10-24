@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T16:48:25.720771+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-G3-SO-LOI",
+  "branch": "codex/v31-so-loi-sync",
+  "commit": "90639aebde208665b5e982a4b9112fed199f3ab2",
+  "report": "docs/RA_CX24_G3_SO_LOI_CODEX_2026-10-24.md",
+  "text": "Codex 1: đã push90639aeb, root và rà độc lập0P1/P2. Sổ93mục, 74mục lệch ✅code còn mở có lý do; 31golden HOLD có30ID+1chưađịnhdanh giữOPEN, 10replay FIXED_UNVERIFIED theo GOLDEN8/test/commit, khôngVERIFIED; G36 giữIN_PROGRESS vì note kếhoạch cònmở, 4strictxfail giữOPEN. Đối soát chỉWARN, khôngđổi schemaexit/cổng. Hộp thư cảnh báo12h chỉđọc refs ngoài origin/main; branchmetadata tườngminh nhan/tin/ke, thiếu thìUNKNOWN, khôngđổitrạngthái. Test45qua4xfail; errors_page12qua; mailboxlegacy+10mới28qua, module11cuối qua (khôngcộngtrùng). 0USD/nodata/CU/main/live. Cảbộ/slowdevsys thuộcphiêngộp. Tiếp chuẩn bị HOP-THU-GON cùngvùngfile sauG3; giữ dependency rõ nếuG3chưamain."
+}
