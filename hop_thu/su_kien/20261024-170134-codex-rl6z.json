@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T17:01:34.490047+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-CLI-TOKENS",
+  "branch": "codex/v31-cli-tokens",
+  "commit": "296fc658",
+  "report": "docs/RA_CX24_CLI_TOKENS_CODEX2_2026-10-24.md",
+  "text": "Codex 2: xong CX24-CLI-TOKENS; commit 296fc658 đã push. Cờ cli_token_budget TẮT mặc định, OFF giữ argv cũ; đo đạc/token cache/cảnh báo được bổ sung. 146 test mục tiêu xanh, 0 USD, chỉ fake CLI/DB. Chưa chạy Claude thật, chưa bật cờ hay xác nhận giảm token thật; xem báo cáo để duyệt một ca đo có kiểm soát."
+}
