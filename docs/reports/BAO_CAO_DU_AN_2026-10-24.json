@@ -1,0 +1,1211 @@
+{
+  "schema": 1,
+  "scope": "bb9737f1c6f376677448e4e12454083940086293b6949a2a6e39badab320fb54",
+  "as_of": "2026-10-24",
+  "measured_at": "2026-10-24T15:18:45+07:00",
+  "period": {
+    "from": "2026-10-18",
+    "to": "2026-10-24"
+  },
+  "metrics": {
+    "code_pct": {
+      "value": 71.1,
+      "source": "devsys/plans.json → devsys.plan_progress, snapshot lúc đo",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": "%"
+    },
+    "gate_pct": {
+      "value": 9.2,
+      "source": "devsys/plans.json → devsys.plan_progress, snapshot lúc đo",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": "%"
+    },
+    "commits_week": {
+      "value": 1865,
+      "source": "git rev-list, kỳ 7 ngày Asia/Saigon",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": "commit"
+    },
+    "test_functions_static": {
+      "value": 7261,
+      "source": "git ls-files + đếm định nghĩa test tĩnh",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": "hàm, không phải cases xanh"
+    },
+    "tokens": {
+      "value": null,
+      "source": "JSONL thư mục dự án được chỉ định; message.id cumulative max xuyên file",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "mẫu token thiếu trường/cache, xung đột ID hoặc nguồn chưa đầy đủ",
+      "unit": "token, không phải USD"
+    },
+    "build_tokens": {
+      "value": null,
+      "source": "JSONL không có liên kết dự án video/loại tác vụ đáng tin",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "chưa tách được xây công cụ với vận hành video; không suy mọi phiên repo là build",
+      "unit": "token"
+    },
+    "video_operation_tokens": {
+      "value": null,
+      "source": "JSONL không có liên kết dự án video/loại tác vụ đáng tin",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "chưa tách được xây công cụ với vận hành video; không suy mọi phiên repo là build",
+      "unit": "token"
+    },
+    "sessions": {
+      "value": null,
+      "source": "JSONL allowlist metadata đến ngày báo cáo",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "mẫu token thiếu trường/cache, xung đột ID hoặc nguồn chưa đầy đủ",
+      "unit": "phiên"
+    },
+    "days": {
+      "value": null,
+      "source": "JSONL allowlist metadata đến ngày báo cáo",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "mẫu token thiếu trường/cache, xung đột ID hoặc nguồn chưa đầy đủ",
+      "unit": "ngày"
+    },
+    "actual_usd": {
+      "value": null,
+      "source": "usage_events.usd nếu có, không tự quy đổi quantity",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "usage_events chỉ có lượng dùng/model; không có USD chi thực tế, không quy đổi giá hiện tại thành hóa đơn",
+      "unit": "USD"
+    },
+    "estimated_usd": {
+      "value": null,
+      "source": "app_settings project_budget:<id>.total, snapshot",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "dự toán snapshot chỉ có tại lúc đo, không phục hồi ngày quá khứ hoặc approved_at tương lai; total thiếu/không hợp lệ cũng UNKNOWN",
+      "unit": "USD"
+    },
+    "held_usd": {
+      "value": 0,
+      "source": "llm_holds TTL 30 phút, phần giữ chỗ LLM hiện tại, không phải tổng mọi job",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": "USD"
+    },
+    "final_outputs": {
+      "value": 14,
+      "source": "outputs.kind=final, số bản ghi artifact, không kiểm file",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": "artifact"
+    },
+    "delivered_projects": {
+      "value": null,
+      "source": "deliveries DISTINCT project_id, số dự án ghi đã giao",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "ngày artifact/giao thiếu timezone hoặc không đọc được; không suy lịch sử",
+      "unit": "dự án"
+    },
+    "ledger_rows": {
+      "value": 6363,
+      "source": "usage_events COUNT metadata snapshot",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": "dòng"
+    },
+    "first_pass_rate": {
+      "value": 40.13157894736842,
+      "source": "jobs + job_events approved/rejected/running",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": "%"
+    },
+    "test_passed": {
+      "value": null,
+      "source": "nguồn chất lượng chưa được nghiệm thu",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "chưa có artifact test có cấu trúc; không chạy test để đếm",
+      "unit": ""
+    },
+    "test_failed": {
+      "value": null,
+      "source": "nguồn chất lượng chưa được nghiệm thu",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "chưa có artifact test có cấu trúc; không chạy test để đếm",
+      "unit": ""
+    },
+    "open_errors": {
+      "value": 91,
+      "source": "devsys/errors.json snapshot lúc đo, status khác VERIFIED",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": ""
+    },
+    "ep_decisions": {
+      "value": 30,
+      "source": "data/decisions.json snapshot lúc đo, phase có khai báo và khác APPROVED",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": ""
+    },
+    "decision_phase_unknown": {
+      "value": 60,
+      "source": "data/decisions.json, record legacy thiếu phase",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": ""
+    },
+    "mail_questions": {
+      "value": 0,
+      "source": "hộp thư sự kiện snapshot lúc đo, hỏi chưa có reply_to",
+      "measured_at": "2026-10-24T15:18:45+07:00",
+      "delta": null,
+      "reason": "",
+      "unit": ""
+    }
+  },
+  "warnings": [
+    "Nguồn token chưa đầy đủ; không suy USD từ token hoặc hạn mức tài khoản"
+  ],
+  "sections": [
+    "Tóm tắt 1 phút",
+    "Tiến độ V3.1 theo mốc M0–M8",
+    "Khối lượng",
+    "Chi phí — bốn loại riêng",
+    "Chất lượng",
+    "Rủi ro mở",
+    "Việc cần EP quyết và kế hoạch hai tuần"
+  ],
+  "token_groups": [
+    {
+      "month": "2026-10",
+      "model": "claude-sonnet-5",
+      "role": "main",
+      "input_tokens": 2,
+      "output_tokens": 4,
+      "cache_read_input_tokens": 22255,
+      "cache_creation_input_tokens": 39569,
+      "messages": 1
+    },
+    {
+      "month": "2026-10",
+      "model": "claude-opus-5-5",
+      "role": "main",
+      "input_tokens": 2578,
+      "output_tokens": 728517,
+      "cache_read_input_tokens": 296296108,
+      "cache_creation_input_tokens": 4677786,
+      "messages": 1212
+    },
+    {
+      "month": "2026-09",
+      "model": "claude-sonnet-5",
+      "role": "main",
+      "input_tokens": 3250,
+      "output_tokens": 829361,
+      "cache_read_input_tokens": 893578384,
+      "cache_creation_input_tokens": 2115579,
+      "messages": 1625
+    },
+    {
+      "month": "2026-10",
+      "model": "claude-opus-5-5",
+      "role": "agent",
+      "input_tokens": 1844,
+      "output_tokens": 232701,
+      "cache_read_input_tokens": 138867591,
+      "cache_creation_input_tokens": 4228625,
+      "messages": 920
+    },
+    {
+      "month": "2026-10",
+      "model": "claude-sonnet-5-5",
+      "role": "agent",
+      "input_tokens": 72,
+      "output_tokens": 9011,
+      "cache_read_input_tokens": 2298190,
+      "cache_creation_input_tokens": 562485,
+      "messages": 34
+    },
+    {
+      "month": "2026-09",
+      "model": "claude-opus-5-5",
+      "role": "main",
+      "input_tokens": 358,
+      "output_tokens": 155868,
+      "cache_read_input_tokens": 138818271,
+      "cache_creation_input_tokens": 897495,
+      "messages": 179
+    },
+    {
+      "month": "2026-10",
+      "model": "UNKNOWN",
+      "role": "agent",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "messages": 2
+    },
+    {
+      "month": "2026-10",
+      "model": "UNKNOWN",
+      "role": "main",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "messages": 4
+    }
+  ],
+  "project_costs": [
+    {
+      "project": 31,
+      "estimated_usd": null
+    },
+    {
+      "project": 8,
+      "estimated_usd": 45.23
+    }
+  ],
+  "waves": [
+    {
+      "id": "M0",
+      "n": 12,
+      "done": 12,
+      "doing": 0,
+      "waiting": 0,
+      "pct": 100.0,
+      "pct_gate": 88.9
+    },
+    {
+      "id": "M1",
+      "n": 9,
+      "done": 9,
+      "doing": 0,
+      "waiting": 0,
+      "pct": 100.0,
+      "pct_gate": 0.0
+    },
+    {
+      "id": "M2",
+      "n": 10,
+      "done": 9,
+      "doing": 0,
+      "waiting": 1,
+      "pct": 87.0,
+      "pct_gate": 0.0
+    },
+    {
+      "id": "M3",
+      "n": 5,
+      "done": 5,
+      "doing": 0,
+      "waiting": 0,
+      "pct": 100.0,
+      "pct_gate": 0.0
+    },
+    {
+      "id": "M4",
+      "n": 8,
+      "done": 6,
+      "doing": 2,
+      "waiting": 0,
+      "pct": 84.4,
+      "pct_gate": 0.0
+    },
+    {
+      "id": "M5",
+      "n": 5,
+      "done": 2,
+      "doing": 1,
+      "waiting": 0,
+      "pct": 54.5,
+      "pct_gate": 0.0
+    },
+    {
+      "id": "M6",
+      "n": 13,
+      "done": 3,
+      "doing": 1,
+      "waiting": 0,
+      "pct": 26.8,
+      "pct_gate": 0.0
+    },
+    {
+      "id": "M7",
+      "n": 8,
+      "done": 6,
+      "doing": 0,
+      "waiting": 0,
+      "pct": 81.2,
+      "pct_gate": 0.0
+    },
+    {
+      "id": "M8",
+      "n": 5,
+      "done": 2,
+      "doing": 1,
+      "waiting": 0,
+      "pct": 45.8,
+      "pct_gate": 0.0
+    },
+    {
+      "id": "M9",
+      "n": 13,
+      "done": 7,
+      "doing": 1,
+      "waiting": 0,
+      "pct": 47.2,
+      "pct_gate": 0.0
+    }
+  ],
+  "workload": [
+    {
+      "directory": "core",
+      "files": 268,
+      "lines": 98871
+    },
+    {
+      "directory": "dashboard",
+      "files": 78,
+      "lines": 18059
+    },
+    {
+      "directory": "devsys",
+      "files": 22,
+      "lines": 7690
+    },
+    {
+      "directory": "khác",
+      "files": 28,
+      "lines": 2481
+    },
+    {
+      "directory": "tests",
+      "files": 540,
+      "lines": 110562
+    },
+    {
+      "directory": "tools",
+      "files": 141,
+      "lines": 31721
+    }
+  ],
+  "open_error_items": [
+    {
+      "id": "P31-G1",
+      "stage": "L6",
+      "category": "continuity",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P31-G2",
+      "stage": "L6",
+      "category": "ti_le",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G3",
+      "stage": "L6",
+      "category": "may",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P31-G4",
+      "stage": "L8",
+      "category": "goi_anh",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G5",
+      "stage": "L8",
+      "category": "so_goi",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G6",
+      "stage": "L16",
+      "category": "chen_shot",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G7",
+      "stage": "L8",
+      "category": "goi_anh",
+      "severity": "vua",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P31-G8",
+      "stage": "L6",
+      "category": "kho_3d",
+      "severity": "vua",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P31-G9",
+      "stage": "L3",
+      "category": "bao_nham",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G10",
+      "stage": "L12",
+      "category": "khop_moi",
+      "severity": "vua",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P31-G11",
+      "stage": "L11",
+      "category": "motion",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G12",
+      "stage": "L12",
+      "category": "chu_viet",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G13",
+      "stage": "L12",
+      "category": "do_dai_prompt",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G14",
+      "stage": "L14a",
+      "category": "thoi_luong",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G15",
+      "stage": "L13",
+      "category": "khop_moi",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G16",
+      "stage": "L13",
+      "category": "khop_moi",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G17",
+      "stage": "L13",
+      "category": "khop_moi",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G18",
+      "stage": "L3",
+      "category": "byd",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G19",
+      "stage": "L9",
+      "category": "khung_dau",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G20",
+      "stage": "L13",
+      "category": "bao_nham",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G21",
+      "stage": "L16",
+      "category": "byd",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G22",
+      "stage": "L16",
+      "category": "byd",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G23",
+      "stage": "L12",
+      "category": "cong_cu",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G24",
+      "stage": "L12",
+      "category": "router",
+      "severity": "vua",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P31-G26",
+      "stage": "L11",
+      "category": "may",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G27",
+      "stage": "L12",
+      "category": "goi_video",
+      "severity": "cao",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P31-G28",
+      "stage": "L13",
+      "category": "khung_dau",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G29",
+      "stage": "L12",
+      "category": "cong_cu",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G30",
+      "stage": "L12",
+      "category": "kho_chu_the",
+      "severity": "cao",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P31-G31",
+      "stage": "UNKNOWN",
+      "category": "chi_phi",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G32",
+      "stage": "L13",
+      "category": "router",
+      "severity": "vua",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P31-G33",
+      "stage": "UNKNOWN",
+      "category": "provider",
+      "severity": "cao",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P31-G34",
+      "stage": "L16",
+      "category": "giu_job",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G35",
+      "stage": "L16",
+      "category": "giu_job",
+      "severity": "cao",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P31-G36",
+      "stage": "L13",
+      "category": "tam_dung",
+      "severity": "cao",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P31-G37",
+      "stage": "L13",
+      "category": "dang_nhan_vat",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G38",
+      "stage": "L5",
+      "category": "kho_forms",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G39",
+      "stage": "UNKNOWN",
+      "category": "cong_cu",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G40",
+      "stage": "L9",
+      "category": "khung_dau",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G41",
+      "stage": "L3b",
+      "category": "vi_tri",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G42",
+      "stage": "L14a",
+      "category": "loi_dan",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G43",
+      "stage": "L3b",
+      "category": "vi_tri",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P31-G44",
+      "stage": "L3b",
+      "category": "vi_tri",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G45",
+      "stage": "L3b",
+      "category": "vi_tri",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G46",
+      "stage": "L6",
+      "category": "vi_tri",
+      "severity": "cao",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P31-G47",
+      "stage": "L6",
+      "category": "vi_tri",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G48",
+      "stage": "L9",
+      "category": "vat",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G49",
+      "stage": "L6",
+      "category": "may",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G50",
+      "stage": "L3b",
+      "category": "vi_tri",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G51",
+      "stage": "L13",
+      "category": "chuyen_dong",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G52",
+      "stage": "L13",
+      "category": "continuity",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G53",
+      "stage": "L12",
+      "category": "khop_moi",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G54",
+      "stage": "L12",
+      "category": "do_dai_prompt",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G55",
+      "stage": "UNKNOWN",
+      "category": "van_hanh",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G56",
+      "stage": "UNKNOWN",
+      "category": "diag",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P31-G57",
+      "stage": "UNKNOWN",
+      "category": "provider",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P31-G58",
+      "stage": "L12",
+      "category": "kho_chu_the",
+      "severity": "cao",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P33-A1",
+      "stage": "L13",
+      "category": "vong_doi_job",
+      "severity": "cao",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P33-A2",
+      "stage": "L16",
+      "category": "provider",
+      "severity": "cao",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P33-A3",
+      "stage": "UNKNOWN",
+      "category": "provider",
+      "severity": "cao",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P33-A4",
+      "stage": "L10",
+      "category": "khoa_tay",
+      "severity": "cao",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-A5",
+      "stage": "L9",
+      "category": "bao_nham",
+      "severity": "vua",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P33-A6",
+      "stage": "L16",
+      "category": "bao_nham",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-A7",
+      "stage": "UNKNOWN",
+      "category": "chi_phi",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-A8",
+      "stage": "UNKNOWN",
+      "category": "chi_phi",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-A9",
+      "stage": "UNKNOWN",
+      "category": "chi_phi",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-A10",
+      "stage": "L6",
+      "category": "may",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "P33-A11",
+      "stage": "L13",
+      "category": "thong_diep",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-A12",
+      "stage": "L3",
+      "category": "byd",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-A13",
+      "stage": "UNKNOWN",
+      "category": "provider",
+      "severity": "cao",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P33-A14",
+      "stage": "UNKNOWN",
+      "category": "chi_phi",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-A15",
+      "stage": "L13",
+      "category": "vong_doi_job",
+      "severity": "vua",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "P33-B1",
+      "stage": "L5",
+      "category": "anh_mau",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B2",
+      "stage": "L7",
+      "category": "ref_bau_troi",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B3",
+      "stage": "L8",
+      "category": "vi_tri",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B4",
+      "stage": "L6",
+      "category": "nen_3d",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B5",
+      "stage": "L6",
+      "category": "bo_cuc",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B6",
+      "stage": "L8",
+      "category": "cong",
+      "severity": "thap",
+      "status": "WONT_FIX"
+    },
+    {
+      "id": "P33-B7",
+      "stage": "L11",
+      "category": "chu_viet",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B8",
+      "stage": "L12",
+      "category": "video_ref",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B9",
+      "stage": "L13",
+      "category": "khung_dau",
+      "severity": "vua",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B10",
+      "stage": "L11",
+      "category": "chu_viet",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B11",
+      "stage": "L15a",
+      "category": "dung",
+      "severity": "thap",
+      "status": "OPEN"
+    },
+    {
+      "id": "P33-B12",
+      "stage": "UNKNOWN",
+      "category": "van_hanh",
+      "severity": "thap",
+      "status": "WONT_FIX"
+    },
+    {
+      "id": "V21-R3",
+      "stage": "L13",
+      "category": "qc_crash",
+      "severity": "vua",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "V31-R2",
+      "stage": "UNKNOWN",
+      "category": "provider",
+      "severity": "cao",
+      "status": "FIXED_UNVERIFIED"
+    },
+    {
+      "id": "V31-GOC1",
+      "stage": "L6",
+      "category": "root_cause",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "V31-GOC2",
+      "stage": "L6",
+      "category": "may",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "V31-GOC3",
+      "stage": "L11",
+      "category": "root_cause",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "V31-GOC4",
+      "stage": "L3",
+      "category": "byd",
+      "severity": "vua",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "V31-GOC5",
+      "stage": "L6",
+      "category": "root_cause",
+      "severity": "vua",
+      "status": "OPEN"
+    }
+  ],
+  "ep_pending": [
+    {
+      "id": "ep-2210-p1-pets-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-p2-tieu-nhi-plan-lessons-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-q3-self-repair-40-confirm-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-e1-ref-set-owner-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-e2-approve-all-preview-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-e3-offline-director-2026-10-22",
+      "phase": "PENDING_VERIFICATION"
+    },
+    {
+      "id": "ep-2210-e4-counters-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-e5-stage-role-table-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-e6-asset-curator-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-qa-auto-pick-direction-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-qb-motion-prompt-auto-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-qc-auto-upscale-1080-2026-10-22",
+      "phase": "PENDING_VERIFICATION"
+    },
+    {
+      "id": "ep-2210-qd-film-budget-hard-stop-2026-10-22",
+      "phase": "PENDING_EP_CONFLICT"
+    },
+    {
+      "id": "ep-2210-qe-default-mode-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-qf-money-safety-first-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-g1-ep-role-per-project-2026-10-22",
+      "phase": "PENDING_VERIFICATION"
+    },
+    {
+      "id": "ep-2210-g2-ref-end-frames-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-g3-ref-only-to-first-frame-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-c1-enterprise-llm-2026-10-22",
+      "phase": "PENDING_VERIFICATION"
+    },
+    {
+      "id": "ep-2210-r1-project-report-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-d2-old-agent-branches-2026-10-22",
+      "phase": "PENDING_VERIFICATION"
+    },
+    {
+      "id": "ep-2210-qd2-hard-stop-automated-only-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-g1b-ep-role-package-approved-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2210-upscale-definition-2026-10-22",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "q6c-anchor-lock-main-only-2026-10-23",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2310-mode-labels-basic-advanced-2026-10-23",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2310-qd3-auto-spend-limit-2026-10-23",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2310-m84-gate-before-auto-paid-2026-10-23",
+      "phase": "PENDING_VERIFICATION"
+    },
+    {
+      "id": "ep-2310-m81-r2-answers-2026-10-23",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    },
+    {
+      "id": "ep-2410-test-project-cap-20usd-2026-10-24",
+      "phase": "APPROVED_IN_PRINCIPLE"
+    }
+  ],
+  "pending_questions": [],
+  "coverage": {
+    "files": 37,
+    "records": 7640,
+    "missing_id": 0,
+    "conflicts": 75,
+    "incomplete": 6,
+    "malformed": 1
+  },
+  "quality_history": [
+    {
+      "kind": "image_gen",
+      "first_pass": 84,
+      "reviewed": 182,
+      "unknown": 0,
+      "regenerated": 139
+    },
+    {
+      "kind": "video_gen",
+      "first_pass": 38,
+      "reviewed": 122,
+      "unknown": 0,
+      "regenerated": 106
+    }
+  ],
+  "next_two_weeks": {
+    "status": "ĐỀ XUẤT, chưa phải EP phê duyệt",
+    "actions": [
+      "Đối soát cổng nghiệm thu còn mở theo kế hoạch chính",
+      "Ưu tiên quyết định EP và lỗi mở trước khi mở phạm vi mới"
+    ],
+    "source": "devsys.plan_progress + số quyết định/lỗi; không tự giao việc",
+    "measured_at": "2026-10-24T15:18:45+07:00"
+  }
+}
