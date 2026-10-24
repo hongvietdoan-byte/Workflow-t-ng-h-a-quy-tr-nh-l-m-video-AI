@@ -1,0 +1,12 @@
+{
+  "ts": "2026-10-25T00:50:34.967809+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-M610B",
+  "text": "Codex 1: đã đọc 002522-roeb, bắt đầu phần adapter thuần QC/cổng → vai chủ + snapshot/dedup trên codex/v31-m610b từ main 0b19c097. Giữ CHỜ ĐIỀU KIỆN, chưa nhan chính thức; không writer/UI/caller hay I/O, không chồng M610 của Codex 3. Sẽ push checkpoint và báo giới hạn trước khi chờ M610 GỘP.",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}
