@@ -12,6 +12,8 @@ liên quan đến nó". Đợt #24 (job 623–631): đổi máy 3D mà ảnh neo
 Cờ `change_review`. Prompt: prompts/30_change_review.md.
 """
 import json
+import hashlib
+import sqlite3
 import time
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -623,6 +625,13 @@ def _hold_failed(conn, scene_id: int, kinds: str) -> None:
     Rà kỹ VỪA 3: gọi mỗi nhịp → chỉ ghi khi có gì để ghi; không commit hộ giao dịch dở của người gọi."""
     owns = not getattr(conn, "in_transaction", False)
     wrote = False
+    changed_bypasses = _changed_bypassed_events(conn, scene_id, kinds)
+    if changed_bypasses:
+        # Nonce audit bảo vệ cả khi cùng event bị rà lỗi lại trong cùng giây.
+        # Làm mất coverage cũ để nhánh bên dưới cập nhật đúng lý do lỗi mới.
+        wrote = bool(conn.execute("UPDATE change_findings SET status='open',at='',resolved_at=NULL,resolved_by=NULL "
+                                  f"WHERE id IN ({','.join('?' for _ in changed_bypasses)}) AND status='dismissed'",
+                                  tuple(changed_bypasses)).rowcount)
     done = conn.execute("SELECT f.id FROM change_findings f JOIN change_events e ON e.id=f.event_id WHERE f.scene_id=? AND f.source=? "
                         "AND f.status='open' AND e.state IN ('reviewed', 'skipped')", (scene_id, FAIL_SOURCE)).fetchall()
     # C-M71-FIX (THẤP 2): thay đổi của mục đã thành 'skipped' (cờ change_review_motion tắt → motion code_only kể cả dòng hết tiền bị bỏ;
@@ -731,6 +740,55 @@ def _blocking(conn, scene_id: int, data_dir: Optional[str], since: Optional[str]
             + (f" (+{len(rows) - 3})" if len(rows) > 3 else "") + " — sửa rồi gen, hoặc bấm Bỏ qua ở 📥 Việc cần bạn")
 
 
+def failed_review_summary(conn, project_id: int) -> List[Dict]:
+    """Lỗi chưa được người bỏ qua, kể cả chưa có mục đỏ; chỉ đọc, lý do đã lọc.
+
+    Mục đang mở vẫn phải hiện lỗi. Chỉ mục đã đóng bởi người mới che lỗi cũ,
+    giống lifecycle cổng gen; không diễn giải lỗi thành 'không có mục lệch'.
+    """
+    if not enabled():
+        return []
+    kinds = "('scene', 'motion')" if motion_enabled() else "('scene')"
+    covered = _COVERED.format(e="e", extra="AND f.status<>'open' ")
+    unreviewed = f"(e.state='failed' OR (e.state='code_only' AND e.note LIKE '{QUOTA_NOTE}%'))"
+    changed = set()
+    for row in conn.execute("SELECT DISTINCT scene_id FROM change_findings WHERE project_id=? AND source=? AND status='dismissed'",
+                            (project_id, FAIL_SOURCE)):
+        for events in _changed_bypassed_events(conn, row[0], kinds).values():
+            changed.update(events)
+    extra = f" OR e.id IN ({','.join('?' for _ in changed)})" if changed else ""
+    rows = conn.execute(f"SELECT e.id, s.idx, e.note, e.state FROM change_events e "
+                        f"JOIN scenes s ON s.id=e.scene_id WHERE s.project_id=? AND e.kind IN {kinds} "
+                        f"AND {unreviewed} AND (NOT {covered}{extra}) ORDER BY e.id DESC", (project_id, *sorted(changed)))
+    return [{"id": r[0], "idx": r[1], "reason": diag.redact(str(r[2] or "không rõ lỗi"))[:300],
+             "state": r[3]} for r in rows]
+
+
+def refresh_failed_findings(conn, project_id: int) -> None:
+    """Tạo mục rà lỗi cho màn dự án, không cần gọi cổng gen và không gọi Claude.
+
+    Dùng cùng lifecycle với blocking(): một mục mỗi shot, lỗi mới mở lại,
+    mục người đã bỏ qua không mọc lại. Savepoint giữ nguyên transaction caller;
+    lỗi giữa chừng hoàn tác cả lượt đồng bộ, không để màn hình thấy nửa kết quả.
+    Caller chỉ gọi khi được phép ghi bookkeeping; open_findings vẫn chỉ đọc.
+    """
+    if not enabled():
+        return
+    if type(project_id) is not int or project_id <= 0:
+        raise ValueError("Mã dự án không hợp lệ")
+    kinds = "('scene', 'motion')" if motion_enabled() else "('scene')"
+    ids = [r[0] for r in conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY id", (project_id,))]
+    conn.execute("SAVEPOINT refresh_failed_findings")
+    try:
+        for sid in ids:
+            _hold_failed(conn, sid, kinds)
+        conn.execute("RELEASE refresh_failed_findings")
+    except Exception:
+        conn.execute("ROLLBACK TO refresh_failed_findings")
+        conn.execute("RELEASE refresh_failed_findings")
+        raise
+
+
 def open_findings(conn, project_id: int) -> List[Dict]:
     return [dict(r) for r in conn.execute("SELECT f.*, s.idx FROM change_findings f LEFT JOIN scenes s ON s.id=f.scene_id "
                                           "WHERE f.project_id=? AND f.status='open' ORDER BY f.level, s.idx, f.id", (project_id,))]
@@ -740,9 +798,100 @@ FIXED_ON_FAIL = ("Mục rà soát LỖI: thay đổi chưa được Claude rà �
                  "nếu chấp nhận gen khi chưa rà")
 
 
+def _failed_event_versions(conn, scene_id, kinds):
+    return {str(r[0]): hashlib.sha256(json.dumps(list(r)[1:], ensure_ascii=True).encode()).hexdigest()
+            for r in conn.execute(f"SELECT id,kind,state,reviewed_at,note FROM change_events WHERE scene_id=? "
+                                  f"AND kind IN {kinds} AND {_UNREVIEWED} ORDER BY id", (scene_id,))}
+
+
+def _changed_bypassed_events(conn, scene_id, kinds):
+    """Chỉ đọc marker audit hash; không ghi và không lưu lại note nhà cung cấp."""
+    findings = {r[0]: r[1] for r in conn.execute("SELECT id,project_id FROM change_findings WHERE scene_id=? "
+                                               "AND source=? AND status='dismissed'", (scene_id, FAIL_SOURCE))}
+    if not findings or not _has_col(conn, "audit_log", "detail"):
+        return {}
+    current = _failed_event_versions(conn, scene_id, kinds)
+    changed = {}
+    seen = set()
+    for row in conn.execute("SELECT detail FROM audit_log WHERE action='change_review_bypass' ORDER BY rowid DESC"):
+        data = json.loads(row[0])
+        fid = data.get("finding_id")
+        if fid not in findings or fid in seen or data.get("project_id") != findings[fid]:
+            continue
+        seen.add(fid)
+        for eid, version in data.get("event_versions", {}).items():
+            if eid in current and current[eid] != version:
+                changed.setdefault(fid, set()).add(int(eid))
+        if seen == findings.keys():
+            break
+    return changed
+
+
+def failed_review_snapshot(conn, finding_id: int, project_id: int) -> str:
+    """Nonce của lỗi người đang xem, gồm timestamp đầy đủ/lỗi mới cùng giây."""
+    row = conn.execute("SELECT f.event_id,f.at,f.scene_id FROM change_findings f JOIN scenes s ON s.id=f.scene_id "
+                       "WHERE f.id=? AND f.project_id=? AND s.project_id=? AND f.source=? AND f.status='open'",
+                       (finding_id, project_id, project_id, FAIL_SOURCE)).fetchone()
+    if row is None:
+        raise ValueError("Mục rà lỗi đã đổi hoặc không thuộc dự án; tải lại trang.")
+    kinds = "('scene', 'motion')" if motion_enabled() else "('scene')"
+    events = _failed_event_versions(conn, row[2], kinds)
+    # Chỉ trả digest; lý do lỗi/payload nhà cung cấp không vào khóa widget/audit.
+    return hashlib.sha256(json.dumps([list(row), events], ensure_ascii=True).encode()).hexdigest()
+
+
+def dismiss_failed_review(conn, finding_id: int, project_id: int, *, actor, user, reason, expected_snapshot) -> None:
+    """EP bỏ qua đúng snapshot đã xem; cập nhật mục và audit cùng transaction.
+
+    Dùng guard canonical của bàn đạo diễn (G1 mở rộng EP ở cùng API), không
+    tạo vai/registry khác. Danh tính đang hoạt động và role được đọc lại server.
+    """
+    from . import access, stage_desk
+    if not enabled():
+        raise ValueError("Tổ rà soát đang tắt; không ghi quyết định bỏ qua.")
+    if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > 1000:
+        raise ValueError("Bỏ qua cần lý do từ 1 đến 1000 ký tự.")
+    if not isinstance(actor, dict) or not isinstance(actor.get("who"), str) or not actor["who"].strip():
+        raise ValueError("Cần danh tính người bấm.")
+    if not isinstance(expected_snapshot, str) or len(expected_snapshot) != 64:
+        raise ValueError("Cần snapshot lỗi đã xem; tải lại trang.")
+    conn.execute("SAVEPOINT change_review_bypass")
+    try:
+        trusted = access.user_of(user)
+        if trusted is not None:
+            person = conn.execute("SELECT role,active FROM users WHERE lower(trim(email))=?", (trusted["email"],)).fetchone()
+            if person is None or not person["active"]:
+                raise ValueError("Danh tính không còn hoạt động; đăng nhập lại.")
+            trusted = dict(trusted, role=person["role"])
+        stage_desk._need_ep(conn, project_id, actor, trusted, "Bỏ qua lỗi rà soát")
+        if failed_review_snapshot(conn, finding_id, project_id) != expected_snapshot:
+            raise ValueError("Lỗi rà soát đã đổi; xem lại trước khi bỏ qua.")
+        reason = diag.redact(reason.strip())
+        conn.execute("UPDATE change_findings SET status='dismissed',resolved_at=?,resolved_by=? WHERE id=? AND status='open'",
+                     (_now(), actor["who"], finding_id))
+        sid = conn.execute("SELECT scene_id FROM change_findings WHERE id=?", (finding_id,)).fetchone()[0]
+        kinds = "('scene', 'motion')" if motion_enabled() else "('scene')"
+        detail = {"project_id": project_id, "finding_id": finding_id, "snapshot": expected_snapshot, "reason": reason,
+                  "event_versions": _failed_event_versions(conn, sid, kinds)}
+        conn.execute("INSERT INTO audit_log(at,email,action,detail) VALUES(?,?,?,?)",
+                     (_now(), actor["who"], "change_review_bypass", json.dumps(detail, ensure_ascii=False)))
+        conn.execute("RELEASE change_review_bypass")
+    except Exception as exc:
+        conn.execute("ROLLBACK TO change_review_bypass")
+        conn.execute("RELEASE change_review_bypass")
+        if isinstance(exc, sqlite3.Error):
+            raise ValueError("Không ghi được mục và audit; đã hoàn tác, cổng vẫn giữ.") from None
+        if isinstance(exc, stage_desk.DeskError):
+            raise ValueError("Chỉ người có vai Executive Producer của dự án được bỏ qua lỗi rà soát.") from None
+        raise
+
+
 def close(conn, finding_id: int, status: str, who: Optional[str]) -> None:
     if status not in ("resolved", "dismissed"):
         raise ValueError(status)
+    if status == "dismissed" and conn.execute("SELECT 1 FROM change_findings WHERE id=? AND source=?",
+                                              (finding_id, FAIL_SOURCE)).fetchone():
+        raise ValueError("Lỗi rà soát chỉ được EP bỏ qua cùng lý do và snapshot qua dismiss_failed_review.")
     if status == "resolved" and rerun_targets(conn, finding_id):
         # C-FIX4: mục rà LỖI còn thay đổi chưa rà → "đã sửa" KHÔNG đóng (đóng = che các lần lỗi → cổng mở khi chưa ai rà, C-FIX3-THAP-B)
         # và KHÔNG âm thầm gọi Claude (trước: tự rerun_failed — tốn tiền không báo giá, trái luật chi phí). Người chọn: "↻ Rà lại" (nút có

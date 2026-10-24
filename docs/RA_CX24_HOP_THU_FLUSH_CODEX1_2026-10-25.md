@@ -25,3 +25,5 @@ Helper cũ dựng lại toàn bộ khoảng 1.000 file metadata vào thư mục 
 Nhánh `codex/v31-hop-thu-flush`, worktree `.codex-wt/v31-hop-thu-flush`; đăng ký hai file test mới ở devsys, giữ version92, không thêm cờ. `related_areas.py` xác nhận khu vực devsys; reviewer độc lập RÀ KỸ bản cuối **0 P1/P2 còn mở**, root đọc lại hai lượt trước commit. Tổng các nhóm root không trùng là 102 passed, 2 skipped; chưa chạy cả bộ tích hợp hoặc benchmark nhiều nghìn receipt.
 
 Helper nhận việc cũ tại mailbox worktree đang chạy theo phiên riêng; không kill/bypass/xóa khóa/queue thủ công và không chạy writer thứ hai cùng worktree. M6.10 thuộc Codex 3; M6.10B được phân Codex 1 theo thư 232823-wdcc, bắt đầu phần độc lập sau việc ưu tiên này, chờ M64/M610 gộp trước nối writer/UI. Không sửa dữ liệu dự án, main code hoặc tiến trình Dashboard.
+
+Đồng bộ nền sau checkpoint: nhập origin/main b968da36 (M64/N9/URL/P34 đã có trong code main); không đổi hai module hộp thư hoặc hai test mới sau lượt kiểm cuối, areas giữ đủ đăng ký hai bên/version92. Đây là merge giữ lịch sử nhánh đã push; không force/rewrite và không thay nghiệm thu tích hợp của phiên chính.

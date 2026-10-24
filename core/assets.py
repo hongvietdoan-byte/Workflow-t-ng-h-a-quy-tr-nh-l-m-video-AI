@@ -11,6 +11,7 @@ How it is used with a script
   * their pictures are the references for image / video generation (`reference_paths`).
 """
 import hashlib
+import copy
 import json
 import os
 import re
@@ -1417,7 +1418,8 @@ def get_profile(conn, asset_id: int) -> Dict:
         return {}
 
 
-def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optional[str] = None, *, actor=None, expected_revision=None) -> Dict:
+def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optional[str] = None, *, actor=None, expected_revision=None,
+                expected_profile_snapshot=None) -> Dict:
     """Save the standard profile (identity words, Character Lock, real height, build). Only an approved profile is inherited.
     The change log (`history`) is kept; `reason` adds a dated entry (kế hoạch V4 4.4: every change of an approved profile says why).
     The short forms (`digest`, core/profile_digest.py) are made again from the new text the next time they are asked for."""
@@ -1428,6 +1430,15 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
         if actor is None or expected_revision is None:
             raise AssetError('Hồ sơ v2 cần actor và expected_revision; tải lại trước khi lưu')
         return kho_profile.save(conn, asset_id, data, actor, expected_revision, approved=approved, reason=reason)
+    if expected_profile_snapshot is not None:
+        if not isinstance(expected_profile_snapshot, str):
+            raise AssetError('Snapshot hồ sơ không hợp lệ; tải lại trước khi lưu')
+        try:
+            old = json.loads(expected_profile_snapshot or '{}')
+        except (TypeError, ValueError):
+            raise AssetError('Hồ sơ nguồn không phải JSON hợp lệ; chưa ghi thay đổi') from None
+        if not isinstance(old, dict) or old.get('schema_version', 1) != 1:
+            raise AssetError('Hồ sơ nguồn đã đổi cấu trúc; tải lại trước khi lưu')
     # K0b phần 2 (A20): ô `khai_bao_chu` (khóa nhận diện bằng chữ, core/identity_declare) sống trong cùng JSON hồ sơ — không phải cột
     # mới. Lưu hồ sơ không gửi ô này → GIỮ ô cũ (không mất dữ liệu); gửi ô sai dạng → báo lỗi, không ghi gì.
     kbc = old.get("khai_bao_chu")
@@ -1439,7 +1450,13 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
         kbc = data["khai_bao_chu"]
     def text(v) -> str:                               # a model may answer a list: one line of "a; b", not "['a', 'b']"
         return "; ".join(str(x).strip() for x in v if str(x).strip()) if isinstance(v, (list, tuple)) else str(v or "").strip()
-    clean: Dict = {k: text(data.get(k)) for k in PROFILE_KEYS if k != "height_m"}
+    # Hồ sơ v1 có nhiều trường do các khâu khác sở hữu. Chỉ đổi trường chuẩn
+    # được gửi; giữ nguyên text/metadata chưa sửa và mọi trường chưa biết.
+    clean: Dict = copy.deepcopy(old)
+    for key in PROFILE_KEYS:
+        if key != 'height_m':
+            clean.setdefault(key, '')  # giữ hợp đồng các ô text của writer v1 cũ
+    clean.update({k: text(data[k]) for k in PROFILE_KEYS if k != "height_m" and k in data})
     history = list(old.get("history") or [])
     if reason:
         import datetime
@@ -1447,7 +1464,7 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
     if history:
         clean["history"] = history
     try:
-        h = float(data.get("height_m") or 0)
+        h = float(data.get("height_m", old.get("height_m")) or 0)
     except (TypeError, ValueError):
         h = 0
     # F5-A: an object of the library (prop / weapon) keeps its real size set in Kho (assets.set_size: 0.01–100 m, width_m): a profile
@@ -1464,7 +1481,20 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
     if kbc is not None:
         clean["khai_bao_chu"] = kbc
     clean["approved"] = bool(approved)
-    conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(clean, ensure_ascii=False), asset_id))
+    if expected_profile_snapshot is None:
+        conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(clean, ensure_ascii=False), asset_id))
+    else:
+        conn.execute('SAVEPOINT asset_profile_height')
+        try:
+            changed = conn.execute("UPDATE assets SET profile=? WHERE id=? AND COALESCE(profile,'')=?",
+                                   (json.dumps(clean, ensure_ascii=False), asset_id, expected_profile_snapshot)).rowcount
+            if changed != 1:
+                raise AssetError('Hồ sơ đã đổi; tải lại trước khi lưu chiều cao')
+        except Exception:
+            conn.execute('ROLLBACK TO asset_profile_height')
+            conn.execute('RELEASE asset_profile_height')
+            raise
+        conn.execute('RELEASE asset_profile_height')
     conn.commit()
     return clean
 

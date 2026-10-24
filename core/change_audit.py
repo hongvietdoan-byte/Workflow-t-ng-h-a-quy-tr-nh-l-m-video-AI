@@ -16,6 +16,7 @@ Mức: "do" = phải sửa trước khi vẽ (vẽ sẽ hỏng / tốn tiền v�
 import json
 import os
 import re
+import sqlite3
 from typing import Dict, List, Optional
 
 SIZE_WORDS = {"EWS": ("extreme wide",), "WS": ("wide shot", "wide"), "GAME_TPS": ("third-person", "wide"), "MLS": ("medium long", "medium full",
@@ -39,6 +40,65 @@ def _brightness(path: str) -> Optional[float]:
         return ImageStat.Stat(Image.open(path).convert("L")).mean[0]
     except Exception:  # noqa: BLE001
         return None
+
+
+def _audit_columns(conn, table):
+    # Tên bảng chỉ do caller nội bộ truyền, không từ dữ liệu người dùng.
+    return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _audit_rows(conn, sql, params=()):
+    cursor = conn.execute(sql, params)
+    names = [d[0] for d in cursor.description]
+    return [dict(zip(names, row)) for row in cursor]
+
+
+def _unique_role_match(pool, name):
+    """Giữ matching có dấu/alias của before_run, nhưng không chọn first khi trùng."""
+    from . import before_run
+    exact = [a for a in pool if before_run._key(name) in {before_run._key(n) for n in before_run._names(a)}]
+    matches = exact or [a for a in pool if before_run._match([a], name) is not None]
+    return (matches[0], None) if len(matches) == 1 else (None, "có nhiều hồ sơ Kho trùng tên/alias; chọn lại liên kết nhân vật" if matches else None)
+
+
+def _role_asset(conn, pid, name):
+    """Hồ sơ vai theo lựa chọn đã lưu, độc lập ảnh; chỉ đọc, không tự sửa link."""
+    from . import before_run
+    try:
+        columns = _audit_columns(conn, "characters")
+        saved = []
+        if {"project_id", "name"} <= columns:
+            saved = [r for r in _audit_rows(conn, "SELECT * FROM characters WHERE project_id=?", (pid,))
+                     if before_run._key(r["name"]) == before_run._key(name)]
+            if len(saved) > 1:
+                return None, "có nhiều nhân vật cùng tên trong dự án; cần chọn lại liên kết Kho"
+        elif columns:
+            return None, "bảng nhân vật thiếu tên hoặc project_id; không xác minh được liên kết Kho"
+        asset_columns = _audit_columns(conn, "assets")
+        if not {"id", "kind", "name", "profile"} <= asset_columns:
+            return None, "không đọc được hồ sơ Kho: bảng assets thiếu trường bắt buộc"
+        selected = saved[0].get("ref_asset_id") if saved else None
+        if selected is not None:
+            if type(selected) is not int or selected <= 0:
+                return None, "ref_asset_id đã lưu không hợp lệ hoặc đã chọn không dùng ảnh; cần chọn lại hồ sơ Kho"
+            candidates = _audit_rows(conn, "SELECT * FROM assets WHERE id=?", (selected,))
+            if len(candidates) != 1:
+                return None, f"liên kết Kho #{selected} không tồn tại hoặc không duy nhất; cần chọn lại hồ sơ"
+            asset = candidates[0]
+            if asset["kind"] not in ("character", "pet") or asset.get("project_id") not in (None, pid):
+                return None, f"liên kết Kho #{selected} sai loại vai hoặc thuộc dự án khác; cần chọn lại hồ sơ"
+            return asset, None
+        # Chỉ link NULL hoặc schema cũ thiếu link mới được dò tên. Không đòi ảnh.
+        people = [r for r in _audit_rows(conn, "SELECT * FROM assets WHERE kind IN ('character','pet')")
+                  if r.get("project_id") in (None, pid)]
+        if {"project_id", "asset_id"} <= _audit_columns(conn, "project_assets"):
+            chosen = {r[0] for r in conn.execute("SELECT asset_id FROM project_assets WHERE project_id=?", (pid,))}
+            match, problem = _unique_role_match([r for r in people if r["id"] in chosen], name)
+            if match is not None or problem:
+                return match, problem
+        return _unique_role_match(people, name)
+    except (sqlite3.Error, TypeError, ValueError):
+        return None, "không đọc được liên kết nhân vật/hồ sơ Kho; kiểm tra cấu trúc dữ liệu"
 
 
 def audit_shot(conn, data_dir: str, pid: int, scene_id: int) -> List[Dict]:
@@ -117,16 +177,26 @@ def audit_shot(conn, data_dir: str, pid: int, scene_id: int) -> List[Dict]:
         say("do", "cau", f"máy chuyển động ({sc['move'].get('kieu')}) nhưng camera_move = {data.get('camera_move')}")
     if data.get("camera_move") == "pull_out" and not ((data.get("motion_en") or {}).get("end_state") or data.get("end_state")):
         say("do", "cau", "pull_out mà chưa tả khung cuối (end_state) — motion_prompt_lint sẽ chặn")
-    from . import before_run, speaker_lint
-    people = [dict(r) for r in conn.execute("SELECT * FROM assets WHERE kind IN ('character', 'pet')")]
+    from . import speaker_lint
     for name in data.get("characters") or []:
         if not isinstance(name, str) or not name.strip() or speaker_lint.is_narrator(name):   # giọng dẫn không phải người trong Kho
             continue
-        r = before_run._match(people, name)       # #31 15/10: SQLite upper() chỉ viết hoa ASCII → tên có dấu báo 'không có' oan
+        r, problem = _role_asset(conn, pid, name)
+        if problem:
+            say("vang", "vai", f"'{name}': {problem}")
+            continue
         if r is None:
             say("vang", "vai", f"'{name}' không có trong Kho")
             continue
-        prof = json.loads(r["profile"] or "{}")
+        try:
+            def invalid_constant(_):
+                raise ValueError("profile JSON không hợp lệ")
+            prof = json.loads(r["profile"] or "{}", parse_constant=invalid_constant)
+            if not isinstance(prof, dict) or (prof.get("must_keep") is not None and not isinstance(prof["must_keep"], str)):
+                raise ValueError("profile sai cấu trúc")
+        except (TypeError, ValueError):
+            say("vang", "vai", f"hồ sơ Kho #{r['id']} '{name}' lỗi JSON/cấu trúc; mở Kho sửa hồ sơ chuẩn")
+            continue
         if not (prof.get("must_keep") or "").strip():
             say("vang", "vai", f"hồ sơ Kho #{r['id']} '{name}' thiếu must_keep → câu tả trang phục tự chế, dễ lệch")
     creature = re.search(r"creature|demoness|yêu nữ", text)

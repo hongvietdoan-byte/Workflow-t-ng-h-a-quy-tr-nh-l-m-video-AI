@@ -15,6 +15,8 @@ from core.pipeline import Pipeline
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ON = mock.patch.dict(os.environ, {"FEATURE_FIELD_GUARD": "1"})
 OFF = mock.patch.dict(os.environ, {"FEATURE_FIELD_GUARD": ""})
+ROLE_OFF = mock.patch.dict(os.environ, {"FEATURE_CREW_WRITE_GUARD": ""})
+ROLE_ON = mock.patch.dict(os.environ, {"FEATURE_CREW_REGISTRY": "1"})
 AI = G.actor("ai", "director")
 HUMAN = G.actor("human", "a@b.c")
 
@@ -44,16 +46,20 @@ def _diags(p, code=None):
 def test_flag_registered_off_and_in_golden_inputs():
     from core import features
     assert G.FLAG in features.FEATURES and features.FEATURES[G.FLAG]["verified"] is False
-    with OFF:
+    assert G.ROLE_FLAG in features.FEATURES and features.FEATURES[G.ROLE_FLAG]["verified"] is False
+    with OFF, ROLE_OFF:
         assert not G.enabled()
+        assert features.default_state(G.ROLE_FLAG) == "off" and not features.on(G.ROLE_FLAG)
     golden = json.load(open(os.path.join(ROOT, "tests", "golden", "package_inputs.json"), encoding="utf-8"))
     assert all(golden[k]["flags"][G.FLAG] is False for k in ("image", "video"))
+    assert all(golden[k]["flags"][G.ROLE_FLAG] is False for k in ("image", "video"))
 
 
 def test_registered_in_areas():
     areas = json.load(open(os.path.join(ROOT, "devsys", "areas.json"), encoding="utf-8"))
     hit = [a for a in areas["areas"] if "core/write_guard.py" in a["code"]]
     assert hit and "tests/test_v31_m25_write_guard.py" in hit[0]["tests"] and G.FLAG in hit[0]["flags"]
+    assert G.ROLE_FLAG in hit[0]["flags"]
 
 
 # ---- trạng thái + đánh giá thuần (4.1) -----------------------------------------------------------------------------------------
@@ -71,6 +77,111 @@ def test_g1_ai_on_locked_field_would_keep():
 
 def test_g2_ai_on_auto_field_nothing():
     assert G.assess({"size": "MS"}, {"size": "WS"}, AI) == []
+
+
+def test_m64_role_shadow_uses_registry_owner_and_allows_owner_and_ep():
+    with ROLE_ON, ROLE_OFF:
+        wrong = G.assess({"image_prompt": "cũ"}, {"image_prompt": "mới"}, G.actor("ai", "storyboard", role="cinematographer"))
+        owner = G.assess({"image_prompt": "cũ"}, {"image_prompt": "mới"}, G.actor("ai", "storyboard", role="storyboard_artist"))
+        ep = G.assess({"image_prompt": "cũ"}, {"image_prompt": "mới"}, G.actor("ai", "ep", role="executive_producer"))
+    wrong = [e for e in wrong if e["code"] == "role_conflict"]
+    assert [(e["code"], e["would"], e["field"], e["owner"]) for e in wrong] == [
+        ("role_conflict", "review", "scenes.data.image_prompt", "storyboard_artist")]
+    assert not [e for e in owner if e["code"] == "role_conflict"]
+    assert not [e for e in ep if e["code"] == "role_conflict"]
+
+
+def test_m64_engineer_has_no_production_write_permission():
+    from core import crew
+    reg = crew.load()
+    assert reg["fields"]
+    assert all(not crew.can_write("engineer", field, reg) for field in reg["fields"])
+    with ROLE_ON, ROLE_OFF:
+        events = G.assess({"byd": "cũ"}, {"byd": "mới"}, G.actor("tool", "codex", role="engineer"))
+    events = [e for e in events if e["code"] == "role_conflict"]
+    assert [(e["code"], e["field"], e["owner"]) for e in events] == [
+        ("role_conflict", "scenes.data.byd", "director")]
+
+
+def test_m64_actor_owner_table_covers_motion_prompt_columns():
+    expected = {"motion_prompt": "video_prompt_artist", "camera": "video_prompt_artist", "negative_prompt": "video_prompt_artist",
+                "duration_sec": "director", "state": "director"}
+    with ROLE_ON, ROLE_OFF:
+        for field, owner in expected.items():
+            events = G.assess({}, {field: "new"}, G.actor("tool", "unknown_writer", role="engineer"))
+            assert [(e["field"], e["owner"]) for e in events if e["code"] == "role_conflict"] == [
+                (f"motion_prompts.{field}", owner)]
+        events = G.assess({}, {"spatial_state": "new"}, G.actor("tool", "unknown_writer", role="engineer"))
+        assert [(e["field"], e["owner"]) for e in events if e["code"] == "role_conflict"] == [
+            ("scenes.data.spatial_state", "video_prompt_artist")]
+
+
+def test_m64_human_ep_role_uses_project_ep_helper(db):
+    p, pid, _ = db
+    ep = G.user_actor(p.conn, pid, G.actor("human", "owner@example.com"), {"email": "owner@example.com", "role": "owner"})
+    member = G.user_actor(p.conn, pid, G.actor("human", "member@example.com"), {"email": "member@example.com", "role": "member"})
+    assert ep["role"] == "executive_producer"
+    assert "role" not in member
+
+
+def test_m64_shadow_logs_role_conflict_when_enforcement_flag_is_off(db):
+    p, _, sid = db
+    with ON, ROLE_ON, ROLE_OFF:
+        events = G.observe(p.conn, sid, {"image_prompt": "thay"}, G.actor("ai", "builder", role="cinematographer"))
+    assert events and events[0]["code"] == "role_conflict" and events[0]["would"] == "review"
+    assert _diags(p, "role_conflict")
+
+
+def test_m64_registry_off_does_not_load_role_data(db):
+    from core import crew
+    p, _, sid = db
+    with ON, ROLE_OFF, mock.patch.object(crew, "load", side_effect=AssertionError("đọc registry khi cờ tắt")):
+        events = G.observe(p.conn, sid, {"image_prompt": "thay"},
+                           G.actor("ai", "builder", role="cinematographer"))
+        assert events and all(event["code"] != "role_conflict" for event in events)
+    assert _diags(p, "role_conflict") == []
+
+
+def test_m64_unassigned_actor_is_a_role_conflict_for_owned_production_field():
+    with ROLE_ON, ROLE_OFF:
+        events = G.assess({}, {"image_prompt": "mới"}, G.actor("ai", "untagged"))
+    assert [(e["role"], e["owner"], e["would"]) for e in events if e["code"] == "role_conflict"] == [
+        ("unassigned", "storyboard_artist", "review")]
+
+
+def test_m64_enforcement_fails_closed_when_registry_is_unavailable(db):
+    from core import crew
+    p, _, sid = db
+    flags = {"FEATURE_FIELD_GUARD": "1", "FEATURE_CREW_REGISTRY": "1", "FEATURE_CREW_WRITE_GUARD": "1"}
+    with mock.patch.dict(os.environ, flags), mock.patch.object(crew, "active", return_value=None):
+        with pytest.raises(G.RoleWriteDenied, match="Role Registry chưa sẵn sàng"):
+            G.observe(p.conn, sid, {"image_prompt": "không được ghi"},
+                      G.actor("ai", "builder", role="storyboard_artist"))
+
+
+def test_m64_enforcement_rejects_an_unassigned_actor(db):
+    p, _, sid = db
+    flags = {"FEATURE_FIELD_GUARD": "1", "FEATURE_CREW_REGISTRY": "1", "FEATURE_CREW_WRITE_GUARD": "1"}
+    with mock.patch.dict(os.environ, flags):
+        with pytest.raises(G.RoleWriteDenied, match="vai unassigned"):
+            G.observe(p.conn, sid, {"image_prompt": "không được ghi"}, G.actor("ai", "untagged"))
+
+
+def test_m64_enforcement_flag_blocks_wrong_role_before_write(db):
+    p, _, sid = db
+    before = _data(p, sid)
+    flags = {"FEATURE_FIELD_GUARD": "1", "FEATURE_CREW_REGISTRY": "1", "FEATURE_CREW_WRITE_GUARD": "1"}
+    with mock.patch.dict(os.environ, flags):
+        with pytest.raises(G.RoleWriteDenied, match="M6.4"):
+            G.observe(p.conn, sid, {"image_prompt": "không được ghi"},
+                      G.actor("ai", "builder", role="cinematographer"))
+    assert _data(p, sid) == before
+
+
+def test_m64_enforcement_waits_for_both_dependencies():
+    flags = {"FEATURE_FIELD_GUARD": "", "FEATURE_CREW_REGISTRY": "", "FEATURE_CREW_WRITE_GUARD": "1"}
+    with mock.patch.dict(os.environ, flags):
+        assert not G._role_guard_enforced()
 
 
 def test_g3_human_never_flagged():
@@ -173,8 +284,10 @@ def test_l4_prompt_rewrite_on_locked_prompt_but_not_revert(db):
 def test_l4_callers_pass_the_actor():
     import inspect
     from core import prompt_rewrite
-    assert 'actor=write_guard.actor("ai", "director_rewrite")' in inspect.getsource(prompt_rewrite.save_rewrite)
-    assert 'actor=write_guard.actor("human"' in inspect.getsource(prompt_rewrite.revert)
+    assert 'write_guard.actor("ai", "director_rewrite", role="director")' in inspect.getsource(prompt_rewrite.save_rewrite)
+    revert_src = inspect.getsource(prompt_rewrite.revert)
+    assert "write_guard.user_actor" in revert_src
+    assert "_set_prompt(p.conn, scene_id, kind, old, actor=who)" in revert_src
 
 
 def test_l5_byd_fill_on_locked_byd(db):
@@ -226,6 +339,79 @@ def test_l1_ai_callers_pass_the_actor():
     for f in ("core/llm_runner.py", "core/seedance_refs.py", "core/claude_tasks.py", "mcp_servers/project_db.py"):
         src = open(os.path.join(ROOT, f), encoding="utf-8").read()
         assert "store_motion_prompts(" in src and "write_guard.actor(" in src, f
+
+
+def test_m64_store_motion_prompts_denies_director_owned_column_before_sql_write(db):
+    from core import llm_io
+    p, pid, sid = db
+    data = json.loads(_data(p, sid))
+    data["_user_locked"].remove("duration_s")
+    p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+    img = p.create_job(sid)
+    p.start(img)
+    p.succeed(img)
+    p.approve(img)
+    llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "giữ nguyên", "duration_sec": 4}]})
+    p.conn.execute("UPDATE motion_prompts SET state='approved' WHERE scene_id=?", (sid,))
+    p.conn.commit()
+    before = tuple(p.conn.execute("SELECT motion_prompt, duration_sec, state FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone())
+    flags = {"FEATURE_FIELD_GUARD": "1", "FEATURE_CREW_REGISTRY": "1", "FEATURE_CREW_WRITE_GUARD": "1"}
+    with mock.patch.dict(os.environ, flags):
+        with pytest.raises(G.RoleWriteDenied, match="motion_prompts.duration_sec"):
+            llm_io.store_motion_prompts(
+                p, pid, {"scenes": [{"idx": 1, "motion_prompt": "giữ nguyên", "duration_sec": 6}]},
+                actor=G.actor("ai", "seedance_motion", role="video_prompt_artist"))
+    after = tuple(p.conn.execute("SELECT motion_prompt, duration_sec, state FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone())
+    assert after == before
+
+
+def test_m64_store_motion_prompts_allows_vpa_prompt_and_safe_approval_downgrade(db):
+    from core import llm_io
+    p, pid, sid = db
+    data = json.loads(_data(p, sid))
+    data["_user_locked"] = [field for field in data.get("_user_locked", []) if field != "motion_prompt"]
+    p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+    img = p.create_job(sid)
+    p.start(img)
+    p.succeed(img)
+    p.approve(img)
+    llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "cũ", "duration_sec": 4}]})
+    p.conn.execute("UPDATE motion_prompts SET state='approved' WHERE scene_id=?", (sid,))
+    p.conn.commit()
+    flags = {"FEATURE_FIELD_GUARD": "1", "FEATURE_CREW_REGISTRY": "1", "FEATURE_CREW_WRITE_GUARD": "1"}
+    with mock.patch.dict(os.environ, flags):
+        llm_io.store_motion_prompts(
+            p, pid, {"scenes": [{"idx": 1, "motion_prompt": "mới", "duration_sec": 4}]},
+            actor=G.actor("ai", "seedance_motion", role="video_prompt_artist"))
+    row = p.conn.execute("SELECT motion_prompt, state FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+    assert tuple(row) == ("mới", "pending")
+
+
+def test_m64_store_motion_prompts_without_actor_defaults_to_engineer_and_is_blocked(db):
+    from core import llm_io
+    p, pid, sid = db
+    img = p.create_job(sid)
+    p.start(img)
+    p.succeed(img)
+    p.approve(img)
+    flags = {"FEATURE_FIELD_GUARD": "1", "FEATURE_CREW_REGISTRY": "1", "FEATURE_CREW_WRITE_GUARD": "1"}
+    with mock.patch.dict(os.environ, flags):
+        with pytest.raises(G.RoleWriteDenied, match="vai engineer"):
+            llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "không được ghi"}]})
+    assert p.conn.execute("SELECT 1 FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone() is None
+
+
+def test_m64_rewrite_denial_precedes_prompt_version_inserts(db):
+    from core import prompt_rewrite
+    p, pid, sid = db
+    job = {"type": "image_gen", "project_id": pid, "scene_id": sid, "id": 1}
+    res = prompt_rewrite.RewriteResult("prompt mới", old_prompt="prompt cũ")
+    flags = {"FEATURE_FIELD_GUARD": "1", "FEATURE_CREW_REGISTRY": "1", "FEATURE_CREW_WRITE_GUARD": "1"}
+    with mock.patch.dict(os.environ, flags):
+        with pytest.raises(G.RoleWriteDenied, match="scenes.data.image_prompt"):
+            prompt_rewrite.save_rewrite(p, job, res)
+    assert prompt_rewrite.versions(p.conn, sid, "image") == []
+    assert json.loads(_data(p, sid))["image_prompt"] == "người viết"
 
 
 def test_flag_off_paths_are_byte_identical(db, tmp_path):

@@ -41,7 +41,8 @@ STUCK_MIN = {"image_gen": int(os.environ.get("DIAG_STUCK_IMAGE_MIN", "10")),
 QUEUED_MIN = int(os.environ.get("DIAG_QUEUED_MIN", "15"))
 RETRY_WARN = float(os.environ.get("DIAG_RETRY_WARN", "0.4"))
 
-_SECRETS = [(re.compile(r"sk-[A-Za-z0-9_\-]{8,}"), "sk-***"), (re.compile(r"(?i)bearer\s+[A-Za-z0-9._\-]{8,}"), "Bearer ***"),
+_SECRETS = [(re.compile(r'''(?i)((?:\?|&(?:amp;)?)(?:s|%73)=)[^&\s#"'<>]+'''), r"\1***"),
+            (re.compile(r"sk-[A-Za-z0-9_\-]{8,}"), "sk-***"), (re.compile(r"(?i)bearer\s+[A-Za-z0-9._\-]{8,}"), "Bearer ***"),
             (re.compile(r"(?i)(token|key|secret|password)(\"?\s*[:=]\s*\"?)[^\s\",;]{6,}"), r"\1\2***"),
             (re.compile(r"[A-Za-z0-9+/_\-]{40,}"), None)]       # None: _long_run (a key / base64 run, but not a POSIX path)
 
@@ -90,7 +91,9 @@ def _db_file(conn) -> Optional[str]:
 def _keep_lost(conn, line: str, error: Exception) -> None:
     """A diagnostic the database refused is not dropped silently: it goes to stderr and to <db>.diag_lost.log, and is counted."""
     LOST["count"] += 1
-    text = f"{_now()} {line} [sqlite: {type(error).__name__}: {error}]"
+    # Ngoại lệ cũng có thể chứa URI; fallback stderr/tệp không được đi vòng
+    # bộ che token của record(), kể cả giá trị query đã percent-encode.
+    text = redact(f"{_now()} {line} [sqlite: {type(error).__name__}: {error}]")
     print(f"[diag] could not write to the database: {text}", file=sys.stderr)
     path = _db_file(conn)
     if path:

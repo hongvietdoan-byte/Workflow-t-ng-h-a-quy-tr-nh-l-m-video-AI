@@ -82,7 +82,7 @@ def cli_error_code(detail: str) -> str:
     limit reached — the automatic run stops until it resets), 'out_of_credit' (V3.1 M1.4a: the CLI ran on a paid API key whose credit is
     gone — #33; stop, never retry / switch to the paid API), else 'cli_error'."""
     low = str(detail or "").lower()
-    if "authenticate" in low or "oauth" in low:
+    if "authenticate" in low or "oauth" in low or "not logged in" in low or "please run /login" in low:
         return "auth"
     if any(h in low for h in _CLI_NO_CREDIT):
         return "out_of_credit"
@@ -151,6 +151,10 @@ CLI_TOKEN_STAGE_POLICY: Dict[str, Dict[str, Any]] = {
     "other": {"max_turns": 1, "max_turns_with_images": 2, "model": None, "tools": (), "image_tools": ("Read",),
               "observed_input_average": None},
 }
+# P34 N4: vai sân khấu dùng cùng policy canonical của khâu chưa có số đo.
+# Không gán baseline/model suy đoán; cờ OFF vẫn giữ nguyên argv cũ.
+CLI_TOKEN_STAGE_POLICY.update({stage: dict(CLI_TOKEN_STAGE_POLICY["other"]) for stage in (
+    "director_stage_blocking", "dp_stage_specs", "dp_stage_review", "director_stage_approve")})
 CLI_TOKEN_WARN_ENV = "CLAUDE_CLI_TOKEN_WARN_INPUT"
 CLI_TOKEN_WARN_DEFAULT = 200_000
 
@@ -1091,7 +1095,7 @@ def run_motion(p: Pipeline, project_id: int, client, data_dir: str, only_idx=Non
         obj, i, o = ask_json(client, bundle, llm_io.validate_motion_prompts, images, note=_retry_note(p, "motion", project_id))
         obj["scenes"] = [s for s in obj["scenes"] if s["idx"] in wanted]
         from . import write_guard
-        llm_io.store_motion_prompts(p, project_id, obj, actor=write_guard.actor("ai", "director_motion"))
+        llm_io.store_motion_prompts(p, project_id, obj, actor=write_guard.actor("ai", "director_motion", role="director"))
         done, tin, tout = done + len(obj["scenes"]), tin + i, tout + o
     return {"scenes": done, "input_tokens": tin, "output_tokens": tout, "calls": len(batches)}
 
