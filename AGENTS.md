@@ -10,6 +10,7 @@ Dự án: Auto Pipeline sản xuất video AI (Streamlit dashboard + core Python
 5. Kế hoạch chính: mục `"chinh": true` trong `devsys/plans.json` (từ 20/10 = `docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md`; kế hoạch S `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` đã lưu trữ) (dòng `> Đợt ưu tiên:`; `py tools/plan_progress.py` cho việc kế) + file kế hoạch chi tiết mà tiêu đề đợt trỏ tới.
 
 ## Luật cứng
+- **KHÔNG dùng Computer Use / điều khiển máy tính người dùng** (chuột, bàn phím, mở/chuyển app, chụp màn hình Windows) — người dùng 24/10. Kiểm giao diện bằng AppTest/test tự động hoặc Playwright headless trên cổng phụ; ảnh chụp UI cần duyệt do phiên chính Claude làm.
 - **Tiền:** KHÔNG tự chạy gì tốn tiền (ClipAI, Deepix, Kling, Claude API, TTS, Apify…). Liệt kê trần từng việc, hỏi người dùng trước.
 - **Dữ liệu:** `data/`, `data/manifest.sqlite`, `dashboard.env` chỉ có ở máy chính `D:\AI-Video-Pipeline`; không commit, không in khóa/token. Sửa dữ liệu thật → sao lưu trước.
 - **Test:** đỏ trước, xanh sau; không nới test để che lỗi. Cả bộ: `py -m pytest -q -n 8 -p no:cacheprovider` (song song pytest-xdist, ≈ 7,5 phút trên máy chính 8 nhân; tuần tự ≈ 28 phút). Dùng `py`, đặt `PYTHONUTF8=1`.
