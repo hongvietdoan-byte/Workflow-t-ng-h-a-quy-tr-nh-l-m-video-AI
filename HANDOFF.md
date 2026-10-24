@@ -82,8 +82,8 @@ So GOLDEN7 117/0/0/41: 10 ca 'operation' nay đều SAME (#27 +3, #31 +7 → #31
 # Bàn giao — CX24-G4-QUYET-DINH
 
 - Làn: Codex 3; nhánh `codex/v31-quyet-dinh-check`.
-- Đã nối Q-F với `tests/test_safe_paid_buttons.py`, M6 policy B với các ca E4 trong `tests/test_v31_m63_gen_auth.py` (gồm gửi nhóm tính riêng lượt từng shot); QD3 có check `pending` chờ `core.simple_budget` vào main.
-- Báo cáo ứng viên quyết định còn thiếu check: `docs/RA_CX24_G4_QUYET_DINH_CODEX_2026-10-24.md`.
-- Bằng chứng: `py -m core.decisions check` xanh; `py -m pytest -q -p no:cacheprovider tests/test_decisions.py` → 42 passed, 1 xfailed (QD3 chờ M82).
-- Chỉ dùng fixture tạm; không đọc/ghi dữ liệu production, không gọi API trả phí.
-- Mốc an toàn đã kiểm và push; G4 còn mở để hoàn tất sau `CX24-M77-EVID` theo phân công khẩn mới nhất, rồi mới nhận G3. M47B vẫn chờ Codex 1 nối UI.
+- Nhánh đã nhập `origin/main` tới `d76d3588` (M82 pha A, M53-MAY, G1-PLAN-GATES và các cập nhật mới); merge commit nhánh G4 `c33aaf53` đã push.
+- Đã nối Q-F với `tests/test_safe_paid_buttons.py`, M6 policy B với ca E4 (gồm clip nhóm tính giới hạn riêng từng shot), QD3 với `check_qd3_auto_spend_limit`. Sau khi M82 pha A gộp `core.simple_budget`, đã bỏ `pending` cũ khỏi `data/decisions.json`.
+- Bằng chứng mới nhất: `py -m core.decisions check` → **Khớp**; `py -m pytest -q -p no:cacheprovider tests/test_decisions.py` → **43 passed / 25.18s**.
+- Báo cáo ứng viên: `docs/RA_CX24_G4_QUYET_DINH_CODEX_2026-10-24.md`; còn 52 quyết định chưa nối, có đề xuất check; không sửa nội dung quyết định cũ.
+- Chỉ dùng fixture tạm; không gọi API trả phí, không ghi dữ liệu dự án thật. G4 hoàn tất trên nhánh, chờ phiên chính rà/gộp; việc kế là CX24-G3-SO-LOI. M47B vẫn chờ Codex 1 nối UI.

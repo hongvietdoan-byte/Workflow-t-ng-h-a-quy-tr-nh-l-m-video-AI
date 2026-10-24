@@ -1132,7 +1132,7 @@
    "keeps": "ep-2210-e4-counters-2026-10-22; v31-ep-m6-self-repair-budget-40-2026-10-21; budget-gate-removed-2026-10-15 (thao tác tay không bị khóa ngân sách)",
    "changes": "So với qd2: thêm chi dự kiến của job vào phép so; hạn mức theo khâu; người tạo dự án được vượt bằng tay có cảnh báo + ghi sổ; đặt tên 'hạn mức chi của luồng tự động'.",
    "replaces": "ep-2210-qd2-hard-stop-automated-only-2026-10-22",
-   "enforced_by": [{"kind": "code", "check": "check_qd3_auto_spend_limit", "pending": "Chờ CX23-M82 gộp core helper vào main"}],
+   "enforced_by": [{"kind": "code", "check": "check_qd3_auto_spend_limit"}],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
   },

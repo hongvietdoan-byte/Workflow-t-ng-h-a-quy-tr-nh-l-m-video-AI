@@ -1,6 +1,8 @@
 # CX24-G4 — rà quyết định có thể kiểm bằng code
 
-Sổ có 74 quyết định active; trước nhánh này 55 mục thiếu `enforced_by`. Đã nối 3 ưu tiên: Q-F → `check_qf_safe_paid_buttons`, M6 policy B → `check_e4_attempt_counters`, Q-D3 → `check_qd3_auto_spend_limit` (`pending` đến khi M82 gộp `core.simple_budget` vào main). Còn 52 mục chưa nối; không đổi chữ quyết định cũ.
+Sổ có 74 quyết định active; trước nhánh này 55 mục thiếu `enforced_by`. Đã nối 3 ưu tiên: Q-F → `check_qf_safe_paid_buttons`, M6 policy B → `check_e4_attempt_counters`, Q-D3 → `check_qd3_auto_spend_limit`. Sau khi CX23-M82 pha A (`d15d444d`) gộp `core.simple_budget` vào main, đã bỏ `pending` khỏi QD3. Còn 52 mục chưa nối; không đổi chữ quyết định cũ.
+
+Bằng chứng cập nhật 24/10: `py -m core.decisions check` → **Khớp**; `py -m pytest -q -p no:cacheprovider tests/test_decisions.py` → **43 passed / 25.18s**. Dùng fixture tạm, không gọi API trả phí hay ghi dữ liệu dự án.
 
 ## Ứng viên check tiếp theo
 
