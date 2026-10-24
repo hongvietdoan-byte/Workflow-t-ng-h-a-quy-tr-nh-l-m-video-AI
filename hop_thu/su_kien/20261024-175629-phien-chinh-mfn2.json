@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T17:56:29.202046+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "NGƯỜI DÙNG: giữ chế độ GIẢM TẢI tới 22:00 hôm nay 24/10 (pytest tối đa -n 2, chỉ test liên quan, không cả bộ, mỗi lúc 1 phiên chạy test nặng, không server/trình duyệt phụ). Sau 22:00 phiên chính sẽ gửi tin TĂNG TỐC lại; trước đó vẫn làm việc bình thường, chỉ hạn chế tài nguyên."
+}
