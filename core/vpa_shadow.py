@@ -426,21 +426,23 @@ def _load_matching_artifact(data_dir: str, snapshot: Mapping[str, Any], context:
         return None
     if (not isinstance(artifact, Mapping) or artifact.get("artifact_type") != "vpa_shadow_proposal"
             or artifact.get("validator_version") != VALIDATOR_VERSION
-            or artifact.get("status") not in {"SHADOW_ONLY", "RETURNED", "INCOMPLETE_INPUT"}
+            or artifact.get("status") != "SHADOW_ONLY"
             or artifact.get("project_id") != context["project_id"]
             or artifact.get("scene_id") != context["scene_id"]
             or artifact.get("shot_no") != context["shot_no"]
             or artifact.get("source_fingerprint") != snapshot.get("source_fingerprint")
-            or artifact.get("source_revisions") != snapshot.get("source_revisions")):
+            or artifact.get("source_revisions") != snapshot.get("source_revisions")
+            or artifact.get("model_target") != snapshot.get("model_target")
+            or artifact.get("refs_actual_snapshot") != list(_approved_image_refs(snapshot))):
         return None
     proposal = artifact.get("proposal")
-    if artifact.get("status") == "SHADOW_ONLY" and (
-        not isinstance(proposal, Mapping) or not isinstance(proposal.get("motion_prompt"), str)
-    ):
+    if not isinstance(proposal, Mapping) or not isinstance(proposal.get("motion_prompt"), str):
+        return None
+    candidate = {"motion_prompt": proposal["motion_prompt"], "coverage": artifact.get("coverage")}
+    if _candidate_findings(snapshot, candidate):
         return None
     safe_proposal = None
-    if isinstance(proposal, Mapping) and isinstance(proposal.get("motion_prompt"), str):
-        safe_proposal = {"motion_prompt": proposal["motion_prompt"], "coverage": deepcopy(artifact.get("coverage") or [])}
+    safe_proposal = {"motion_prompt": proposal["motion_prompt"], "coverage": deepcopy(artifact.get("coverage") or [])}
     return {
         "status": artifact["status"],
         "cause_code": artifact.get("cause_code"),

@@ -285,6 +285,66 @@ def test_run_shadow_reuses_matching_snapshot_without_calling_generator(tmp_path)
     assert len(handoff_path.read_text(encoding="utf-8").splitlines()) == 1
 
 
+def test_run_shadow_does_not_reuse_artifact_when_approved_image_id_changes(tmp_path):
+    enabled = lambda name: name in {"vpa_shadow", "crew_handoff_shadow"}
+    calls = []
+    snapshot = _snapshot()
+
+    with mock.patch.object(features, "on", side_effect=enabled):
+        first = vpa_shadow.run_shadow(
+            snapshot, lambda *_args: _candidate(),
+            data_dir=str(tmp_path), handoff_context=_handoff_context(),
+        )
+        changed = deepcopy(snapshot)
+        changed["approved_images"][0]["id"] = "asset-fixture-2"
+
+        def generate_changed(*_args):
+            calls.append(True)
+            return _candidate()
+
+        second = vpa_shadow.run_shadow(
+            changed, generate_changed,
+            data_dir=str(tmp_path), handoff_context=_handoff_context(),
+        )
+
+    assert first["status"] == "SHADOW_ONLY"
+    assert second["status"] == "SHADOW_ONLY"
+    assert second["deduplicated"] is False
+    assert second["refs_actual_snapshot"][0]["id"] == "asset-fixture-2"
+    assert calls == [True]
+    handoff_path = tmp_path / "12" / "crew" / "handoffs.jsonl"
+    assert len(handoff_path.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_run_shadow_retries_after_returned_validation_result(tmp_path):
+    enabled = lambda name: name in {"vpa_shadow", "crew_handoff_shadow"}
+    invalid = _candidate()
+    invalid["coverage"] = []
+    calls = []
+
+    with mock.patch.object(features, "on", side_effect=enabled):
+        first = vpa_shadow.run_shadow(
+            _snapshot(), lambda *_args: invalid,
+            data_dir=str(tmp_path), handoff_context=_handoff_context(),
+        )
+
+        def generate_valid(*_args):
+            calls.append(True)
+            return _candidate()
+
+        second = vpa_shadow.run_shadow(
+            _snapshot(), generate_valid,
+            data_dir=str(tmp_path), handoff_context=_handoff_context(),
+        )
+
+    assert first["status"] == "RETURNED"
+    assert second["status"] == "SHADOW_ONLY"
+    assert second["deduplicated"] is False
+    assert calls == [True]
+    handoff_path = tmp_path / "12" / "crew" / "handoffs.jsonl"
+    assert len(handoff_path.read_text(encoding="utf-8").splitlines()) == 2
+
+
 def test_run_shadow_persists_validation_finding_without_approving_candidate(tmp_path):
     invalid = _candidate()
     invalid["coverage"] = []
