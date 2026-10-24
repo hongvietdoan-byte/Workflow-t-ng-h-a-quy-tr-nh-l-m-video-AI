@@ -297,7 +297,7 @@ Lớp cổng khởi tạo theo báo cáo giám sát 24/10 §3; M0.8 giữ ⬜ do
 - [x] M9.10 · Hai nghĩa "M8.4" (#14) · nặng:1 · ✅ · EP 24/10: M8.4 = tối ưu tải (kế hoạch chính); KH 21/10 đã ghi chú M8.4 = M8.0
 - [x] M9.11 · Làn cloud HẾT VIỆC (#16) · nặng:1 · ✖ · EP 24/10: chỉ 3 Codex, không dùng lại cloud-D/E
 - [ ] M9.12 · AI Dev System tự cử agent giám sát theo mốc (việc ✅, đợt qua 25/50/75/100 %, nút "🛰 Giám sát ngay"), chấm 3 trục, hiện trên 3 trang, và TỰ GHI phát hiện CHẶN/LỚN vào mục M9 này theo luật M9.0 · nặng:3 · ⬜ · Codex 2 CX24-GIAM-SAT (đề bổ sung 24/10), RÀ KỸ
-- [ ] M9.13 · ĐỢT KIỂM CỔNG GỘP 25/10 (EP 24/10: "code xong nhiều mà cổng chưa đạt → gộp kiểm, sửa cho đạt 1 lượt"): một dự án test thật (clip rối 30–50 s, trần 20 USD, A/B gói gọn nửa số shot) thu bằng chứng cho MỌI việc ✅code kiểm được trên 1 dự án; bảng việc → tiêu chí cổng → cờ cần bật → bằng chứng ở bước nào; lỗi gom 1 đợt sửa; cổng không kiểm được trên 1 dự án (tải 10 người, benchmark ≥ 20 lỗi, replay #27/#31) tách đo offline 0 USD · nặng:3 · ⬜ · Codex 3 CX24-KIEM-CONG-GOP (bảng + công cụ thu bằng chứng) trước 25/10 sáng; phiên chính chạy dự án
+- [ ] M9.13 · ĐỢT KIỂM CỔNG GỘP 25/10 (EP 24/10: "code xong nhiều mà cổng chưa đạt → gộp kiểm, sửa cho đạt 1 lượt"): một dự án test thật (clip rối 30–50 s, trần 20 USD, A/B gói gọn nửa số shot) thu bằng chứng cho MỌI việc ✅code kiểm được trên 1 dự án; bảng việc → tiêu chí cổng → cờ cần bật → bằng chứng ở bước nào; lỗi gom 1 đợt sửa; cổng không kiểm được trên 1 dự án (tải 10 người, benchmark ≥ 20 lỗi, replay #27/#31) tách đo offline 0 USD · nặng:3 · ⬜ · Codex 3 CX24-KIEM-CONG-GOP (bảng + công cụ thu bằng chứng) trước 25/10 sáng; phiên chính chạy dự án · công cụ GỘP e82386ff
 
 ## 6. Nhật ký
 

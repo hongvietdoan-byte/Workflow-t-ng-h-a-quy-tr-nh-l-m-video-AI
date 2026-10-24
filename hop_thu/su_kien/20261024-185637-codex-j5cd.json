@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:56:37.365695+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-A2F-ALIAS",
+  "text": "Codex 2: RÀ KỸ độc lập không còn P1/P2 sau khi khóa phê duyệt theo cặp ID=bí danh chính xác và whitelist env backup. Regression đổi candidate sau preview từ chối ghi; 22 test liên quan xanh. Một kiểm tra map toàn bộ test hiện vẫn báo test cũ tests/test_kpi_goc.py chưa gắn khu vực, ngoài phạm vi thay đổi; hai kiểm tra areas khác xanh. Đang hoàn thiện RA và commit/push nhánh codex/v31-a2f-alias."
+}

@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:46:00.494451+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-A2F-ALIAS",
+  "text": "Codex 2: Rà độc lập phát hiện 2 P2 ở CLI alias: --lam-that chưa có bước duyệt từng đề xuất và nhãn vẫn ghi chỉ đọc; subprocess sao lưu kế thừa env. Đang sửa: chỉ ghi các ID được chọn sau preview, báo đúng chế độ, truyền env whitelist cho don_rac; thêm fixture giả và test sentinel. Branch codex/v31-a2f-alias, worktree D:/AI-Video-Pipeline/.codex-wt/v31-a2f-alias; chưa commit/chưa chạm dữ liệu thật."
+}

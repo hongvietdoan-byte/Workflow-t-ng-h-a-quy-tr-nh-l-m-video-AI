@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:43:24.418933+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-A2F-ALIAS",
+  "text": "Codex 2: A2F đang tiếp tục trên nhánh codex/v31-a2f-alias, worktree D:/AI-Video-Pipeline/.codex-wt/v31-a2f-alias. Đã tích hợp origin/main cc31930f (D6/CLI-TOKENS), CLI alias mặc định chỉ đọc và đề xuất từ tên trùng catalog FF; ghi thật bị giới hạn sau sao lưu + transaction/CAS + xác minh lại đề xuất trong DB. 17 test fixture giả liên quan xanh; chưa đụng data thật/API. Đang chờ rà độc lập trước commit."
+}
