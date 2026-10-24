@@ -695,7 +695,7 @@ def _stage_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     from . import stage_auto, stage_desk, write_guard
     if not stage_auto.enabled():
         return None
-    who = write_guard.actor("auto", "autopilot.stage")
+    who = write_guard.actor("auto", "autopilot.stage", role="artist_3d")
     hold = stage_desk.hold_segments(p.conn, pid, ctx.data_dir, stage_auto.segments(p.conn, pid), "autopilot", who)
     try:                                                # M4.8: GIỮ khóa S mọi đoạn trong lúc chạy (hai chiều: nút bàn đạo diễn gặp autopilot
         hold.__enter__()                                # cũng từ chối có câu); người đang thao tác trên Dashboard → chờ, không ghi đè state

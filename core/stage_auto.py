@@ -1814,6 +1814,10 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
     apply qua write guard."""
     if not (enabled() or (manual and all(features.on(n) for n in features.REQUIRES.get(FLAG, ())))):
         return None
+    if who is None:
+        from . import crew, write_guard
+        if write_guard.enabled() and crew.active() is not None:
+            who = write_guard.actor("auto", "stage_auto", role="artist_3d")
     from .camera_plan import drawn_shots
     segs = segments(conn, pid)
     out: Dict = {"applied": [], "removed": [], "held": [], "skipped": []}

@@ -871,7 +871,7 @@ def set_route(conn, scene_ids: List[int], value: Optional[str]) -> None:
         data = json.loads(row["data"] or "{}")
         from . import write_guard                  # V3.1 M2.5 (cờ field_guard, shadow): thang tự động đè video_route người chọn (L3) → diag
         write_guard.observe(conn, sid, {"video_route": write_guard.DELETE if value is None else value},
-                            write_guard.actor("auto", "seedance_route"), read_data=dict(data))
+                            write_guard.actor("auto", "seedance_route", role="director"), read_data=dict(data))
         if value is None:
             data.pop("video_route", None)
         else:
@@ -1520,7 +1520,7 @@ def code_motion(p, pid: int, redo_ids=(), out_held: Optional[List[Dict]] = None)
         return 0
     from . import write_guard
     llm_io.store_motion_prompts(p, pid, {"scenes": [{k: t[k] for k in ("idx", "motion_prompt", "duration_sec")} for t in todo]},
-                                actor=write_guard.actor("ai", "seedance_motion"))
+                                actor=write_guard.actor("ai", "seedance_motion", role="video_prompt_artist"))
     held = []
     from . import diag
     for t in todo:
