@@ -1,11 +1,12 @@
 # Bàn giao CX23-M47B — Codex 3
 
 - Nhánh: `codex/v31-m47b`; worktree: `D:\AI-Video-Pipeline\.codex-wt\v31-m47b`.
-- M80C và M48-D2 đã gộp main ngày 24/10. Nhánh M47B đang được cập nhật từ main trước khi hoàn thiện lõi.
-- Đã có nền C3-4 và helper Q6(c) theo BYĐ v2 ở commit `24ba86fd`; targeted trước khi đồng bộ main: 64 passed. Cần chạy lại sau khi cập nhật nhánh.
-- Việc lõi còn mở: hoàn tất Q6(a) ở Bước 2 theo quyết định hộp thư; rà lại các cổng Q6(c) và tính hiện hành của override; gửi `tin` cho Codex 1 để nối UI sau khi lõi sẵn sàng.
-- Codex 3 chỉ tiếp tục `core/` trong phạm vi quyền và Kho; caller/UI thuộc Codex 1. Giữ cờ `qc_overrides` OFF; không sửa dữ liệu thật, không chạy migration trên `data/manifest.sqlite`, không gọi API/dịch vụ trả phí.
-- Báo cáo phần trước: `docs/RA_CX23_M47B_CODEX_2026-10-23.md`; chưa nghiệm thu toàn bộ M4.7.
+- M80C và M48-D2 đã gộp main ngày 24/10. Merge snapshot `c558befa` vào nhánh M47B đã được chốt/push ở `3b7f4395`; nhánh hiện chậm hơn `origin/main` 35 commit. Không có thay đổi sau `c558befa` trong các file lõi M47B; Codex 1 cần rebase/merge main mới trước khi nối UI.
+- Nền C3-4 + Q6(c) ở commit `24ba86fd`. Diff lõi hiện cập nhật Q6(c): BYĐ v2, tên có dấu/không dấu an toàn, ứng viên tên trong cast/thoại/hành động, cảnh báo thiếu ảnh mốc/Kho, ref Kho theo ID hoặc quy tắc match duy nhất của pipeline. Cờ `qc_overrides` vẫn OFF.
+- Kiểm tra mục tiêu: `PYTHONUTF8=1 py -m pytest -q -p no:cacheprovider tests/test_v31_m47b_overrides.py tests/test_video_gate.py tests/test_shot_intent.py` → **83 passed in 6.43s**. Reviewer độc lập chốt **không có finding chặn**; heuristic tên prose chỉ phát hiện tên đứng trước động từ thuộc whitelist, còn cast/speaker/trường cấu trúc là đường chính.
+- Bộ nhanh toàn repo (`-m "not slow"`) đạt **8277 passed, 12 failed, 8 skipped, 22 xfailed, 176 subtests passed**; lỗi thuộc các nhóm devsys page, feature settings, browser mockup D11 và golden replay, ngoài diff M47B. Gửi `tin` để Codex 1 nối UI; task M47B vẫn mở đến khi UI hoàn tất và phiên chính nghiệm thu.
+- Giữ cờ OFF; chỉ dùng fixture, không đọc/ghi dữ liệu thật, không chạy migration trên `data/manifest.sqlite`, không gọi API/dịch vụ trả phí.
+- Báo cáo tiến độ: `docs/RA_CX23_M47B_CODEX_2026-10-23.md`.
 
 ---
 # HANDOFF — CX23-M48-D2 (23/10, nhánh `codex/v31-m48-d2`)

@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import sqlite3
+import unicodedata
 from datetime import datetime, timezone
 from typing import Callable, Dict, Optional
 
@@ -299,10 +300,199 @@ def latest(conn, project_id: int, target_kind: str, target_ref: str) -> Optional
 
 
 def _character_key(value) -> str:
-    from .stage_grid import fold
     if not isinstance(value, str):
         return ""
-    return " ".join(fold(value).split())
+    # Character identity must keep Vietnamese accents. ``fold`` is useful for search, but would make
+    # names such as Cúi and Cũi collide in a safety gate.
+    return " ".join(unicodedata.normalize("NFC", value).casefold().split())
+
+
+def _q6c_same_name(left, right, asset_module):
+    """Compare complete names, allowing unaccented input but never partial-name matches."""
+    left_words = asset_module._said_words(left)
+    right_words = asset_module._said_words(right)
+    if left_words == right_words and left_words:
+        return True
+    left_folded = [asset_module.fold(word) for word in left_words]
+    right_folded = [asset_module.fold(word) for word in right_words]
+    return bool(
+        left_words
+        and len(left_words) == len(right_words)
+        and (all(word == folded for word, folded in zip(left_words, left_folded))
+             or all(word == folded for word, folded in zip(right_words, right_folded)))
+        and left_folded == right_folded
+    )
+
+
+_Q6C_COMMON_SENTENCE_STARTS = {
+    "ánh", "anh", "bà", "bên", "bỗng", "bởi", "bóng", "bước", "các", "cả", "cảnh", "cánh", "chạy",
+    "chị", "chú", "cô", "cùng", "cúi", "cuối", "cửa", "dần", "dưới", "đám", "đầu", "đêm", "đi",
+    "đến", "đứng", "đưa", "đúng", "em", "gã", "giữa", "hàng", "hắn", "hai", "họ", "hôm", "kẻ", "khi", "khẽ",
+    "không", "kết", "khu", "làn", "lão", "lặng", "lúc", "màn", "mặt", "máy", "mỗi", "một", "ngay",
+    "người", "ngoài", "những", "nhìn", "nếu", "nền", "nó", "ông", "phía", "rồi", "sau", "sáng",
+    "sàn", "scene", "shot", "ta", "tất", "thế", "thấy", "thì", "tiếng", "tối", "trên", "trong", "trước",
+    "từ", "từng", "tuy", "vài", "và", "vách", "vì", "với",
+}
+_Q6C_ACTION_VERBS = {
+    "bắn", "bật", "bước", "bò", "biến", "cầm", "chạy", "chạm", "chặn", "chui", "cười", "cúi", "cứu",
+    "đánh", "đập", "đặt", "đẩy", "đứng", "đi", "đưa", "gặp", "gọi", "giơ", "giúp", "gật", "hạ", "hét",
+    "kéo", "khóc", "khựng", "lắc", "lao", "lấy", "lùi", "mang", "mở", "ngã", "ngồi", "nắm", "ném", "né",
+    "nhảy", "nhìn", "nói", "ôm", "phá", "quay", "quỳ", "rẽ", "rơi", "rút", "thở", "tiến", "tìm", "tung",
+    "trượt", "vẫy", "xoay", "ở",
+}
+_Q6C_ACTION_MODIFIERS = {
+    "bắt đầu", "bất ngờ", "chậm", "chợt", "đang", "đã", "đột nhiên", "khẽ", "lặng lẽ", "liền", "lập tức",
+    "ngay", "nhanh", "sắp", "tiếp tục", "vừa",
+}
+
+
+def _q6c_followed_by_action(tokens, index):
+    cursor = index
+    for _ in range(4):
+        if cursor >= len(tokens):
+            return False
+        single = tokens[cursor].group(0).casefold()
+        if single in _Q6C_ACTION_VERBS:
+            return True
+        if single in _Q6C_ACTION_MODIFIERS:
+            cursor += 1
+            continue
+        if cursor + 1 < len(tokens):
+            pair = " ".join(token.group(0).casefold() for token in tokens[cursor:cursor + 2])
+            if pair in _Q6C_ACTION_VERBS:
+                return True
+            if pair in _Q6C_ACTION_MODIFIERS:
+                cursor += 2
+                continue
+        return False
+    return False
+
+
+def _q6c_prose_names(text, script_parser, dialogue):
+    """Find likely named subjects before action verbs; explicit cast/dialogue fields handle other names."""
+    found = []
+    token_pattern = re.compile(r"[^\W\d_][^\W\d_’'-]*", re.UNICODE)
+    for row in (text or "").splitlines():
+        if script_parser.is_heading(row):
+            continue
+        label, separator, _body = row.partition(":")
+        if separator and dialogue.is_non_speaker(label.strip()):
+            continue
+        row = re.sub(r"^\s*(?:[-*•>]+|\d+[.)])\s*", "", row).strip()
+        tokens = list(token_pattern.finditer(row))
+        index = 0
+        while index < len(tokens):
+            token = tokens[index].group(0)
+            if token.casefold() in _Q6C_COMMON_SENTENCE_STARTS:
+                index += 1
+                continue
+            if not token[0].isupper():
+                index += 1
+                continue
+            end = index + 1
+            while (end < len(tokens) and tokens[end].group(0)[0].isupper()
+                   and row[tokens[end - 1].end():tokens[end].start()].isspace()):
+                end += 1
+            candidate = " ".join(match.group(0) for match in tokens[index:end])
+            if _q6c_followed_by_action(tokens, end):
+                found.append(candidate)
+            index = end
+    return found
+
+
+def _q6c_add_names(value, output):
+    """Append explicit character-name values from script/shot structures."""
+    if isinstance(value, str):
+        name = value.strip()
+        if name:
+            output.append(name)
+    elif isinstance(value, dict):
+        for key in ("name", "vat", "character", "speaker", "ai", "nguoi", "nhan_vat"):
+            if key in value:
+                _q6c_add_names(value[key], output)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _q6c_add_names(item, output)
+
+
+def _q6c_add_text(value, output):
+    """Append narrative text without treating arbitrary text as an explicit character name."""
+    if isinstance(value, str):
+        if value.strip():
+            output.append(value)
+    elif isinstance(value, dict):
+        for key in ("text", "action", "hanh_dong", "description", "line", "content", "mo_ta", "noi_dung"):
+            if key in value:
+                _q6c_add_text(value[key], output)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _q6c_add_text(item, output)
+
+
+def _q6c_script_inputs(payload):
+    """Return explicit character names and narrative text from supported script/shot fields."""
+    names, texts = [], []
+    if not isinstance(payload, dict):
+        return names, texts
+    for key in ("characters", "character_names", "nhan_vat"):
+        if key in payload:
+            _q6c_add_names(payload[key], names)
+    for key in ("text", "action", "description"):
+        if key in payload:
+            _q6c_add_text(payload[key], texts)
+    for key in ("hanh_dong", "actions"):
+        value = payload.get(key)
+        if isinstance(value, (dict, list, tuple)):
+            _q6c_add_names(value, names)
+            _q6c_add_text(value, texts)
+        elif isinstance(value, str):
+            _q6c_add_text(value, texts)
+    dialogue = payload.get("dialogue")
+    if isinstance(dialogue, (dict, list, tuple)):
+        rows = dialogue if isinstance(dialogue, (list, tuple)) else [dialogue]
+        for row in rows:
+            if isinstance(row, dict):
+                for key in ("speaker", "character", "name"):
+                    if key in row:
+                        _q6c_add_names(row[key], names)
+                for key in ("text", "line", "content"):
+                    if key in row:
+                        _q6c_add_text(row[key], texts)
+            else:
+                _q6c_add_text(row, texts)
+    elif isinstance(dialogue, str):
+        _q6c_add_text(dialogue, texts)
+    return names, texts
+
+
+def _q6c_has_kho_image(conn, character_name, character, project_assets, asset_module):
+    """Check an explicit character reference first, then a matching attached Kho asset."""
+    ref_asset_id = character.get("ref_asset_id")
+    if ref_asset_id is not None:
+        if ref_asset_id == 0:
+            return False
+        if type(ref_asset_id) is not int or ref_asset_id < 1:
+            return False
+        asset = asset_module.get(conn, ref_asset_id)
+        return bool(asset and asset.get("kind") in ("character", "pet") and asset.get("images"))
+
+    eligible = [asset for asset in project_assets
+                if asset.get("kind") in ("character", "pet") and asset.get("images")]
+    for asset in eligible:
+        if any(_q6c_same_name(character_name, alias, asset_module) for alias in asset_module.names_of(asset)):
+            return True
+    # The reference-linking path also accepts a unique character asset whose first word is the
+    # Bible name (e.g. "Kelly" -> "Kelly thức tỉnh"). Keep that behavior, but reject ambiguous
+    # prefixes and keep the comparison accent-safe.
+    if character.get("id") is None:
+        return False
+    character_words = asset_module._said_words(character_name)
+    if not character_words:
+        return False
+    prefix_matches = [asset for asset in eligible
+                      if (asset_words := asset_module._said_words(asset.get("name")))
+                      and _q6c_same_name(character_words[0], asset_words[0], asset_module)]
+    return len(prefix_matches) == 1
 
 
 def character_anchor_gate(conn, project_id: int) -> Dict:
@@ -319,12 +509,13 @@ def character_anchor_gate(conn, project_id: int) -> Dict:
     if type(project_id) is not int or project_id < 1:
         raise ValueError("project_id phải là số nguyên dương")
 
-    from . import shot_intent
+    from . import assets, dialogue, script_parser, shot_intent
 
     try:
         scenes = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx,id", (project_id,)).fetchall()
         characters = conn.execute(
-            "SELECT id, name, anchor_approved FROM characters WHERE project_id=? ORDER BY id", (project_id,)
+            "SELECT id, name, anchor_approved, ref_asset_id "
+            "FROM characters WHERE project_id=? ORDER BY id", (project_id,)
         ).fetchall()
     except sqlite3.Error as exc:
         result["review"].append(f"REVIEW Q6(c): không đọc được dữ liệu shot/nhân vật ({type(exc).__name__}); chưa chặn vì thiếu BYĐ v2.")
@@ -341,17 +532,100 @@ def character_anchor_gate(conn, project_id: int) -> Dict:
             ambiguous.add(key)
         else:
             by_key[key] = {"id": character["id"], "name": character["name"],
-                           "anchor_approved": bool(character["anchor_approved"])}
+                           "anchor_approved": bool(character["anchor_approved"]),
+                           "ref_asset_id": character["ref_asset_id"]}
     if ambiguous:
         names = sorted({by_key[key]["name"] for key in ambiguous})
-        result["review"].append("REVIEW Q6(c): tên nhân vật trùng khi đối chiếu BYĐ v2 (không dấu): " + ", ".join(names))
+        result["review"].append("REVIEW Q6(c): tên nhân vật trùng khi đối chiếu BYĐ v2: " + ", ".join(names))
+
+    def character_match(candidate):
+        matches = [key for key, character in by_key.items()
+                   if key not in ambiguous and _q6c_same_name(candidate, character["name"], assets)]
+        if len(matches) > 1:
+            result["review"].append(
+                f"REVIEW Q6(c): tên '{candidate}' khớp nhiều nhân vật trong dự án; không tự chọn."
+            )
+            return None
+        return matches[0] if matches else None
+
+    named_candidates = []
+    narrative_texts = []
+    prose_texts = []
+    for scene in scenes:
+        try:
+            payload = json.loads(scene["data"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            continue
+        names, texts = _q6c_script_inputs(payload)
+        named_candidates.extend(names)
+        narrative_texts.extend(texts)
+        prose_texts.extend(texts)
+
+    try:
+        story_rows = conn.execute("SELECT text, data FROM story_scenes WHERE project_id=? ORDER BY idx,id", (project_id,)).fetchall()
+    except sqlite3.Error as exc:
+        story_rows = []
+        result["review"].append(
+            f"REVIEW Q6(c): không đọc được các cảnh kịch bản ({type(exc).__name__}); phần tìm tên trong kịch bản chưa được kiểm tra."
+        )
+    for story in story_rows:
+        try:
+            payload = json.loads(story["data"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            payload = {}
+            result["review"].append("REVIEW Q6(c): không đọc được dữ liệu nhân vật của cảnh kịch bản.")
+        names, texts = _q6c_script_inputs(payload)
+        named_candidates.extend(names)
+        if story["text"]:
+            narrative_texts.append(story["text"])
+            prose_texts.append(story["text"])
+        narrative_texts.extend(texts)
+        prose_texts.extend(texts)
+    try:
+        project = conn.execute("SELECT script_text FROM projects WHERE id=?", (project_id,)).fetchone()
+        if project and project["script_text"]:
+            narrative_texts.append(project["script_text"])
+            # The raw field also contains preamble and headings. Reuse the parser's scene split so
+            # prose candidate scanning sees scene bodies instead of treating metadata as names.
+            prose_texts.extend(scene.text for scene in script_parser.split_scenes(project["script_text"].splitlines()))
+    except sqlite3.Error as exc:
+        result["review"].append(
+            f"REVIEW Q6(c): không đọc được kịch bản dự án ({type(exc).__name__}); phần tìm tên trong kịch bản chưa được kiểm tra."
+        )
+
+    named_keys = set()
+    unknown_named = {}
+    for text in narrative_texts:
+        words = assets._said_words(text)
+        for key, character in by_key.items():
+            if key not in ambiguous and assets.name_spans(character["name"], words):
+                named_keys.add(key)
+        dialogue_text = "\n".join(row for row in text.splitlines() if not script_parser.is_heading(row))
+        named_candidates.extend(speaker for speaker, _line in dialogue.lines(dialogue_text))
+    for text in prose_texts:
+        named_candidates.extend(_q6c_prose_names(text, script_parser, dialogue))
+    for candidate in named_candidates:
+        key = character_match(candidate)
+        if key:
+            named_keys.add(key)
+        else:
+            normalized = _character_key(candidate)
+            if normalized:
+                unknown_named.setdefault(normalized, candidate.strip())
+
+    try:
+        attached_assets = assets.project_assets(conn, project_id)
+    except (sqlite3.Error, ValueError, TypeError) as exc:
+        attached_assets = []
+        result["review"].append(
+            f"REVIEW Q6(c): không xác minh được ảnh nhân vật trong Kho ({type(exc).__name__}); chưa kết luận thiếu ảnh Kho."
+        )
+    kho_check_available = not any("không xác minh được ảnh nhân vật trong Kho" in item for item in result["review"])
 
     roles = {key: set() for key in by_key if key not in ambiguous}
     main_shots = {key: set() for key in roles}
     main_occurrences = {key: [] for key in roles}
     unmapped_cast = {}
-    valid_cast_shots = 0
-    incomplete_byd = False
     missing_byd_shots = []
     for scene in scenes:
         idx = scene["idx"]
@@ -359,7 +633,6 @@ def character_anchor_gate(conn, project_id: int) -> Dict:
             data = json.loads(scene["data"] or "{}")
         except (TypeError, json.JSONDecodeError):
             result["review"].append(f"REVIEW Q6(c): không đọc được BYĐ v2 ở shot {idx} — kiểm tra dữ liệu shot.")
-            incomplete_byd = True
             continue
         byd = shot_intent.byd_of(data)
         if shot_intent.version(byd) != 2:
@@ -368,24 +641,26 @@ def character_anchor_gate(conn, project_id: int) -> Dict:
         cast = byd.get("thanh_phan")
         if not isinstance(cast, list):
             result["review"].append(f"REVIEW Q6(c): BYĐ v2 shot {idx} thiếu danh sách thanh_phan; không chặn shot này.")
-            incomplete_byd = True
             continue
-        valid_cast_shots += 1
         for part_index, part in enumerate(cast):
             if not isinstance(part, dict):
                 result["review"].append(f"REVIEW Q6(c): thanh_phan[{part_index}] shot {idx} sai kiểu; không chặn theo mục này.")
-                incomplete_byd = True
                 continue
-            key = _character_key(part.get("vat"))
+            raw_name = part.get("vat")
+            if not isinstance(raw_name, str):
+                result["review"].append(f"REVIEW Q6(c): thiếu tên hoặc vai hợp lệ ở thanh_phan[{part_index}] shot {idx}.")
+                continue
+            key = character_match(raw_name) or _character_key(raw_name)
             role = part.get("vai")
             if not key or role not in shot_intent.VAI:
                 result["review"].append(f"REVIEW Q6(c): thiếu tên hoặc vai hợp lệ ở thanh_phan[{part_index}] shot {idx}.")
-                incomplete_byd = True
                 continue
             if key in ambiguous:
                 continue
             if key in roles:
                 roles[key].add(role)
+                if role != Q6C_EXCLUDED_ROLE:
+                    named_keys.add(key)
                 if role == Q6C_MAIN_ROLE:
                     main_shots[key].add(idx)
                     main_occurrences[key].append({
@@ -397,6 +672,8 @@ def character_anchor_gate(conn, project_id: int) -> Dict:
                 )
                 entry["roles"].add(role)
                 entry["shots"].add(idx)
+                if role != Q6C_EXCLUDED_ROLE:
+                    unknown_named.setdefault(key, entry["name"])
 
     if missing_byd_shots:
         result["review"].append(
@@ -448,7 +725,31 @@ def character_anchor_gate(conn, project_id: int) -> Dict:
         elif character_roles - {Q6C_EXCLUDED_ROLE}:
             role_label = "vai phụ" if character_roles - {Q6C_EXCLUDED_ROLE} == {Q6C_SECONDARY_ROLE} else "vai không chính"
             result["warn"].append(f"{character['name']} chỉ có {role_label} trong BYĐ v2 và chưa duyệt ảnh mốc.")
-        elif not character_roles and valid_cast_shots and not missing_byd_shots and not incomplete_byd:
-            result["warn"].append(f"{character['name']} chưa có vai chính trong BYĐ v2 và chưa duyệt ảnh mốc.")
+        if (key in named_keys and Q6C_MAIN_ROLE not in character_roles and not character["anchor_approved"]
+                and kho_check_available):
+            try:
+                has_kho_image = _q6c_has_kho_image(conn, character["name"], character, attached_assets, assets)
+            except (sqlite3.Error, ValueError, TypeError, KeyError) as exc:
+                result["review"].append(
+                    f"REVIEW Q6(c): không xác minh được ảnh Kho cho {character['name']} ({type(exc).__name__})."
+                )
+                has_kho_image = True
+            if not has_kho_image:
+                result["warn"].append(
+                    f"{character['name']} được gọi tên trong kịch bản/shot nhưng chưa duyệt ảnh mốc và chưa có ảnh Kho."
+                )
+
+    if kho_check_available:
+        for name in unknown_named.values():
+            try:
+                has_kho_image = _q6c_has_kho_image(conn, name, {}, attached_assets, assets)
+            except (sqlite3.Error, ValueError, TypeError, KeyError) as exc:
+                result["review"].append(f"REVIEW Q6(c): không xác minh được ảnh Kho cho {name} ({type(exc).__name__}).")
+                continue
+            if not has_kho_image:
+                result["warn"].append(f"{name} được gọi tên trong kịch bản/shot nhưng chưa có ảnh mốc hoặc ảnh Kho.")
+
+    # Keep identical findings only once when a character appears in several script surfaces.
+    result["warn"] = list(dict.fromkeys(result["warn"]))
 
     return result

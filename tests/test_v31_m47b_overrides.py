@@ -125,6 +125,84 @@ def test_q6c_named_unknown_script_and_action_characters_without_images_warn(monk
     assert any("Zara" in item and "ảnh" in item for item in result["warn"])
 
 
+def test_q6c_unknown_prose_action_name_without_structured_cast_warns(monkeypatch):
+    conn = _anchor_conn([], [(1, 1, {"action": "Zara bước vào phòng."})])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Zara" in item and "chưa có ảnh mốc hoặc ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_unknown_names_before_common_action_verbs_warn(monkeypatch):
+    action = "Zara cứu Kelly, ôm Mia, tìm đường, gọi Kenta, cười, giúp Lena, mang túi, đặt hộp và lấy chìa khóa."
+    conn = _anchor_conn([], [(1, 1, {"action": action})])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Zara" in item and "chưa có ảnh mốc hoặc ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_prose_name_with_sentence_starter_and_action_modifiers_warns(monkeypatch):
+    action = chr(10).join((
+        "Và Zara chạy qua cửa.", "Zara đang chạy.", "Zara lặng lẽ bước vào.", "Zara biến mất.",
+    ))
+    conn = _anchor_conn([], [(1, 1, {"action": action})])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Zara" in item and "chưa có ảnh mốc hoặc ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_unknown_prose_name_does_not_inherit_known_characters_prefix_asset(monkeypatch):
+    from core import assets
+
+    conn = _anchor_conn([], [(1, 1, {"action": "Mia Bé bước vào phòng."})])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+    monkeypatch.setattr(assets, "project_assets", lambda *_: [{
+        "id": 9, "kind": "character", "name": "Mia", "aliases": "", "images": [{"id": 11, "path": "fixture.png"}],
+    }])
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Mia Bé" in item and "chưa có ảnh mốc hoặc ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_generic_action_starter_is_not_treated_as_unknown_character(monkeypatch):
+    generic_action = chr(10).join((
+        "Họ chạy qua sân.", "Tối xuống nhanh.", "Và đèn bật sáng.", "Đến gần, cánh cửa bật mở.",
+        "Cúi Đầu rồi quay đi.", "KẾT THÚC HÀNH ĐỘNG.",
+    ))
+    conn = _anchor_conn([], [(1, 1, {"action": generic_action})])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert result["warn"] == []
+
+
+def test_q6c_script_labels_are_not_treated_as_unknown_characters(monkeypatch):
+    conn = _anchor_conn([], [(1, 1, {"action": "GHI CHÚ: nhạc nhỏ." + chr(10) + "LƯU Ý: quay dọc."})])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert result["warn"] == []
+
+
+def test_q6c_scene_heading_is_not_misread_as_dialogue_speaker(monkeypatch):
+    conn = _anchor_conn([], [])
+    conn.execute("UPDATE projects SET script_text=? WHERE id=1", ("CẢNH 1: THÁCH THỨC KENTA " + chr(10) + "Kelly: Maxim, có địch!",))
+    conn.commit()
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert not any("CẢNH 1" in item for item in result["warn"])
+
+
 def test_q6c_accented_names_do_not_cross_match(monkeypatch):
     conn = _anchor_conn([(1, "Cũi", False)], [(1, 1, _byd2(("Cúi", "chinh")))])
     monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
@@ -133,6 +211,24 @@ def test_q6c_accented_names_do_not_cross_match(monkeypatch):
 
     assert result["block"] == []
     assert any("Cúi" in item and "ảnh" in item for item in result["warn"])
+
+
+def test_q6c_unaccented_cast_name_matches_accented_character(monkeypatch):
+    conn = _anchor_conn([(1, "Cũi", False)], [(1, 1, _byd2(("Cui", "chinh")))])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert [item["name"] for item in result["block"]] == ["Cũi"]
+
+
+def test_q6c_accented_cast_name_matches_unaccented_character(monkeypatch):
+    conn = _anchor_conn([(1, "Cui", False)], [(1, 1, _byd2(("Cũi", "chinh")))])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert [item["name"] for item in result["block"]] == ["Cui"]
 
 
 def test_q6c_attached_kho_image_does_not_trigger_missing_image_warning(monkeypatch):
@@ -148,6 +244,110 @@ def test_q6c_attached_kho_image_does_not_trigger_missing_image_warning(monkeypat
 
     assert any("Pat" in item and "ảnh mốc" in item for item in result["warn"])
     assert not any("Pat" in item and "không có ảnh" in item for item in result["warn"])
+
+
+def test_q6c_unaccented_kho_name_matches_accented_character(monkeypatch):
+    from core import assets
+
+    conn = _anchor_conn([(1, "Cũi", False)], [(1, 1, _byd2(("Cũi", "phu")))])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+    monkeypatch.setattr(assets, "project_assets", lambda *_: [{
+        "id": 9, "kind": "character", "name": "Cui", "aliases": "", "images": [{"id": 11, "path": "fixture.png"}],
+    }])
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Cũi" in item and "ảnh mốc" in item for item in result["warn"])
+    assert not any("Cũi" in item and "chưa có ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_partial_asset_name_does_not_count_as_kho_image(monkeypatch):
+    from core import assets
+
+    conn = _anchor_conn([(1, "Mia", False)], [(1, 1, _byd2(("Mia", "phu")))])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+    monkeypatch.setattr(assets, "project_assets", lambda *_: [{
+        "id": 9, "kind": "character", "name": "Young Mia", "aliases": "", "images": [{"id": 11, "path": "fixture.png"}],
+    }])
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Mia" in item and "chưa có ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_unique_kho_first_word_match_counts_as_image(monkeypatch):
+    from core import assets
+
+    conn = _anchor_conn([(1, "Mia", False)], [(1, 1, _byd2(("Mia", "phu")))])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+    monkeypatch.setattr(assets, "project_assets", lambda *_: [{
+        "id": 9, "kind": "character", "name": "Mia Bé", "aliases": "", "images": [{"id": 11, "path": "fixture.png"}],
+    }])
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert not any("Mia" in item and "chưa có ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_ambiguous_kho_first_word_match_does_not_count_as_image(monkeypatch):
+    from core import assets
+
+    conn = _anchor_conn([(1, "Mia", False)], [(1, 1, _byd2(("Mia", "phu")))])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+    monkeypatch.setattr(assets, "project_assets", lambda *_: [
+        {"id": 9, "kind": "character", "name": "Mia Bé", "aliases": "", "images": [{"id": 11, "path": "fixture.png"}]},
+        {"id": 10, "kind": "pet", "name": "Mia Lớn", "aliases": "", "images": [{"id": 12, "path": "fixture-2.png"}]},
+    ])
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Mia" in item and "chưa có ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_differently_accented_asset_name_does_not_count_as_kho_image(monkeypatch):
+    from core import assets
+
+    conn = _anchor_conn([(1, "Cũi", False)], [(1, 1, _byd2(("Cũi", "phu")))])
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+    monkeypatch.setattr(assets, "project_assets", lambda *_: [{
+        "id": 9, "kind": "character", "name": "Cúi", "aliases": "", "images": [{"id": 11, "path": "fixture.png"}],
+    }])
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Cũi" in item and "chưa có ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_non_character_ref_asset_does_not_count_as_kho_image(monkeypatch):
+    from core import assets
+
+    conn = _anchor_conn([(1, "Pat", False)], [(1, 1, _byd2(("Pat", "phu")))])
+    conn.execute("UPDATE characters SET ref_asset_id=9 WHERE id=1")
+    conn.commit()
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+    monkeypatch.setattr(assets, "get", lambda *_: {
+        "id": 9, "kind": "prop", "name": "Pat", "images": [{"id": 11, "path": "fixture.png"}],
+    })
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Pat" in item and "chưa có ảnh Kho" in item for item in result["warn"])
+
+
+def test_q6c_invalid_explicit_ref_does_not_fall_back_to_name_match(monkeypatch):
+    from core import assets
+
+    conn = _anchor_conn([(1, "Pat", False)], [(1, 1, _byd2(("Pat", "phu")))])
+    conn.execute("UPDATE characters SET ref_asset_id=-1 WHERE id=1")
+    conn.commit()
+    monkeypatch.setattr(qc_overrides, "enabled", lambda: True)
+    monkeypatch.setattr(assets, "project_assets", lambda *_: [{
+        "id": 9, "kind": "character", "name": "Pat", "aliases": "", "images": [{"id": 11, "path": "fixture.png"}],
+    }])
+
+    result = qc_overrides.character_anchor_gate(conn, 1)
+
+    assert any("Pat" in item and "chưa có ảnh Kho" in item for item in result["warn"])
 
 
 def test_q6c_missing_or_unreadable_byd_v2_is_review_without_block(monkeypatch):
