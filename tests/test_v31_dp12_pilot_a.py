@@ -5,13 +5,16 @@ import json
 import os
 import socket
 import sys
+from unittest.mock import patch
 
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-import pilot_a as P  # noqa: E402
-import pilot_a_guard as GD  # noqa: E402
+_IMPORT_ENV = {"PATH": "fixture-path", "SYSTEMROOT": "fixture-system", "TEMP": "fixture-temp", "PYTHONUTF8": "1"}
+with patch.object(os, "environ", _IMPORT_ENV):
+    import pilot_a as P  # noqa: E402
+    import pilot_a_guard as GD  # noqa: E402
 
 
 def _item(id_, status, category="goi_video", tests=()):

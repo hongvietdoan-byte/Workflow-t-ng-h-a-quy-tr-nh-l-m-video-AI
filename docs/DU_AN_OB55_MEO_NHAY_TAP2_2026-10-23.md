@@ -131,3 +131,15 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   "Nhân vật sai" — nút ↻ Vẽ lại bị khóa tới khi chọn lý do) → job 1197 `rejected`, **job 1198 `succeeded`** (`job_1198.png`, bản sao
   `anh_khung_dau_job1198_ngoi_xom.png`, so sánh `so_sanh_1197_vs_1198.jpg`): RỐI ĐỎ ngồi xổm, mông không chạm đất, lưng nửa về máy, điện
   thoại đen trơn. Khác bản cũ: RỐI TÍM mặc áo xanh + quần xanh đậm (đúng must_keep Kho), góc phải trời có trăng. Chờ người dùng duyệt ảnh.
+
+## 10. Video + hậu kỳ (24/10, người dùng "Duyệt làm đến video cuối cùng")
+- Trên Dashboard: ✔ Duyệt ảnh 1198 → (sửa motion: "colours fixed … no other colour" → "colours, clothes and the phone exactly as in
+  the first image" vì Tổ rà soát #903/#905 cảnh báo nhuộm đồ xanh RỐI TÍM; rà lại 0.10 USD) → ✔ Duyệt tất cả (1 prompt) → Có (chờ 30 s)
+  → ▶ Gen video (ước tính 2 clip ≈ 6.16 vì shot ⭐ hero, thực tế gửi 1) → **job 1199 nháp 480p** (Dashboard "đã chi 1.34 USD"): RỐI ĐỎ
+  ngồi xổm, nhổm dậy đá chân/bước theo ở ~3 s, về lại thế xổm; RỐI TÍM theo đúng bài mèo cam → ✔ Duyệt clip → ⬆ Gen bản cao (≈ 6.85 USD)
+  → **job 1200 bản cao 1080×1920** 24 fps 12,6 s (sổ chi 13,04 s 1080p). Bản sao `clip_ai_1080p_job1200.mp4`.
+- Hậu kỳ (ngoài Dashboard, 0 USD) `hau_ky/hau_ky.sh`: nền = clip AI phóng 1080×1920 30 fps; mèo = TikTok cắt vùng 880×900 (x 100, y 640 —
+  khung bao mèo cả clip x 120–961, y 662–1528), `chromakey 0x00FF00:0.16:0.08 + despill`, thu 480 px rộng, giữa đáy; chữ UTM Impact 64
+  viền đen 5: dòng 1 trắng "Cốt tôi var cực mạnh với team địch", dòng 2 vàng "Tôi và Con Rối team địch kiểu:" (y 120 / 205); tiếng gốc
+  TikTok; cắt 12,6 s. **Bản giao `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/MEO_NHAY_TAP2_FINAL.mp4`** (12,5 MB) — đã gửi người dùng.
+- Chi phí lượt này: ảnh 2 × gpt-image (job 1197, 1198) + nháp 1.34 + bản cao ≈ 6.85 (ước tính) + Claude rà soát 0.12 + 0.10.

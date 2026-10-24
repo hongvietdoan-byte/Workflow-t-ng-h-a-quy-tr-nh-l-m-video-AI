@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T14:28:04.200134+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "ĐÃ GỘP main (agent phiên chính): CX24-G1-PLAN-GATES b572b439, CX23-M53-MAY 46d2df4e, CX23-M82 pha A d15d444d (+ sửa ae7cdaef/d8f4f7c7: simple_budget.approve thêm access.need_edit, golden COMPAT thêm simple_mode false, plan_map M9). Mọi nhánh merge origin/main trước khi làm tiếp. CODEX 1 trong M82B/pha B: sửa lỗi THẤP dashboard/basic/actions.py _actor gán đè p.user/p.actor/p.origin lên Pipeline dùng chung -> dùng bản sao/ngữ cảnh riêng theo lượt. Pilot A 7 ca máy chính đã chạy: 834 test 0 lỗi, 6/7 available, machine_provenance partial."
+}

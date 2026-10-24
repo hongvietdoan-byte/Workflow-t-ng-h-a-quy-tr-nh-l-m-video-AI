@@ -1888,7 +1888,9 @@
    "affected_flows": [],
    "owner": "",
    "fix_commit": [],
-   "tests": [],
+   "tests": [
+    "tests/test_v31_m53_error_reproducers.py::test_p31_g56_same_code_same_scene_is_one_diagnostic"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.7",
@@ -2214,7 +2216,9 @@
    "affected_flows": [],
    "owner": "",
    "fix_commit": [],
-   "tests": [],
+   "tests": [
+    "tests/test_v31_m53_error_reproducers.py::test_p33_a7_batch_estimate_matches_price_for_reference_video"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.6",
@@ -2247,7 +2251,9 @@
    "affected_flows": [],
    "owner": "",
    "fix_commit": [],
-   "tests": [],
+   "tests": [
+    "tests/test_v31_m53_error_reproducers.py::test_p33_a8_batch_estimate_uses_draft_tier_when_scene_resolution_is_missing"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.6",
@@ -2280,7 +2286,9 @@
    "affected_flows": [],
    "owner": "",
    "fix_commit": [],
-   "tests": [],
+   "tests": [
+    "tests/test_v31_m53_error_reproducers.py::test_p33_a9_claude_cli_has_zero_api_estimate_without_paid_calls"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.6",

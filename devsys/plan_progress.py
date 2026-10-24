@@ -5,6 +5,8 @@ Mỗi việc là một dòng trong file kế hoạch:
     - [x] S1.1 · Bỏ bảng tên nhân vật · nặng:1 · ✅ · 1a2b3c4 · ghi chú / bằng chứng
 Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · ✅ xong · ✖ bỏ. Trọng số nặng:1/2/3.
 % đợt = (Σ nặng ✅ + ½ Σ nặng 🔄) / Σ nặng (không tính ✖). Tên đợt lấy từ tiêu đề `### S1 — …` trong mục danh sách việc.
+CX24-G1: trạng thái trên vẫn là CODE. Thêm ` · cổng: ✅ <bằng chứng>` hoặc ` · cổng: ⬜ <thiếu gì>`;
+dòng cũ không có cổng = ⬜. % cổng chỉ cộng việc đã ✅code và có cổng đạt, không cộng nửa cho đang làm.
 Dòng đầu file có thể ghi trần đợt: `Trần đợt: 50 USD · Claude 3 USD · từ 2026-09-28T08:00:00+00:00`.
 `tools/plan_progress.py --write` ghi lại bảng tiến độ giữa hai dấu <!-- tien-do --> … <!-- /tien-do --> để file đọc được cả ngoài web.
 """
@@ -62,6 +64,39 @@ WAVE_RE = re.compile(r"^###\s+(?P<id>[A-Z]+\d*)\s+[—-]\s+(?P<name>.+?)\s*$")
 CAP_RE = re.compile(r"Trần đợt:\s*(?P<usd>[\d.,]+)\s*USD\s*·\s*Claude\s*(?P<llm>[\d.,]+)\s*USD\s*·\s*từ\s*(?P<since>\S+)")
 FOCUS_RE = re.compile(r"^\s*>?\s*Đợt ưu tiên:\s*\**(?P<id>[A-Z]+\d*)\**", re.M)     # "Đợt ưu tiên: S13" = the person says which wave is current
 MARK_START, MARK_END = "<!-- tien-do -->", "<!-- /tien-do -->"
+DASHBOARD_TASKS = {"M0.8", "M4.7", "M4.8", "M6.10", "M8.0", "M8.1", "M8.2", "M8.3", "M8.4"}
+UI_EVIDENCE_RE = re.compile(r"\bui_step\b|\S+\.(?:png|jpe?g|webp)\b", re.I)
+EVIDENCE_REFERENCE_RE = re.compile(
+    r"\bcommit\s+[0-9a-f]{7,40}\b|\bui_step\s+(?:#\d+|[a-z0-9_-]+:\S+)"
+    r"|(?:[\w.-]+[/\\])+[\w.-]+\.(?:png|jpe?g|webp|jsonl?|log|md|txt)(?::\d+)?", re.I)
+UNVERIFIED_EVIDENCE_RE = re.compile(
+    r"\bchưa\b|\bkhông\s+(?:có|dùng|chạy|kiểm)\b|\bmockup\b|\bfixture\b|\bapptest\b"
+    r"|\boffline\b|\btest\s+giả\b|chỉ\s+có\s+(?:unit|test)", re.I)
+
+
+def _gate(parts: List[str], tid: str, title: str, code_status: str) -> Dict:
+    """Đọc khai báo cổng, không tự nâng cổng từ code/test hay kiểm dữ liệu live."""
+    fields = [p for p in parts if p.casefold().startswith("cổng:")]
+    declared, evidence, warning = "⬜", "", ""
+    if fields:
+        m = re.fullmatch(r"cổng:\s*(✅|⬜)(?:\s+(.*))?", fields[0], re.I)
+        if len(fields) != 1 or not m:
+            warning = f"{tid}: khai báo cổng không hợp lệ hoặc bị trùng"
+        else:
+            declared, evidence = m.group(1), (m.group(2) or "").strip()
+    accepted = declared == "✅"
+    if accepted:
+        low = evidence.casefold()
+        real_evidence = bool(EVIDENCE_REFERENCE_RE.search(evidence))
+        if not real_evidence or UNVERIFIED_EVIDENCE_RE.search(low):
+            warning = f"{tid}: cổng ✅ thiếu bằng chứng chạy thật (commit/ảnh/ui_step/sổ chi)"
+        elif (tid in DASHBOARD_TASKS or re.search(r"dashboard|giao diện", title, re.I)) and not (
+                UI_EVIDENCE_RE.search(evidence) and re.search(r"ui_step|dùng thật|chạy thật|nghiệm thu", evidence, re.I)):
+            warning = f"{tid}: cổng Dashboard thiếu ảnh chụp hoặc nhật ký ui_step dùng thật"
+        elif code_status != "✅":
+            warning = f"{tid}: cổng ✅ trong khi code chưa ✅"
+    return {"gate_status": "✅" if accepted and not warning else "⬜", "gate_declared": declared,
+            "gate_evidence": evidence, "gate_warning": warning}
 
 
 class PlanError(ValueError):
@@ -104,6 +139,7 @@ def parse(text: str) -> Dict:
         note = " · ".join(rest[1:] if commit else rest)
         task = {"id": tid, "title": m.group("title").strip(), "weight": int(m.group("w")), "status": m.group("st"),
                 "commit": commit, "note": note, "line": n}
+        task.update(_gate(rest, tid, task["title"], task["status"]))
         wid = wave_of(tid)
         if wid not in by_id:
             by_id[wid] = {"id": wid, "name": wid, "tasks": []}
@@ -127,6 +163,13 @@ def percent(tasks: List[Dict]) -> Optional[float]:
     return round(100.0 * done / total, 1)
 
 
+def gate_percent(tasks: List[Dict]) -> Optional[float]:
+    counted = [t for t in tasks if t["status"] != "✖"]
+    total = sum(t["weight"] for t in counted)
+    done = sum(t["weight"] for t in counted if t["status"] == "✅" and t.get("gate_status") == "✅")
+    return round(100.0 * done / total, 1) if total else None
+
+
 def summary(plan: Dict) -> Dict:
     """{"total": %, "waves": [{"id", "name", "pct", "n", "done", "doing", "waiting", "dropped"}], "current": wave id or None,
     "doing": [tasks], "waiting": [tasks], "next": first task not started in the first unfinished wave}."""
@@ -134,7 +177,8 @@ def summary(plan: Dict) -> Dict:
     for w in plan["waves"]:
         t = w["tasks"]
         all_tasks += t
-        rows.append({"id": w["id"], "name": w["name"], "pct": percent(t), "n": len(t),
+        rows.append({"id": w["id"], "name": w["name"], "pct": percent(t), "pct_gate": gate_percent(t), "n": len(t),
+                     "gate_done": sum(x["status"] == "✅" and x.get("gate_status") == "✅" for x in t),
                      "done": sum(x["status"] == "✅" for x in t), "doing": sum(x["status"] == "🔄" for x in t),
                      "waiting": sum(x["status"] == "⏸" for x in t), "dropped": sum(x["status"] == "✖" for x in t)})
     unfinished = [r for r in rows if r["pct"] is not None and r["pct"] < 100]
@@ -146,10 +190,14 @@ def summary(plan: Dict) -> Dict:
     if current:                  # the first task not started: in the current wave, else in the waves after it (current waits for the person)
         ids = [w["id"] for w in plan["waves"]]
         for w in plan["waves"][ids.index(current):]:
-            nxt = next((t for t in w["tasks"] if t["status"] == "⬜"), None)
+            nxt = next((t for t in w["tasks"] if t["status"] == "⬜"
+                        and "CHỜ PHỤ THUỘC" not in (t["title"] + " " + t["note"]).upper()
+                        and "⏸" not in t["note"]), None)
             if nxt:
                 break
-    return {"total": percent(all_tasks), "waves": rows, "current": current,
+    return {"total": percent(all_tasks), "total_code": percent(all_tasks), "total_gate": gate_percent(all_tasks),
+            "gate_warnings": [t["gate_warning"] for t in all_tasks if t.get("gate_warning")],
+            "waves": rows, "current": current,
             "doing": [t for t in all_tasks if t["status"] == "🔄"], "waiting": [t for t in all_tasks if t["status"] == "⏸"], "next": nxt}
 
 
@@ -182,15 +230,17 @@ def _pct(v: Optional[float]) -> str:
 
 def table(plan: Dict) -> str:
     s = summary(plan)
-    lines = ["| Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |", "|---|---|---|---|---|---|---|"]
+    lines = ["| Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | % code | % cổng |", "|---|---|---|---|---|---|---|---|"]
     for r in s["waves"]:
-        lines.append(f"| {r['id']} {r['name']} | {r['n']} | {r['done']} | {r['doing']} | {r['waiting']} | {r['dropped']} | {_pct(r['pct'])} |")
+        lines.append(f"| {r['id']} {r['name']} | {r['n']} | {r['done']} | {r['doing']} | {r['waiting']} | {r['dropped']} | {_pct(r['pct'])} | {_pct(r['pct_gate'])} |")
     n = sum(r["n"] for r in s["waves"])
     lines.append(f"| **Tổng** | **{n}** | **{sum(r['done'] for r in s['waves'])}** | **{sum(r['doing'] for r in s['waves'])}** | "
-                 f"**{sum(r['waiting'] for r in s['waves'])}** | **{sum(r['dropped'] for r in s['waves'])}** | **{_pct(s['total'])}** |")
+                 f"**{sum(r['waiting'] for r in s['waves'])}** | **{sum(r['dropped'] for r in s['waves'])}** | **{_pct(s['total'])}** | **{_pct(s['total_gate'])}** |")
     nxt = s["next"]
     lines.append("")
     lines.append(f"Đợt hiện tại: **{s['current'] or '—'}** · việc kế: " + (f"**{nxt['id']}** {nxt['title']}" if nxt else "—"))
+    if s["gate_warnings"]:
+        lines.extend(["", "Cảnh báo cổng:"] + [f"- {warning}" for warning in s["gate_warnings"]])
     return "\n".join(lines)
 
 

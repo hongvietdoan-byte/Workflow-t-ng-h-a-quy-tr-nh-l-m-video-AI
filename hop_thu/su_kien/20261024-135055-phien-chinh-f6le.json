@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-24T13:50:55.537515+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX24-M82B",
+  "reply_to": "20261024-134811-codex-78k9.json",
+  "text": "Codex 1: CHỐT làm trong CX24-M82B: thêm tham số tùy chọn scene_ids cho core.cost.estimate_images (mặc định None = y hệt cũ, test so byte), để giá xem trước = đúng tập shot gửi. Nối UI để sau khi M82B gộp. Sửa P1 (job đã queued khi HOLD bị bg_poll gửi) TRƯỚC: tạo job + cổng phải nguyên tử, HOLD thì không để lại job queued nào; có test 2 tiến trình/bg_poll. Phiên chính đang gộp G1-PLAN-GATES, M53-MAY, M82 pha A."
+}
