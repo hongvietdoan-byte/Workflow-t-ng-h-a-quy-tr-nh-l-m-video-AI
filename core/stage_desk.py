@@ -575,7 +575,9 @@ def scene_status(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = Non
     h = lock_holder(data_dir, pid, seg["scene"], conn, seg=seg, clean=False)   # rà 7: vẽ trạng thái không gỡ khóa / không ghi diag
     pr = progress(data_dir, pid, seg["scene"], conn, seg=seg)
     busy_now = bool(h) or (pr or {}).get("state") == "running"
-    user_ok = stage_crew.user_approves()
+    # Pending được lưu bởi lần N9 đã bật cờ: tắt cờ sau đó không được làm mất
+    # đường duyệt của EP hoặc cho tự động nhận lại dấu duyệt cũ.
+    user_ok = stage_crew.user_approves() or sa.rerender_pending(state)
     has_round = bool(result and result.get("round"))
     shot_hist = {str(k): list(v or []) for k, v in ((state or {}).get("shot_hist") or {}).items()}
     family_suggestions = _sa().family_suggestions(_sa().segments(conn, pid))
@@ -769,7 +771,8 @@ def approve(conn, pid: int, data_dir: str, scene, who: Optional[Dict], user, con
         _need_ep(conn, pid, who, user, "Duyệt sân khấu")
     except DeskError as e:
         return {"ok": False, "errors": [str(e)]}
-    if not stage_crew.user_approves():
+    pending = sa.rerender_pending(_read(os.path.join(seg_dir(data_dir, pid, seg), sa.CREW_DIR, "state.json")))
+    if not stage_crew.user_approves() and not pending:
         return {"ok": False, "errors": ["duyệt chốt do Đạo diễn (cờ stage_crew_user_approve TẮT) — không có bước người duyệt"]}
     def need_confirm():
         drawn = drawn_shots(conn, seg)
@@ -905,6 +908,8 @@ def reset(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm: bo
 
     def fn():
         ctx = {"crew": os.path.join(seg_dir(data_dir, pid, seg), sa.CREW_DIR), "out": seg_dir(data_dir, pid, seg)}
+        if sa.rerender_pending(sa._crew_load(ctx)):
+            return {"ok": False, "errors": ["Render lại đang chờ EP duyệt; hoàn tất lượt duyệt này trước khi làm lại sân khấu."]}
         sa._crew_reset(ctx)
         mark = dict(preview, marks_before={str(k): v for k, v in _marks(conn, seg).items()}, at=_now(), by=_who_text(who))   # trong khóa
         _write(os.path.join(seg_dir(data_dir, pid, seg), RESET_FILE), mark)

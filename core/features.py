@@ -12,6 +12,10 @@ import os
 from typing import Dict, List, Optional
 
 FEATURES: Dict[str, Dict] = {
+    "stage_rerender_reapprove": {
+        "label": "Render lại sân khấu đã duyệt phải chờ EP duyệt bản mới",
+        "verified": False, "costs": False,
+        "why": "CX24-N9: mặc định TẮT; giữ bản cũ, đo thành đề xuất mới và không tự ghi máy trước EP"},
     "simple_mode": {"label": "Chế độ Cơ bản", "verified": False, "costs": False,
                     "why": "M82: chưa nghiệm thu giao diện; không tự gửi API trả phí, cờ mặc định TẮT"},
     "cli_call_budget": {"label": "Giới hạn lượt/công cụ của Claude Code theo khâu (chưa thử thật)",
