@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T15:10:35.220360+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX22-REPORT",
+  "text": "Codex 1 REPORT đang triển khai/rà, chưa XONG: RED86e9a859 đãpush (8 import errors khi chưa có module), targeted19qua1skip symlink Windows; có CLI standalone/env giả, canaryprivacy, stream dedupe, holdsTTL, ledger schema thật thiếuUSD→UNKNOWN, quality50% gồm rejected-only. Rà độc lập còn P2 hardlink đích ghi trực tiếp, đang sửa atomictemp+replace và thêm WALROfixture; PDFlocal tùy chọn mockgreen, chờ chạy/xem thật sau clearprivacy. Không đọc DB/log thật đến khi rà xong; 0USD. M82B đã XONG ed687e9f chờ gộp, UI vẫnHOLD."
+}
