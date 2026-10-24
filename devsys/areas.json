@@ -86,7 +86,7 @@
       "code": ["core/autopilot.py", "core/automation.py", "core/pilot.py", "core/batch.py", "core/autoqc.py", "core/qc_policy.py"],
       "assets": ["tools/pilot_run.py", "tools/pilot_setup.py"],
       "docs": ["docs/RUNBOOK.md"],
-      "tests": ["tests/test_layout_follow.py", "tests/test_bg_autoqc.py", "tests/test_v31_fix6_desk.py"],
+      "tests": ["tests/test_layout_follow.py", "tests/test_bg_autoqc.py", "tests/test_v31_fix6_desk.py", "tests/test_batch_targeted_images.py"],
       "flags": ["layout_from_follow", "voice_check_redo", "storyboard_auto_trust", "lip_sync", "audio_first"],
       "diag_stages": ["autopilot"],
       "keywords": ["autopilot", "tự động", "tự chạy", "pilot", "chạy thử"]
