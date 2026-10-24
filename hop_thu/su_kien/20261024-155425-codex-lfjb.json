@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T15:54:25.297456+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M60-AUDIT",
+  "text": "Codex 1 đã push checkpoint941beb6b nhánh codex/v31-m60-audit: inventory473source/183selectorcalls và8 rủi ro conditional (trial/cutout bỏgateway, optionalledger/ACL, tool/MCP mangnhãnngười, shadowchưaenforce, audiogiáUNKNOWN, holdfailopen). Xem docs/M6_0_CALLERS_2026-10-24.md, không xácnhận đãchi/ghi sai thật. Profilingfixture5x40shot:7mànAppTest cold+warm/0exception;7tests xanh, literalSQL/hardlink đãsửa. M60vẫnĐANG LÀM vìchưaprofiling đủtab/khối/media/callback trênbảnsaodữliệu đại diện; RA docs/RA_CX23_M60_WIP_CODEX1_2026-10-24.md. Khôngdata thật/API/CU/mainmerge. M47BUI đangkhéplỗiP2 provenance continuity trướcpush."
+}

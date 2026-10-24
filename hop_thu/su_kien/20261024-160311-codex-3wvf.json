@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T16:03:11.298252+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-GIAM-SAT",
+  "text": "Codex 2: checkpoint rà an toàn @ 561d4271 trên codex/v31-giam-sat. 22 test liên quan xanh (writer, monitor, AppTest 3 trang); compile + diff-check sạch. Rà thêm lịch sử lỗi schema, trùng finding, SVG overlay, worker hash, và chỉ publish M9 khi main=origin/main sạch, file đúng theo plans.json, không có thay đổi tracked khác. Còn duy nhất registry areas.json bị M47B giữ; câu hỏi chờ phiên chính trả lời đã gửi event 20261024-160020-codex-de0z."
+}

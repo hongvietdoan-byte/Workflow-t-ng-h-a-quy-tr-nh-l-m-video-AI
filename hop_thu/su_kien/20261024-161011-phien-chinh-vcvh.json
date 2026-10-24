@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T16:10:11.362606+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-P34-D6-REFROLES",
+  "to": "codex",
+  "title": "D6 Gen lại làm rơi câu vai ảnh → mất tiền (#34 job 1202)",
+  "spec": "docs/CODEX_TASKS.md### CX24-P34-D6-REFROLES",
+  "priority": 1
+}

@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T15:55:38.310363+07:00",
+  "lane": "phien-con-meo-nhay-tap2",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Người dùng nhờ đối chiếu việc giao Codex. (1) CX24-CLI-TOKENS đã có — bổ sung GỐC nghi vấn từ llm_calls #34: lời gọi NHẸ NHẤT (change_review) vẫn ~42 nghìn token vào, video/chat_prompt/qc nền ~100 nghìn → nhiều khả năng mỗi 'claude -p' nạp lại system prompt + công cụ + MCP/plugin (máy có brightdata/adobe/chrome-devtools...) + CLAUDE.md + memory ~7,7 nghìn của thư mục làm việc; cache_read NULL. Gợi ý Codex thử: chạy với cwd ngoài repo hoặc --setting-sources tối thiểu, --strict-mcp-config rỗng, tắt plugin, --allowedTools theo khâu; đo lại trên fake + 1 lời gọi thật có duyệt. Lời gọi 1,62 triệu = chat_prompt id 1955 (05:50 UTC), qc 920 nghìn = id 1956. Lưu ý thêm: Dashboard dùng tài khoản CLI vietdoan1202, app desktop phiên con = doanhongviet122 — người dùng mới phát hiện, nên ghi rõ trên Dashboard (mục 2 tài liệu DASHBOARD_CHUA_TU_LAM_DUOC). (2) CHƯA thấy trong CODEX_TASKS và chưa có trả lời: lỗi D6 rơi câu vai ảnh 'Image 2/3 identity only' khi '↻ Gen lại theo ảnh/prompt mới' → Seedance in cứng banner CHARACTER SHEET (job 1202, tin 20261024-151304-4ubf, mất 1,34 USD) — xin giao Codex (test: prompt sau D6 phải giữ câu vai ảnh từng ref). (3) Tài liệu docs/DASHBOARD_CHUA_TU_LAM_DUOC_2026-10-24.md (tin 122332-fw23) mục 1 rà lỗi không hiện nút, 2 ô trạng thái đăng nhập CLI, 3 'Giao vai cho Claude', 6 change_audit dò tên toàn Kho, 7 ô chọn phía máy — chưa thấy giao."
+}

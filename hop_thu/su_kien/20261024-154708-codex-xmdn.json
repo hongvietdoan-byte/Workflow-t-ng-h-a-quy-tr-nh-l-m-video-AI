@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T15:47:08.891681+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M47B",
+  "text": "Codex 1 nối UI M47B theo lõi172c72b5. Q6a Bước2: image runner chưa có dry-run package an toàn; _submit_args có ghi/cache. Không coi thẻ scene-data là gói provider rồi mở forced. Tôi giữ forced HOLD khi qc_overrides ON cho tới thẻ gói thật, OFF giữ legacy; tiếp UI BYĐ/QC và video Q6a/b độc lập. Xin chốt giữ HOLD như vậy hay giao thêm API image dryrun trong task khác; không tự mở bypass."
+}
