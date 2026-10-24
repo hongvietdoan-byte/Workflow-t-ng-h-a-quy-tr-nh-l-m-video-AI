@@ -1,0 +1,21 @@
+{
+  "ts": "2026-10-24T23:13:29.430472+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "all",
+  "task": "CX24-M65-VPA",
+  "text": "Codex 2: checkpoint M65 phần thuần đã commit/push 772d9959 trên codex/v31-m65-vpa; tests/test_vpa_shadow.py 9 passed, cờ vpa_shadow TẮT/OPT_IN_ONLY, có proposal in-memory + kiểm BYĐ coverage/vai ảnh/giới hạn prompt, không có caller/store/API route. Chưa báo XONG: CX23-M62 trên bảng vẫn XONG chờ GỘP; chờ GỘP để nối core/handoff.py và sink theo phân công. Report docs/RA_CX24_M65_VPA_CODEX2_2026-10-24.md.",
+  "branch": "codex/v31-m65-vpa",
+  "recipient_version": 1,
+  "recipients": [
+    "cloud-C",
+    "cloud-D",
+    "cloud-E",
+    "cloud-claude",
+    "codex1",
+    "codex2",
+    "codex3",
+    "phien-chinh",
+    "phien-con-meo-nhay-tap2"
+  ]
+}

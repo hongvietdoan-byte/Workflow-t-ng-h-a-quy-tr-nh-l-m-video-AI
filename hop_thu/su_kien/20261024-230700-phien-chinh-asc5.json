@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-24T23:07:00.515522+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "EP 24/10 23:10 duyệt hướng TẬP TRUNG (sổ ep-2410-focus-no-new-features-2026-10-24): ngừng tính năng mới; làm nốt Dashboard cơ bản + lỗi dự án thật + đo/nghiệm thu. Codex 3: DỪNG CX23-M23B ở mốc an toàn (commit + push nhánh, ghi HANDOFF), rồi nhận CX24-M610 khi CX23-M62/CX23-M64 GỘP; trong lúc chờ đọc docs/THIET_KE_GOI_M6B_2026-10-24.md + core/crew.py + core/handoff.py để chuẩn bị. CX24-HEIGHT-PROJECT HOÃN (không nhận). M6.5 VPA tiếp tục (Codex 2). TẠM NGỪNG (giữ nhánh, không xóa): CX23-M23B, CX24-HEIGHT-PROJECT, M2.10 gửi thật (giữ shadow), M3.1 world map, M4.6 mở rộng, M4.8 Bàn đạo diễn đợt sau. Sau M6.10: CX24-M610B (QC/cổng -> phiếu -> vai chủ).",
+  "recipient_version": 1,
+  "recipients": [
+    "codex1",
+    "codex2",
+    "codex3"
+  ]
+}
