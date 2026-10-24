@@ -508,6 +508,21 @@ class MigrationTests(unittest.TestCase):
             conn.execute("INSERT INTO project_watchers (project_id, email, level, added_at) VALUES (?,?,?,?)", (pid, "x@y.vn", "root", "now"))
 
 
+class EpTableMissingTests(unittest.TestCase):
+    def test_db_without_ep_table_behaves_as_before_g1(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript("CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT, created_by TEXT);"
+                           "CREATE TABLE project_watchers (project_id INTEGER, email TEXT, level TEXT, added_by TEXT, added_at TEXT);"
+                           "INSERT INTO projects VALUES (1, 'p', 'a@x.vn');"
+                           "INSERT INTO project_watchers VALUES (1, 'b@x.vn', 'edit', 'a@x.vn', 'now');")
+        b = {"email": "b@x.vn", "role": "member"}
+        self.assertEqual(access.level(conn, 1, b), "edit")
+        self.assertEqual(access.levels_for(conn, b), {1: "edit"})
+        self.assertEqual(access.visible_ids(conn, b), {1})
+        self.assertEqual(access.list_project_eps(conn, 1), [])
+        self.assertIsNone(access.level(conn, 1, {"email": "c@x.vn", "role": "member"}))
+
 class ManagerRightsTests(unittest.TestCase):
     def test_starting_the_background_run_needs_the_edit_right(self):
         tmp = tempfile.mkdtemp()

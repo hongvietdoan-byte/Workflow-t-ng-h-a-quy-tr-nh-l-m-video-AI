@@ -13,6 +13,7 @@ Cách thực thi: Pipeline có thuộc tính `user` ({'email','role'}). Dashboar
 thay vì im lặng bỏ qua. `p.user = None` = chạy hệ thống (autopilot nền, worker, kiểm thử lõi) hoặc đăng nhập tắt: không giới hạn, đúng như
 trước. Đây là kiểm quyền theo danh tính phiên đăng nhập của Dashboard; nó không thay cho việc bảo vệ mạng (xem core/auth.py: e-mail chỉ là lời khai).
 """
+import sqlite3
 from typing import Dict, Iterable, List, Optional, Set
 
 from . import auth
@@ -51,6 +52,16 @@ def _row(conn, project_id: int):
     return conn.execute("SELECT id, name, created_by FROM projects WHERE id=?", (project_id,)).fetchone()
 
 
+def _ep_rows(conn, sql: str, args) -> list:
+    """Read project_executive_producers; a DB without the table (older schema / fixtures) = no EP grants (behaves as before G1)."""
+    try:
+        return conn.execute(sql, args).fetchall()
+    except sqlite3.OperationalError as e:
+        if "no such table" in str(e).lower():
+            return []
+        raise
+
+
 def level(conn, project_id: int, user) -> Optional[str]:
     """'admin' (Owner/system) > 'own' (creator) > 'ep' > 'edit' > 'view' > None."""
     u = user_of(user)
@@ -67,8 +78,7 @@ def level(conn, project_id: int, user) -> Optional[str]:
     creator = (row["created_by"] or "").strip().lower()
     if creator and creator == email:
         return "own"
-    ep = conn.execute("SELECT 1 FROM project_executive_producers WHERE project_id=? AND email=?", (project_id, email)).fetchone()
-    if ep:
+    if _ep_rows(conn, "SELECT 1 FROM project_executive_producers WHERE project_id=? AND email=?", (project_id, email)):
         return "ep"
     w = conn.execute("SELECT level FROM project_watchers WHERE project_id=? AND email=?", (project_id, email)).fetchone()
     return w["level"] if w else None
@@ -172,7 +182,7 @@ def visible_ids(conn, user) -> Optional[Set[int]]:
         return set()
     ids = {r["id"] for r in conn.execute("SELECT id FROM projects WHERE LOWER(TRIM(COALESCE(created_by,'')))=?", (email,))}
     ids |= {r["project_id"] for r in conn.execute("SELECT project_id FROM project_watchers WHERE email=?", (email,))}
-    ids |= {r["project_id"] for r in conn.execute("SELECT project_id FROM project_executive_producers WHERE email=?", (email,))}
+    ids |= {r["project_id"] for r in _ep_rows(conn, "SELECT project_id FROM project_executive_producers WHERE email=?", (email,))}
     return ids
 
 
@@ -190,7 +200,7 @@ def levels_for(conn, user) -> Dict[int, str]:
     if not email:
         return {}
     out = {r["project_id"]: r["level"] for r in conn.execute("SELECT project_id, level FROM project_watchers WHERE email=?", (email,))}
-    for r in conn.execute("SELECT project_id FROM project_executive_producers WHERE email=?", (email,)):
+    for r in _ep_rows(conn, "SELECT project_id FROM project_executive_producers WHERE email=?", (email,)):
         if RANK[out.get(r["project_id"])] < RANK["ep"]:
             out[r["project_id"]] = "ep"
     for r in conn.execute("SELECT id FROM projects WHERE LOWER(TRIM(COALESCE(created_by,'')))=?", (email,)):
@@ -207,7 +217,7 @@ def list_watchers(conn, project_id: int) -> List[Dict]:
 def list_project_eps(conn, project_id: int) -> List[Dict]:
     """People assigned the project-scoped Executive Producer role, with grant audit fields."""
     return [{"email": r["email"], "added_by": r["added_by"], "added_at": r["added_at"]}
-            for r in conn.execute("SELECT * FROM project_executive_producers WHERE project_id=? ORDER BY email", (project_id,))]
+            for r in _ep_rows(conn, "SELECT * FROM project_executive_producers WHERE project_id=? ORDER BY email", (project_id,))]
 
 
 def _now() -> str:
