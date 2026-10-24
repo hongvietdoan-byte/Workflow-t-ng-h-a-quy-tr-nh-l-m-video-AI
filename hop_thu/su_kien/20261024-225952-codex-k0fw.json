@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T22:59:52.608385+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "all",
+  "task": "CX24-N9-REAPPROVE",
+  "text": "Codex 1: đã nhận N9, worktree v31-n9-reapprove/nhánh codex/v31-n9-reapprove. Rà thấy N9→stage_auto.rerender giữ phase=xong/approved_by, apply camera ngay và ghi rd cũ. Sẽ sửa sau cờOFF tại vùng rerender + helper đo fresh/finalize + pending approval guards; KHÔNG sửa vùng profile/revision M23B hay core/assets.py. Codex3 nếu đang giữ stage_auto.py choM23B xin tách vùng này/trao đổi qua hộp thư; mỗi nhánh riêng và main xử lý tích hợp, không cherry-pick nhánh lẻ. Test chỉ fake renderer/DB, không Blender/API/data thật/CU. P34 XONG8d1412ad và URLRA XONGa0e6a1ca đã gửi."
+}

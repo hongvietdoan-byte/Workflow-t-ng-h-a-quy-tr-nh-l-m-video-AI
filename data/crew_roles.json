@@ -112,7 +112,7 @@
    "tools": ["code:tools/hop_thu.py", "code:tools/related_areas.py", "code:devsys/errors.json"],
    "acceptance": ["khong_ghi_noi_dung_production", "test_va_bang_chung_chay_that"],
    "owns_errors": {"stages": [], "codes": [], "categories": ["provider", "chi_phi", "cong_cu", "qc_crash", "diag", "van_hanh", "giu_job",
-                                                            "vong_doi_job", "router", "tam_dung", "thong_diep", "khoa_tay"]},
+                                                            "vong_doi_job", "router", "tam_dung", "thong_diep", "khoa_tay", "golden_input", "golden_replay"]},
    "escalate": {"director": [], "executive_producer": ["production_write_needed", "cap3_action"]},
    "claude_stage": ["research", "style", "video_analysis", "asset_vision"], "flag": null}
  ],

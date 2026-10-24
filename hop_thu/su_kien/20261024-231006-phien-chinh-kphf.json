@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-24T23:10:06.371222+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "GỘP main 49fcccf3: CX23-M47B, CX22-G1-EP-ROLE, CX24-M82B, CX24-RA-M82B, CX23-M62, CX24-G3-SO-LOI, CX24-HOP-THU-GON, CX24-MAIN-RED, CX23-A2F-ALIAS, CX24-BEATS-CLI, CX22-M83-LOAD. CX23-M64 CHƯA gộp (origin/codex/v31-m64 chưa vào gop3). Codex rebase lên main.",
+  "recipient_version": 1,
+  "recipients": [
+    "codex1",
+    "codex2",
+    "codex3"
+  ]
+}

@@ -20,6 +20,11 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+try:
+    from . import hop_thu_store as store
+except ImportError:
+    import hop_thu_store as store
+
 # Giờ VN cố định +07:00 (không dùng zoneinfo: Windows có thể thiếu tzdata).
 VN_TZ = timezone(timedelta(hours=7))
 EVENT_DIR = Path("hop_thu") / "su_kien"
@@ -72,8 +77,7 @@ def find_root(explicit=None) -> Path:
     if env:
         return Path(env).resolve()
     try:
-        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True,
-                             text=True, encoding="utf-8")
+        out = _git(Path.cwd(), "rev-parse", "--show-toplevel", check=False)
         if out.returncode == 0 and out.stdout.strip():
             return Path(out.stdout.strip()).resolve()
     except OSError:
@@ -82,7 +86,7 @@ def find_root(explicit=None) -> Path:
 
 
 def event_dir(root: Path) -> Path:
-    return root / EVENT_DIR
+    return store.safe_path(root, EVENT_DIR)
 
 
 # ---------------------------------------------------------------- đọc / ghi sự kiện
@@ -90,14 +94,11 @@ def event_dir(root: Path) -> Path:
 
 def load_events(root: Path):
     """Trả (events, errors). errors = [(tên file, lý do)] — file hỏng KHÔNG bị bỏ qua im lặng."""
-    d = event_dir(root)
     events, errors = [], []
-    if not d.is_dir():
-        return events, errors
-    for p in sorted(d.glob("*.json")):
+    records, errors = store.load_records(root)
+    for iid, original in records.items():
         try:
-            with open(p, "r", encoding="utf-8-sig") as f:
-                ev = json.load(f)
+            ev = dict(original)
             if not isinstance(ev, dict):
                 raise ValueError("không phải object JSON")
             for key in ("ts", "lane", "kind"):
@@ -108,10 +109,10 @@ def load_events(root: Path):
             if ev["kind"] in TASK_KINDS and not ev.get("task"):
                 raise ValueError("thiếu trường 'task'")
             ev["_ts"] = parse_ts(ev["ts"])
-            ev["_file"] = p.name
+            ev["_file"] = iid
             events.append(ev)
         except (ValueError, TypeError, OSError) as e:  # JSONDecodeError/UnicodeDecodeError là ValueError
-            errors.append((p.name, str(e)))
+            errors.append((iid, str(e)))
     events.sort(key=lambda e: (e["_ts"], e["_file"]))
     return events, errors
 
@@ -124,6 +125,9 @@ def write_event(root: Path, lane: str, kind: str, now=None, **fields) -> Path:
     for k, v in fields.items():
         if v not in (None, "", []):
             ev[k] = v
+    recipients = store.new_recipients(store.require_records(root), lane, ev.get("to"))
+    if recipients:
+        ev.update(recipient_version=1, recipients=recipients)
     d = event_dir(root)
     d.mkdir(parents=True, exist_ok=True)
     alphabet = string.ascii_lowercase + string.digits
@@ -135,6 +139,9 @@ def write_event(root: Path, lane: str, kind: str, now=None, **fields) -> Path:
     with open(p, "x", encoding="utf-8", newline="\n") as f:
         json.dump(ev, f, ensure_ascii=False, indent=2)
         f.write("\n")
+        f.flush()
+        os.fsync(f.fileno())
+    store.queue_path(root, p)
     return p
 
 
@@ -152,7 +159,10 @@ class Task:
         self.priority = 100
         self.ts_giao = None
         self.ts_status = None
+        self.ts_claim = None
         self.notes = []
+        self.last_news = None
+        self.reader = None
 
     def eff_lane(self):
         return self.claimer or self.owner
@@ -178,6 +188,8 @@ def compute_state(events):
                         if t.status != CHO:
                             t.notes.append(f"mở lại từ {t.status} ({hhmm})")
                         t.claimer, t.status = None, CHO
+                        t.branch, t.ts_claim = None, None
+                        t.reader = None
                 t.owner = to_new
                 t.title = ev.get("title") or t.title
                 t.spec = ev.get("spec") or t.spec
@@ -201,6 +213,8 @@ def compute_state(events):
                     t.notes.append(f"nhận khi đã {t.status} — bỏ ({lane} {hhmm})")
                     continue
                 t.claimer, t.status, t.ts_status = lane, DANG_LAM, ts
+                t.ts_claim, t.branch = ts, ev.get("branch")
+                t.reader = ev.get("reader")
             elif kind == "xong":
                 t.status, t.ts_status = XONG, ts
                 t.claimer = t.claimer or lane
@@ -220,6 +234,11 @@ def compute_state(events):
             answers.setdefault(ev.get("reply_to"), []).append(ev)
         elif kind == "tin":
             news.append(ev)
+            t = tasks.get(ev.get("task"))
+            if t and t.status == DANG_LAM and t.claimer == lane and ev.get("branch"):
+                t.branch = ev["branch"]
+            if t:
+                t.last_news = ev.get("text")
         elif kind == "het_viec":
             het_viec[lane] = ts
     # làn HẾT VIỆC = báo het_viec sau lần nhận cuối của làn đó
@@ -268,11 +287,12 @@ def next_task(state, lane):
 # ---------------------------------------------------------------- git
 
 
-def _git(root, *args, check=True, env=None):
-    r = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", env=env)
+def _git(root, *args, check=True, env=None, binary=False):
+    r = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=not binary,
+                       encoding=None if binary else "utf-8", errors=None if binary else "replace",
+                       env=env if env is not None else store.git_environment(root))
     if check and r.returncode != 0:
-        raise HopThuError(f"git {' '.join(args)} lỗi: {(r.stderr or r.stdout).strip()}")
+        raise HopThuError(f"git {args[0] if args else '?'} thất bại (mã {r.returncode}); chưa xác minh thao tác")
     return r
 
 
@@ -287,59 +307,20 @@ def git_pull(root):
     if not is_git_repo(root):
         print("Ghi chú: thư mục không phải repo git — bỏ qua git pull.", file=sys.stderr)
         return
-    r = _git(root, "pull", "--rebase", "--autostash", check=False)
-    if r.returncode != 0:
-        print(f"CẢNH BÁO: git pull lỗi, dùng dữ liệu đang có: {(r.stderr or r.stdout).strip()}",
-              file=sys.stderr)
+    try:
+        store.sync_remote(root, _git)
+    except (OSError, ValueError) as exc:
+        raise HopThuError(f"không đồng bộ được metadata hộp thư ({exc}); chưa nhận/ghi") from None
 
 
 def git_push_event(root: Path, path: Path, message: str, tries: int = 3):
-    """Đưa MỘT file sự kiện lên origin/main, không force.
-
-    - Đang ở nhánh main: add → commit → pull --rebase → push HEAD:main.
-    - Đang ở nhánh khác: commit file vào nhánh hiện tại (sau gộp main là add/add giống hệt, không
-      xung đột), đồng thời dựng một commit CHỈ chứa file đó trên đỉnh origin/main bằng index tạm +
-      commit-tree rồi push — không đẩy commit khác của nhánh lên main.
-    """
-    rel = path.resolve().relative_to(root.resolve()).as_posix()
-    if not rel.startswith(EVENT_DIR.as_posix() + "/"):
-        raise HopThuError(f"Chỉ được push file trong {EVENT_DIR.as_posix()}/ (nhận: {rel})")
-    full_msg = f"{message}\n\n{CO_AUTHOR}\n"
-    branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
-    _git(root, "add", "--", rel)
-    _git(root, "commit", "-q", "-m", full_msg, "--only", "--", rel)
-    last = ""
-    for i in range(1, tries + 1):
-        if branch == "main":
-            r = _git(root, "pull", "--rebase", "--autostash", "origin", "main", check=False)
-            if r.returncode != 0:
-                _git(root, "rebase", "--abort", check=False)
-                last = (r.stderr or r.stdout).strip()
-                print(f"Pull lần {i} lỗi, thử lại… ({last.splitlines()[-1] if last else ''})", file=sys.stderr)
-                continue
-            r = _git(root, "push", "origin", "HEAD:main", check=False)
-        else:
-            _git(root, "fetch", "-q", "origin", "main")
-            blob = _git(root, "hash-object", "-w", "--", rel).stdout.strip()
-            idx = Path(_git(root, "rev-parse", "--git-path", "hop_thu_index").stdout.strip())
-            if not idx.is_absolute():
-                idx = root / idx
-            env = dict(os.environ, GIT_INDEX_FILE=str(idx))
-            try:
-                _git(root, "read-tree", "origin/main", env=env)
-                _git(root, "update-index", "--add", "--cacheinfo", f"100644,{blob},{rel}", env=env)
-                tree = _git(root, "write-tree", env=env).stdout.strip()
-            finally:
-                if idx.exists():
-                    idx.unlink()
-            commit = _git(root, "commit-tree", tree, "-p", "origin/main", "-m", full_msg).stdout.strip()
-            r = _git(root, "push", "origin", f"{commit}:refs/heads/main", check=False)
-        if r.returncode == 0:
-            print(f"Đã push lên origin/main (lần thử {i}).")
-            return
-        last = (r.stderr or r.stdout).strip()
-        print(f"Push lần {i} chưa được, thử lại… ({last.splitlines()[-1] if last else ''})", file=sys.stderr)
-    raise HopThuError(f"Push thất bại sau {tries} lần (không force). File vẫn ở {rel}. Lỗi cuối: {last}")
+    """API cũ --push: đưa event vào queue rồi flush cả lô, không đụng index/HEAD."""
+    try:
+        store.queue_path(root, path)
+        result = store.flush_pending(root, _git, message=message, tries=tries, co_author=CO_AUTHOR)
+    except (OSError, ValueError) as exc:
+        raise HopThuError(str(exc)) from None
+    print(f"Đã push lô {result['paths']} metadata lên origin/main.")
 
 
 # ---------------------------------------------------------------- in bảng
@@ -351,6 +332,11 @@ def _cell(s):
 
 def _note(state, t, st):
     parts = []
+    parts.append("người giữ: " + (t.eff_lane() or "chưa xác minh") + ("/" + t.reader if t.reader else " (chưa xác minh phiên)" if t.eff_lane() == "codex" else ""))
+    if st != XONG and (t.branch or t.commit):
+        parts.append(f"nhánh {t.branch or '?'} @ {t.commit or '?'}")
+    if t.last_news:
+        parts.append("tin gần nhất: " + t.last_news)
     if st == CHO_DK:
         parts.append("thiếu: " + ", ".join(missing_deps(state, t)))
     if st == XONG:
@@ -372,20 +358,20 @@ def _table(state, rows):
     return out
 
 
-def render_board(state, errors, lane_filter=None):
+def render_board(state, errors, lane_filter=None, include_closed=False):
     lines = ["# 📨 Hộp thư — bảng trạng thái", ""]
     if errors:
         lines += ["## ⚠ File sự kiện hỏng (KHÔNG được đọc — ghi sự kiện mới thay, đừng sửa file cũ)", ""]
         lines += [f"- `{n}`: {m}" for n, m in errors] + [""]
     if state["notes"]:
         lines += ["## ⚠ Sự kiện bất thường", ""] + [f"- {n}" for n in state["notes"]] + [""]
-    order = [DANG_LAM, CHO, CHO_DK, XONG]
+    order = [DANG_LAM, CHO, CHO_DK, XONG] + ([GOP, BO] if include_closed else [])
     by_lane = {}
     for t in state["tasks"].values():
         st = display_status(state, t)
         if st not in order:
             continue
-        ln = t.claimer if st in (DANG_LAM, XONG) else t.owner
+        ln = (t.claimer or t.owner) if st in (DANG_LAM, XONG, GOP, BO) else t.owner
         by_lane.setdefault(ln, []).append((order.index(st), t.priority, t.ts_giao, st, t))
     lanes = sorted(k for k in by_lane if k != "pool")
     if lane_filter:
@@ -412,6 +398,73 @@ def render_board(state, errors, lane_filter=None):
     return "\n".join(lines) + "\n"
 
 
+def _safe_branch(branch):
+    return (isinstance(branch, str) and len(branch) <= 250
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", branch)
+            and not any(x in branch for x in ("..", "//"))
+            and all(part and not part.startswith(".") and not part.endswith((".", ".lock"))
+                    for part in branch.split("/")))
+
+
+def branch_commit_time(root, branch):
+    """Chỉ đọc refs đang có; commit riêng ngoài origin/main, không fetch/pull.
+
+    None + lý do = UNKNOWN; None + rỗng = nhánh có thật nhưng không có
+    commit riêng. Không dùng nhánh/lane suy ra từ văn bản tự do.
+    """
+    if not _safe_branch(branch):
+        return None, "thiếu hoặc sai metadata branch"
+    baseline = "refs/remotes/origin/main"
+    try:
+        if _git(root, "show-ref", "--verify", "--quiet", baseline, check=False).returncode:
+            return None, "chưa có origin/main để đối chiếu"
+        found, stamps = False, []
+        for ref in (f"refs/heads/{branch}", f"refs/remotes/origin/{branch}"):
+            probe = _git(root, "show-ref", "--verify", "--quiet", ref, check=False)
+            if probe.returncode == 1:
+                continue
+            if probe.returncode:
+                return None, "không đọc được ref Git"
+            found = True
+            # Thời gian committer; không lấy commit mới của main làm tiến độ task.
+            log = _git(root, "log", "--first-parent", "-1", "--format=%ct", ref, "--not", baseline)
+            if log.stdout.strip():
+                stamps.append(datetime.fromtimestamp(int(log.stdout.strip()), VN_TZ))
+        if not found:
+            return None, "không thấy nhánh trong refs cục bộ/origin đã fetch"
+        return max(stamps) if stamps else None, ""
+    except (HopThuError, OSError, ValueError, OverflowError):
+        return None, "không xác minh được thời gian commit Git"
+
+
+def stale_warnings(root, state, now=None, lane_filter=None):
+    """G3: quá 12h không commit → đề xuất, tuyệt đối không đổi trạng thái."""
+    now = now or now_vn()
+    warnings = []
+    for t in state["tasks"].values():
+        if t.status != DANG_LAM or (lane_filter and t.eff_lane() != lane_filter):
+            continue
+        claimed = t.ts_claim
+        if not claimed or now - claimed <= timedelta(hours=12):
+            continue
+        if not t.branch:
+            warnings.append(f"{t.code}: ĐANG LÀM > 12 giờ; chưa xác minh nhánh/commit "
+                            "(thiếu metadata branch; không suy người giữ từ lane).")
+            continue
+        stamp, why = branch_commit_time(root, t.branch)
+        if why or (stamp and stamp > now):
+            warnings.append(f"{t.code}: ĐANG LÀM > 12 giờ; chưa xác minh commit nhánh {t.branch} "
+                            f"({why or 'thời gian commit ở tương lai'}).")
+            continue
+        last = max(claimed, stamp) if stamp else claimed
+        if now - last > timedelta(hours=12):
+            evidence = f"commit riêng gần nhất {stamp:%d/%m %H:%M}" if stamp else "chưa có commit riêng ngoài origin/main"
+            warnings.append(f"{t.code}: > 12 giờ không có commit mới trên {t.branch} ({evidence}); "
+                            "đề xuất kiểm tra owner rồi đưa về CHỜ, không tự đổi trạng thái. "
+                            "Chỉ xét refs hiện có, chưa fetch trong lệnh bang.")
+    return warnings
+
+
 # ---------------------------------------------------------------- lệnh
 
 
@@ -424,9 +477,14 @@ def _load(root):
 
 def _finish(args, root, path, kind, task):
     print(f"Đã ghi {path.relative_to(root).as_posix()}")
-    if args.push:
+    urgent = kind in {"hoi", "xong", "gop", "giao"}
+    requested = args.push or (urgent and not getattr(args, "khong_day", False))
+    if requested and is_git_repo(root):
         label = f"{kind} {task}" if task else kind
         git_push_event(root, path, f"hộp thư: {label} ({args.lane})")
+        print("Đã gửi lô metadata lên origin/main.")
+    else:
+        print("Chỉ lưu local; metadata đang chờ trong lô.")
 
 
 def cmd_giao(args, root):
@@ -456,7 +514,13 @@ def _claim(args, root, code):
     miss = missing_deps(state, t)
     if miss:
         raise HopThuError(f"Từ chối: {code} CHỜ ĐIỀU KIỆN — cần GỘP trước: {', '.join(miss)}.")
-    p = write_event(root, args.lane, "nhan", task=code)
+    branch = getattr(args, "branch", None)
+    if branch and not _safe_branch(branch):
+        raise HopThuError("branch không hợp lệ")
+    reader = getattr(args, "reader", None)
+    if reader:
+        store.readers(args.lane, reader)
+    p = write_event(root, args.lane, "nhan", task=code, reader=reader, **({"branch": branch} if branch else {}))
     _finish(args, root, p, "nhan", code)
     if t.spec:
         print(f"Đề bài: {t.spec}")
@@ -549,7 +613,11 @@ def cmd_tin(args, root):
     check_lane(args.to, extra=("all",))
     if args.task:
         check_task(args.task)
-    p = write_event(root, args.lane, "tin", to=args.to, task=args.task, text=args.text)
+    branch = getattr(args, "branch", None)
+    if branch and (not args.task or not _safe_branch(branch)):
+        raise HopThuError("branch cần --task và tên nhánh hợp lệ")
+    p = write_event(root, args.lane, "tin", to=args.to, task=args.task, text=args.text,
+                    **({"branch": branch} if branch else {}))
     _finish(args, root, p, "tin", args.task)
 
 
@@ -563,7 +631,16 @@ def cmd_bang(args, root):
     if args.lane:
         check_lane(args.lane)
     state, errors = _load(root)
-    sys.stdout.write(render_board(state, errors, args.lane))
+    try:
+        counts = store.unread_counts(root)
+        print("Chưa đọc: " + "; ".join(f"{reader} → {n}" for reader, n in sorted(counts.items())))
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"Chưa đọc: không xác minh được ({exc})")
+    sys.stdout.write(render_board(state, errors, args.lane, include_closed=getattr(args, "tat_ca", False)))
+    warnings = stale_warnings(root, state, lane_filter=args.lane)
+    if warnings:
+        sys.stdout.write("\n## ⚠ Tiến độ commit cần kiểm tra (chỉ đọc)\n\n")
+        sys.stdout.write("\n".join(f"- {line}" for line in warnings) + "\n")
 
 
 def cmd_ke(args, root):
@@ -584,6 +661,61 @@ def cmd_ke(args, root):
         _claim(args, root, t.code)
 
 
+def cmd_lich_su(args, root):
+    check_task(args.ma)
+    events, errors = load_events(root)
+    if errors:
+        raise HopThuError("metadata hỏng: " + "; ".join(f"{name}: {why}" for name, why in errors))
+    for ev in events:
+        if ev.get("task") == args.ma:
+            print(f"{ev['_file']} {ev['ts']} {ev['lane']} {ev['kind']}: {ev.get('text') or ev.get('title') or ''}")
+
+
+def cmd_chua_doc(args, root):
+    check_lane(args.lane)
+    items = store.unread_snapshot(root, args.lane, args.reader, save=False)
+    for row in items:
+        ev = row["event"]
+        print(f"{row['id']} {ev['lane']} → {ev.get('to', 'phien-chinh')} [{ev['kind']}] {ev.get('task', '')}: {ev.get('text') or ev.get('title') or ''}")
+    print(f"{len(items)} tin chưa đọc — snapshot {args.reader or args.lane}; bang không xác nhận đọc.")
+    sys.stdout.flush()
+    store.save_snapshot(root, args.lane, args.reader, items)
+
+
+def cmd_da_doc(args, root):
+    check_lane(args.lane)
+    if not args.khong_pull:
+        git_pull(root)
+    paths = store.acknowledge_snapshot(root, args.lane, args.reader, upto=args.den)
+    print(f"Đã xác nhận {len(paths)} tin trong snapshot đã hiển thị.")
+    if args.push:
+        cmd_day_lo(args, root)
+
+
+def cmd_luu_tru(args, root):
+    if args.push and not args.apply:
+        raise HopThuError("--push cần --apply; mặc định chỉ dry-run")
+    if not args.khong_pull:
+        git_pull(root)
+    state, errors = _load(root)
+    result = store.archive(root, state, apply=args.apply)
+    print(("Đã chuyển" if args.apply else "Dry-run, đủ điều kiện") + f": {len(result['eligible'])} sự kiện")
+    for iid in result["eligible"]:
+        print("- " + iid)
+    for iid, reason in result["held"].items():
+        print(f"Giữ {iid}: {reason}")
+    if args.push:
+        cmd_day_lo(args, root)
+
+
+def cmd_day_lo(args, root):
+    try:
+        result = store.flush_pending(root, _git, co_author=CO_AUTHOR)
+    except (OSError, ValueError) as exc:
+        raise HopThuError(str(exc)) from None
+    print(f"Đã đẩy {result['paths']} metadata trong lô; không đẩy code nhánh.")
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="hop_thu", description="Hộp thư sự kiện giữa các phiên.")
     ap.add_argument("--goc", help="gốc repo (mặc định: git rev-parse --show-toplevel)")
@@ -594,7 +726,9 @@ def build_parser():
         p = sub.add_parser(name, help=help_)
         p.set_defaults(fn=fn, push=False)
         if write:
-            p.add_argument("--push", action="store_true", help="commit + push thẳng origin/main")
+            delivery = p.add_mutually_exclusive_group()
+            delivery.add_argument("--push", action="store_true", help="đẩy ngay cả lô metadata lên origin/main")
+            delivery.add_argument("--khong-day", action="store_true", help="chỉ ghi local, không tự đẩy lô")
         return p
 
     p = add("giao", cmd_giao, help_="giao việc cho làn hoặc pool")
@@ -609,6 +743,8 @@ def build_parser():
 
     p = add("nhan", cmd_nhan, help_="nhận việc (tự git pull trước)")
     p.add_argument("ma")
+    p.add_argument("--branch", help="nhánh task tường minh để kiểm tiến độ commit")
+    p.add_argument("--reader", help="phiên đọc tường minh, codex1/codex2/codex3")
     p.add_argument("--lane", required=True)
     p.add_argument("--khong-pull", action="store_true", help="không git pull trước")
 
@@ -648,6 +784,7 @@ def build_parser():
     p.add_argument("--to", default="all")
     p.add_argument("--text", required=True)
     p.add_argument("--task")
+    p.add_argument("--branch", help="nhánh task tường minh (cần --task; chỉ claimer cập nhật trạng thái nhánh)")
 
     p = add("het-viec", cmd_het_viec, help_="báo làn hết việc")
     p.add_argument("--lane", required=True)
@@ -655,11 +792,28 @@ def build_parser():
 
     p = add("bang", cmd_bang, write=False, help_="in bảng markdown")
     p.add_argument("--lane")
+    p.add_argument("--tat-ca", action="store_true", help="hiện cả GỘP/BỎ, mỗi mã một dòng")
 
     p = add("ke", cmd_ke, help_="in việc kế nên làm")
+    p.add_argument("--branch", help="nhánh tường minh khi --nhan")
+    p.add_argument("--reader", help="phiên đọc tường minh khi --nhan")
     p.add_argument("--lane", required=True)
     p.add_argument("--nhan", action="store_true", help="nhận luôn việc kế")
     p.add_argument("--khong-pull", action="store_true")
+    p = add("lich-su", cmd_lich_su, write=False, help_="lịch sử đầy đủ một mã, kể cả archive")
+    p.add_argument("ma")
+    p = add("chua-doc", cmd_chua_doc, write=False, help_="hiển thị snapshot exact ID chưa đọc")
+    p.add_argument("--lane", required=True)
+    p.add_argument("--reader")
+    p = add("da-doc", cmd_da_doc, help_="xác nhận đúng snapshot đã hiển thị")
+    p.add_argument("--lane", required=True)
+    p.add_argument("--reader")
+    p.add_argument("--den")
+    p.add_argument("--khong-pull", action="store_true")
+    p = add("luu-tru", cmd_luu_tru, help_="dry-run mặc định; --apply chuyển metadata đã đọc")
+    p.add_argument("--apply", action="store_true")
+    p.add_argument("--khong-pull", action="store_true")
+    p = add("day-lo", cmd_day_lo, write=False, help_="đẩy lô metadata trong queue, không đẩy code")
     return ap
 
 
@@ -672,8 +826,10 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     root = find_root(args.goc)
     try:
+        if args.cmd not in ("bang", "lich-su", "chua-doc"):
+            store.require_records(root)
         args.fn(args, root)
-    except HopThuError as e:
+    except (HopThuError, ValueError, OSError, KeyError) as e:
         print(str(e), file=sys.stderr)
         return 1
     return 0

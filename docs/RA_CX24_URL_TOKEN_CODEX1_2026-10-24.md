@@ -32,3 +32,8 @@ Theo [W3C Referrer Policy](https://w3c.github.io/webappsec-referrer-policy/), no
 Ở tầng phục vụ được phê duyệt: HTTPS; Referrer-Policy no-referrer; Cache-Control no-store cho HTML/route xác thực; access log chỉ method/path/status, bỏ query/Referer thô. Không áp no-store vô điều kiện lên bundle tĩnh có hash. Cần thử bằng URL giả và kiểm response/log thật trong lượt triển khai riêng; không đọc lại token thật để chứng minh. Cấu hình [Streamlit hiện hành](https://docs.streamlit.io/develop/api-reference/configuration/config.toml) và source runtime đã rà không thấy option public customHeaders để chỉ thêm vào config.toml; không bịa option hoặc vá dependency cài trên máy.
 
 Giải quyết triệt để bearer trong thanh địa chỉ cần thay cơ chế phiên, nằm ngoài quyết định EP hiện tại. Không tuyên bố redaction đã giải quyết history, chia sẻ URL, Referer hoặc proxy.
+
+
+## Đồng bộ sau thư GỘP 231006-kphf
+
+URL-TOKEN-RA đồng bộ main5d72cf7d sau thư231006-kphf; giữ diag redaction và fallbacklog, hợp danh mục areas hai bên/version92. Root14 passed/1,92s trên nền mới; rà tích hợp độc lập0P1/P2, rootđọc2lượt. Không đổi auth/cookie/token thật, không rewrite/force/mainmerge/CU/data thật.

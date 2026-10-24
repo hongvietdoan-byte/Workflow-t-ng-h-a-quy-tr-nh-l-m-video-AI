@@ -96,6 +96,23 @@ class SeedanceRefTests(unittest.TestCase):
             self.assertNotIn(plate, vr._submit_kwargs(job)["reference_only"])
             self.assertNotIn("is the PLACE", vr._submit_args(job)[1])
 
+    def test_ref_lint_measures_place_render_against_the_approved_start_frames(self):
+        """The pre-send lint must use the same start-frame comparison as the D6/reference prompt."""
+        vr = self._ready()
+        job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        plate = os.path.join(self.data, "place.png")
+        real_png(plate)
+        starts = {sid: f"approved-start-{sid}.png" for sid in self.ids}
+        vr._start_frame = mock.Mock(side_effect=lambda _pid, sid: starts[sid])
+        vr._submit_args = mock.Mock(return_value=("unused", "fixture prompt", None, 4, "seedance-2.5"))
+
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1", "FEATURE_PLATE_VIEW_SENTENCE": "1"}), \
+                mock.patch("core.place_refs.shot_ref", return_value={"path": plate, "label": "Tower"}), \
+                mock.patch("core.seedance_refs.plate_view", return_value={"view": "same", "why": "fixture"}) as measure:
+            self.assertIsNone(vr._ref_lint(job))
+
+        self.assertEqual([call.args[1] for call in measure.call_args_list], [starts[sid] for sid in self.ids])
+
     def test_place_render_cannot_silently_drop_outfits_or_overflow_provider_limit(self):
         vr = self._ready()
         job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))

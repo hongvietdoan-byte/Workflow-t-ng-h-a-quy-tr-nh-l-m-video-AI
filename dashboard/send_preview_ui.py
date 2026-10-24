@@ -33,8 +33,21 @@ def card_block(p, pid: int, j, runner, idx=None) -> None:
         got = st.session_state.get(key)
         if got:
             _package(D, got)
+            if got.get("ok"):
+                from dashboard import qc_overrides_ui as overrides
+                if overrides.qc_overrides.enabled():
+                    st.caption("Ngoại lệ gói chỉ ghi lịch sử snapshot đang xem; không gửi, không mở cổng khác.")
+                    overrides.render_override(p.conn, project_id=pid, target_kind="package",
+                                              target_ref=overrides.target_ref("package", {"job": jid, "package": got.get("package")}),
+                                              error_code="PACKAGE_MANUAL_REVIEW", session_token=st.session_state.get("auth_token"))
     with st.expander("🔎 QC shadow (chỉ xem)", expanded=False):
-        _shadow(D, send_preview.shadow_cached(p.conn, _data_dir(runner), pid, j, idx))
+        shadow = send_preview.shadow_cached(p.conn, _data_dir(runner), pid, j, idx)
+        _shadow(D, shadow)
+        from dashboard import qc_overrides_ui as overrides
+        snapshot = (overrides.continuity_snapshot(_data_dir(runner), pid)
+                    if overrides.qc_overrides.enabled() and shadow.get("continuity") else None)
+        overrides.render_findings(p.conn, pid, jid, shadow, session_token=st.session_state.get("auth_token"),
+                                  continuity_snapshot=snapshot)
 
 
 def _package(D, got) -> None:

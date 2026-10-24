@@ -132,6 +132,115 @@ def _print(s: str = "") -> None:
     print(s)
 
 
+def load_plan() -> Dict:
+    """Đọc đúng kế hoạch chính trong checkout, dùng parser CODE/cổng hiện có."""
+    from . import plan_progress
+    with open(plan_progress.main_plan_file(ROOT), encoding="utf-8") as stream:
+        return plan_progress.parse(stream.read())
+
+
+def _commit_is_ancestor(sha: str) -> bool:
+    """Chỉ đọc Git local, không mạng/config người dùng/credential."""
+    import subprocess
+    import tempfile
+    git = "C:/Program Files/Git/cmd/git.exe" if os.name == "nt" else "/usr/bin/git"
+    with tempfile.TemporaryDirectory(prefix="error_evidence_") as home:
+        env = {"SYSTEMROOT": "C:/Windows", "HOME": home, "USERPROFILE": home,
+               "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "PYTHONUTF8": "1"}
+        try:
+            result = subprocess.run([git, "merge-base", "--is-ancestor", sha, "HEAD"], cwd=ROOT, env=env,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            return result.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+
+def code_evidence_problems(item: Dict, root: str = ROOT, commit_check=None) -> List[str]:
+    """Kiểm tham chiếu commit/test mà không import/chạy test hay sửa trạng thái.
+
+    Hợp lệ mới được đề xuất rà chuyển FIXED_UNVERIFIED; kết quả test và phạm vi
+    sửa vẫn phải được người rà đối chiếu trước khi áp dụng đề xuất.
+    """
+    import ast
+    from pathlib import Path
+    out = []
+    commits, tests = item.get("fix_commit") or [], item.get("tests") or []
+    commits = [commits] if isinstance(commits, str) else commits
+    tests = [tests] if isinstance(tests, str) else tests
+    if not commits:
+        out.append("thiếu fix_commit đã kiểm")
+    checker = commit_check or _commit_is_ancestor
+    for value in commits:
+        match = re.match(r"^([0-9a-f]{7,40})(?=\s|$)", str(value))
+        if not match or not checker(match.group(1)):
+            out.append("fix_commit không xác nhận thuộc lịch sử HEAD")
+    if not tests:
+        out.append("thiếu test hồi quy đã kiểm")
+    base = Path(root).resolve()
+    for value in tests:
+        pieces = str(value).split("::")
+        path = (base / pieces[0]).resolve()
+        if not path.is_relative_to(base / "tests") or path.suffix != ".py" or not path.is_file():
+            out.append(f"test không tồn tại trong tests/: {value}")
+            continue
+        try:
+            nodes = ast.parse(path.read_text(encoding="utf-8-sig")).body
+            for selector in pieces[1:]:
+                name = selector.split("[", 1)[0]
+                node = next((n for n in nodes if isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name), None)
+                if node is None:
+                    raise ValueError("nodeid không có")
+                nodes = node.body
+        except (OSError, SyntaxError, ValueError):
+            out.append(f"test nodeid không xác nhận được: {value}")
+    return out
+
+
+def sync_findings(doc: Dict, plan: Dict, verify=None) -> List[Dict]:
+    """Đối soát chỉ đọc: ✅ CODE mà lỗi còn mở; không nâng cổng/VERIFIED.
+
+    `verify` cho caller kiểm tham chiếu commit/test; kết quả chỉ là đề xuất,
+    không phải bằng chứng chạy lại test hoặc nghiệm thu sản phẩm.
+    """
+    out = []
+    for bad in plan.get("bad") or []:
+        out.append({"id": None, "code": "PLAN_INVALID", "suggested_status": None, "reason": bad})
+    tasks = {task["id"]: task for wave in plan.get("waves") or [] for task in wave.get("tasks") or []}
+    if verify is None:
+        # Nhiều mã cùng một commit: cache đúng một lượt, không giữ qua HEAD mới.
+        commit_cache = {}
+
+        def checked_commit(sha):
+            if sha not in commit_cache:
+                commit_cache[sha] = _commit_is_ancestor(sha)
+            return commit_cache[sha]
+
+        verify = lambda item: code_evidence_problems(item, commit_check=checked_commit)
+    for item in doc.get("items") or []:
+        task = tasks.get(item.get("plan_task"))
+        if not task or task.get("status") != "✅" or item.get("status") not in ("OPEN", "IN_PROGRESS", "REOPENED"):
+            continue
+        issues = verify(item)
+        reason = str(item.get("status_reason") or "").strip()
+        # Chưa chạy thật là giới hạn đúng của FIXED_UNVERIFIED. Các phần code
+        # còn thiếu/shadow/chỉ đề xuất phải giữ mở dù ✅ việc liên quan.
+        plan_scope = " · ".join(part for part in str(task.get("note") or "").split(" · ")
+                                if not part.strip().casefold().startswith("cổng:"))
+        scope = " ".join((reason, str(task.get("title") or ""), plan_scope))
+        scope = re.sub(r"chưa (?:có bằng chứng )?chạy thật", "", scope, flags=re.I)
+        partial = bool(re.search(r"shadow|chỉ (?:phát hiện|đề xuất|báo)|còn mở|chưa|mới làm|phần \d|cờ[^.;·\n]{0,70}TẮT", scope, re.I))
+        suggestion = "FIXED_UNVERIFIED" if not issues and not partial else None
+        detail = "; ".join(issues) if issues else "tham chiếu commit và test hợp lệ; cần rà kết quả test và phạm vi sửa trước khi chuyển"
+        if reason:
+            detail += "; status_reason: " + reason
+        if partial:
+            detail += "; phạm vi sổ/kế hoạch còn partial/shadow/chưa áp dụng, chưa đủ kết luận sửa toàn lỗi"
+        out.append({"id": item.get("id"), "plan_task": task["id"], "error_status": item.get("status"),
+                    "code": "PLAN_DONE_ERROR_OPEN", "suggested_status": suggestion,
+                    "reason": f"{task['id']} đã ✅ code, sổ còn {item.get('status')}: {detail}"})
+    return out
+
+
 def cmd_list(doc: Dict, status: Optional[str] = None, ws: Optional[str] = None) -> int:
     for it in doc["items"]:
         if status and it.get("status") != status or ws and it.get("plan_workstream") != ws:
@@ -145,6 +254,14 @@ def cmd_check(doc: Dict, path: str) -> int:
     probs = problems(doc)
     for p in probs:
         _print(f"🔴 {p}")
+    try:
+        findings = sync_findings(doc, load_plan())
+    except (OSError, ValueError) as exc:
+        findings = [{"id": None, "code": "PLAN_UNREADABLE", "suggested_status": None,
+                     "reason": f"không đối soát được kế hoạch ({type(exc).__name__})"}]
+    for finding in findings:
+        suggest = f"; đề xuất {finding['suggested_status']} sau rà" if finding["suggested_status"] else "; giữ trạng thái hiện tại"
+        _print(f"🟡 {finding['code']} {finding.get('id') or '-'}: {finding['reason']}{suggest}")
     counts: Dict[str, int] = {}
     for it in doc["items"]:
         counts[it.get("status")] = counts.get(it.get("status"), 0) + 1
