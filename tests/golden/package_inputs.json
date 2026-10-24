@@ -160,7 +160,9 @@
       "whitebox_height_dummy": false,
       "stage_view_ui": false,
       "stage_desk_ui": false,
+      "qc_overrides": false,
       "crew_registry": false,
+      "crew_handoff_shadow": false,
       "continuity_validator": false,
       "byd_v2_levels": false,
       "field_guard": false,
@@ -183,7 +185,7 @@
       "byd_fields_a2f": false,
       "safe_paid_buttons": false
     },
-    "experimental_flags": ["new_feature"]
+    "experimental_flags": ["new_feature", "crew_handoff_shadow"]
   },
   "video": {
     "kind": "video",
@@ -351,7 +353,9 @@
       "whitebox_height_dummy": false,
       "stage_view_ui": false,
       "stage_desk_ui": false,
+      "qc_overrides": false,
       "crew_registry": false,
+      "crew_handoff_shadow": false,
       "continuity_validator": false,
       "byd_v2_levels": false,
       "field_guard": false,
@@ -374,7 +378,7 @@
       "byd_fields_a2f": false,
       "safe_paid_buttons": false
     },
-    "experimental_flags": ["new_feature"],
+    "experimental_flags": ["new_feature", "crew_handoff_shadow"],
     "pregen_fingerprint": "frozen-fingerprint"
   }
 }

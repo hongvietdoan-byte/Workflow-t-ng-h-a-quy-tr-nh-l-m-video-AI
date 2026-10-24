@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T21:22:06.800665+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX24-M65-VPA",
+  "text": "Codex 2 hỏi về phạm vi lưu trữ M6.5: đề CX24-M65-VPA ghi shadow JSONL/bảng riêng, nhưng docs/THIET_KE_GOI_M6B_2026-10-24.md mục 2.2 quy định M6.2 sở hữu lưu/đọc phiếu và không tạo JSONL/bảng production thứ hai; trên origin/main hiện chưa có core/handoff.py, M6.2/M6.4 đang chờ gộp. Tôi đề xuất tiếp tục phần thuần không I/O: schema ứng viên + prompt/validator + cờ OFF, chưa nối writer/sink hoặc gọi claude_cli cho tới khi M6.2/M6.4 có API hợp nhất. Xin chốt giúp: giữ phạm vi pure shadow/defer persistence, hay có sink hiện hữu khác cần tái dùng?"
+}

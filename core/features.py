@@ -111,6 +111,10 @@ FEATURES: Dict[str, Dict] = {
         "why": "V3.1 M6.3 Gói M6-A (sổ v31-ep-m6-pack-a-approved-2026-10-21, chính sách v31-m6-generation-limits-policy-b-2026-10-21, "
                "ngân sách v31-ep-m6-self-repair-budget-40-2026-10-21): đo quyết định của cổng trên dự án thật trước khi cho chặn (M6-B chưa "
                "duyệt); thử bằng provider giả, chưa chạy thật"},
+    "crew_handoff_shadow": {"label": "M6.2 ghi hợp đồng bàn giao theo shot ra crew/handoffs.jsonl: vai giao/nhận, revision nguồn, "
+                                             "dependency/hash, sản phẩm/hash, bằng chứng QC, trạng thái duyệt; chỉ ghi JSONL, không đổi DB/luồng sản xuất (0 USD)",
+        "verified": False, "costs": False,
+        "why": "V3.1 M6.2: JSONL writer contract; hiện chưa có caller production. OFF không đọc/ghi, không đổi golden. Revision chỉ kiểm hình dạng snapshot, chưa nối M2.5 write_guard; cần tích hợp/ nghiệm thu replay trước khi bật"},
     "send_estimate": {"label": "Ước tính giá ĐÚNG gói sẽ gửi: video nháp theo bậc nháp (480p) + video tham chiếu, bản cao 1080p nâng từ nháp "
                                "tính cả video vào, Claude qua claude_cli = 0 USD API (chỉ đổi con số báo giá, không chặn gì — 0 USD)",
         "verified": False,
@@ -576,6 +580,11 @@ FEATURES: Dict[str, Dict] = {
                  "song với QC hiện có — shadow: không đổi quyết định, không giữ job (nay nối: kiểm bản dựng cuối)",
         "verified": False,
         "why": "Không đo được báo nhầm theo mã khi 9 đường QC ghi 5 dạng khác nhau (thiết kế M4.1). Bảng = migration Cấp 3 (chưa áp CSDL thật)",
+    },
+    "qc_overrides": {
+        "label": "Ghi ngoại lệ QC có revision, người duyệt, lý do và bằng chứng (V3.1 M4.7; migration C3-4 tường minh)",
+        "verified": False,
+        "why": "Cờ mặc định TẮT; chưa chạy migration trên DB thật, chưa nghiệm thu đầy đủ UI/Q6 và chưa thử sản xuất",
     },
     "repair_router": {
         "label": "Repair router theo mã lỗi (V3.1 M5.1) — CHỈ ĐỀ XUẤT: QC không đạt → kế hoạch sửa (đổi đầu vào gì, lần mấy / trần, khi nào "

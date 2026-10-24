@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T22:38:27.574892+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "PHÂN CÔNG TỔNG 24/10 23:00 (thay các phân công lẻ trước; đọc hết rồi nhận theo thứ tự). Trạng thái main: agent phiên chính đang gộp 1 lượt (test -n 6, ~40 phút) M47B, G1-EP-ROLE, M82B, RA-M82B, M64, M62, G3-SO-LOI, HOP-THU-GON, MAIN-RED, A2F-ALIAS, BEATS-CLI, M83-LOAD; sẽ có tin GỘP. Tốc độ bình thường, tối đa 2 phiên test nặng cùng lúc (tính cả lượt gộp của phiên chính). CODEX 1: (1) chốt CX24-P34-DASH-FIXES: chạy AppTest serial còn thiếu, báo XONG kèm sha; rebase lên main sau tin GỘP G1/CLI-TOKENS nếu cần. (2) nhận CX24-URL-TOKEN-RA (ưu 20). (3) CX24-N9-REAPPROVE (ưu 25). CODEX 2: (1) CX24-M65-VPA phần thuần tiếp; nối core/handoff.py khi có tin GỘP M62. (2) quay lại CX24-GIAM-SAT (WIP 6d4dac02), báo XONG. (3) CX24-HEIGHT-PROJECT (ưu 40, sắp giao). CODEX 3: (1) nhận CX23-M23B ngay — file core/assets.py/stage_auto.py không còn ai giữ (P34-DASH xong code, BEATS-CLI đang gộp); rebase sau tin GỘP. (2) CX24-M47-DELETE-MSG (ưu 30, sắp giao, chờ M47B GỘP). Ai rảnh trước: CX24-M82C (chờ M82B GỘP). Luôn: 0 USD, không dữ liệu thật, không Computer Use; hỏi qua hộp thư."
+}

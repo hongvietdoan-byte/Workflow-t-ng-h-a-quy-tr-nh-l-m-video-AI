@@ -403,6 +403,14 @@ CREATE TABLE IF NOT EXISTS project_watchers (
     PRIMARY KEY (project_id, email)
 );
 CREATE INDEX IF NOT EXISTS idx_watchers_email ON project_watchers(email);
+CREATE TABLE IF NOT EXISTS project_executive_producers (
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    added_by TEXT,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_project_ep_email ON project_executive_producers(email);
 CREATE TABLE IF NOT EXISTS prompt_versions (
     id INTEGER PRIMARY KEY,            -- S14.17 core/prompt_rewrite.py: every version of a shot's prompt the Director rewrote before a retake
     project_id INTEGER,

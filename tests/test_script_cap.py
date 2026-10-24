@@ -124,6 +124,7 @@ SCRIPT_OK = {
     "tools/audit_run.py": "chỉ đọc trạng thái (.submitted), không gửi gì",
     "tools/recover_clips.py": "chỉ đọc video-list / tải clip đã trả tiền; không gửi job mới (docstring)",
     "tools/experiments/s411_s412_probe.py": "dò API chỉ đọc (user-info, video-list), không gửi job",
+    "tools/m60_profile.py": "chỉ dựng fixture tổng hợp; chặn mạng/process ngoài và thay provider trả phí bằng mock",
 }
 
 

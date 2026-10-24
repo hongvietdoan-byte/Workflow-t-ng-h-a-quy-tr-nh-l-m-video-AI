@@ -26,10 +26,18 @@ def render(p, pid: int, data_dir: str, who=None, read_only: bool = False) -> Non
             if read_only:
                 continue
             a, b = st.columns([5, 1.4], vertical_alignment="bottom")
-            reason = a.text_input("Lý do bỏ qua", key=f"vg_why_{r['image_job_id']}", placeholder="vd. nền lệch nhẹ, không thấy trong clip")
-            if b.button("Bỏ qua kiểm nền", key=f"vg_skip_{r['image_job_id']}", disabled=len(reason.strip()) < 3):
-                video_gate.skip(p.conn, r["image_job_id"], reason, who)
-                st.rerun()
+            minimum = video_gate.minimum_skip_reason_length()
+            reason = a.text_input("Lý do bỏ qua", key=f"vg_why_{r['image_job_id']}",
+                                  placeholder="vd. nền lệch nhẹ, không thấy trong clip",
+                                  help=f"Cần lý do có nghĩa, tối thiểu {minimum} ký tự.")
+            if b.button("Bỏ qua kiểm nền", key=f"vg_skip_{r['image_job_id']}", disabled=len(reason.strip()) < minimum):
+                try:
+                    video_gate.skip(p.conn, r["image_job_id"], reason, who,
+                                    session_token=st.session_state.get("auth_token"))
+                except (ValueError, PermissionError, RuntimeError) as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
 
 
 def _render_groups(p, groups, who, read_only: bool) -> None:
@@ -42,8 +50,15 @@ def _render_groups(p, groups, who, read_only: bool) -> None:
             if read_only:
                 continue
             a, b = st.columns([5, 1.4], vertical_alignment="bottom")
+            minimum = video_gate.minimum_skip_reason_length()
             reason = a.text_input("Lý do gửi không chờ nhóm", key=f"vg_gwhy_{r['image_job_id']}",
-                                  placeholder="vd. shot kề không đổi nền, chỉ chờ duyệt")
-            if b.button("Bỏ qua chờ nhóm", key=f"vg_gskip_{r['image_job_id']}", disabled=len(reason.strip()) < 3):
-                video_gate.skip(p.conn, r["image_job_id"], reason, who, group=True)
-                st.rerun()
+                                  placeholder="vd. shot kề không đổi nền, chỉ chờ duyệt",
+                                  help=f"Cần lý do có nghĩa, tối thiểu {minimum} ký tự.")
+            if b.button("Bỏ qua chờ nhóm", key=f"vg_gskip_{r['image_job_id']}", disabled=len(reason.strip()) < minimum):
+                try:
+                    video_gate.skip(p.conn, r["image_job_id"], reason, who, group=True,
+                                    session_token=st.session_state.get("auth_token"))
+                except (ValueError, PermissionError, RuntimeError) as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()

@@ -4,12 +4,13 @@ qua có lý do) và cả nhóm shot liền mạch đã duyệt ảnh; giữ = jo
 CSDL tạm, provider giả, không gọi API, không đụng data/."""
 import json
 import os
+import sqlite3
 import tempfile
 import time
 import unittest
 from unittest import mock
 
-from core import change_review as CR, llm_io, runner, video_gate
+from core import access, change_review as CR, llm_io, qc_overrides, runner, video_gate
 from core.db import connect
 from core.pipeline import Pipeline
 from core.providers import MockVideoProvider
@@ -87,6 +88,62 @@ class VideoGate(Base):
             self.assertEqual(video_gate.red_images(self.p.conn, self.dir, self.pid), [])
             runner.WAIT_REASONS.clear()
             self.assertEqual(len(self.send(job)), 1)                               # bỏ qua có lý do → gửi
+
+
+class M47GateHardening(Base):
+    def test_m47_flag_requires_a_verified_revision_before_legacy_gate_skip(self):
+        flags_on(self, "video_gate")
+        scene, img = self.shot()
+        qc_overrides.migrate_up(self.p.conn)
+        self.p.conn.commit()
+        with mock.patch.object(qc_overrides, "enabled", return_value=True):
+            with self.assertRaises(access.AccessDenied):
+                video_gate.skip(self.p.conn, img, "Đã rà lại nền và chấp nhận ngoại lệ.", session_token=None)
+            self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM video_gate_skips").fetchone()[0], 0)
+
+            def record_effect(conn, *, effect, **_kwargs):
+                saved = {"actor_email": "editor@example.test"}
+                effect(conn, saved)
+                conn.commit()
+                return saved
+
+            with mock.patch.object(qc_overrides, "record_with_effect", side_effect=record_effect) as record:
+                video_gate.skip(self.p.conn, img, "Đã rà lại nền và chấp nhận ngoại lệ.", who="caller-spoof",
+                                session_token="session-fixture-editor")
+            kwargs = record.call_args.kwargs
+            self.assertEqual(kwargs["session_token"], "session-fixture-editor")
+            self.assertEqual(kwargs["project_id"], self.pid)
+            self.assertEqual(kwargs["target_kind"], "gate")
+            saved = self.p.conn.execute("SELECT who, reason FROM video_gate_skips WHERE image_job_id=?", (img,)).fetchone()
+            self.assertEqual(saved["who"], "editor@example.test")
+            self.assertTrue(saved["reason"].startswith("Đã rà lại"))
+
+    def test_m47_gate_audit_and_legacy_skip_rollback_together(self):
+        flags_on(self, "video_gate")
+        scene, img = self.shot()
+        qc_overrides.migrate_up(self.p.conn)
+        self.p.conn.commit()
+        with mock.patch.object(qc_overrides, "enabled", return_value=True), \
+                mock.patch.object(qc_overrides, "_human_editor", return_value="editor@example.test"):
+            self.p.conn.execute(
+                "CREATE TRIGGER reject_legacy_gate_skip BEFORE INSERT ON video_gate_skips "
+                "BEGIN SELECT RAISE(ABORT, 'fixture write failure'); END"
+            )
+            self.p.conn.commit()
+            with self.assertRaises(sqlite3.IntegrityError):
+                video_gate.skip(
+                    self.p.conn, img, "Đã rà lại nền và chấp nhận ngoại lệ.",
+                    session_token="session-fixture-editor",
+                )
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM overrides").fetchone()[0], 0)
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM video_gate_skips").fetchone()[0], 0)
+        self.assertFalse(self.p.conn.in_transaction)
+
+    def test_skip_reason_minimum_is_flagged_only(self):
+        with mock.patch.object(qc_overrides, "enabled", return_value=False):
+            self.assertEqual(video_gate.minimum_skip_reason_length(), 3)
+        with mock.patch.object(qc_overrides, "enabled", return_value=True):
+            self.assertEqual(video_gate.minimum_skip_reason_length(), 15)
 
     def test_missing_plate_result_is_measured_once_then_read(self):
         flags_on(self, "video_gate")

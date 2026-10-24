@@ -6,13 +6,28 @@ import sqlite3
 import subprocess
 import sys
 import time
+from unittest import mock
 
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 
-import load_test_ui as L  # noqa: E402
+_OS_ENV_ALLOWLIST = (
+    "PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR", "LOCALAPPDATA", "APPDATA", "USERPROFILE",
+    "HOMEDRIVE", "HOMEPATH", "HOME", "PROGRAMDATA", "SYSTEMDRIVE", "COMSPEC", "PATHEXT",
+)
+_TEST_ENV_BASE = {key: os.environ[key] for key in _OS_ENV_ALLOWLIST if os.environ.get(key)}
+_TEST_ENV_BASE["PYTHONUTF8"] = "1"
+with mock.patch.object(os, "environ", dict(_TEST_ENV_BASE)):
+    import load_test_ui as L  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolated_process_environment():
+    # Every child launched below inherits only OS runtime paths plus fake test variables, never the user's real env.
+    with mock.patch.object(os, "environ", dict(_TEST_ENV_BASE)):
+        yield
 
 
 def test_fake_data_has_projects_times_shots(tmp_path):
@@ -99,17 +114,29 @@ def test_copy_db_reads_the_original_read_only(tmp_path):
     assert src.read_bytes() == before
 
 
-def test_app_env_is_mock_only_and_drops_api_keys(tmp_path, monkeypatch):
-    for k in ("SYNC_API_KEY", "MESHY_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN",
-              "DASHBOARD_OWNER_PASSCODE", "SOME_SECRET"):
-        monkeypatch.setenv(k, "x")
-    monkeypatch.setenv("DASHBOARD_SYNC_BACKGROUND", "0")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    monkeypatch.setenv("CLIPAI_TOKEN", "x")
-    monkeypatch.setenv("IMAGE_PROVIDER", "deepix")
-    env = L.app_env("db", "data", str(tmp_path), 0.1, "probe")
+def test_app_env_is_mock_only_and_uses_an_explicit_process_allowlist(tmp_path):
+    fake_env = {
+        "PATH": "fake-path",
+        "SYSTEMROOT": "fake-system-root",
+        "PLAYWRIGHT_BROWSERS_PATH": "fake-browser-cache",
+        "SYNC_API_KEY": "fake-sync-key",
+        "MESHY_API_KEY": "fake-meshy-key",
+        "ANTHROPIC_AUTH_TOKEN": "fake-auth-token",
+        "ANTHROPIC_BASE_URL": "https://fake.invalid",
+        "CLAUDE_CODE_OAUTH_TOKEN": "fake-oauth-token",
+        "DASHBOARD_OWNER_PASSCODE": "fake-passcode",
+        "SOME_SECRET": "fake-secret",
+        "UNLISTED_DEPLOYMENT_CONFIG": "fake-unlisted-value",
+        "DASHBOARD_SYNC_BACKGROUND": "0",
+        "ANTHROPIC_API_KEY": "fake-api-key",
+        "CLIPAI_TOKEN": "fake-clip-token",
+        "IMAGE_PROVIDER": "deepix",
+    }
+    with mock.patch.object(os, "environ", fake_env):
+        env = L.app_env("db", "data", str(tmp_path), 0.1, "probe")
     assert all(env[k] == "mock" for k in ("IMAGE_PROVIDER", "VIDEO_PROVIDER", "AUDIO_PROVIDER", "LLM_PROVIDER", "SUBJECT_PROVIDER"))
     assert "ANTHROPIC_API_KEY" not in env and "CLIPAI_TOKEN" not in env
+    assert "UNLISTED_DEPLOYMENT_CONFIG" not in env
     assert env["PYTHONPATH"].split(os.pathsep)[0] == "probe" and env["FEATURE_BASELINE"] == "0"
     assert not [k for k in env if k.endswith(("_KEY", "_TOKEN", "_SECRET", "PASSCODE")) or k.startswith(("ANTHROPIC_", "CLAUDE_CODE_"))]
     assert "DASHBOARD_SYNC_BACKGROUND" not in env                         # đồng bộ đầu phiên chạy nền như sản xuất
@@ -118,6 +145,75 @@ def test_app_env_is_mock_only_and_drops_api_keys(tmp_path, monkeypatch):
     assert env["ASSET_DIR"].startswith(str(tmp_path)) and env["SOUND_MODEL_DIR"].startswith(str(tmp_path))
     assert env["FF_SITE_AUTO"] == "0" and env["PLATES3D_LOCK"].startswith(str(tmp_path))
     assert env["BLENDER_PATH"].startswith(str(tmp_path)) and not os.path.exists(env["BLENDER_PATH"])
+
+
+def test_browser_process_receives_only_allowlisted_environment():
+    import asyncio
+    import types
+
+    launched = []
+    driver_env_names = set()
+
+    class Browser:
+        async def close(self):
+            return None
+
+    class Chromium:
+        async def launch(self, **kwargs):
+            launched.append(kwargs)
+            return Browser()
+
+    class PlaywrightContext:
+        chromium = Chromium()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+    async_api = types.ModuleType("playwright.async_api")
+    def fake_async_playwright():
+        driver_env_names.update(os.environ.keys())
+        return PlaywrightContext()
+
+    async_api.async_playwright = fake_async_playwright
+    playwright = types.ModuleType("playwright")
+    playwright.async_api = async_api
+    fake_env = {"PATH": "fake-path", "PLAYWRIGHT_BROWSERS_PATH": "fake-browser-cache", "PRIVATE_DEPLOYMENT_TOKEN": "fake-token"}
+    with mock.patch.object(os, "environ", fake_env), mock.patch.object(sys, "modules", {
+        **sys.modules, "playwright": playwright, "playwright.async_api": async_api,
+    }):
+        original_session = L.session
+
+        async def fake_session(_browser, _url, i, _n_projects, _log, _shots_dir=None):
+            return {"i": i}
+
+        L.session = fake_session
+        try:
+            result = asyncio.run(L.run_sessions(2, "http://127.0.0.1:8541/", 1, None, lambda _message: None))
+        finally:
+            L.session = original_session
+
+    assert [item["i"] for item in result] == [0, 1]
+    assert len(launched) == 1 and launched[0]["env"] == {"PATH": "fake-path", "PLAYWRIGHT_BROWSERS_PATH": "fake-browser-cache"}
+    assert driver_env_names == {"PATH", "PLAYWRIGHT_BROWSERS_PATH"}
+
+
+def test_synthetic_runs_create_empty_auxiliary_inputs_without_reading_repo_data(tmp_path, monkeypatch):
+    fake_root = tmp_path / "repo"
+    fake_data = fake_root / "data"
+    (fake_data / "knowledge_user").mkdir(parents=True)
+    (fake_data / "knowledge_user" / "private.txt").write_text("must not be copied", encoding="utf-8")
+    (fake_data / "retired_topics.json").write_text('{"private": true}', encoding="utf-8")
+    monkeypatch.setattr(L, "ROOT", str(fake_root))
+    work = tmp_path / "work"
+    work.mkdir()
+
+    L.copy_auxiliary_inputs({}, str(work))
+
+    assert json.loads((work / "retired_topics.json").read_text(encoding="utf-8")) == {}
+    assert list((work / "knowledge_user").iterdir()) == []
 
 
 def test_probe_counts_sqlite_lock_waits_and_threads(tmp_path):

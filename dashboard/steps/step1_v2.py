@@ -220,6 +220,8 @@ def _tune(pid: int, name: str, summary: str):
 
 def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, locked: bool, stale: int) -> None:
     from dashboard.steps import step1 as S
+    from dashboard import qc_overrides_ui
+    qc_overrides_ui.render_project(p.conn, pid, session_token=st.session_state.get("auth_token"))
     from dashboard.steps.step1_refs import inputs_and_refs_v2, modes_line
     st.session_state["_script_cap_seen"] = {}                           # one count of equal captions per run (unique ⓘ keys)
     nxt = next_panel(p, pid, scenes, chars, locked)                     # the one panel of card ② drawn open (everything else: one line)
