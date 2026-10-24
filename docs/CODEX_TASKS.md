@@ -1854,3 +1854,14 @@ Người dùng 24/10: "tìm cách tối ưu hóa hộp thư, tin cũ loại bỏ
 5. Cập nhật hop_thu/README.md + hop_thu/LICH_DIEU_PHOI.md (bước đọc dùng `chua-doc`) — đề xuất sửa LICH_DIEU_PHOI ghi trong báo cáo, phiên chính áp.
 Test đỏ→xanh: không mất tin khi lưu trữ; hỏi chưa trả lời không bị lưu trữ; bảng trước/sau giống; lô đẩy đúng. TRÙNG tools/hop_thu.py với CX24-G3-SO-LOI (#11) → làm SAU G3, cùng phiên.
 Nhánh `codex/v31-hop-thu-gon`. Phiên chính RÀ KỸ (đường trao đổi của mọi làn).
+
+### CX24-M82B — API core gửi gen ảnh THEO SHOT (cho chế độ Cơ bản giữ HOLD từng shot E4)
+Giao: Codex 1 (sau CX24-G1-PLAN-GATES). Mức rà: RÀ KỸ (đụng tiền + vòng đời job). Nhánh `codex/v31-m82b-targeted`.
+- `core/batch.py:141 queue_images(...)`: thêm tham số `scene_ids: Optional[Iterable[int]] = None`; khi có thì lọc CẢ `fresh` lẫn `redo_ids`
+  theo tập này (sau `pilot.allowed_scenes`, trước `image_gates`), cổng `image_gates(scene_ids=...)` chỉ xét shot được gửi. Mặc định None = hành vi cũ y hệt.
+  Trả về thêm `job_ids` mới tạo để bên gọi truyền `only=`.
+- `core/runner.py:382 submit_pending(only=...)` ĐÃ CÓ: UI Cơ bản gọi với `only=job_ids` của tập shot đã xác nhận; shot đang HOLD E4 không bị gửi.
+- Không đổi luồng tự động/autopilot/bg_poll (vẫn gọi không có scene_ids). Không có giá mới: giá ước tính tính trên đúng tập shot gửi (dùng hàm giá hiện có, không tính tay).
+- Test (fixture, 0 USD): (1) scene_ids=None → kết quả giống hệt trước (so job tạo ra); (2) chọn 2/4 shot → chỉ 2 job, shot HOLD không có job; (3) shot ngoài pilot vẫn bị chặn;
+  (4) redo shot cũ ngoài tập không bị tạo lại; (5) cổng chặn chỉ tính shot được gửi; (6) submit_pending(only=) không gửi job shot khác đang chờ.
+- Sau gộp: nối UI M82 (bỏ fail-closed HOLD cả lô → HOLD từng shot). Khai `devsys/areas.json` nếu có file mới, không tăng version.
