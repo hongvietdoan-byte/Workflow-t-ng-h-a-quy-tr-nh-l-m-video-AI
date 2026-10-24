@@ -9,3 +9,11 @@ Còn1/2/3/4/10 + QA mục7 trước XONG. Đã hỏi main180630-j3np về nhánh
 RAM thư175629-mfn2: GIẢM TẢI tới22h VÀ chờ thư TĂNG TỐC;serialtargeted trầnn2, mỗi lúc một phiên testnặng qua mailbox;khôngn8/cảbộ/server/Blender/headless/CU. Không API trảphí/data thật/dashboard.env/secrets/migration/live restart. Mọi test patch.object thay OBJECT os.environ dictfake trướcimports/calls/spawns, mockkeyring/registry/credential/provider/model, nativewhitelistHOMEfake,pytest--tb=no,no showlocals/dump/inreprsecret.
 
 HOPdcee43bd vàKIEM89a547ef đã XONG/push, không làm lại. Codex2 A2F/tools/đo và giữWIPdelivery/post_overlays. Codex3 RA-M82B mới báo6546de1f (49test) nhưng helperxong từchối mã chưa giao;không tựgiao lại/nhậntrùng. Hai child mục7 vàreview đã kếtthúc, không cònphầnđộc lập cụthể thìkhôngtạo childmới.
+
+## Thư phiên chính mới hơn — 18:26:56 (182656-par2)
+
+Câu hỏi180630-j3np ĐÃ ĐƯỢC TRẢ LỜI: G1/CLI còn trong worktree tích hợp main; **không merge/cherry-pick nhánh Codex lẻ vào P34-DASH**. Viết theo API trong6d647212/296fc658, chỉ rebase sau thư báo GỘP của phiên chính. Trước22h chỉ unit nhẹ; AppTest serial nặng sau22h và điều phối một phiên, vẫn chờ thư TĂNG TỐC trước nới tài nguyên. Thay thế các dòng 'còn chờ reply180630' ở trên.
+
+Đang làm độc lập mục2 qua ClaudeCliClient.clean_env() public đã có cả ở nền và296fc658; không sao chép bộ lọc env/giải pháp token. Mục1 khi nối UI: giữ API đọc chỉ đọc; bookkeeping tạo đỏ qua refresh riêng; Bỏ qua dùng guard EP canonical, lý do + audit nguyên tử và snapshot phiên bản lỗi. Nút bỏ qua phải gắn snapshot vào khóa/nonce để Streamlit rerun không tự lấy lỗi mới chưa xem làm bằng chứng người đã duyệt. Không dùng close() commit giữa transaction audit; không để ngoại lệ DB/audit làm mở cổng. Đây là ghi chú thiết kế triển khai tiếp, chưa phải phần đã code.
+
+Mục1 bổ sung đã có code summary chỉđọc + UIbanner lỗi trước open_findings;14unit/mock0,35s,1P2 SQLambiguous đãsửa vàreview0P1P2. Chưa EPbypass/audit/Ràlại nênkhôngXONGmục1. Mục2 childbuilder đangsửaP2timeoutownedtreeWindows; dialogflagmissing đãsửa RED→GREEN. Khôngcommit lẫn filemục2 trước rà/kếtquả cuối.

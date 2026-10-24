@@ -12,12 +12,21 @@ def render(p, pid: int, who=None, read_only: bool = False, key: str = "cr") -> N
     """`key`: tiền tố khóa nút — C4 (13/10) khung này hiện ở CẢ tab Ảnh (Bước 2) và tab Motion (Bước 3) trong cùng một lượt vẽ."""
     if not CR.enabled():
         return
+    try:
+        failures = CR.failed_review_summary(p.conn, pid)
+    except Exception:  # Không nhận lỗi đọc sổ là bằng chứng 'không có mục lệch'.
+        st.error("Không đọc được trạng thái rà soát — chưa xác định cổng gen; thử tải lại trang.")
+        return
+    if failures:
+        st.error(f"Rà soát LỖI: {len(failures)} lần chưa rà lại / chưa bỏ qua. "
+                 + "; ".join(f"shot {r['idx']}: {r['reason']}" for r in failures[:3]))
     rows = CR.open_findings(p.conn, pid)
     spent = p.conn.execute("SELECT COUNT(*), COALESCE(SUM(cost_usd), 0) FROM change_events e WHERE state='reviewed' AND "
                            "(e.project_id=? OR e.scene_id IN (SELECT id FROM scenes WHERE project_id=?))", (pid, pid)).fetchone()
     red = sum(1 for r in rows if r["level"] == "do")
     head = (f"🔎 Rà soát tác động: {len(rows)} mục lệch đang mở" + (f" — 🔴 {red} mục giữ gen" if red else "")
-            if rows else "🔎 Rà soát tác động: không có mục lệch")
+            if rows else (f"🔎 Rà soát LỖI: {len(failures)} lần chưa có mục xử lý" if failures
+                          else "🔎 Rà soát tác động: không có mục lệch"))
     head += f" · đã rà {spent[0]} thay đổi, Claude ≈ {spent[1]:.2f} USD"
     with st.expander(head, expanded=bool(red)):
         if not rows:

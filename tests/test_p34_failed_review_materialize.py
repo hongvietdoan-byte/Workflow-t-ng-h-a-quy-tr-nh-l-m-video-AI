@@ -1,6 +1,8 @@
 """Lần rà lỗi phải có mục đỏ trước khi có ai thử gửi gen; chỉ SQLite giả."""
 import os
 import sqlite3
+import ast
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -25,6 +27,8 @@ def conn(tmp_path):
                 at TEXT, status TEXT DEFAULT 'open', resolved_at TEXT, resolved_by TEXT);
             INSERT INTO scenes VALUES(1, 10, 1), (2, 20, 1);
         """)
+        # Production scenes và change_events đều có state: bắt lỗi SQL ambiguous.
+        c.execute("ALTER TABLE scenes ADD COLUMN state TEXT DEFAULT 'ready'")
         yield c
         c.close()
 
@@ -99,7 +103,7 @@ def test_off_no_write(conn):
 @pytest.mark.parametrize("outer", [False, True])
 def test_partial_failure_rolls_back_only_own_writes(conn, outer):
     event(conn)
-    conn.execute("INSERT INTO scenes VALUES(3,10,2)")
+    conn.execute("INSERT INTO scenes(id,project_id,idx) VALUES(3,10,2)")
     conn.commit()
     if outer:
         event(conn, eid=9, sid=3)
@@ -123,3 +127,77 @@ def test_read_api_does_not_materialize_or_commit(conn):
     assert conn.in_transaction
     conn.rollback()
     assert conn.execute("SELECT count(*) FROM change_events").fetchone()[0] == 0
+
+
+def test_failure_summary_sees_error_before_gate_without_writing(conn):
+    event(conn)
+    rows = CR.failed_review_summary(conn, 10)
+    assert len(rows) == 1 and rows[0]["idx"] == 1
+    assert rows[0]["reason"] == "Đăng nhập giả hết hạn"
+    assert conn.in_transaction and CR.open_findings(conn, 10) == []
+    conn.rollback()
+    assert CR.failed_review_summary(conn, 10) == []
+
+
+def test_failure_summary_hides_only_manual_closed_failures(conn):
+    event(conn); conn.commit()
+    CR.refresh_failed_findings(conn, 10)
+    assert len(CR.failed_review_summary(conn, 10)) == 1
+    conn.execute("UPDATE change_findings SET status='dismissed', resolved_by='ep-fake'")
+    conn.commit()
+    assert CR.failed_review_summary(conn, 10) == []
+    event(conn, eid=2); conn.commit()
+    assert len(CR.failed_review_summary(conn, 10)) == 1
+
+
+def test_failure_summary_scope_flag_and_redaction(conn):
+    event(conn, note="token=FAKE_SECRET_SENTINEL_123456789")
+    event(conn, eid=2, sid=2, pid=20)
+    conn.commit()
+    assert CR.failed_review_summary(conn, 10)[0]["reason"] == "token=***"
+    assert len(CR.failed_review_summary(conn, 20)) == 1
+    with mock.patch.object(CR, "enabled", return_value=False):
+        assert CR.failed_review_summary(conn, 10) == []
+
+
+class ReadOnlyScreen:
+    def __init__(self):
+        self.messages = []
+    def error(self, text):
+        self.messages.append(text)
+    def expander(self, text, **kwargs):
+        self.messages.append(text)
+        return self
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        return False
+    def caption(self, text):
+        self.messages.append(text)
+
+
+def render_function(screen):
+    source = (Path(__file__).resolve().parents[1] / "dashboard/change_review_ui.py").read_text(encoding="utf-8")
+    fn = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == "render")
+    namespace = {"CR": CR, "st": screen}
+    exec(compile(ast.Module(body=[fn], type_ignores=[]), "review_screen_fixture", "exec"), namespace)
+    return namespace["render"]
+
+
+def test_readonly_screen_never_says_no_findings_for_unmaterialized_error(conn):
+    event(conn); conn.commit()
+    conn.execute("ALTER TABLE change_events ADD COLUMN cost_usd REAL DEFAULT 0")
+    screen = ReadOnlyScreen()
+    p = type("FakePipeline", (), {"conn": conn})()
+    render_function(screen)(p, 10, read_only=True)
+    assert any(m.startswith("Rà soát LỖI:") for m in screen.messages)
+    assert not any("không có mục lệch" in m for m in screen.messages)
+    assert CR.open_findings(conn, 10) == []
+
+
+def test_screen_read_error_cannot_be_reported_as_clean(conn):
+    screen = ReadOnlyScreen()
+    p = type("FakePipeline", (), {"conn": conn})()
+    with mock.patch.object(CR, "failed_review_summary", side_effect=ValueError("fixture")):
+        render_function(screen)(p, 10, read_only=True)
+    assert screen.messages == ["Không đọc được trạng thái rà soát — chưa xác định cổng gen; thử tải lại trang."]

@@ -76,3 +76,17 @@ RED hình học **16 failed,5 passed/0,43s**; helper UI **1 collection error/0,8
 Đây là bằng chứng unit hình học và mock widget nhẹ, **chưa phải nghiệm thu UI/Blender/dự án #34 thật**. Không AppTest/server/headless/CU, không paid API hay DB thật; tất cả test có OBJECT os.environ/HOME/temp giả và mock registry/keyring trước import. Không cờ mới, giữ areas.version92 và cờ stage_desk_ui như nền. Đã khai helper + hai test trong areas.
 
 Trạng thái toàn task: **ĐANG LÀM**. Code mục6/7/11 đã có; nền mục1 đã push00992f34, còn nối UI/EP/audit/Rà lại. Mục2/3/4/10 và nghiệm thu GUI còn mở. Mục8/9 đã ghi thiết kế đủ luồng/tiêu chí, chưa triển khai. Vẫn chờ main trả lời180630-j3np về dependency G1/CLI và lịch QA nặng; không coi im lặng là duyệt hoặc tự mở lượt test nặng.
+
+## Thư phiên chính mới hơn — 18:26:56 (182656-par2)
+
+Câu hỏi180630-j3np ĐÃ ĐƯỢC TRẢ LỜI: G1/CLI còn trong worktree tích hợp main; **không merge/cherry-pick nhánh Codex lẻ vào P34-DASH**. Viết theo API trong6d647212/296fc658, chỉ rebase sau thư báo GỘP của phiên chính. Trước22h chỉ unit nhẹ; AppTest serial nặng sau22h và điều phối một phiên, vẫn chờ thư TĂNG TỐC trước nới tài nguyên. Thay thế các dòng 'còn chờ reply180630' ở trên.
+
+Đang làm độc lập mục2 qua ClaudeCliClient.clean_env() public đã có cả ở nền và296fc658; không sao chép bộ lọc env/giải pháp token. Mục1 khi nối UI: giữ API đọc chỉ đọc; bookkeeping tạo đỏ qua refresh riêng; Bỏ qua dùng guard EP canonical, lý do + audit nguyên tử và snapshot phiên bản lỗi. Nút bỏ qua phải gắn snapshot vào khóa/nonce để Streamlit rerun không tự lấy lỗi mới chưa xem làm bằng chứng người đã duyệt. Không dùng close() commit giữa transaction audit; không để ngoại lệ DB/audit làm mở cổng. Đây là ghi chú thiết kế triển khai tiếp, chưa phải phần đã code.
+
+## Checkpoint mục 1 — hiển thị lỗi trước khi có mục đỏ
+
+Thêm `failed_review_summary` chỉ đọc: cùng cờ scene/motion/quota, đúng project theo scenes; mục lỗi đang mở vẫn hiện, chỉ mục đã đóng bởi người mới che lỗi cũ. Lý do qua diag.redact; không trả token/payload thô. UI gọi trước open_findings: hiển thị “Rà soát LỖI” cùng số lần/lý do cả khi blocking chưa từng chạy; lỗi đọc sổ không biến thành trạng thái sạch. Không gọi materializer hay thay close/blocking/quyền, nên chưa thêm đường bỏ qua tự do. Màn read_only cũng chỉ đọc, không ghi DB.
+
+RED ba ca summary **3 failed/0,36s** → GREEN12/0,41s; bổ sung hai mock screen không import Streamlit/AppTest. Reviewer phát hiện **1 P2**: cả scenes/change_events có state nhưng query dùng field không alias. Fixture thêm scenes.state như production: **4 failed,10 passed/0,32s** → sửa rõ e.state/e.note → **14 passed/0,35s**. Rà vòng2 **0 P1/P2** trong summary/caller, root đọc fix hai lượt. Không nới schema/test; giữ API đọc không commit.
+
+Đây là phần hiển thị, chưa hoàn tất toàn mục1: mục đỏ materializer chưa nối UI trước khi đường Bỏ qua EP/lý do/audit/chống lỗi mới được kiểm; nút Rà lại có dự toán vẫn phải nối/kiểm. Không tuyên bố người dùng đã gỡ được mọi cổng trên Dashboard. Module CLI status đang hoàn thiện riêng, chưa dùng API/model/credential thật.

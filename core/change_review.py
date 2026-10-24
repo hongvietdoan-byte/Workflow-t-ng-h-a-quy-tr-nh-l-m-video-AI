@@ -731,6 +731,24 @@ def _blocking(conn, scene_id: int, data_dir: Optional[str], since: Optional[str]
             + (f" (+{len(rows) - 3})" if len(rows) > 3 else "") + " — sửa rồi gen, hoặc bấm Bỏ qua ở 📥 Việc cần bạn")
 
 
+def failed_review_summary(conn, project_id: int) -> List[Dict]:
+    """Lỗi chưa được người bỏ qua, kể cả chưa có mục đỏ; chỉ đọc, lý do đã lọc.
+
+    Mục đang mở vẫn phải hiện lỗi. Chỉ mục đã đóng bởi người mới che lỗi cũ,
+    giống lifecycle cổng gen; không diễn giải lỗi thành 'không có mục lệch'.
+    """
+    if not enabled():
+        return []
+    kinds = "('scene', 'motion')" if motion_enabled() else "('scene')"
+    covered = _COVERED.format(e="e", extra="AND f.status<>'open' ")
+    unreviewed = f"(e.state='failed' OR (e.state='code_only' AND e.note LIKE '{QUOTA_NOTE}%'))"
+    rows = conn.execute(f"SELECT e.id, s.idx, e.note, e.state FROM change_events e "
+                        f"JOIN scenes s ON s.id=e.scene_id WHERE s.project_id=? AND e.kind IN {kinds} "
+                        f"AND {unreviewed} AND NOT {covered} ORDER BY e.id DESC", (project_id,))
+    return [{"id": r[0], "idx": r[1], "reason": diag.redact(str(r[2] or "không rõ lỗi"))[:300],
+             "state": r[3]} for r in rows]
+
+
 def refresh_failed_findings(conn, project_id: int) -> None:
     """Tạo mục rà lỗi cho màn dự án, không cần gọi cổng gen và không gọi Claude.
 
