@@ -143,3 +143,19 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   viền đen 5: dòng 1 trắng "Cốt tôi var cực mạnh với team địch", dòng 2 vàng "Tôi và Con Rối team địch kiểu:" (y 120 / 205); tiếng gốc
   TikTok; cắt 12,6 s. **Bản giao `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/MEO_NHAY_TAP2_FINAL.mp4`** (12,5 MB) — đã gửi người dùng.
 - Chi phí lượt này: ảnh 2 × gpt-image (job 1197, 1198) + nháp 1.34 + bản cao ≈ 6.85 (ước tính) + Claude rà soát 0.12 + 0.10.
+
+## 11. Sửa điện thoại cầm ngược (24/10)
+- Người dùng: điện thoại quay lưng, ống kính về chính RỐI ĐỎ. Đúng: ảnh 1198 + clip 1199/1200 thấy LƯNG máy có ống kính quay về người
+  xem, màn hình quay về RỐI TÍM (mèo xám: màn hình quay về nó/máy quay). Ảnh `loi_huong_dien_thoai.jpg`.
+- Sửa `image_prompt`: lưng máy + ống kính hướng RỐI TÍM, màn hình sáng hướng RỐI ĐỎ và máy quay, thấy màn hình hiện RỐI TÍM qua vai;
+  motion cùng ý + negative "no phone held backwards, no phone lens facing the filmer". Tổ rà soát 0.11 USD.
+- Dashboard "↻ Gen lại theo nội dung mới" → **ảnh 1201** (`anh_khung_dau_job1201_dien_thoai_dung.png`, máy cầm ngang) → người dùng duyệt,
+  chọn "ảnh + thẳng bản cao" — nhưng **Seedance 2.5 không có 1080p trực tiếp** (luật API; chỉ nháp 480p → nâng) → hỏi lại, chọn nháp → 1080p.
+- Duyệt lại motion (đã "cũ" vì ảnh thay; nút ✔ Duyệt của shot, KHÔNG bấm 🤖 Viết motion — sẽ ghi đè bản sửa tay).
+- **Lỗi job 1202 (nháp)**: chữ "CHARACTER SHEET REFERENCE" + dấu + đỏ in cứng cả clip. Nguyên nhân: D6 viết lại prompt khi "↻ Gen lại theo
+  ảnh/prompt mới" làm rơi câu vai ảnh "Image 2/3 … identity only" (1199 còn) → Seedance chép bố cục ảnh Kho 456/457. Đã báo phiên chính
+  (hộp thư 20261024-151304). Chặn tạm: thêm câu "Image 2/3 identity sheets only — never copy banner/text/plus marks" vào motion + negative.
+  Kiểm "📦 Gói sẽ gửi → Dựng gói (0 USD)" trước khi gửi.
+- **Job 1203 nháp** sạch, điện thoại đúng chiều từ ~4 s (0–3 s RỐI ĐỎ nhổm dậy, máy nghiêng cạnh) → ✔ Duyệt clip → ⬆ Gen bản cao → **job 1204
+  1080p**. Hậu kỳ cùng `hau_ky/hau_ky.sh` → **`MEO_NHAY_TAP2_FINAL.mp4` (bản mới)**; bản cũ đổi tên `MEO_NHAY_TAP2_FINAL_v1_dien_thoai_nguoc.mp4`.
+- Chi phí thêm lượt này: ảnh 1201 ≈ 0.16 · nháp 1202 (hỏng) + nháp 1203 ≈ 1.34 × 2 · bản cao 1204 ≈ 6.85 · rà soát 0.11.
