@@ -1,0 +1,14 @@
+{
+  "ts": "2026-10-24T22:38:27.399932+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-M47-DELETE-MSG",
+  "to": "codex",
+  "title": "Báo rõ xóa dự án có ngoại lệ",
+  "spec": "docs/CODEX_TASKS.md### CX24-M47-DELETE-MSG",
+  "depends": [
+    "CX23-M47B"
+  ],
+  "priority": 30,
+  "text": "Việc mới theo EP 24/10 22:15."
+}

@@ -1952,3 +1952,29 @@ Giao 24/10 20:20. Phụ thuộc CX24-M82B (API gửi gen ảnh theo shot) GỘP 
 nút Cơ bản dùng API theo shot (HOLD từng shot), giữ mọi guard Chuyên gia, sổ ep-2310-m84-gate-before-auto-paid (không luồng tự gửi
 trả phí trước M8.4), quyết định ep-2410-basic-post-auto (Bước 5 Cơ bản tự áp từ kịch bản khóa, thiếu dữ liệu thì báo rõ) — phần
 Bước 5 nối với CX24-P34-B5-OVERLAY khi nhánh đó GỘP. AppTest nặng chỉ chạy sau 22:00. Báo cáo + ảnh UI KHÔNG chụp bằng Computer Use.
+
+### CX24-M47-DELETE-MSG — xóa dự án có ngoại lệ: báo rõ trước khi dừng/hủy (ưu tiên 30; Cấp 2; 0 USD)
+Giao 24/10 22:20 (EP câu 2 = 2B). Phụ thuộc CX23-M47B. Bảng overrides giữ RESTRICT, CHƯA migrate.
+- Đường xóa dự án trong core/pipeline.py (~188): hiện dừng tự động + hủy task rồi mới vỡ RESTRICT, báo lỗi thô.
+- Sửa: kiểm số ngoại lệ TRƯỚC khi dừng/hủy; có thì dừng sớm, báo "dự án có N ngoại lệ — gỡ trước". Không đổi RESTRICT, không migrate.
+- Test đỏ→xanh (dự án giả có ngoại lệ: không dừng tự động, không hủy task, thông báo đúng N); không dữ liệu thật, không Computer Use.
+
+### CX24-URL-TOKEN-RA — rà bảo mật token đăng nhập trên URL ?s= (ưu tiên 20; Cấp 2; 0 USD)
+Giao 24/10 22:20 (EP câu 5: chưa lưu phiên mới, ưu tiên rà token URL). Token `?s=` hạn 12 giờ.
+- Rà đường lộ: Referer, lịch sử trình duyệt, log Streamlit/proxy, chia sẻ link, cache.
+- Đề xuất + sửa nhỏ an toàn (vd Referrer-Policy, không ghi s vào log, thu hồi token khi đăng xuất). KHÔNG thêm lưu phiên/cookie mới.
+- Test đỏ→xanh cho phần sửa; cờ mới (nếu đổi hành vi) mặc định TẮT; không dữ liệu thật, không Computer Use.
+- Báo cáo docs/RA_CX24_URL_TOKEN_*.md (mức rủi ro từng đường + việc còn lại).
+
+### CX24-HEIGHT-PROJECT — hồ sơ chiều cao height_m riêng theo dự án (ưu tiên 40; Cấp 2 RÀ KỸ; 0 USD)
+Giao 24/10 22:20 (EP câu 6). Bản riêng dự án ghi đè Kho chung; KHÔNG sửa Kho chung.
+- Khi đặt/đề xuất height_m phải tham khảo hồ sơ các nhân vật khác cùng dự án (tỉ lệ tương xứng); cảnh báo lệch bất thường.
+- Dùng chung API/ghi atomic (core/assets.py set_profile), giữ trường v1 lạ; cờ mới mặc định TẮT (TẮT = hành vi cũ byte-y-hệt).
+- Test đỏ→xanh (ghi đè đúng dự án, dự án khác không đổi, cảnh báo lệch); không dữ liệu thật, không Computer Use.
+
+### CX24-N9-REAPPROVE — xác minh N9 "Render lại" có bắt duyệt lại (ưu tiên 25; Cấp 2; 0 USD)
+Giao 24/10 22:20 (EP câu 7: giữ quyền hiện tại + xác minh duyệt lại).
+- Giữ quyền: quyền SỬA + tích xác nhận (core/stage_desk.py rerender ~916), không đổi sang chỉ-EP.
+- Xác minh: sau dự án/shot "xong", render lại có đưa sân khấu/sản phẩm về trạng thái chờ EP duyệt không.
+- Nếu đổi sản phẩm đã duyệt mà không về chờ duyệt → sửa bắt duyệt lại; test đỏ→xanh; cờ mới (nếu đổi hành vi) TẮT.
+- Báo cáo ngắn kết quả xác minh; không dữ liệu thật, không Computer Use.
