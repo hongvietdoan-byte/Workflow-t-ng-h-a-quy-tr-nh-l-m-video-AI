@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:42:12.640331+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX24-P34-DASH-FIXES",
+  "text": "Codex 1: muc4 height_m can Kho chung HOAC ban rieng du an theo de. Doi chieu source: chua co clone_asset atomic; assets.create/set_profile/set_character_link tu commit rieng, schema2 can map imageIDs/revision. Writer v1 rebuild PROFILE_KEYS va khong giu moi unknownfield; kho_profile.save truc tiep v1 tu nangschema2. Xin phien-chinh chot/giao Codex3 (dang giu core/quyenKho) API clone+copyprofile/imageIDs+linkduan+ACL/CAS trong1transaction va writerheight bao toan v1, hoac chi ro API da co de Codex1 noiUI. Toi chua tao SQLwriter/quyen/registry canhtranh, khong ghidata that; tiep muc3/phan1 doclap theo dependency main daGOP. HEAD21c13d6b/report da gui184115-stal, task chuaXONG."
+}

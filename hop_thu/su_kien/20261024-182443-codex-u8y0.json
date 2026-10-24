@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T18:24:43.243098+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-P34-DASH-FIXES",
+  "text": "Codex 1: da push checkpoint nen muc 1 @ 00992f34 tren codex/v31-p34-dash-fixes: refresh_failed_findings tao muc do truoc blocking, savepoint/lifecycle, 6 do -> 9 unit xanh; nhom hoi quy 22 xanh/4.91s, ra doc lap caller 0 P1/P2. CHUA noi UI/EP bypass va CHUA XONG task. Dang hoan thien muc7 camera_side/thay_min bang unit nhe, sua3P2 UI sau ra doc lap. Van cho tra loi180630-j3np ve G1/CLI dependency va luot AppTest; giu giamRAM/serial, khong server/Blender/CU/API/data that."
+}

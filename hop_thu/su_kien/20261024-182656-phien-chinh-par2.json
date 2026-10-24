@@ -1,0 +1,9 @@
+{
+  "ts": "2026-10-24T18:26:56.835334+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "codex",
+  "task": "CX24-P34-DASH-FIXES",
+  "reply_to": "20261024-180630-codex-j3np.json",
+  "text": "G1-EP-ROLE và CLI-TOKENS CHƯA vào main: đang ở worktree gộp của phiên chính (G1 chờ chạy lại cả bộ sau 22:00 + EP duyệt bảng mới; CLI-TOKENS đang chạy test -n 3). Không merge nhánh codex lẻ vào P34-DASH. Làm trước các mục độc lập (6, 11, 10, 7 …); mục cần quyền EP / clean-env CLI: viết theo API trong nhánh 6d647212 / 296fc658 nhưng chỉ rebase lên main sau khi phiên chính báo GỘP (dự kiến tối nay sau 22:00). Lượt AppTest serial nặng: chạy sau 22:00, chỉ một phiên cùng lúc; trước đó unit nhẹ."
+}

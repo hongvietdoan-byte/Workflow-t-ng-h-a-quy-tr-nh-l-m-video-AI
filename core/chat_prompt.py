@@ -153,6 +153,7 @@ def cap_reason(calls: Dict, key: str, parts) -> str:
 
 def build_text(kind: str, model: Optional[str], assembled: str, images: Sequence[Tuple[str, str]], intent: Dict, notes: Sequence[str],
                limit: int) -> str:
+    from .seedance_refs import role_clauses
     what = "ảnh khung đầu" if kind == "image" else f"video ({model or 'seedance'})"
     pics = "\n".join(f"- {lab}" for lab, _ in images) or "- (không có ảnh)"
     said = "\n".join(f"- {n}" for n in notes) or "- (người dùng chưa ghi chú gì cho shot này)"
@@ -162,7 +163,9 @@ def build_text(kind: str, model: Optional[str], assembled: str, images: Sequence
             f"# Ý đồ shot của Đạo diễn\n{json.dumps(intent, ensure_ascii=False, indent=1)}\n\n"
             f"# Mô tả / ghi chú của người dùng (thắng ý đồ cũ khi khác nhau)\n{said}\n\n"
             f"# Bản code ghép (DỮ KIỆN — giữ đủ dữ kiện và mọi mã ảnh, được viết lại câu chữ, bỏ trùng, sửa chỗ trái ảnh)\n{assembled}\n\n"
-            f"# Bắt buộc (code kiểm, sai là bản của bạn bị bỏ)\n- Giữ ĐÚNG CHỮ từng mã: {', '.join(required_codes(assembled)) or '(không có)'}"
+            + (("# Đoạn KHÓA vai ảnh — chép nguyên văn từng dòng, không viết lại hay bỏ câu cấm:\n"
+                + "\n".join(role_clauses(assembled)) + "\n\n") if kind == "video" else "")
+            + f"# Bắt buộc (code kiểm, sai là bản của bạn bị bỏ)\n- Giữ ĐÚNG CHỮ từng mã: {', '.join(required_codes(assembled)) or '(không có)'}"
             " — mọi số ảnh phải còn, đúng số: viết \"Image 3\", hoặc nhóm như bản ghép (\"Images 2/3\", \"Images 2 and 3\"); không bỏ số "
             "nào, không đổi số, không thay bằng \"the references\" / \"these images\".\n"
             f"- Tối đa {limit} ký tự (đếm cả khoảng trắng); quá là bị bỏ.\n"
@@ -228,7 +231,7 @@ def no_added_features(assembled: str, prompt: str) -> Tuple[str, List[str]]:
     return prompt, fixed
 
 
-def check(assembled: str, prompt: str, limit: int) -> List[str]:
+def check(assembled: str, prompt: str, limit: int, *, lock_roles: bool = False) -> List[str]:
     """Why the new prompt cannot be sent ([] = it can). Only checks — nothing is added to the text."""
     problems = []
     if not prompt.strip():
@@ -238,6 +241,9 @@ def check(assembled: str, prompt: str, limit: int) -> List[str]:
     lost = sorted(_ref_units(assembled) - _ref_units(prompt, any_case=True))
     if lost:
         problems.append("mất mã ảnh / shot: " + ", ".join(lost))
+    from .seedance_refs import role_clauses
+    if lock_roles and any(role not in prompt for role in role_clauses(assembled)):
+        problems.append("mất hoặc đổi đoạn KHÓA vai ảnh tham chiếu; chép nguyên văn từ bản code ghép")
     viet_before = set(VIETNAMESE.findall(assembled.lower()))
     if VIETNAMESE.search(prompt) and not viet_before:
         problems.append("còn chữ tiếng Việt")
@@ -405,7 +411,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
     try:
         if hit and hit.get("prompt"):
             return hit["prompt"]
-        if hit and hit.get("refused") and hit.get("prompt_refused") and not check(assembled, hit["prompt_refused"], limit):
+        if hit and hit.get("refused") and hit.get("prompt_refused") and not check(assembled, hit["prompt_refused"], limit, lock_roles=kind == "video"):
             return hit["prompt_refused"]                                # a later, corrected check accepts the kept answer (0 USD)
         if hit and hit.get("refused"):                                  # same inputs already refused after the fix turn: not paid again
             say("warn", "chat_prompt_refused", f"D6 job {job['id']}: đầu vào này đã bị từ chối sau lượt sửa (" + "; ".join(hit["refused"])
@@ -444,6 +450,12 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             with llm_runner.tagged(STAGE, job["project_id"]):
                 got, _, _ = llm_runner.ask_json(client, text, _validate, pics)
             out, fixed = no_added_features(assembled, no_minor_age(got["prompt"]).strip())
+            if kind == "video":
+                from .seedance_refs import keep_roles
+                kept = keep_roles(assembled, out, limit)
+                if kept != out:
+                    say("info", "reference_roles_restored", f"D6 job {job['id']}: giữ đoạn KHÓA vai ảnh bằng code, không gọi lượt sửa vai")
+                out = kept
             if fixed:
                 say("info", "chat_prompt_feature_word", "D6: bỏ chữ tả bộ phận bản code ghép không có (" + ", ".join(dict.fromkeys(fixed))
                     + ") — vd 'clock tower' làm model vẽ mặt đồng hồ")
@@ -459,7 +471,14 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
                 return assembled
             say("warn", "chat_prompt_fail", f"D6 job {job['id']} (đường như chat) không viết được prompt ({str(e)[:200]}) — gửi bản code ghép như cũ")
             return assembled
-        problems = check(assembled, new, limit)
+        from .seedance_refs import role_clauses
+        if kind == "video" and role_clauses(assembled) and new == assembled:
+            # Khóa không vừa d6_limit (đã trừ chỗ câu skill), hoặc khai vai trái:
+            # code giữ bản ghép; guard gói cuối sẽ HOLD nếu quá trần thật.
+            # Không chi thêm lượt LLM chỉ để chép đoạn KHÓA vốn đã có sẵn.
+            _store(conn, key, {"prompt": assembled, "job": job["id"], "kind": kind})
+            return assembled
+        problems = check(assembled, new, limit, lock_roles=kind == "video")
         if problems:
             _keep_refused(conn, job["id"], 1, new, problems)
             if calls.get("fix", 0) >= MAX_FIX_TURNS:
@@ -485,7 +504,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
                 say("warn", "chat_prompt_refused", f"D6 job {job['id']}: bản Claude viết không gửi được (" + "; ".join(problems)
                     + f"), lượt sửa lỗi ({str(e)[:160]}) — gửi bản code ghép như cũ")
                 return assembled
-            again = check(assembled, new, limit)
+            again = check(assembled, new, limit, lock_roles=kind == "video")
             if again:
                 _keep_refused(conn, job["id"], 2, new, again)
                 _store(conn, key, {"prompt": None, "refused": again, "prompt_refused": new, "job": job["id"], "kind": kind})

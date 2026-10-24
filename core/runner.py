@@ -74,7 +74,7 @@ def wait_reason(job_id: int) -> Optional[str]:
 
 
 HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold",
-              'QUEUE_CAPACITY', 'QUEUE_UNKNOWN_CAPACITY', 'QUEUE_CONFIG', "stage_desk_hold")
+              'QUEUE_CAPACITY', 'QUEUE_UNKNOWN_CAPACITY', 'QUEUE_CONFIG', "stage_desk_hold", "reference_roles_hold")
 """C7 (13/10): diag codes the video runner writes when it KEEPS a queued job (Tổ rà soát, kiểm trước gen ĐỎ, bản cao chờ)."""
 
 
@@ -544,6 +544,11 @@ class _Runner:
                 self._running(job["id"])
                 self.p.fail(job["id"], f"{prefix}: {kwargs['_hold']}")
                 continue
+            guard = getattr(self, "_guard_reference_roles", None)
+            if guard:
+                args = guard(job, args, kwargs)
+                if args is None:
+                    continue
             if self._pregen(job, args, kwargs):      # K3 (cờ video_pregen): ĐỎ → giữ chờ người, các job khác vẫn gửi
                 continue
             with budget.SPEND_LOCK:            # limit check + ledger entry as one step: two projects must not both pass the cap
@@ -1483,10 +1488,14 @@ class VideoRunner(_Runner):
             if hosted:
                 out["reference_only"] = hosted
             out["reference_video"] = [{"path": v, "refer_type": "feature"} for v in skill["videos"]]
+            from . import seedance_refs, skill_dossier
+            out["_reference_roles"] = seedance_refs.role_clauses(skill_dossier.reference_block(skill["hits"], skill["pictures"]))
             return out
         group = self._sends_group(job)
         if self._refs(job):                  # Seedance reference only (P2m): every picture marked, no start frame (end frame: below)
-            out["reference_only"] = self._reference_pictures(job, group or [])
+            sources = self._reference_sources(job, group or [])
+            out["reference_only"] = self._reference_pictures(job, group or [], sources=sources)
+            out["_reference_roles"] = [s.get("role", "") for s in sources]
             if not group:
                 audio = self._lip_sync_audio(job)
                 if audio:
@@ -1804,7 +1813,8 @@ class VideoRunner(_Runner):
             frame = self._start_frame(pid, r["id"])
             if frame:
                 out.append({"host": f"P{pid}_S{r['id']}_frame", "path": frame, "say": f"storyboard frame of Shot {i} (khung đầu Shot {i})"})
-        places = seedance_refs.place_pictures(self.data_dir, pid, rows)
+        starts = ({r["id"]: self._start_frame(pid, r["id"]) for r in rows} if seedance_refs.plate_view_on() else None)
+        places = seedance_refs.place_pictures(self.data_dir, pid, rows, starts=starts)
         ids = seedance_refs.identity_pictures(conn, pid, rows, seedance_refs.MAX_PICTURES - len(rows) - len(places)
                                               - (1 if self._ref_end_sentence(job, group, 0) else 0))
         out += [{"host": f"P{pid}_{n}", "path": path,
@@ -1814,6 +1824,16 @@ class VideoRunner(_Runner):
         for k, ref in enumerate(places, 1):
             out.append({"host": f"P{pid}_place_{k}", "path": ref["path"],
                         "say": "PLACE render 3D cho " + ", ".join(f"Shot {i}" for i in ref["shots"])})
+        # Chính hàm dựng prompt tạo câu vai; không giữ một bảng quy tắc thứ hai.
+        canonical = seedance_refs.prompt([("", 1)] * len(rows), ids, places=places,
+                                         forms=kho_profile.forms_for_rows(conn, pid, rows))
+        roles = seedance_refs.role_clauses(canonical)
+        image_roles = [s for s in roles if re.match(r"@?Image \d+ ", s)]
+        complete = len(image_roles) == len(out) == len(rows) + len(ids) + len(places)
+        for i, source in enumerate(out):
+            source["role"] = image_roles[i] if complete else ""
+        if complete and roles and not roles[-1].startswith(("Image ", "@Image ")) and out:
+            out[-1]["role"] += "\n" + roles[-1]
         return out
 
     def _d6_pictures(self, job, group, model, start, skill) -> list:
@@ -1839,12 +1859,12 @@ class VideoRunner(_Runner):
                                                     or "{}"))]
         return shown
 
-    def _reference_pictures(self, job, group) -> list:
+    def _reference_pictures(self, job, group, sources=None) -> list:
         """The marked pictures of a reference-only send (_reference_sources, in Image order), hosted or marked."""
         from . import seedance_refs
         conn = self.p.conn
         rows = self._ref_rows(job, group)
-        src = self._reference_sources(job, group)
+        src = self._reference_sources(job, group) if sources is None else sources
         hosted = self._hosted_pictures(job, [(s["host"], s["path"]) for s in src], clean=True)
         style = seedance_refs.mark_style(conn, [r["id"] for r in rows])   # lỗi hệ thống 4: "eye_plus" unless ref_mark_off_face
         if hosted:
@@ -2363,6 +2383,58 @@ class VideoRunner(_Runner):
             subj_refs, image_refs, ref_video = [], [], None
         if proj["video_audio"] or subj_refs or image_refs or ref_video:  # extra args only when used: older providers keep working
             args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None, ref_video)
+        return args
+
+    def _guard_reference_roles(self, job, args, kwargs):
+        """P34 job 1202: kiểm gói cuối, độc lập cờ/D6/cache; thiếu vai thì ghép từ metadata.
+
+        First/last-frame và ref-first được adapter thêm câu vai sau D6 bằng chính
+        danh sách ảnh đã lọc/cắt. Ref-only và skill phải mang vai từ builder.
+        Không sửa prompt hợp lệ; không đoán từ đường dẫn/URI hay số ảnh còn sót.
+        """
+        if kwargs.get("_from_sample") or kwargs.get("reference_only") is None:
+            return args
+        from . import seedance_refs
+        from .adapters.clipai import PROMPT_LIMITS, ref_end_frame_sentence, resolve_model
+        pics = kwargs["reference_only"]
+        roles = kwargs.get("_reference_roles") or []
+        image_roles = [s for role in roles for s in seedance_refs.role_clauses(role)
+                       if re.match(r"@?Image \d+ ", s)]
+        why = ""
+        if (len(image_roles) != len(pics) or not pics
+                or any(not role for role in roles)
+                or [int(re.search(r"Image (\d+)", s).group(1)) for s in image_roles] != list(range(1, len(pics) + 1))):
+            why = f"thiếu metadata vai hoặc sai thứ tự ảnh (có {len(pics)} ảnh, {len(image_roles)} vai)"
+        clauses = [s for role in roles for s in seedance_refs.role_clauses(role)]
+        if seedance_refs.role_conflicts(clauses, args[1]):
+            why = "prompt khai vai trái metadata cho cùng số ảnh; cần dựng lại prompt"
+        missing = [role for role in clauses if role not in args[1]]
+        motion = args[1] + (("\n" + "\n".join(missing)) if missing else "")
+        final = motion.strip()
+        if getattr(self.provider, "negative", None) == "append" and args[2]:
+            final += f"\nAvoid: {args[2]}"
+        if kwargs.get("last_frame"):
+            final += "\n" + ref_end_frame_sentence(len(pics) + 1)
+        model = args[4] or "seedance"
+        canonical, _ = resolve_model(model)
+        cap = PROMPT_LIMITS.get(canonical) or seedance_refs.prompt_limit(model)
+        count = len(pics) + bool(kwargs.get("last_frame"))
+        picture_cap = 30 if canonical == "dreamina-seedance-2-5-260628" else 9
+        from .chat_prompt import _ref_units
+        numbers = [int(s.split()[-1]) for s in _ref_units(final, any_case=True) if s.startswith("Image ")]
+        if any(i < 1 or i > count for i in numbers) or count > picture_cap:
+            why = f"số ảnh trong prompt không khớp gói {count} ảnh hoặc vượt trần {picture_cap} ảnh"
+        if len(final) > cap:
+            why = f"không giữ đủ vai ảnh trong trần {cap} ký tự ({len(final)} ký tự)"
+        if why:
+            line = f"shot {job['scene_id']}: {why}; ảnh " + ", ".join(f"Image {i}" for i in range(1, len(pics) + 1))
+            if not self.__dict__.get("_preview"):
+                WAIT_REASONS[job["id"]] = (line, time.time())
+            self._diag_once(job, "warn", "reference_roles_hold", "chưa gửi — " + line)
+            return None
+        if missing:
+            self._diag_once(job, "info", "reference_roles_restored", f"shot {job['scene_id']}: đã ghép lại {len(missing)} đoạn vai ảnh từ metadata gói")
+            return (args[0], motion, *args[2:])
         return args
 
     def _gore_restraint(self, job, proj, motion: str, group, model) -> str:
@@ -3281,6 +3353,9 @@ def chat_rewrite(runner, job, kind: str, assembled: str, images, model, limit: i
     d6_limit = limit - room if room and limit - room >= limit // 2 else limit
     new = chat_prompt.rewrite(runner.p, job, kind, assembled, images, model=model, limit=d6_limit,
                               say=(lambda lv, code, msg: say(job, lv, code, msg)) if say else None)
+    if kind == "video":
+        from .seedance_refs import keep_roles
+        new = keep_roles(assembled, new, limit)  # cả cache-hit và job đã chạm trần D6
     kept = side_truth.kept_after_rewrite(assembled, new, limit)              # 14/10: the code's left/right sentence survives D6
     kept = skill_objects.kept_after_rewrite(assembled, kept, limit)          # 14/10 #30: so do the glue wall's ban / size / skin / mannequin
     kept = travel_truth.kept_after_rewrite(assembled, kept, limit)           # 14/10 #30: so does the code's direction of travel

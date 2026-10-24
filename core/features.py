@@ -14,6 +14,9 @@ from typing import Dict, List, Optional
 FEATURES: Dict[str, Dict] = {
     "simple_mode": {"label": "Chế độ Cơ bản", "verified": False, "costs": False,
                     "why": "M82: chưa nghiệm thu giao diện; không tự gửi API trả phí, cờ mặc định TẮT"},
+    "cli_call_budget": {"label": "Giới hạn lượt/công cụ của Claude Code theo khâu (chưa thử thật)",
+                          "verified": False, "costs": False,
+                          "why": "CX24-CLI-TOKENS: cờ mặc định TẮT; chỉ đổi cấu hình claude -p, giới hạn lượt/công cụ, ghi token cache và cảnh báo, không gọi API riêng"},
     'kho_forms_v2': {'label': 'Đọc Kho forms/outfit/hair/face v2', 'costs': False,
                      'verified': False, 'why': 'M2.3: chỉ thử ngoại tuyến; không migration'},
     'subject_capacity_guard': {'label': 'Kho đầy / chưa rõ sức chứa → giữ job chờ, không đổi model',

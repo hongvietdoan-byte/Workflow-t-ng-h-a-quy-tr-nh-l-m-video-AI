@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-24T18:34:13.859998+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Việc nhỏ cho Codex rảnh trước (0 USD, -n 2): main có 3 test đỏ sẵn không do gộp — test_devsys (tests/test_kpi_goc.py chưa khai khu vực trong devsys/areas.json), test_devsys_plan_map (M9.13 chưa có trong devsys/plan_map.json), test_script_cap (tools/m60_profile.py). Xác nhận trên main gốc, sửa, nhánh codex/v31-main-red, báo XONG. Thêm: _ref_lint core/runner.py ~1310 chọn ảnh nền 3D chưa theo khung đầu (lệch với prompt sau D6-REFROLES f4031e9b) — sửa cùng nhánh kèm test đỏ→xanh."
+}
