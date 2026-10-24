@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -430,9 +431,21 @@ def _display_text(value, limit: int = 180) -> str:
 
 def _major_findings(record: Optional[Dict]) -> List[Dict]:
     score = (record or {}).get("score") or {}
+    if not isinstance(score, dict):
+        return []
     findings = score.get("findings") or []
-    return [row for row in findings if isinstance(row, dict)
-            and str(row.get("severity", "")).strip().casefold() in {"chặn", "chan", "lớn", "lon"}]
+    if not isinstance(findings, list):
+        return []
+    selected, seen = [], set()
+    for row in findings:
+        if not isinstance(row, dict) or str(row.get("severity", "")).strip().casefold() not in {"chặn", "chan", "lớn", "lon"}:
+            continue
+        identity = tuple(str(row.get(key) or "") for key in ("axis", "evidence", "type", "task_id"))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        selected.append(row)
+    return selected
 
 
 def annotate_plan_map(model: Dict, findings: Iterable[Dict], task_to_stages: Optional[Mapping[str, Sequence[str]]] = None) -> Dict:
@@ -564,17 +577,27 @@ def render_summary(st, root: str = collect.ROOT) -> Optional[Dict]:
         st.info("Chưa có lần giám sát; mở báo cáo sau khi chạy lần đầu.")
         return None
     score = record.get("score") or {}
+    if not isinstance(score, dict):
+        score = {}
     axes = score.get("axes") or {}
+    if not isinstance(axes, dict):
+        axes = {}
     cols = st.columns(4)
     for col, label, key in zip(cols, ("Đúng hướng", "Lỗi / lỗ hổng", "Dashboard", "Điểm chung"),
                                ("direction", "errors", "dashboard", "overall")):
         value = score.get("overall") if key == "overall" else axes.get(key)
-        col.metric(label, "—" if value is None else f"{value:g}/10")
+        valid = isinstance(value, (int, float)) and math.isfinite(value)
+        col.metric(label, f"{value:g}/10" if valid else "—")
     st.caption(f"Lần gần nhất: {_display_text(record.get('at'), 40)} · {score.get('label', 'chưa rõ')} · "
                f"{_display_text(record.get('provider'), 24)} · 0 USD API")
     rows, _ = load_history(root)
-    trend = [float((row.get("score") or {}).get("overall")) for row in sorted(rows, key=lambda row: str(row.get("at") or ""))
-             if isinstance((row.get("score") or {}).get("overall"), (int, float))][-20:]
+    trend = []
+    for row in sorted(rows, key=lambda row: str(row.get("at") or "")):
+        row_score = row.get("score") if isinstance(row, dict) else None
+        value = row_score.get("overall") if isinstance(row_score, dict) else None
+        if isinstance(value, (int, float)) and math.isfinite(value):
+            trend.append(float(value))
+    trend = trend[-20:]
     if trend:
         st.markdown("**Xu hướng điểm chung (tối đa 20 lần gần nhất)**")
         st.line_chart(trend)
@@ -711,7 +734,7 @@ def _publish_preflight(root: str, plan_path: Path, *, allow_plan_modified: bool)
     changed = _git_output(root, "status", "--porcelain=v1", "--untracked-files=no").splitlines()
     if not allow_plan_modified and changed:
         raise PlanMonitorError("worktree có thay đổi tracked trước khi áp dụng phát hiện")
-    if allow_plan_modified and (not changed or any(line[3:] != rel for line in changed)):
+    if allow_plan_modified and (not changed or any(line[:2] != " M" or line[3:] != rel for line in changed)):
         raise PlanMonitorError("worktree có thay đổi ngoài file kế hoạch")
     return rel
 

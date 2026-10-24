@@ -84,6 +84,11 @@ def test_score_axes_are_computed_from_shared_deductions():
     assert score["open_blockers"] == 1
 
 
+def test_malformed_history_score_is_ignored_without_crashing_findings_reader():
+    assert PM._major_findings({"score": "fixture-invalid"}) == []
+    assert PM._major_findings({"score": {"findings": "fixture-invalid"}}) == []
+
+
 def test_major_findings_overlay_only_matching_task_wave_and_stage():
     task = {"id": "M4.1", "status": "🔄", "commit": "", "title": "fixture", "gate_status": "⬜"}
     model = {"current": "M4", "next": None, "total": 0.0, "total_gate": 0.0,
@@ -158,6 +163,11 @@ def test_publish_preflight_only_allows_clean_main_and_the_configured_plan(monkey
              "diff --cached --name-only": "", "status --porcelain=v1 --untracked-files=no": ""}
     monkeypatch.setattr(PM, "_git_output", lambda _root, *args: state[" ".join(args)])
     assert PM._publish_preflight(str(tmp_path), plan, allow_plan_modified=False) == "docs/plan.md"
+    state["status --porcelain=v1 --untracked-files=no"] = " M docs/plan.md"
+    assert PM._publish_preflight(str(tmp_path), plan, allow_plan_modified=True) == "docs/plan.md"
+    state["status --porcelain=v1 --untracked-files=no"] = " D docs/plan.md"
+    with pytest.raises(PM.PlanMonitorError):
+        PM._publish_preflight(str(tmp_path), plan, allow_plan_modified=True)
     state["status --porcelain=v1 --untracked-files=no"] = " M docs/unrelated.md"
     with pytest.raises(PM.PlanMonitorError):
         PM._publish_preflight(str(tmp_path), plan, allow_plan_modified=True)
