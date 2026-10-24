@@ -139,6 +139,8 @@ def objects_from_blocking(blocking: Dict, marks: Optional[Dict] = None, beat: Op
 # ---- kiểm yêu cầu trước khi giải (3.2) -----------------------------------------------------------------------------------------
 def validate(spec: Dict, objs: Dict[str, Dict]) -> List[str]:
     errs = []
+    if spec.get("camera_side") is not None and spec["camera_side"] not in sg.CAMERA_SIDES:
+        errs.append("phía máy camera_side phải là front/back/left/right")
     co = spec.get("co")
     if co not in sg.FRAMING:
         errs.append(f"cỡ '{co}' không có trong bảng ({', '.join(sg.FRAMING)})")
@@ -148,6 +150,9 @@ def validate(spec: Dict, objs: Dict[str, Dict]) -> List[str]:
         errs.append(f"góc '{spec['goc']}' không hợp lệ (ngang / cúi / ngửa)")
     chinh = []
     for c in spec.get("thanh_phan", []):
+        minimum = c.get("thay_min")
+        if minimum is not None and (isinstance(minimum, bool) or not isinstance(minimum, (int, float)) or not math.isfinite(minimum) or not 0 <= minimum <= 100):
+            errs.append(f"{c.get('vat')}: thay_min phải là số hữu hạn từ 0 đến 100%")
         if c.get("vat") not in objs:
             errs.append(f"'{c.get('vat')}' không có trong dàn cảnh ({', '.join(objs)})")
             continue
@@ -406,6 +411,10 @@ def solve_shot(spec: Dict, objs: Dict[str, Dict], aspect: float, axis: Optional[
     máy (grid.json nếu có), phía trục (C1). Xếp: đạt trước, rồi ít lệch vùng, rồi nhiều thứ phụ đạt. Không có lời giải → `errors`."""
     pov = spec.get("pov")
     errs = []
+    if spec.get("camera_side") is not None:
+        error = sg.camera_axis_error(axis)
+        if error:
+            errs.append(error)
     if pov and pov not in objs:
         errs.append(f"pov '{pov}' không có trong dàn cảnh của nhịp")
     if spec.get("may"):
@@ -425,6 +434,16 @@ def solve_shot(spec: Dict, objs: Dict[str, Dict], aspect: float, axis: Optional[
     D = distance_for_size(sh.hA, sh.share, sh.tv)
     d0 = _horizontal(D, sh.pA[2] - sh.cz)
     starts = []                                        # (θ, d, tag, free_theta, free_d)
+    side = spec.get("camera_side")
+    side_start = None
+    if side:
+        a, b = axis
+        bearing = sg.bearing_deg(b[0]-a[0], b[1]-a[1])
+        theta = bearing + {"front": 0, "back": 180, "left": -90, "right": 90}[side]
+        centre = [(a[0]+b[0])/2, (a[1]+b[1])/2]
+        distance = d0 + math.dist(A, centre)
+        point = _cam(centre, theta, distance, sh.cz)
+        side_start = (sg.bearing_deg(point[0]-A[0],point[1]-A[1]), math.dist(point[:2],A), f"phía {side} theo trục A→B", False, True)
     if eye is not None:
         sh.cz = eye[2]
         th_e, d_e = sg.bearing_deg(eye[0] - A[0], eye[1] - A[1]), math.hypot(eye[0] - A[0], eye[1] - A[1])
@@ -455,6 +474,8 @@ def solve_shot(spec: Dict, objs: Dict[str, Dict], aspect: float, axis: Optional[
                     break
         if not starts:
             res["notes"].append(f"không có điểm thấy {sh.a['vat']}→{sh.b['vat']} dưới góc {g:.1f}° ở mọi khoảng cách của cỡ — thử theo hướng thấy")
+    if side_start is not None:
+        starts.append(side_start)
     if not starts:
         view = sg.fold(str(sh.a.get("thay") or "").split("|")[0]).strip()
         if view in sg.VIEWS and sh.A.get("facing") is not None:
@@ -503,7 +524,8 @@ def advise(res: Dict, sh: "Shot") -> List[str]:
                   "của hai thứ chính, hoặc bỏ yêu cầu 'thấy'",
             "S5": "thứ 'không được có' lọt khung → đổi hướng / ống kính dài hơn",
             "S6": "khung bị sàn/tường nuốt → hạ máy hoặc đổi góc",
-            "C1": "vượt trục 180° → đảo vùng trái/phải hoặc ghi cross_ok nếu cố ý"}
+            "C1": "vượt trục 180° → đảo vùng trái/phải hoặc ghi cross_ok nếu cố ý",
+            "C2": "không đúng phía máy đã chọn theo trục A→B → đổi vùng/cỡ hoặc chọn lại phía, không tự bỏ ràng buộc"}
     out = []
     for f, k in sorted(cnt.items(), key=lambda x: -x[1]):
         if k == n:
@@ -588,7 +610,9 @@ def _judge(sh: Shot, sol: Dict, tag: str, axis, s0, grid, stage, fallback=False)
     ev = sg.frame_eval(C, aim, sh.lens, sh.aspect, sh.objs, co=sh.co, size_key=sh.a["vat"])
     m = dict(ev)
     pre = _p1_grid(C, grid, stage)
-    chk = sg.check_spec(m, sh.spec, sh.objs)
+    if sh.spec.get("camera_side") is not None:
+        m["at"] = C
+    chk = sg.check_spec(m, sh.spec, sh.objs, axis=axis)
     if pre:
         chk["fail"] = ["P1"] + [f for f in chk["fail"] if f != "P1"]
         chk["why"]["P1"] = pre
@@ -597,7 +621,10 @@ def _judge(sh: Shot, sol: Dict, tag: str, axis, s0, grid, stage, fallback=False)
     if sh.spec.get("may"):
         Ce, Ae = move_end(C, aim, sh.spec["may"])
         eve = sg.frame_eval(Ce, Ae, sh.lens, sh.aspect, sh.objs)
-        ce = sg.check_spec(dict(eve), end_spec(sh.spec), sh.objs)
+        end_measure = dict(eve)
+        if sh.spec.get("camera_side") is not None:
+            end_measure["at"] = Ce
+        ce = sg.check_spec(end_measure, end_spec(sh.spec), sh.objs, axis=axis)
         pe = _p1_grid(Ce, grid, stage)
         if pe:
             ce["fail"] = ["P1"] + [f for f in ce["fail"] if f != "P1"]

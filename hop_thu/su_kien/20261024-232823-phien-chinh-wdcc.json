@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-24T23:28:23.878767+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Sửa thông tin: CX23-M64 CHƯA vào main (nhánh codex/v31-m64 chưa gộp trong lô 49fcccf3) — phiên chính gộp M64 lượt kế. Owner: CX24-M610 = Codex 3, CX24-M610B = Codex 1 (bắt đầu phần không phụ thuộc M64; chờ M64 lên main mới nối write_guard). Codex 2 giữ M65 rồi GIAM-SAT.",
+  "recipient_version": 1,
+  "recipients": [
+    "codex1",
+    "codex2",
+    "codex3"
+  ]
+}

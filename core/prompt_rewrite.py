@@ -98,17 +98,17 @@ def _last_change_event(conn) -> Optional[int]:
         return None
 
 
-def _set_prompt(conn, scene_id: int, kind: str, text: str, actor=None) -> None:
+def _set_prompt(conn, scene_id: int, kind: str, text: str, actor=None, guard_checked: bool = False) -> None:
     from . import write_guard                      # V3.1 M2.5 (cờ field_guard, shadow): AI viết lại prompt người khóa (L4) → diag
     if kind == "image":
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
         data = json.loads(row["data"] or "{}")
-        if actor:
+        if actor and not guard_checked:
             write_guard.observe(conn, scene_id, {"image_prompt": text}, actor, read_data=dict(data))
         data["image_prompt"] = text
         conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene_id))
     else:
-        if actor:
+        if actor and not guard_checked:
             old = conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
             write_guard.observe(conn, scene_id, {"motion_prompt": text}, actor, before={"motion_prompt": old[0] if old else None})
         conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?", (text, scene_id))
@@ -165,7 +165,8 @@ def revert(p, scene_id: int, kind: str) -> str:
     old = vers[-2]["prompt"]
     pid = p.conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()["project_id"]
     from . import write_guard
-    _set_prompt(p.conn, scene_id, kind, old, actor=write_guard.actor("human", p.actor or "dashboard"))
+    who = write_guard.user_actor(p.conn, pid, write_guard.actor("human", p.actor or "dashboard"), getattr(p, "user", None))
+    _set_prompt(p.conn, scene_id, kind, old, actor=who)
     _add_version(p.conn, pid, scene_id, kind, old, "revert", note=f"dùng lại prompt v{vers[-2]['version']}", who=p.actor)
     p.conn.commit()
     from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
@@ -466,7 +467,9 @@ def apply_proposal(p, scene_id: int, kind: str, expect: Optional[str] = None) ->
     if not versions(p.conn, scene_id, kind) or versions(p.conn, scene_id, kind)[-1]["prompt"] != got["old_prompt"]:
         _add_version(p.conn, pid, scene_id, kind, got["old_prompt"], "original" if not versions(p.conn, scene_id, kind) else "manual",
                      who=p.actor)
-    _set_prompt(p.conn, scene_id, kind, got["prompt"])
+    from . import write_guard
+    who = write_guard.user_actor(p.conn, pid, write_guard.actor("human", p.actor or "dashboard"), getattr(p, "user", None))
+    _set_prompt(p.conn, scene_id, kind, got["prompt"], actor=who)
     _add_version(p.conn, pid, scene_id, kind, got["prompt"], "proposal_applied", changed=got.get("changed"), why=got.get("why"),
                  job_id=got.get("job_id"), who=p.actor)
     p.conn.execute("DELETE FROM app_settings WHERE key=?", (PROPOSAL_KEY.format(scene_id, kind),))
@@ -483,14 +486,26 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
     if respect_lock() and locked(p.conn, job["scene_id"], kind):
         _keep_proposal(p, job, res)
         raise RewriteLocked(f"{LOCK_FIELD[kind]} do bạn sửa/khóa — Đạo diễn chỉ đề xuất")
+    from . import write_guard
+    writer = write_guard.actor("ai", "director_rewrite", role="director")
+    guard_checked = False
+    if write_guard.enabled():
+        if kind == "image":
+            row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            data = json.loads(row["data"] or "{}")
+            write_guard.observe(p.conn, job["scene_id"], {"image_prompt": res.new_prompt}, writer, read_data=dict(data))
+        else:
+            old = p.conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (job["scene_id"],)).fetchone()
+            write_guard.observe(p.conn, job["scene_id"], {"motion_prompt": res.new_prompt}, writer,
+                                before={"motion_prompt": old[0] if old else None})
+        guard_checked = True
     vers = versions(p.conn, job["scene_id"], kind)
     if not vers or vers[-1]["prompt"] != res.old_prompt:   # the prompt in use now (the Director's / a hand edit) is saved before it changes
         _add_version(p.conn, job["project_id"], job["scene_id"], kind, res.old_prompt, "original" if not vers else "manual", who=p.actor)
     res.version = _add_version(p.conn, job["project_id"], job["scene_id"], kind, res.new_prompt, "director_rewrite",
                                note=(note or "")[:600], changed=res.changed, why=res.why[:600], job_id=job["id"], who=p.actor)
     last_ev = _last_change_event(p.conn)
-    from . import write_guard
-    _set_prompt(p.conn, job["scene_id"], kind, res.new_prompt, actor=write_guard.actor("ai", "director_rewrite"))
+    _set_prompt(p.conn, job["scene_id"], kind, res.new_prompt, actor=writer, guard_checked=guard_checked)
     if kind == "video" and last_ev is not None:
         from . import change_review
         if not (REVIEW_AUTO_REWRITE and change_review.motion_enabled()):

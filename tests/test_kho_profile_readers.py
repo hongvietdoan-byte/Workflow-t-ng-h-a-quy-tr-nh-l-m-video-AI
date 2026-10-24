@@ -55,7 +55,8 @@ def test_explicit_profile_sql_is_in_reviewed_inventory():
     # Mỗi ngoại lệ có hàm + số statement cố định + lý do; thêm đường SQL mới phải rà lại.
     reviewed = {
         ('core/assets.py','get_profile'):(1,'Lõi lưu trữ raw duy nhất cho adapter'),
-        ('core/assets.py','set_profile'):(1,'Writer v1; schema v2 chuyển qua CAS trước nhánh này'),
+        ('core/assets.py','set_profile'):(2,'Writer v1 + nhánh CAS snapshot P34 (chiều cao Kho); schema v2 chuyển qua CAS trước nhánh này'),
+        ('core/library_height.py','save_height'):(1,'P34: đọc hồ sơ để lấy snapshot CAS rồi ghi qua assets.set_profile'),
         ('core/assets.py','merge'):(2,'Gộp bảo thủ chặn mọi khác biệt v2 trước filesystem'),
         ('core/assets.py','set_size'):(2,'Metadata kích thước vật riêng; guard chung chờ M0.10'),
         ('core/kho_profile.py','save'):(2,'Writer actor/revision/CAS và audit SAVEPOINT'),

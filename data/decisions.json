@@ -598,7 +598,7 @@
    "keeps": "v31-permission-tiers-2026-10-20 (3 cấp quyền); v31-d04 write guard, v31-d05 Kho, v31-d06 world map, v31-d07 QC shadow→guarded, v31-d09 sổ lỗi; qc-team-off-2026-10-14; drafts-approved-in-chat-2026-10-14; stage-crew-plan-2026-10-16 (vai sân khấu cũ gộp vào 3D Artist / Director / Cinematographer).",
    "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code. Được làm ngay (Cấp 1): audit repo, tài liệu kiến trúc M6, đối chiếu Master Plan, roadmap / dependency / nghiệm thu / test plan / rollback, ghi sổ. CHƯA được: code pipeline M6 (Cấp 2), migration / sửa dữ liệu production, bật cờ mới trên máy chính, đổi provider / cấu hình job đang chạy, gọi API trả phí, tự gen lại trên production, xóa / ghi đè tài nguyên đã duyệt (Cấp 3). Chi tiết: docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 3/4b/5 (M6).",
    "replaces": null,
-   "enforced_by": [],
+   "enforced_by": [{"kind": "flag", "name": "crew_write_guard", "on": false}, {"kind": "code", "check": "check_m6_engineer_cannot_write_production"}],
    "status": "active"
   },
   {

@@ -69,7 +69,8 @@ def fill_numbers(conn, rows: List[Dict]) -> None:
         cur = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()[0] or "{}")
         if isinstance(cur.get("byd"), dict) and "shot" not in cur["byd"]:
             from core import write_guard               # V3.1 M2.5 (cờ field_guard, shadow): công cụ ghi byd người khóa (L5) → diag
-            write_guard.observe(conn, row["id"], {"byd.shot": cur["shot_no"]}, write_guard.actor("tool", "byd_fill"), read_data=json.loads(json.dumps(cur)))
+            write_guard.observe(conn, row["id"], {"byd.shot": cur["shot_no"]},
+                                write_guard.actor("tool", "byd_fill", role="engineer"), read_data=json.loads(json.dumps(cur)))
             cur["byd"]["shot"] = cur["shot_no"]
             conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(cur, ensure_ascii=False), row["id"]))
     conn.commit()
@@ -118,7 +119,7 @@ def fill(conn, pid: int, rows: List[Dict], client) -> List[Dict]:
         cur = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()[0] or "{}")
         from core import write_guard                   # V3.1 M2.5 (cờ field_guard, shadow): L5 → diag
         write_guard.observe(conn, row["id"], {k: s[k] for k in ("byd", "byd_kiem") if s.get(k) is not None},
-                            write_guard.actor("tool", "byd_fill"), read_data=json.loads(json.dumps(cur)))
+                            write_guard.actor("tool", "byd_fill", role="engineer"), read_data=json.loads(json.dumps(cur)))
         for key in ("byd", "byd_kiem"):
             if s.get(key) is not None:
                 cur[key] = s[key]

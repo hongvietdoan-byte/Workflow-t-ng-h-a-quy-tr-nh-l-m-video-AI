@@ -1,0 +1,12 @@
+{
+  "ts": "2026-10-25T00:11:41.223384+07:00",
+  "lane": "codex",
+  "kind": "nhan",
+  "task": "CX24-HOP-THU-FLUSH",
+  "reader": "codex1",
+  "branch": "codex/v31-hop-thu-flush",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}

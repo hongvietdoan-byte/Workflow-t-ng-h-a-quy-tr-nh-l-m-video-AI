@@ -1,0 +1,14 @@
+{
+  "ts": "2026-10-25T00:22:58.827272+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-HOP-THU-FLUSH",
+  "branch": "codex/v31-hop-thu-flush",
+  "commit": "efe2804f",
+  "report": "docs/RA_CX24_HOP_THU_FLUSH_CODEX1_2026-10-25.md",
+  "text": "Codex 1: hoàn tất tooling54b91a4b, HEADefe2804f đãpush/sạch sau syncmainb968da36. Flush chỉdiff, cachebundle/catfilebatch, PIDbirth/token/lease/kernelguard, deadlineGit30s; queued khôngbáoĐãgửi. Root63pass2skip unit/store/nativeperf +11nativeconcurrency +28CLI/G3; lạnh1000old+3new6.273s dưới20s, HEAD/index nguyên, khôngmấtmetadata. RÀ KỸ độc lập0P1/P2/rootđọc2lượt; version92, khôngcờmới/cảbộ/maincode/API/data thật/CU. Helpernhan cũsession1634đãexit0/queue0; gửiXONG bằnghelper đãrá trênnhánhtask vớiindexmetadata riêng, khôngđụngcache củamailboxwt đangdùngbảncũ. Xinphiênchính RÀ KỸ/gộp theođề. Đãđọc232823-wdcc:M610BthuộcCodex1; sẽchuẩnbịphầnđộclậpsautooling, chưa nốiwriter/UItrướcthưGỘPM64/M610.",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}

@@ -11,6 +11,18 @@ from core.db import connect
 from core.pipeline import Pipeline
 
 
+def _ep_dismiss(conn, finding_id, status, who):
+    """Ca lifecycle cũ nay đi cổng EP/lý do/audit thay raw close()."""
+    assert status == "dismissed"
+    conn.execute("INSERT OR REPLACE INTO users(email,role,active) VALUES(?, 'owner', 1)", (who,))
+    conn.commit()
+    CR.dismiss_failed_review(conn, finding_id,
+        conn.execute("SELECT project_id FROM change_findings WHERE id=?", (finding_id,)).fetchone()[0],
+        actor={"kind":"human","who":who}, user={"email":who,"role":"owner"},
+        reason="EP kiểm fixture hồi quy", expected_snapshot=CR.failed_review_snapshot(conn, finding_id,
+            conn.execute("SELECT project_id FROM change_findings WHERE id=?", (finding_id,)).fetchone()[0]))
+
+
 class FakeClient:
     name = "fake"
 
@@ -464,7 +476,7 @@ class FailedReview(unittest.TestCase):
         self.assertIn("credit balance", why)
         self.assertIn("Bỏ qua", why)
         fid = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"]
-        CR.close(self.p.conn, fid, "dismissed", "test")                      # nút Bỏ qua ở 📥
+        _ep_dismiss(self.p.conn, fid, "dismissed", "test")                      # nút Bỏ qua ở 📥
         self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
         self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))             # bỏ qua rồi không ghi lại mục đó
 
@@ -582,7 +594,7 @@ class M71FailClosed(unittest.TestCase):
         CR.process_pending(self.p.conn, self.tmp, client=Q({}))             # vẫn hết tiền → giữ lại, mục mới
         self.assertIsNotNone(CR.blocking(self.p.conn, self.ids[1]))
         fid = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == CR.FAIL_KHAU][0]["id"]
-        CR.close(self.p.conn, fid, "dismissed", "test")                     # nút Bỏ qua ở 📥
+        _ep_dismiss(self.p.conn, fid, "dismissed", "test")                     # nút Bỏ qua ở 📥
         self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
 
     def test_no_claude_round_still_does_not_hold(self):
@@ -749,7 +761,7 @@ class M71DeepReview(unittest.TestCase):
         sid = self.ids[1]
         self._review_with(sid, llm_runner.LlmError("timed out", code="timeout"))
         self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
-        CR.close(self.p.conn, [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"], "dismissed", "tester")
+        _ep_dismiss(self.p.conn, [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"], "dismissed", "tester")
         self.assertIsNone(CR.blocking(self.p.conn, sid))
         ChangeReview._motion(self, sid, "Kelly walks to the well")
         self.p.conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?", ("Kelly runs to the well", sid))
@@ -786,7 +798,7 @@ class M71DeepReview(unittest.TestCase):
         self.assertEqual(len(open_), 1)
         newest = self.p.conn.execute("SELECT MAX(id) FROM change_events WHERE state='failed'").fetchone()[0]
         self.assertEqual(self.p.conn.execute("SELECT event_id FROM change_findings WHERE id=?", (open_[0]["id"],)).fetchone()[0], newest)
-        CR.close(self.p.conn, open_[0]["id"], "dismissed", "tester")
+        _ep_dismiss(self.p.conn, open_[0]["id"], "dismissed", "tester")
         self.assertIsNone(CR.blocking(self.p.conn, sid))
         self.assertIsNone(CR.blocking(self.p.conn, sid))
         self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])

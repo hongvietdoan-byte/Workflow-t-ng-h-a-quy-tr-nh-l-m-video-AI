@@ -576,7 +576,9 @@ def scene_status(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = Non
     h = lock_holder(data_dir, pid, seg["scene"], conn, seg=seg, clean=False)   # rà 7: vẽ trạng thái không gỡ khóa / không ghi diag
     pr = progress(data_dir, pid, seg["scene"], conn, seg=seg)
     busy_now = bool(h) or (pr or {}).get("state") == "running"
-    user_ok = stage_crew.user_approves()
+    # Pending được lưu bởi lần N9 đã bật cờ: tắt cờ sau đó không được làm mất
+    # đường duyệt của EP hoặc cho tự động nhận lại dấu duyệt cũ.
+    user_ok = stage_crew.user_approves() or sa.rerender_pending(state)
     has_round = bool(result and result.get("round"))
     shot_hist = {str(k): list(v or []) for k, v in ((state or {}).get("shot_hist") or {}).items()}
     family_suggestions = _sa().family_suggestions(_sa().segments(conn, pid))
@@ -681,7 +683,8 @@ def write_prompt(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> D
     return _sync(data_dir, pid, seg, "N3", who, conn, fn)
 
 
-def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[Dict], user=None) -> Dict:
+def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[Dict], user=None,
+                expected_proposal_revision: Optional[str] = None) -> Dict:
     """N4 (nền, 0 USD; đo K3 + K4 khi phase cần): câu trả lời vai → crew_answer(source="claude_code"). Nguồn CỐ ĐỊNH — nút này không
     nhận câu trả lời "người dùng" (duyệt chốt chỉ qua N6 / N7, S-B); phase `duyet` → crew_answer tự từ chối."""
     denied = _need_edit(conn, pid, user, "nạp câu trả lời vai sân khấu")
@@ -695,6 +698,17 @@ def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[D
         return {"ok": False, "errors": ["câu trả lời duyệt / trả lại chỉ nhận qua nút ✅ Duyệt / ↩ Trả lại của Executive Producer (S-B)"]}
 
     def work(c, log):
+        if expected_proposal_revision is not None:
+            from . import stage_cli_proposal
+            denied = stage_cli_proposal._edit_guard(c, pid, user)
+            if denied:
+                return denied
+            try:
+                current = stage_cli_proposal._context(c, pid, data_dir, scene, locked=True)
+                if current["revision"] != expected_proposal_revision:
+                    return {"ok": False, "errors": ["Đề xuất Claude CLI đã cũ (đầu vào/vai đổi); giữ JSON để xem, không nạp hay gọi lại CLI."]}
+            except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
+                return {"ok": False, "errors": ["Không xác minh được đầu vào/vai của đề xuất CLI; chưa nạp JSON."]}
         log("kiểm câu trả lời + đo (K3 + K4 nếu cần)")
         r = sa.crew_answer(c, pid, seg, data_dir, obj, source=SOURCE_DESK, log=log,
                            who=_tool_who(who, "stage_desk.load_answer"))
@@ -705,7 +719,7 @@ def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[D
 def _tool_who(who: Optional[Dict], name: str) -> Dict:
     """Actor ghi máy của nút không phải duyệt: công cụ bàn đạo diễn (người bấm ghi kèm `via`)."""
     from . import write_guard
-    return write_guard.actor("tool", name, via=_who_text(who))
+    return write_guard.actor("tool", name, role=(who or {}).get("role") or "artist_3d", via=_who_text(who))
 
 
 def build_sheet(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> Dict:
@@ -737,7 +751,8 @@ def approve(conn, pid: int, data_dir: str, scene, who: Optional[Dict], user, con
         _need_ep(conn, pid, who, user, "Duyệt sân khấu")
     except DeskError as e:
         return {"ok": False, "errors": [str(e)]}
-    if not stage_crew.user_approves():
+    pending = sa.rerender_pending(_read(os.path.join(seg_dir(data_dir, pid, seg), sa.CREW_DIR, "state.json")))
+    if not stage_crew.user_approves() and not pending:
         return {"ok": False, "errors": ["duyệt chốt do Đạo diễn (cờ stage_crew_user_approve TẮT) — không có bước người duyệt"]}
     def need_confirm():
         drawn = drawn_shots(conn, seg)
@@ -873,6 +888,8 @@ def reset(conn, pid: int, data_dir: str, scene, who: Optional[Dict], confirm: bo
 
     def fn():
         ctx = {"crew": os.path.join(seg_dir(data_dir, pid, seg), sa.CREW_DIR), "out": seg_dir(data_dir, pid, seg)}
+        if sa.rerender_pending(sa._crew_load(ctx)):
+            return {"ok": False, "errors": ["Render lại đang chờ EP duyệt; hoàn tất lượt duyệt này trước khi làm lại sân khấu."]}
         sa._crew_reset(ctx)
         mark = dict(preview, marks_before={str(k): v for k, v in _marks(conn, seg).items()}, at=_now(), by=_who_text(who))   # trong khóa
         _write(os.path.join(seg_dir(data_dir, pid, seg), RESET_FILE), mark)

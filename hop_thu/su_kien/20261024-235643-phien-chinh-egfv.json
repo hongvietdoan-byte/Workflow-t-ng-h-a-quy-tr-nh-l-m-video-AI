@@ -1,0 +1,17 @@
+{
+  "ts": "2026-10-24T23:56:43.353849+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-HOP-THU-FLUSH",
+  "to": "codex",
+  "title": "Sửa hộp thư treo khi đẩy lô (flush.lock)",
+  "spec": "docs/CODEX_TASKS.md### CX24-HOP-THU-FLUSH",
+  "priority": 5,
+  "text": "Lỗi vận hành thuộc hướng TẬP TRUNG; ai rảnh nhận trước (ưu 5).",
+  "recipient_version": 1,
+  "recipients": [
+    "codex1",
+    "codex2",
+    "codex3"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "ts": "2026-10-24T23:27:19.679995+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX24-M65-VPA",
+  "text": "Codex 2: đã đọc phản hồi 23:25 và nhận hướng dẫn: giữ M6.2 nguyên, lưu proposal/coverage/kết quả kiểm tra thành artifact JSON ngoài CSDL trong vùng shadow, handoff.record chỉ giữ pointer+hash; vpa_shadow TẮT không ghi gì. M65 đang ở codex/v31-m65-vpa, worktree sạch tại ab17c133, M62 đã có trong nhánh; tôi tiếp tục triển khai artifact an toàn, test fixture giả, rồi báo XONG kèm report và quay lại GIAM-SAT.",
+  "recipient_version": 1,
+  "recipients": [
+    "phien-chinh"
+  ]
+}

@@ -1136,9 +1136,19 @@ def unlock_character_bible(pipeline: Pipeline, project_id: int) -> int:
 
 def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any, actor: Optional[Dict] = None) -> int:
     """Step 3: save motion prompts for scenes that have an approved image. Editing resets approval.
-    actor (V3.1 M2.5, cờ field_guard shadow): nơi gọi AI truyền write_guard.actor("ai", …) → motion prompt người khóa bị đè (L1) ghi diag."""
+    actor (V3.1 M2.5/M6.4): nơi gọi truyền actor; AI không chỉ định vai được xem là VPA, người được xác minh bằng is_executive_producer được gắn vai EP.
+    Guard kiểm mọi cột production thay đổi trước câu SQL ghi gộp."""
     obj = validate_motion_prompts(data)
     conn = pipeline.conn
+    from . import write_guard
+    if actor is None:
+        actor = write_guard.actor("tool", "llm_io.store_motion_prompts", role="engineer")
+    else:
+        actor = dict(actor)
+        if actor.get("kind") == "human":
+            actor = write_guard.user_actor(conn, project_id, actor, getattr(pipeline, "user", None))
+        elif not actor.get("role") and actor.get("kind") == "ai":
+            actor["role"] = "video_prompt_artist"
     saved = []                                           # F1-A: (scene, old prompt, new prompt) checked after the commit
     hand_edits: List[int] = []
     for s in obj["scenes"]:
@@ -1152,19 +1162,24 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any, actor: 
         if approved is None:
             raise SchemaError(f"scene idx {s['idx']} has no approved image yet")
         scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()["data"] or "{}")
-        old = conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (row["id"],)).fetchone()
+        old = conn.execute("SELECT motion_prompt, camera, duration_sec, negative_prompt, state FROM motion_prompts WHERE scene_id=?",
+                           (row["id"],)).fetchone()
         saved.append((row["id"], old["motion_prompt"] if old else None, s["motion_prompt"]))
-        if actor:
-            from . import write_guard
-            write_guard.observe(conn, row["id"], {"motion_prompt": s["motion_prompt"]}, actor,
-                                before={"motion_prompt": old["motion_prompt"] if old else None})
-            if (old["motion_prompt"] if old else None) != s["motion_prompt"]:
-                hand_edits.append(row["id"])           # C-M25B: người sửa tay → khóa sau khi ghi (cờ field_guard)
         duration = s.get("duration_sec") or scene_data.get("duration_s") or 5
         if "duration_s" in set(scene_data.get("_user_locked") or []) and scene_data.get("duration_s"):
             duration = scene_data["duration_s"]          # length the person set (e.g. sized to the dialogue) wins
         elif scene_data.get("shot_no") and scene_data.get("duration_s"):
             duration = scene_data["duration_s"]          # v3 shot: the film length the Director planned (the clip is cut to it)
+        if actor:
+            from . import write_guard
+            changes = {"motion_prompt": s["motion_prompt"], "camera": s.get("camera"), "duration_sec": duration,
+                       "negative_prompt": s.get("negative_prompt"), "state": "pending"}
+            before = {key: (old[key] if old else None) for key in changes}
+            if s.get("spatial_state"):
+                changes["spatial_state"] = s["spatial_state"]
+            write_guard.observe(conn, row["id"], changes, actor, read_data=scene_data, before=before)
+            if (old["motion_prompt"] if old else None) != s["motion_prompt"]:
+                hand_edits.append(row["id"])           # C-M25B: người sửa tay → khóa sau khi ghi (cờ field_guard)
         conn.execute(
             "INSERT INTO motion_prompts (scene_id, motion_prompt, camera, duration_sec, negative_prompt, state, check_flags)"
             " VALUES (?,?,?,?,?,'pending',?) ON CONFLICT(scene_id) DO UPDATE SET"

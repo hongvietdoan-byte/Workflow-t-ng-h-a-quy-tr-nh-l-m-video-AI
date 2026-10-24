@@ -72,8 +72,14 @@ def test_skip_on_a_failure_finding_does_not_call_claude(db):
     conn = connect(db)
     fail_id = conn.execute("SELECT id FROM change_findings WHERE source=?", (CR.FAIL_SOURCE,)).fetchone()[0]
     conn.close()
+    # P34: mục rà LỖI chỉ EP bỏ qua, kèm lý do + snapshot (khóa nút mang nonce snapshot)
+    skip = _keys(at, f"cr_skip_{fail_id}_")
+    assert len(skip) == 1
+    reason = [t for t in at.text_input if (t.key or "").startswith(f"cr_reason_{fail_id}_")]
+    assert len(reason) == 1
+    reason[0].input("EP chấp nhận lỗi tạm").run()
     with mock.patch.object(CR, "rerun_failed", side_effect=AssertionError("không được gọi")):
-        at.button(key=f"cr_skip_{fail_id}").click().run()
+        at.button(key=skip[0]).click().run()
     assert not at.exception
     assert at.session_state["_states"][-1] == "failed"                      # không đưa về chờ rà (không tốn Claude)
 
