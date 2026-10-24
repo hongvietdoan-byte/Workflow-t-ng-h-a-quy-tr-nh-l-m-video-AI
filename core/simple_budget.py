@@ -65,6 +65,8 @@ def approve(p, pid, *, expected_total, confirmed=False):
     if not enabled():
         raise PermissionError("Chế độ Cơ bản chưa được bật")
     who = current_user(p, pid, ep=True)
+    from . import access
+    access.need_edit(p, pid, "duyệt hạn mức tự động")  # ghi app_settings/audit_log: kiểm quyền sửa như mọi hàm ghi
     if confirmed is not True:
         raise ValueError("Cần xác nhận hạn mức chi của luồng tự động")
     prop = proposal(p, pid)
