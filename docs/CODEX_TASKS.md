@@ -1889,7 +1889,7 @@ Số đo thật 24/10 #34 (llm_calls, provider claude_cli, 27 lời gọi ≈ 4,
 qc 3 lần 1,12 triệu (một lần 920 nghìn), video 5 lần 0,56 triệu, change_review 10 lần 0,46 triệu, director_rewrite 88 nghìn. cache_read/cache_write đều NULL.
 Làm (core/llm_runner.py:1515 `claude -p --output-format json --no-session-persistence`):
 1. Tìm GỐC vì sao một lời gọi nạp > 500 nghìn token (nhiều lượt agentic + công cụ đọc file/ảnh lặp? prompt nhồi cả dự án? ảnh base64 lặp?) — ghi rõ trong báo cáo, kèm cách tái hiện bằng fixture.
-2. Theo khâu: `--max-turns` hợp lý; tắt công cụ không cần (`--disallowedTools`/`--allowedTools` chỉ cái khâu dùng); model theo khâu (khâu nhẹ change_review / chat_prompt → Sonnet nếu kiểm chứng đủ chất lượng, ghi lý do; QC nhìn ảnh giữ model hiện tại trừ khi có bằng chứng) — cấu hình MỘT bảng, sau cờ mới `cli_token_budget` TẮT = y hệt cũ.
+2. Theo khâu: `--max-turns` hợp lý; tắt công cụ không cần (`--disallowedTools`/`--allowedTools` chỉ cái khâu dùng); model theo khâu (khâu nhẹ change_review / chat_prompt → Sonnet nếu kiểm chứng đủ chất lượng, ghi lý do; QC nhìn ảnh giữ model hiện tại trừ khi có bằng chứng) — cấu hình MỘT bảng, sau cờ mới `cli_call_budget` TẮT = y hệt cũ.
 3. Ghi đủ input/output/cache_read/cache_write từ JSON của claude vào llm_calls; cảnh báo diag khi một lời gọi > 200 nghìn token vào (ngưỡng cấu hình); không chặn gửi.
 4. Ước tính trước khi chạy dùng cùng bảng (không tính tay).
 Test đỏ→xanh: fake claude trả JSON usage → ghi đủ cột; cờ TẮT = tham số lệnh y hệt cũ (so list args); cờ BẬT = max-turns/tools/model đúng bảng; cảnh báo ngưỡng. Báo cáo ước lượng mức giảm theo số đo 24/10. Khai areas.json.

@@ -281,7 +281,7 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertIn(os.path.dirname(path), args)
         self.assertIn(path, kw["input"])
 
-    def test_cli_token_budget_off_keeps_the_exact_legacy_image_arguments(self):
+    def test_cli_call_budget_off_keeps_the_exact_legacy_image_arguments(self):
         import tempfile
         calls = []
         path = os.path.join(tempfile.mkdtemp(), "a.png")
@@ -324,7 +324,7 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertNotIn("CLAUDE_CODE_OAUTH_SCOPES", env)
         self.assertEqual(env.get("KEEP_ME"), "1")
 
-    def test_cli_token_budget_off_keeps_the_exact_legacy_argument_list(self):
+    def test_cli_call_budget_off_keeps_the_exact_legacy_argument_list(self):
         calls = []
         done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
         with mock.patch("core.features.on", return_value=False), mock.patch("shutil.which", return_value="claude"), \
@@ -333,7 +333,7 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertEqual(reply.text, "ok")
         self.assertEqual(calls[0][0], ["claude", "-p", "--output-format", "json", "--no-session-persistence"])
 
-    def test_cli_token_budget_on_uses_the_stage_policy_and_preserves_configured_model(self):
+    def test_cli_call_budget_on_uses_the_stage_policy_and_preserves_configured_model(self):
         calls = []
         done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
         with mock.patch("core.features.on", return_value=True), lr.tagged("change_review", 3):
@@ -347,7 +347,7 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertEqual(args[args.index("--tools") + 1], "")
         self.assertEqual(args[args.index("--model") + 1], "configured-model")
 
-    def test_cli_token_budget_on_keeps_read_for_images_with_a_bounded_tool_turn(self):
+    def test_cli_call_budget_on_keeps_read_for_images_with_a_bounded_tool_turn(self):
         import tempfile
         calls = []
         path = os.path.join(tempfile.mkdtemp(), "a.png")
@@ -362,7 +362,7 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertEqual(args[args.index("--tools") + 1], "Read")
         self.assertEqual(args[args.index("--allowedTools") + 1], "Read")
 
-    def test_cli_token_budget_on_leaves_a_turn_per_image(self):
+    def test_cli_call_budget_on_leaves_a_turn_per_image(self):
         """Rà gộp 24/10: 5 ảnh → Read có thể mở từng ảnh một lượt; trần lượt không được làm khâu chết vì error_max_turns."""
         import tempfile
         calls, folder, pics = [], tempfile.mkdtemp(), []
@@ -378,7 +378,7 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertEqual(args[args.index("--max-turns") + 1], "6")
         self.assertEqual(args[args.index("--tools") + 1], "Read")
 
-    def test_cli_token_budget_on_leaves_unprofiled_stages_unchanged(self):
+    def test_cli_call_budget_on_leaves_unprofiled_stages_unchanged(self):
         calls = []
         done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
         with mock.patch("core.features.on", return_value=True), mock.patch("shutil.which", return_value="claude"), \
@@ -392,10 +392,10 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertEqual(estimate["estimated_input_tokens"], 1_120_000 // 3)
         self.assertEqual(estimate["image_count"], 2)
 
-    def test_cli_token_budget_flag_is_unverified_and_off_by_default(self):
+    def test_cli_call_budget_flag_is_unverified_and_off_by_default(self):
         from core import features
-        self.assertFalse(features.FEATURES["cli_token_budget"]["verified"])
-        self.assertEqual(features.default_state("cli_token_budget"), "off")
+        self.assertFalse(features.FEATURES["cli_call_budget"]["verified"])
+        self.assertEqual(features.default_state("cli_call_budget"), "off")
         area_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "devsys", "areas.json")
         with open(area_path, encoding="utf-8") as f:
             area_map = json.load(f)
@@ -403,7 +403,7 @@ class ClaudeCliTests(unittest.TestCase):
                           "Bước 4 · Video + QC", "Bước 5 · Âm thanh & xuất bản", "Chạy tự động (Autopilot)",
                           "Ngân sách & sổ chi", "Kho tài nguyên", "Gói bối cảnh 3D", "Dashboard chung / giao diện",
                           "Kiến thức & bộ kỹ năng 3 vai", "Lõi pipeline & nhà cung cấp"}
-        registered = {a["name"] for a in area_map["areas"] if "cli_token_budget" in a.get("flags", [])}
+        registered = {a["name"] for a in area_map["areas"] if "cli_call_budget" in a.get("flags", [])}
         self.assertTrue(required_areas.issubset(registered))
 
     def test_cli_estimate_warning_is_written_before_the_fake_process_runs(self):

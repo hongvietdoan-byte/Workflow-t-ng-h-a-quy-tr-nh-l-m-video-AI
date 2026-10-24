@@ -1,11 +1,11 @@
 # CX24-CLI-TOKENS — báo cáo Codex 2
 
 **Nhánh:** `codex/v31-cli-tokens`  
-**Phạm vi:** `core/llm_runner.py`, cờ `cli_token_budget`, test CLI giả và đăng ký khu vực. Không gọi Claude thật, không mở CSDL/dữ liệu dự án thật, không dùng API trả phí.
+**Phạm vi:** `core/llm_runner.py`, cờ `cli_call_budget`, test CLI giả và đăng ký khu vực. Không gọi Claude thật, không mở CSDL/dữ liệu dự án thật, không dùng API trả phí.
 
 ## Kết quả
 
-- Thêm cờ `cli_token_budget`, mặc định **TẮT**, chưa xác minh chất lượng thật. Khi TẮT, danh sách tham số lệnh giữ nguyên hoàn toàn như trước. Khi BẬT, chỉ các khâu có hồ sơ đo (`chat_prompt`, `qc`, `video`, `change_review`, `director_rewrite`) nhận `--safe-mode`, `--max-turns` và danh sách công cụ giới hạn; khâu chưa đo giữ nguyên hành vi cũ.
+- Thêm cờ `cli_call_budget`, mặc định **TẮT**, chưa xác minh chất lượng thật. Khi TẮT, danh sách tham số lệnh giữ nguyên hoàn toàn như trước. Khi BẬT, chỉ các khâu có hồ sơ đo (`chat_prompt`, `qc`, `video`, `change_review`, `director_rewrite`) nhận `--safe-mode`, `--max-turns` và danh sách công cụ giới hạn; khâu chưa đo giữ nguyên hành vi cũ.
 - Một bảng `CLI_TOKEN_STAGE_POLICY` là nguồn chung cho số lượt, công cụ, model kế thừa và mức token trung bình theo khâu. Có ảnh thì chỉ cho phép công cụ `Read` để mở ảnh. Chưa đổi model theo khâu: số liệu hiện có không chứng minh chất lượng khi đổi model, nên giữ nguyên model đã cấu hình cho đến khi có đối chiếu chất lượng thật được duyệt.
 - Parser CLI ghi riêng `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens` vào `llm_calls`. Ngưỡng cảnh báo mặc định là 200.000 token đầu vào, chỉnh bằng `CLAUDE_CLI_TOKEN_WARN_INPUT`; token đầu vào tính cả raw input và hai loại cache. Chỉ thêm cảnh báo `diag_events`, không chặn lời gọi.
 - Ước tính trước khi chạy dùng cùng bảng trung bình theo khâu cộng ước lượng prompt nhìn thấy theo heuristic hiện có; không giả vờ đếm chính xác system prompt, cấu hình ẩn hay token ảnh.

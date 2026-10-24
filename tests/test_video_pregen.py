@@ -500,12 +500,14 @@ class Batch(Base):
         vr = VideoRunner(self.p, prov, self.dir)
         vr.subject_library = object()
         def kwargs(j):
-            return {"reference_only": vr._hosted_pictures(j, [("Kelly", identity)], clean=True)}
+            return {"_reference_roles": ["Image 1 is KELLY: identity only (face, hair, outfit) — not the framing."], "reference_only": vr._hosted_pictures(j, [("Kelly", identity)], clean=True)}
         with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
                 mock.patch("core.subjects.picture_refs", return_value={"refs": [{"uri": "asset://kelly", "uploaded": True}], "problems": []}):
             self.assertEqual(vr.submit_pending(self.pid), 1)
         clean = seedance_refs.mark(identity, os.path.join(self.dir, str(self.pid), "refs_clean"), style="none")
-        expected, _ = sent_package.safe_build(prov.submit, vr._submit_args(self.p.job(job)), {"reference_only": [clean]},
+        sent_args = vr._guard_reference_roles(self.p.job(job), vr._submit_args(self.p.job(job)),   # CX24-P34-D6: vai ảnh ghép lại
+                                              {"reference_only": [clean], "_reference_roles": ["Image 1 is KELLY: identity only (face, hair, outfit) — not the framing."]})
+        expected, _ = sent_package.safe_build(prov.submit, sent_args, {"reference_only": [clean]},
                                              kind="video", provider=prov, external_id=None)
         actual = json.loads(self.p.job(job)["sent_package"])["pregen_fingerprint"]
         self.assertEqual(actual, video_pregen.fingerprint(expected))
@@ -617,7 +619,7 @@ class Batch(Base):
         vr = VideoRunner(self.p, prov, self.dir)
         vr.subject_library = object()
         def kwargs(j):
-            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])} if j["scene_id"] == bad else {}
+            return {"_reference_roles": ["Image 1 is KELLY: identity only (face, hair, outfit) — not the framing."], "reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])} if j["scene_id"] == bad else {}
         with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
                 mock.patch("core.subjects.picture_refs", side_effect=OSError("file disappeared")):
             self.assertEqual(vr.submit_pending(self.pid), 1)
@@ -671,7 +673,7 @@ class Batch(Base):
             events.append("upload")
             return {"refs": [{"uri": "asset://kelly", "uploaded": True}], "problems": []}
         def kwargs(j):
-            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])}
+            return {"_reference_roles": ["Image 1 is KELLY: identity only (face, hair, outfit) — not the framing."], "reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])}
         with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
                 mock.patch("core.video_pregen.check", side_effect=checked), \
                 mock.patch("core.subjects.picture_refs", side_effect=uploaded) as upload:
@@ -695,7 +697,7 @@ class Batch(Base):
         vr = VideoRunner(self.p, prov, self.dir)
         vr.subject_library = object()
         def kwargs(j):
-            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])}
+            return {"_reference_roles": ["Image 1 is KELLY: identity only (face, hair, outfit) — not the framing."], "reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])}
         with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
                 mock.patch("core.subjects.picture_refs", return_value={"refs": [], "problems": []}) as upload:
             self.assertEqual(vr.submit_pending(self.pid), 0)

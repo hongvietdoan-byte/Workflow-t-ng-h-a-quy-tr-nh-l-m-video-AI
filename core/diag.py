@@ -130,7 +130,8 @@ MERGE_WINDOW_MIN = 24 * 60
 (câu đổi theo job / lý do nên khóa "cùng câu trong 10 phút" không gộp được)."""
 MERGE_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold", "plate_stale",
                "QUEUE_CAPACITY", "QUEUE_CONFIG", "QUEUE_UNKNOWN_CAPACITY",   # M1.5 Kho chủ thể (cờ subject_capacity_guard)
-               "stage_desk_hold")                                            # C-FIX6: cổng S-C plate 3D bắt buộc (runner, mỗi vòng)
+               "stage_desk_hold",                                            # C-FIX6: cổng S-C plate 3D bắt buộc (runner, mỗi vòng)
+               "reference_roles_hold")                                       # CX24-P34-D6: thiếu/sai vai ảnh tham chiếu (mỗi vòng)
 """Chỉ các mã báo GIỮ / nền cũ lặp mỗi vòng (runner.HOLD_CODES + plate_stale) — rà quy ước 7: mã khác có nơi đọc theo job_id / theo chữ
 (video_gate plate_layout, end_frames dropped_reason, money_policy.note [key]) nên KHÔNG gộp."""
 

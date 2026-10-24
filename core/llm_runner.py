@@ -1591,7 +1591,7 @@ class ClaudeCliClient:
         try:
             args = [shutil.which("claude") or "claude", "-p", "--output-format", "json", "--no-session-persistence"]
             stage, project_id = current_tag()
-            token_budget = features.on("cli_token_budget") and stage in CLI_TOKEN_STAGE_POLICY and stage != "other"
+            token_budget = features.on("cli_call_budget") and stage in CLI_TOKEN_STAGE_POLICY and stage != "other"
             policy = cli_token_policy(stage, bool(images), len(images)) if token_budget else None
             selected_model = (policy["model"] or self.model) if policy else self.model
             if selected_model:
