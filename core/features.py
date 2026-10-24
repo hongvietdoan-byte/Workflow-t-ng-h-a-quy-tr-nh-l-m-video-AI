@@ -12,6 +12,10 @@ import os
 from typing import Dict, List, Optional
 
 FEATURES: Dict[str, Dict] = {
+    "qc_handoff_shadow": {
+        "label": "Đề xuất bàn giao lỗi QC cho vai chủ (shadow)",
+        "verified": False, "costs": False,
+        "why": "CX24-M610B: mặc định TẮT; mới có adapter thuần, chưa nối writer/UI/caller hay nghiệm thu thật"},
     "stage_rerender_reapprove": {
         "label": "Render lại sân khấu đã duyệt phải chờ EP duyệt bản mới",
         "verified": False, "costs": False,
@@ -1086,7 +1090,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
+OPT_IN_ONLY: tuple = ("qc_handoff_shadow", "motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
                       "stage_handheld_props",
                       "whitebox_height_dummy",   # C-3D-GOC-A: đổi máy nền 3D gửi model (slightly_high, high giữ % khung) — chọn riêng
                       "ui_step_log",           # C-DEVSYS-MAPS: ghi CSDL mỗi bước bấm — chỉ bật khi chọn riêng (preset Thử nghiệm không bật)
