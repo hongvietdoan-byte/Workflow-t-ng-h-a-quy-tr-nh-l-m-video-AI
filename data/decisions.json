@@ -1180,7 +1180,7 @@
       "keeps": "v31-ep-m210-lean-package-2026-10-21; ep-2310-qd3-auto-spend-limit-2026-10-23; feedback ask_before_image_and_video_gen",
       "changes": "Đặt budget_usd = 20 khi tạo dự án test 25/10; M2.10 bước 3 A/B được làm trong dự án này.",
       "replaces": null,
-      "enforced_by": null,
+      "enforced_by": [],
       "status": "active",
       "phase": "APPROVED_IN_PRINCIPLE"
     }
