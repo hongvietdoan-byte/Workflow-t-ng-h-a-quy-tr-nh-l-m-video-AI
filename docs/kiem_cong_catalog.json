@@ -1,0 +1,958 @@
+{
+  "schema_version": 1,
+  "plan": "docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md",
+  "snapshot_commit": "d72f80f6",
+  "flag_source": "docs/M7_7_BANG_CHUNG_CO_2026-10-24.md",
+  "rows": [
+    {
+      "id": "M0.8",
+      "title": "AI Dev System: trang sơ đồ tiến độ vẽ từ kế hoạch + sổ khâu (+ sổ lỗi khi có), tô màu theo trạng thái việc",
+      "criteria": "Master §3 M0: nguồn sổ lỗi/quyết định/HEAD; có Dashboard phải có bằng chứng dùng thật. Cụ thể: AI Dev System: trang sơ đồ tiến độ vẽ từ kế hoạch + sổ khâu (+ sổ lỗi khi có), tô màu theo trạng thái việc. Thiếu đang ghi ở master: chưa có ảnh chụp/ui_step nghiệm thu màn thật trong báo cáo giám sát 24/10; giữ code ✅",
+      "flags": [],
+      "evidence": [
+        "ui_step"
+      ],
+      "location": "diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502",
+      "one_project": false,
+      "offline": "Fixture có đáp án cho AI Dev System: trang sơ đồ tiến độ vẽ từ kế hoạch + sổ khâu (+ sổ lỗi khi có), tô màu theo trạng thái việc; đối chiếu master và tài liệu gốc, không dùng API/dữ liệu thật.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 193,
+      "gate_note": "chưa có ảnh chụp/ui_step nghiệm thu màn thật trong báo cáo giám sát 24/10; giữ code ✅"
+    },
+    {
+      "id": "M1.1",
+      "title": "Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30)",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30). Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [],
+      "evidence": [
+        "qc",
+        "diag_events"
+      ],
+      "location": "qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Replay #30/#31 vat string/object/malformed và hồ sơ thiếu: chưa đủ hồ sơ Kho không xác minh.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 200,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M1.2",
+      "title": "Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15)",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15). Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [
+        "poll_claim",
+        "send_claim"
+      ],
+      "evidence": [
+        "jobs",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Hai process thật trên SQLite tạm; crash sau claim, trước rename, reconcile; provider fake không submit trùng.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 201,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M1.3",
+      "title": "Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36)",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36). Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [
+        "pause_before_submit"
+      ],
+      "evidence": [
+        "jobs",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Fake pause ở mọi retry/fallback; G36 lần retry đầu còn mở không được tự đóng.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 202,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M1.4",
+      "title": "Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57)",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57). Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [],
+      "evidence": [
+        "jobs",
+        "ledger",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; usage_events + bảng giá/balance có nguồn; Bước3–5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Hai dự án hai provider + đổi config giữa job + quota fake, 0 API fallback.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 203,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M1.5",
+      "title": "Kiểm Kho chủ thể trước gửi video, dừng + đề xuất dọn (G30, G32, G58)",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: Kiểm Kho chủ thể trước gửi video, dừng + đề xuất dọn (G30, G32, G58). Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [
+        "subject_capacity_guard"
+      ],
+      "evidence": [
+        "jobs",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Fixture CSDL tạm tại hai biên; assert chỉ job thuộc diện bị giữ, ca hợp lệ đi tiếp, mock provider không được gọi.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 204,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M1.6",
+      "title": "Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31)",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31). Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [
+        "send_estimate"
+      ],
+      "evidence": [
+        "jobs",
+        "sent_package",
+        "ledger"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; jobs.sent_package; Bước3/4 gói đã gửi; usage_events + bảng giá/balance có nguồn; Bước3–5",
+      "one_project": true,
+      "offline": "A7–A9 #33/G31 #31: nháp có ref ~1,37×; bản cao từng lệch ~24%; chưa xác nhận sai số ≤10% so sổ chi hiện hành. Bản sao/synthetic quote cho nháp, ref, upscale; tính đúng gói và so snapshot chi phí cũ; tuyệt đối không submit. Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 205,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M1.7",
+      "title": "Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01)",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01). Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [
+        "stale_code_alarm",
+        "diag_merge",
+        "budget_notice_d01"
+      ],
+      "evidence": [
+        "jobs",
+        "diag_events",
+        "ui_step"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán; diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502",
+      "one_project": false,
+      "offline": "Metadata nêu 20/10 các cổng 8503/8504 chạy code cũ; chưa ghi nhận replay thật sau sửa sha. Repo/pid/cổng giả: một cổng HEAD, một cổng sha cũ; chỉ hiện cảnh báo đúng cổng, không chặn. Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit. Metadata ghi #31 change_review_hold 4.435 lần và plate_stale 337; chưa có chạy production bật cờ. Copy dòng giả vào DB tạm: gộp theo code+shot+24h, giữ count/câu mới, không nhập nhầm job/shot. A14 #33: estimate 0 bị hiện `$0.00`; theo D01 phải đổi câu, vẫn cho gửi. Chưa replay trên bản sao sau fix. Estimate=0 và >0 trên fixture; assert câu đúng và provider mock vẫn được gọi theo luồng xác nhận; không API thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 206,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M1.8",
+      "title": "tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án. Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [],
+      "evidence": [
+        "jobs",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán",
+      "one_project": true,
+      "offline": "Snapshot dự án gom job_events/diag/job → đề xuất, giữ FIXED_UNVERIFIED, không tự đóng mã lỗi.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 207,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M1.9",
+      "title": "Golden gói B0–B2: replay ảnh + video, test compatibility / correctness, fixture có HEAD/cờ/CHANGES",
+      "criteria": "Master §3 M1 + §4a D01/D02/D03/D08: 2 worker/crash/reconcile, 0 job trả tiền trùng; đối soát ước tính≤10% khi đủ giá, provider pin, COMPAT golden. Cụ thể: Golden gói B0–B2: replay ảnh + video, test compatibility / correctness, fixture có HEAD/cờ/CHANGES. Thiếu đang ghi ở master: chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)",
+      "flags": [],
+      "evidence": [
+        "jobs",
+        "sent_package"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Replay B0–B2 có HEAD/cờ/model/provider/hash/ref order; BOTH_FAIL chưa là correctness đạt.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 208,
+      "gate_note": "chưa có bằng chứng đủ cổng chạy thật: job trùng/đối soát chi phí (GIAM_SAT_KE_HOACH_V31_2026-10-24.md §3)"
+    },
+    {
+      "id": "M2.1",
+      "title": "BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN. Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "byd_v2_levels"
+      ],
+      "evidence": [
+        "diag_events",
+        "sent_package"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 211,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M2.2",
+      "title": "Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22)",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22). Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "byd_fields",
+        "byd_fields_a2a",
+        "byd_fields_a2b",
+        "byd_fields_a2c",
+        "byd_fields_a2d",
+        "byd_fields_a2e",
+        "byd_fields_a2f"
+      ],
+      "evidence": [
+        "sent_package",
+        "diag_events"
+      ],
+      "location": "jobs.sent_package; Bước3/4 gói đã gửi; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "A2f chỉ sau alias Anh cho nơi trong Kho; fixtures v1/v2 và stale BYĐ invalidation.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 212,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M2.3",
+      "title": "Triển khai Kho forms/outfit/hair/face (G38) theo thiết kế M0.9 — code Cấp 2, backfill/migration Cấp 3",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: Triển khai Kho forms/outfit/hair/face (G38) theo thiết kế M0.9 — code Cấp 2, backfill/migration Cấp 3. Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "kho_forms_v2"
+      ],
+      "evidence": [
+        "sent_package",
+        "diag_events"
+      ],
+      "location": "jobs.sent_package; Bước3/4 gói đã gửi; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Sáu điều kiện D05/mọi adapter, race revision; M2.3b còn dở không coi hoàn tất cả forms.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 213,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M2.4",
+      "title": "insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; chỉ mang đạo cụ có trong BYĐ (G6, G21, G1)",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; chỉ mang đạo cụ có trong BYĐ (G6, G21, G1). Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "insert_inherit",
+        "stage_props_byd"
+      ],
+      "evidence": [
+        "diag_events",
+        "sent_package"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 214,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M2.5",
+      "title": "Triển khai AUTO/USER_LOCKED/REVIEW_REQUIRED mọi đường ghi theo đặc tả M0.10 (A4), shadow trước — Cấp 2",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: Triển khai AUTO/USER_LOCKED/REVIEW_REQUIRED mọi đường ghi theo đặc tả M0.10 (A4), shadow trước — Cấp 2. Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "field_guard"
+      ],
+      "evidence": [
+        "diag_events"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Các writer Director/CLI/Dashboard/batch/autopilot/chèn/chạy lại; USER_LOCKED + stale revision, shadow không enforce.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 215,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M2.6",
+      "title": "sent_package nhãn theo rel_path/asset_id (G5)",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: sent_package nhãn theo rel_path/asset_id (G5). Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "sent_package_relpath"
+      ],
+      "evidence": [
+        "sent_package"
+      ],
+      "location": "jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 216,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M2.7",
+      "title": "Image preflight trong ImageRunner._pregen, chung mã lỗi với video_pregen",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: Image preflight trong ImageRunner._pregen, chung mã lỗi với video_pregen. Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "image_pregen"
+      ],
+      "evidence": [
+        "jobs",
+        "diag_events",
+        "sent_package"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán; jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 217,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M2.8",
+      "title": "Router theo khả năng model: không gộp nhóm khi cần khung đầu (G28, G37, B9); ngân sách ký tự (G13, G54)",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: Router theo khả năng model: không gộp nhóm khi cần khung đầu (G28, G37, B9); ngân sách ký tự (G13, G54). Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "router_first_frame"
+      ],
+      "evidence": [
+        "jobs",
+        "sent_package"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Project/shot fixture + provider giả; chụp payload, route và số clip/ảnh; đối chiếu estimate; không submit thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 218,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M2.9",
+      "title": "Lời dẫn ngoài khớp môi mọi caller (G15–G17, G53); fit_durations hiện danh sách duyệt (G14); thông điệp khung cuối (A11); BYĐ qua claude_cli (A12)",
+      "criteria": "Master §3 M2 + §4a D04/D05/D08: OFF COMPAT #24/#27, correctness #31/#33, khóa tay không bị ghi đè, v1/v2 và provenance. Cụ thể: Lời dẫn ngoài khớp môi mọi caller (G15–G17, G53); fit_durations hiện danh sách duyệt (G14); thông điệp khung cuối (A11); BYĐ qua claude_cli (A12). Thiếu đang ghi ở master: cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)",
+      "flags": [
+        "narration_offscreen",
+        "fit_durations_review"
+      ],
+      "evidence": [
+        "jobs",
+        "sent_package",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; jobs.sent_package; Bước3/4 gói đã gửi; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật. Project/shot fixture + provider giả; chụp payload, route và số clip/ảnh; đối chiếu estimate; không submit thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 219,
+      "gate_note": "cờ TẮT/shadow; thiếu correctness #31/#33 và khóa tay chạy thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M3.1",
+      "title": "scene_world_map thử nghiệm (3D hoặc 2D, UNKNOWN, version/provenance, người duyệt map) trên #31/#33 — sau khi M3 được duyệt, không bật production",
+      "criteria": "Master §3 M3 + §4a D06: map #31 cảnh4/6/8 và tháp #33 được duyệt; geometry offline, 3D/2D/UNKNOWN, revision/provenance/invalidation. Cụ thể: scene_world_map thử nghiệm (3D hoặc 2D, UNKNOWN, version/provenance, người duyệt map) trên #31/#33 — sau khi M3 được duyệt, không bật production. Thiếu đang ghi ở master: thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)",
+      "flags": [
+        "world_map"
+      ],
+      "evidence": [
+        "diag_events",
+        "sent_package"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 223,
+      "gate_note": "thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M3.2",
+      "title": "Người nộm height_m trong whitebox; pitch eye/slightly_high; kiểm depth che (G2, G3, A10, G49)",
+      "criteria": "Master §3 M3 + §4a D06: map #31 cảnh4/6/8 và tháp #33 được duyệt; geometry offline, 3D/2D/UNKNOWN, revision/provenance/invalidation. Cụ thể: Người nộm height_m trong whitebox; pitch eye/slightly_high; kiểm depth che (G2, G3, A10, G49). Thiếu đang ghi ở master: thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)",
+      "flags": [
+        "whitebox_height_dummy"
+      ],
+      "evidence": [
+        "diag_events",
+        "sent_package"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Project/shot fixture + provider giả; chụp payload, route và số clip/ảnh; đối chiếu estimate; không submit thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 224,
+      "gate_note": "thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M3.3",
+      "title": "Câu vị trí sinh từ world map, không tả tay từng shot (G41–G50, G46)",
+      "criteria": "Master §3 M3 + §4a D06: map #31 cảnh4/6/8 và tháp #33 được duyệt; geometry offline, 3D/2D/UNKNOWN, revision/provenance/invalidation. Cụ thể: Câu vị trí sinh từ world map, không tả tay từng shot (G41–G50, G46). Thiếu đang ghi ở master: thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3) world_map_sentences cần world_map ON và map có nguồn/revision được duyệt; chỉ đề xuất/shadow, không tự đổi prompt hay chặn gen.",
+      "flags": [
+        "world_map_sentences",
+        "world_map"
+      ],
+      "evidence": [
+        "diag_events",
+        "sent_package"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; jobs.sent_package; Bước3/4 gói đã gửi",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 225,
+      "gate_note": "thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M3.4",
+      "title": "continuity_state expected/observed/resolved + đồ thị phụ thuộc theo thực thể",
+      "criteria": "Master §3 M3 + §4a D06: map #31 cảnh4/6/8 và tháp #33 được duyệt; geometry offline, 3D/2D/UNKNOWN, revision/provenance/invalidation. Cụ thể: continuity_state expected/observed/resolved + đồ thị phụ thuộc theo thực thể. Thiếu đang ghi ở master: thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)",
+      "flags": [
+        "continuity_state"
+      ],
+      "evidence": [
+        "diag_events",
+        "qc"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 226,
+      "gate_note": "thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M3.5",
+      "title": "Bỏ kiểm chân trời khi nền không có trời (G20)",
+      "criteria": "Master §3 M3 + §4a D06: map #31 cảnh4/6/8 và tháp #33 được duyệt; geometry offline, 3D/2D/UNKNOWN, revision/provenance/invalidation. Cụ thể: Bỏ kiểm chân trời khi nền không có trời (G20). Thiếu đang ghi ở master: thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)",
+      "flags": [
+        "horizon_needs_sky"
+      ],
+      "evidence": [
+        "qc",
+        "diag_events"
+      ],
+      "location": "qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 227,
+      "gate_note": "thiếu người dùng duyệt map #31/#33 và gen chứng minh (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M4.1",
+      "title": "Schema bằng chứng QC + mã lỗi thống nhất",
+      "criteria": "Master §3 M4 + §4a D07/D09: benchmark độc lập từng mã, rà báo nhầm, override có người/lý do/evidence/revision/audit; UI dùng thật. Cụ thể: Schema bằng chứng QC + mã lỗi thống nhất. Thiếu đang ghi ở master: thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)",
+      "flags": [
+        "qc_evidence"
+      ],
+      "evidence": [
+        "qc",
+        "diag_events"
+      ],
+      "location": "qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 230,
+      "gate_note": "thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M4.2",
+      "title": "Video QC: đứng yên > 1,5 s = REVIEW, khớp khung 0, vật còn giữ (G51); chuyển cảnh trong video ref (B8)",
+      "criteria": "Master §3 M4 + §4a D07/D09: benchmark độc lập từng mã, rà báo nhầm, override có người/lý do/evidence/revision/audit; UI dùng thật. Cụ thể: Video QC: đứng yên > 1,5 s = REVIEW, khớp khung 0, vật còn giữ (G51); chuyển cảnh trong video ref (B8). Thiếu đang ghi ở master: thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)",
+      "flags": [
+        "video_qc_shadow"
+      ],
+      "evidence": [
+        "qc",
+        "diag_events"
+      ],
+      "location": "qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 231,
+      "gate_note": "thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M4.3",
+      "title": "Cross-shot logic qua qc_sequence_logic ở chế độ shadow (G52, G42)",
+      "criteria": "Master §3 M4 + §4a D07/D09: benchmark độc lập từng mã, rà báo nhầm, override có người/lý do/evidence/revision/audit; UI dùng thật. Cụ thể: Cross-shot logic qua qc_sequence_logic ở chế độ shadow (G52, G42). Thiếu đang ghi ở master: thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)",
+      "flags": [
+        "continuity_shadow"
+      ],
+      "evidence": [
+        "qc",
+        "diag_events"
+      ],
+      "location": "qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 232,
+      "gate_note": "thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M4.4",
+      "title": "Final QC blackdetect/freezedetect",
+      "criteria": "Master §3 M4 + §4a D07/D09: benchmark độc lập từng mã, rà báo nhầm, override có người/lý do/evidence/revision/audit; UI dùng thật. Cụ thể: Final QC blackdetect/freezedetect. Thiếu đang ghi ở master: thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)",
+      "flags": [
+        "final_black_freeze"
+      ],
+      "evidence": [
+        "qc",
+        "diag_events"
+      ],
+      "location": "qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 233,
+      "gate_note": "thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M4.5",
+      "title": "Sửa báo nhầm A5 (qua vai), A6 (thiếu ref_video_path) + regression",
+      "criteria": "Master §3 M4 + §4a D07/D09: benchmark độc lập từng mã, rà báo nhầm, override có người/lý do/evidence/revision/audit; UI dùng thật. Cụ thể: Sửa báo nhầm A5 (qua vai), A6 (thiếu ref_video_path) + regression. Thiếu đang ghi ở master: thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)",
+      "flags": [
+        "qc_false_alarm_fix"
+      ],
+      "evidence": [
+        "qc",
+        "diag_events"
+      ],
+      "location": "qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 234,
+      "gate_note": "thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M4.8",
+      "title": "Bàn đạo diễn 3D trên Dashboard (thêm 21/10 — người dùng hỏi vì sao V3.1 thiếu): (a) màn XEM chỉ đọc cờ stage_view_ui (C-STAGE-VIEW cloud-E); (b) phương án + nút thao tác (chia vai, duyệt/trả lại, previs, render lại nền, chọn phương án máy) — kế hoạch riêng chờ duyệt Cấp 2",
+      "criteria": "Master §3 M4 + §4a D07/D09: benchmark độc lập từng mã, rà báo nhầm, override có người/lý do/evidence/revision/audit; UI dùng thật. Cụ thể: Bàn đạo diễn 3D trên Dashboard (thêm 21/10 — người dùng hỏi vì sao V3.1 thiếu): (a) màn XEM chỉ đọc cờ stage_view_ui (C-STAGE-VIEW cloud-E); (b) phương án + nút thao tác (chia vai, duyệt/trả lại, previs, render lại nền, chọn phương án máy) — kế hoạch riêng chờ duyệt Cấp 2. Thiếu đang ghi ở master: thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)",
+      "flags": [
+        "stage_view_ui",
+        "stage_desk_ui"
+      ],
+      "evidence": [
+        "ui_step",
+        "diag_events"
+      ],
+      "location": "diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502; diag_events; ⚙ Chẩn đoán",
+      "one_project": true,
+      "offline": "AppTest EP/người không quyền + thao tác Bước2 thật do phiên chính thu ảnh/ui_step; không CU ở Codex.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 237,
+      "gate_note": "thiếu benchmark dữ liệu/override audit và bằng chứng dùng Dashboard thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M5.1",
+      "title": "Repair router theo mã lỗi, trần ảnh ≤ 3 / video ≤ 2, dừng khi đổi ý đồ",
+      "criteria": "Master §3 M5 + §4a D01/D07: pilot có duyệt, không gen thừa/sửa ngoài dependency; finalQC, chi phí và lỗi nghiêm trọng=0 hoặc miễn trừ ký tên. Cụ thể: Repair router theo mã lỗi, trần ảnh ≤ 3 / video ≤ 2, dừng khi đổi ý đồ. Thiếu đang ghi ở master: pilot A chỉ offline; chưa pilot B/C và final QC thật (giám sát 24/10 §3)",
+      "flags": [
+        "repair_router"
+      ],
+      "evidence": [
+        "jobs",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 240,
+      "gate_note": "pilot A chỉ offline; chưa pilot B/C và final QC thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M5.2",
+      "title": "Release gate: shot duyệt, final QC, đối soát chi phí, lỗi nghiêm trọng mở = 0 hoặc có miễn trừ ký tên",
+      "criteria": "Master §3 M5 + §4a D01/D07: pilot có duyệt, không gen thừa/sửa ngoài dependency; finalQC, chi phí và lỗi nghiêm trọng=0 hoặc miễn trừ ký tên. Cụ thể: Release gate: shot duyệt, final QC, đối soát chi phí, lỗi nghiêm trọng mở = 0 hoặc có miễn trừ ký tên. Thiếu đang ghi ở master: pilot A chỉ offline; chưa pilot B/C và final QC thật (giám sát 24/10 §3)",
+      "flags": [
+        "release_gate"
+      ],
+      "evidence": [
+        "jobs",
+        "ledger",
+        "qc",
+        "overrides",
+        "ui_step"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; usage_events + bảng giá/balance có nguồn; Bước3–5; qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; overrides hoặc scenes.data.package_overrides; màn duyệt; diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502",
+      "one_project": true,
+      "offline": "Đối chiếu từng shot/finalQC/ledger/miễn trừ ký tên đúng finding và revision, không chỉ row count.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 241,
+      "gate_note": "pilot A chỉ offline; chưa pilot B/C và final QC thật (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M6.1",
+      "title": "Role Registry data/crew_roles.json + core/crew.py (đọc): quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang",
+      "criteria": "Master §3 M6: mỗi field một vai chủ; gen ảnh3/video2 đối chiếu replay #27/#31, OFF golden; VPA/lineage có tiêu chí riêng không suy từ count. Cụ thể: Role Registry data/crew_roles.json + core/crew.py (đọc): quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang. Thiếu đang ghi ở master: shadow/chưa kiểm máy chính; thiếu cổng vai chủ/replay/VPA/lineage (giám sát 24/10 §3)",
+      "flags": [
+        "crew_registry"
+      ],
+      "evidence": [
+        "diag_events"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 248,
+      "gate_note": "shadow/chưa kiểm máy chính; thiếu cổng vai chủ/replay/VPA/lineage (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M6.3",
+      "title": "Generation Authorization + Repair Budget dùng chung trước provider.submit (ảnh 3 / video 2 lượt, không đặt lại, 6 điều kiện) — shadow trước",
+      "criteria": "Master §3 M6: mỗi field một vai chủ; gen ảnh3/video2 đối chiếu replay #27/#31, OFF golden; VPA/lineage có tiêu chí riêng không suy từ count. Cụ thể: Generation Authorization + Repair Budget dùng chung trước provider.submit (ảnh 3 / video 2 lượt, không đặt lại, 6 điều kiện) — shadow trước. Thiếu đang ghi ở master: shadow/chưa kiểm máy chính; thiếu cổng vai chủ/replay/VPA/lineage (giám sát 24/10 §3)",
+      "flags": [
+        "gen_auth_shadow"
+      ],
+      "evidence": [
+        "jobs",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 250,
+      "gate_note": "shadow/chưa kiểm máy chính; thiếu cổng vai chủ/replay/VPA/lineage (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M6.9",
+      "title": "Continuity Validator (năng lực, code trước): continuity_state + qc_evidence + định tuyến lỗi về vai chủ",
+      "criteria": "Master §3 M6: mỗi field một vai chủ; gen ảnh3/video2 đối chiếu replay #27/#31, OFF golden; VPA/lineage có tiêu chí riêng không suy từ count. Cụ thể: Continuity Validator (năng lực, code trước): continuity_state + qc_evidence + định tuyến lỗi về vai chủ. Thiếu đang ghi ở master: shadow/chưa kiểm máy chính; thiếu cổng vai chủ/replay/VPA/lineage (giám sát 24/10 §3)",
+      "flags": [
+        "crew_registry",
+        "continuity_validator"
+      ],
+      "evidence": [
+        "diag_events",
+        "qc"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật. Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 256,
+      "gate_note": "shadow/chưa kiểm máy chính; thiếu cổng vai chủ/replay/VPA/lineage (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M7.1",
+      "title": "Gói A sửa cờ (F-A): change_review đóng cổng khi rà lỗi (G35), hero_takes khai costs, director_rewrite respect_lock (trường người sửa), chat_prompts kiểm D6 + hết tiền",
+      "criteria": "Master §5 M7 + §4a D01/D07 và bảng M7_7: EP chốt từng cờ; ON không đồng nghĩa VERIFIED/khóa; OFF byte/no-write và regression ON. Cụ thể: Gói A sửa cờ (F-A): change_review đóng cổng khi rà lỗi (G35), hero_takes khai costs, director_rewrite respect_lock (trường người sửa), chat_prompts kiểm D6 + hết tiền. Thiếu đang ghi ở master: chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3) director_rewrite_respect_lock chỉ có tác dụng khi cờ mẹ director_rewrite bật; cờ mẹ có thể gọi Claude, EP duyệt riêng.",
+      "flags": [
+        "change_review",
+        "hero_takes",
+        "director_rewrite_respect_lock",
+        "chat_prompts",
+        "director_rewrite"
+      ],
+      "evidence": [
+        "jobs",
+        "diag_events",
+        "ui_step",
+        "ledger"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; diag_events; ⚙ Chẩn đoán; diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502; usage_events + bảng giá/balance có nguồn; Bước3–5",
+      "one_project": false,
+      "offline": "Fixture đầu vào biết đáp án + mock mọi provider; so sánh trước/sau và giữ nguyên CSDL; không dùng dữ liệu dự án thật.",
+      "risk": "Có thể gọi trả phí: change_review, hero_takes, chat_prompts. EP duyệt riêng từng lần. Cờ mẹ director_rewrite có thể gọi Claude trả phí; thiếu cờ mẹ thì chưa kiểm được respect_lock.",
+      "manual": true,
+      "source_line": 265,
+      "gate_note": "chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M7.2",
+      "title": "Baseline cờ chỉ khi chưa có cấu hình riêng (K4 b) + effective config + config hash + cảnh báo drift; nút reset có preview / xác nhận / sao lưu / khôi phục (K6)",
+      "criteria": "Master §5 M7 + §4a D01/D07 và bảng M7_7: EP chốt từng cờ; ON không đồng nghĩa VERIFIED/khóa; OFF byte/no-write và regression ON. Cụ thể: Baseline cờ chỉ khi chưa có cấu hình riêng (K4 b) + effective config + config hash + cảnh báo drift; nút reset có preview / xác nhận / sao lưu / khôi phục (K6). Thiếu đang ghi ở master: chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)",
+      "flags": [],
+      "evidence": [
+        "diag_events",
+        "ui_step"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502",
+      "one_project": false,
+      "offline": "Fixture có đáp án cho Baseline cờ chỉ khi chưa có cấu hình riêng (K4 b) + effective config + config hash + cảnh báo drift; nút reset có preview / xác nhận / sao lưu / khôi phục (K6); đối chiếu master và tài liệu gốc, không dùng API/dữ liệu thật.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 266,
+      "gate_note": "chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M7.3",
+      "title": "seedance_ref_groups + end_frames cùng hoạt động (K3 b, B4 end_frames.py:32)",
+      "criteria": "Master §5 M7 + §4a D01/D07 và bảng M7_7: EP chốt từng cờ; ON không đồng nghĩa VERIFIED/khóa; OFF byte/no-write và regression ON. Cụ thể: seedance_ref_groups + end_frames cùng hoạt động (K3 b, B4 end_frames.py:32). Thiếu đang ghi ở master: chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3) Kiểm per_shot end_state/group split/model unsupported, end-frame last-index/câu vai/ref count/order/hash và phí thêm ảnh/clip; trainee không chứng minh ON.",
+      "flags": [
+        "seedance_ref_groups",
+        "end_frames",
+        "ref_end_frames"
+      ],
+      "evidence": [
+        "jobs",
+        "sent_package",
+        "ledger"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; jobs.sent_package; Bước3/4 gói đã gửi; usage_events + bảng giá/balance có nguồn; Bước3–5",
+      "one_project": true,
+      "offline": "Fixture per_shot có end_state, group split và model không hỗ trợ: ref_end_frames phải giữ ảnh cuối ở last-index với câu vai đúng, ref count/order và hash; đối chiếu estimate thêm ảnh/clip do tách nhóm. Ca thật so jobs.sent_package + usage_events và xem frame cuối, EP duyệt tiền trước. Học việc/trainee không tương đương ON gửi gói.",
+      "risk": "Có thể gọi trả phí: end_frames. EP duyệt riêng từng lần.",
+      "manual": true,
+      "source_line": 267,
+      "gate_note": "chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M7.4",
+      "title": "Gói B sửa cờ (F-B): video_gate, two_tier_quality (±5 % + tiêu chí chất lượng), motion_consistency_lint, end_frames, scene_qc, lip_sync + dialogue_take, bg_autoqc…",
+      "criteria": "Master §5 M7 + §4a D01/D07 và bảng M7_7: EP chốt từng cờ; ON không đồng nghĩa VERIFIED/khóa; OFF byte/no-write và regression ON. Cụ thể: Gói B sửa cờ (F-B): video_gate, two_tier_quality (±5 % + tiêu chí chất lượng), motion_consistency_lint, end_frames, scene_qc, lip_sync + dialogue_take, bg_autoqc…. Thiếu đang ghi ở master: chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)",
+      "flags": [
+        "video_gate",
+        "two_tier_quality",
+        "motion_consistency_lint",
+        "end_frames",
+        "scene_qc",
+        "lip_sync",
+        "dialogue_take",
+        "bg_autoqc"
+      ],
+      "evidence": [
+        "jobs",
+        "ledger",
+        "qc",
+        "diag_events"
+      ],
+      "location": "jobs + job_events/job_send_claims; Bước3/4; usage_events + bảng giá/balance có nguồn; Bước3–5; qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5; diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Báo cáo ghi hai báo nhầm G20 (#31 S22 trong phòng, S39 trên cao); cần replay #31/#33 sau K2/M7.4 và chứng minh không hold nhầm. Fixture horizon có trời/không trời/không rõ; assert pass/warn/hold đúng policy, không provider. #31 nháp 480p và #33 có 6 bản nâng 1080p (~22,91 USD) theo báo cáo; giá/nhãn từng có lệch, cần acceptance ±5% và tiêu chí chất lượng. Dùng bảng giá giả + video mẫu local; test tier/estimate/upgrade không submit; đối chiếu số học ±5%. Project/shot fixture + provider giả; chụp payload, route và số clip/ảnh; đối chiếu estimate; không submit thật.",
+      "risk": "Có thể gọi trả phí: end_frames, bg_autoqc. EP duyệt riêng từng lần.",
+      "manual": true,
+      "source_line": 268,
+      "gate_note": "chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M7.5",
+      "title": "Gói C (F-C): audit + thiết kế + BẢNG QUYẾT ĐỊNH từng cờ (audio_first tùy chọn thử nghiệm — F-Q2) trình EP trước khi đổi hành vi production",
+      "criteria": "Master §5 M7 + §4a D01/D07 và bảng M7_7: EP chốt từng cờ; ON không đồng nghĩa VERIFIED/khóa; OFF byte/no-write và regression ON. Cụ thể: Gói C (F-C): audit + thiết kế + BẢNG QUYẾT ĐỊNH từng cờ (audio_first tùy chọn thử nghiệm — F-Q2) trình EP trước khi đổi hành vi production. Thiếu đang ghi ở master: chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)",
+      "flags": [],
+      "evidence": [
+        "diag_events"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Kiểm bảng quyết định từng cờ và EP; audio_first vẫn tùy chọn, không đổi production.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 269,
+      "gate_note": "chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M7.6",
+      "title": "Test không phụ thuộc mặc định 8 cờ đề nghị khóa (155 test nhóm A)",
+      "criteria": "Master §5 M7 + §4a D01/D07 và bảng M7_7: EP chốt từng cờ; ON không đồng nghĩa VERIFIED/khóa; OFF byte/no-write và regression ON. Cụ thể: Test không phụ thuộc mặc định 8 cờ đề nghị khóa (155 test nhóm A). Thiếu đang ghi ở master: chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)",
+      "flags": [],
+      "evidence": [
+        "diag_events"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "155 test không phụ thuộc mặc định tám cờ; chạy fixture trong env giả, không project thật.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 270,
+      "gate_note": "chưa khóa từng cờ production; số đo drift không thay cổng đầy đủ (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M8.0",
+      "title": "An toàn tiền (= \"M8.4\" trong docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md mục cuối): giá + xác nhận cho 6 chỗ bấm tốn tiền còn thiếu, chat không tự gửi, hoàn tác \"Duyệt hết\", test quét nút tốn tiền (`safe_paid_buttons`) — có lợi cả chế độ Chuyên gia",
+      "criteria": "Master §5 M8 + §3/§4a cổng Dashboard/tiền: bằng chứng dùng thật; giá+xác nhận trước gửi, baseline thao tác và audit. Cụ thể: An toàn tiền (= \"M8.4\" trong docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md mục cuối): giá + xác nhận cho 6 chỗ bấm tốn tiền còn thiếu, chat không tự gửi, hoàn tác \"Duyệt hết\", test quét nút tốn tiền (`safe_paid_buttons`) — có lợi cả chế độ Chuyên gia. Thiếu đang ghi ở master: chưa đủ nghiệm thu Dashboard thật/người không chuyên/10 người < 2 s (giám sát 24/10 §3)",
+      "flags": [
+        "safe_paid_buttons",
+        "ui_step_log"
+      ],
+      "evidence": [
+        "ui_step",
+        "jobs",
+        "ledger",
+        "overrides"
+      ],
+      "location": "diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502; jobs + job_events/job_send_claims; Bước3/4; usage_events + bảng giá/balance có nguồn; Bước3–5; overrides hoặc scenes.data.package_overrides; màn duyệt",
+      "one_project": true,
+      "offline": "Quét sáu nút trả phí + hoàn tác Duyệt hết và chat không tự gửi; AppTest fake trước nghiệm thu dùng thật.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 277,
+      "gate_note": "chưa đủ nghiệm thu Dashboard thật/người không chuyên/10 người < 2 s (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M8.1",
+      "title": "Audit thao tác + thiết kế CHẾ ĐỘ ĐƠN GIẢN: đếm màn/nút/bước bắt buộc/thuật ngữ từ sơ đồ dây chuyền + nhật ký bước bấm; gộp nút, ẩn nút chuyên gia, wizard theo bước, chữ thường thay thuật ngữ, mặc định an toàn; bản vẽ màn + bảng nút giữ/gộp/ẩn — trình EP",
+      "criteria": "Master §5 M8 + §3/§4a cổng Dashboard/tiền: bằng chứng dùng thật; giá+xác nhận trước gửi, baseline thao tác và audit. Cụ thể: Audit thao tác + thiết kế CHẾ ĐỘ ĐƠN GIẢN: đếm màn/nút/bước bắt buộc/thuật ngữ từ sơ đồ dây chuyền + nhật ký bước bấm; gộp nút, ẩn nút chuyên gia, wizard theo bước, chữ thường thay thuật ngữ, mặc định an toàn; bản vẽ màn + bảng nút giữ/gộp/ẩn — trình EP. Thiếu đang ghi ở master: chưa đủ nghiệm thu Dashboard thật/người không chuyên/10 người < 2 s (giám sát 24/10 §3)",
+      "flags": [
+        "ui_step_log"
+      ],
+      "evidence": [
+        "ui_step"
+      ],
+      "location": "diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502",
+      "one_project": false,
+      "offline": "Dữ liệu giả/temp DB; so sánh OFF byte/no-write với ON chỉ ghi đúng shadow/diagnostic; assert không hold/submit.",
+      "risk": "Có thể đổi payload/dữ liệu hoặc giữ job; không suy an toàn từ costs=False; EP duyệt trước bật chức năng.",
+      "manual": true,
+      "source_line": 278,
+      "gate_note": "chưa đủ nghiệm thu Dashboard thật/người không chuyên/10 người < 2 s (giám sát 24/10 §3)"
+    },
+    {
+      "id": "M9.0",
+      "title": "Luật giám sát → kế hoạch: phát hiện CHẶN/LỚN ghi thẳng vào mục này / dòng việc bị ảnh hưởng + Nhật ký trong cùng lượt rà; việc NHỎ gom vào dòng gần nhất",
+      "criteria": "Master §5 M9 + §3/§4a liên quan: đối soát source kế hoạch/sổ lỗi/commit/report; unit xanh hoặc count DB không thay cổng thật. Cụ thể: Luật giám sát → kế hoạch: phát hiện CHẶN/LỚN ghi thẳng vào mục này / dòng việc bị ảnh hưởng + Nhật ký trong cùng lượt rà; việc NHỎ gom vào dòng gần nhất. Thiếu đang ghi ở master: ",
+      "flags": [],
+      "evidence": [
+        "diag_events"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Đối chiếu finding lớn/chặn với dòng kế hoạch+nhật ký cùng commit; không DB project tự chứng nhận.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 287,
+      "gate_note": ""
+    },
+    {
+      "id": "M9.1",
+      "title": "Tách \"% tiến độ code\" và \"% cổng đạt thật\": ✅code (đã gộp, cờ TẮT/shadow) vs ✅cổng (bằng chứng chạy thật); việc có màn Dashboard chỉ ✅cổng khi có ≥ 1 lần dùng thật (ảnh/ui_step); \"việc kế\" bỏ qua CHỜ PHỤ THUỘC (#1, #6, #13, #15)",
+      "criteria": "Master §5 M9 + §3/§4a liên quan: đối soát source kế hoạch/sổ lỗi/commit/report; unit xanh hoặc count DB không thay cổng thật. Cụ thể: Tách \"% tiến độ code\" và \"% cổng đạt thật\": ✅code (đã gộp, cờ TẮT/shadow) vs ✅cổng (bằng chứng chạy thật); việc có màn Dashboard chỉ ✅cổng khi có ≥ 1 lần dùng thật (ảnh/ui_step); \"việc kế\" bỏ qua CHỜ PHỤ THUỘC (#1, #6, #13, #15). Thiếu đang ghi ở master: ",
+      "flags": [],
+      "evidence": [
+        "ui_step"
+      ],
+      "location": "diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502",
+      "one_project": false,
+      "offline": "Fixtures parser code/gate và missing dependency; Dashboard chỉ đạt có dùng thật.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 288,
+      "gate_note": ""
+    },
+    {
+      "id": "M9.4",
+      "title": "Test devsys đỏ trên main + ghi \"cả bộ xanh\" sai (#4)",
+      "criteria": "Master §5 M9 + §3/§4a liên quan: đối soát source kế hoạch/sổ lỗi/commit/report; unit xanh hoặc count DB không thay cổng thật. Cụ thể: Test devsys đỏ trên main + ghi \"cả bộ xanh\" sai (#4). Thiếu đang ghi ở master: ",
+      "flags": [],
+      "evidence": [
+        "diag_events"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "Cả bộ Windows theo bên gộp; test đỏ khi bỏ sửa, không lấy targeted làm cả bộ.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 291,
+      "gate_note": ""
+    },
+    {
+      "id": "M9.5",
+      "title": "M4.6 ✅ khi chưa có dữ liệu benchmark (#5)",
+      "criteria": "Master §5 M9 + §3/§4a liên quan: đối soát source kế hoạch/sổ lỗi/commit/report; unit xanh hoặc count DB không thay cổng thật. Cụ thể: M4.6 ✅ khi chưa có dữ liệu benchmark (#5). Thiếu đang ghi ở master: ",
+      "flags": [],
+      "evidence": [
+        "qc"
+      ],
+      "location": "qc_results/qc_runs/qc_findings hoặc qc_shadow/*.jsonl; Bước4/5",
+      "one_project": false,
+      "offline": "Giữ M4.6 chưa đạt khi thiếu benchmark độc lập; unit/count QC không chứng minh.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 292,
+      "gate_note": ""
+    },
+    {
+      "id": "M9.6",
+      "title": "Gom bằng chứng khóa từng cờ V3.1 (~25 cờ TẮT; K1/K2/K7…) để EP quyết M7.7 theo lô (#7)",
+      "criteria": "Master §5 M9 + §3/§4a liên quan: đối soát source kế hoạch/sổ lỗi/commit/report; unit xanh hoặc count DB không thay cổng thật. Cụ thể: Gom bằng chứng khóa từng cờ V3.1 (~25 cờ TẮT; K1/K2/K7…) để EP quyết M7.7 theo lô (#7). Thiếu đang ghi ở master: ",
+      "flags": [],
+      "evidence": [
+        "diag_events"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán",
+      "one_project": false,
+      "offline": "AST registry + bảng M7_7 đủ nguồn/EP quyết định; không đọc settings thật.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 293,
+      "gate_note": ""
+    },
+    {
+      "id": "M9.8",
+      "title": "Quyết định tiền kiểm được phải có check: nối ep-2210-qf… với test_safe_paid_buttons, qd3 ghi pending; 55/74 mục thiếu enforced_by (#9)",
+      "criteria": "Master §5 M9 + §3/§4a liên quan: đối soát source kế hoạch/sổ lỗi/commit/report; unit xanh hoặc count DB không thay cổng thật. Cụ thể: Quyết định tiền kiểm được phải có check: nối ep-2210-qf… với test_safe_paid_buttons, qd3 ghi pending; 55/74 mục thiếu enforced_by (#9). Thiếu đang ghi ở master: ",
+      "flags": [],
+      "evidence": [
+        "diag_events",
+        "ui_step"
+      ],
+      "location": "diag_events; ⚙ Chẩn đoán; diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502",
+      "one_project": false,
+      "offline": "Quyết định kiểm được nối enforced_by, thiếu check giữ pending; fake scan nút.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 295,
+      "gate_note": ""
+    },
+    {
+      "id": "M9.10",
+      "title": "Hai nghĩa \"M8.4\" (#14)",
+      "criteria": "Master §5 M9 + §3/§4a liên quan: đối soát source kế hoạch/sổ lỗi/commit/report; unit xanh hoặc count DB không thay cổng thật. Cụ thể: Hai nghĩa \"M8.4\" (#14). Thiếu đang ghi ở master: ",
+      "flags": [],
+      "evidence": [
+        "ui_step"
+      ],
+      "location": "diag_events.stage=ui_step và ảnh do phiên chính chụp; Dashboard/8502",
+      "one_project": false,
+      "offline": "Crossref các kế hoạch và UI hai nghĩa M8.4, static/AppTest, không đổi lịch sử.",
+      "risk": "Không cờ riêng được chứng minh; kiểm code/tài liệu, không bật cờ suy đoán.",
+      "manual": true,
+      "source_line": 297,
+      "gate_note": ""
+    }
+  ]
+}
