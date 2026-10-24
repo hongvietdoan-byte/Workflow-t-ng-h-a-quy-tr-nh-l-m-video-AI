@@ -572,6 +572,11 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Không đo được báo nhầm theo mã khi 9 đường QC ghi 5 dạng khác nhau (thiết kế M4.1). Bảng = migration Cấp 3 (chưa áp CSDL thật)",
     },
+    "qc_overrides": {
+        "label": "Ghi ngoại lệ QC có revision, người duyệt, lý do và bằng chứng (V3.1 M4.7; migration C3-4 tường minh)",
+        "verified": False,
+        "why": "Cờ mặc định TẮT; chưa chạy migration trên DB thật, chưa nghiệm thu đầy đủ UI/Q6 và chưa thử sản xuất",
+    },
     "repair_router": {
         "label": "Repair router theo mã lỗi (V3.1 M5.1) — CHỈ ĐỀ XUẤT: QC không đạt → kế hoạch sửa (đổi đầu vào gì, lần mấy / trần, khi nào "
                  "dừng hỏi người) ghi ở ⚙ Chẩn đoán; KHÔNG tự gửi job (tự gửi = Cấp 3)",
