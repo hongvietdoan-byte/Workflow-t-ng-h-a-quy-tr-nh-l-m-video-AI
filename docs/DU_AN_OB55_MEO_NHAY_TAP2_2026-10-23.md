@@ -116,3 +116,14 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   đổi: reviewed 13, failed 0, sổ chi ghi 0.253 USD (claude_cli). Còn 2 mục vàng báo SAI (luật dò tên Kho — DASHBOARD_CHUA_TU_LAM_DUOC mục 6).
 - **`pregen_check` lần 6 (`pregen_check_6.txt`): mã thoát 0 — "GEN ĐƯỢC — xin duyệt với giá ≈ 0.22 usd"** (tối đa 0.88): ảnh khung đầu
   0.052 · D6 0.088 · QC 0.065 · Claude khác 0.014. Video bản cao (cổng riêng) ≈ 7.84 USD. **DỪNG ở cổng gen ảnh, chờ người dùng "gen".**
+- **24/10 12:46 người dùng "Chấp nhận duyệt" → gen ảnh khung đầu trên Dashboard** (▶ Tiếp tục bỏ tạm dừng → ▶ Gen ảnh … ≈ 0.22 USD →
+  Có, chạy). Job 1197 `succeeded` 12:51 → `data/projects/34/images/job_1197.png` (gpt-image-2.5-sunburst, 1152×2048), sổ chi ghi 1 ảnh
+  (deepix). Bản sao gửi người dùng: `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/anh_khung_dau_job1197.png`. Ảnh: RỐI TÍM đứng một chân
+  dang tay, RỐI ĐỎ ngồi cầm điện thoại, biệt thự trái, cây phải, 1/3 dưới nền đá trống (chỗ ghép mèo thật). Claude tự kiểm ảnh còn
+  "đang tự kiểm tra" sau > 6 phút (chưa có qc_results). **Chờ người dùng duyệt ảnh; gen video là cổng riêng (≈ 7.84 USD bản cao).**
+- 24/10 người dùng so ảnh 1197 với 2 con mèo: mèo xám có di chuyển (nghiêng, nhổm dậy bước theo ở ~3 s) → **RỐI ĐỎ ngồi XỔM** (không
+  ngồi bệt duỗi chân), quay lưng nửa về máy, nhìn RỐI TÍM; **điện thoại thường** (vỏ xanh đậm, 1 ống kính, không logo, KHÔNG iPhone).
+  Giữ chỗ đứng sân khấu đã duyệt. Ảnh so sánh `so_sanh_meo_vs_anh1197.jpg`. Sửa `scenes.data` (image_prompt, action, performance.body)
+  + `motion_prompts` (vai ĐỎ: ngồi xổm, nghiêng, nhổm dậy bước theo, về lại thế xổm; negative thêm "no iPhone, no brand logo")
+  — sao lưu `data/_luu_tru_manifest_truoc_p34_ngoi_xom_1314.sqlite`. Tổ rà soát rà 2 thay đổi (0.12 USD), 0 chặn; mục vàng #903/#905
+  lại là luật dò tên Kho #454 (báo sai). QC tự kiểm ảnh 1197 = giữ (0.00). `pregen_check_7`: mã 0. Vẽ lại 1 ảnh ≈ 0.16 USD chờ duyệt.

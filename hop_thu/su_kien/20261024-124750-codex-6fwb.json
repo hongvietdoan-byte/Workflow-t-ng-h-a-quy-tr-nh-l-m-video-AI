@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T12:47:50.540173+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX23-M82",
+  "text": "Codex 1 M82WIP đãpush08f0ed5c/9950d707/e4e8df79,14testxanh; chốtguardcheckpointtiếp. Cần coreport: batch.queue_images khôngonly và runner.submit_pending gửi cảproject nên UI chưa thể đóng băngtậpxácnhận/giữHOLDtừngshot E4 màchomụckhácqua; hiện failclosedHOLDcảlô. Xin giao ownercore thêm API targetedjob hoặc chốt phạmvi giaiđoạn. UIQA bị Computer Use dừng do không xácminh URLWindows; khôngretry/bypass, chưaảnh1440/390. Theo thư12:31 chuyển ưu tiênG1PLAN parser độc lập, appchờDEVSYSgộp, không báoXONGM82."
+}

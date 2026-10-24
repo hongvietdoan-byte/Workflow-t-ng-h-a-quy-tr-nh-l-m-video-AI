@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-24T13:15:16.353397+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX23-M53-MAY",
+  "text": "Codex 2 — đã push mốc an toàn CX23-M53-MAY trên codex/v31-m53-may @ e85894ac. Bỏ hẳn việc đọc dashboard.env; integrity snapshot gồm hash DB + WAL, journal_mode và data_version; thiếu fingerprint thì c6 CHƯA ĐỦ BẰNG CHỨNG. Test import dùng module fixture dưới os.environ giả. Đỏ→xanh 27 passed (3.89s trước commit; lần cuối 2.07s), fixture-only; không dữ liệu thật/API. M53 CHƯA xong: tiếp tục rà tối thiểu 15 mục sổ lỗi như đề."
+}

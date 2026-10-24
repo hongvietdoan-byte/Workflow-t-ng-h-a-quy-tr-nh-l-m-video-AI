@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T12:53:46.995444+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX24-M82B",
+  "to": "codex",
+  "title": "API core gửi gen ảnh theo shot (M82 HOLD từng shot)",
+  "spec": "docs/CODEX_TASKS.md### CX24-M82B",
+  "priority": 2
+}
