@@ -121,3 +121,9 @@ Chạy 23/10 sau khi render nền 3D (`py tools/location_pack.py render --projec
   (deepix). Bản sao gửi người dùng: `D:/AI-Video-Output/2026-10-23_meo-nhay-tap2/anh_khung_dau_job1197.png`. Ảnh: RỐI TÍM đứng một chân
   dang tay, RỐI ĐỎ ngồi cầm điện thoại, biệt thự trái, cây phải, 1/3 dưới nền đá trống (chỗ ghép mèo thật). Claude tự kiểm ảnh còn
   "đang tự kiểm tra" sau > 6 phút (chưa có qc_results). **Chờ người dùng duyệt ảnh; gen video là cổng riêng (≈ 7.84 USD bản cao).**
+- 24/10 người dùng so ảnh 1197 với 2 con mèo: mèo xám có di chuyển (nghiêng, nhổm dậy bước theo ở ~3 s) → **RỐI ĐỎ ngồi XỔM** (không
+  ngồi bệt duỗi chân), quay lưng nửa về máy, nhìn RỐI TÍM; **điện thoại thường** (vỏ xanh đậm, 1 ống kính, không logo, KHÔNG iPhone).
+  Giữ chỗ đứng sân khấu đã duyệt. Ảnh so sánh `so_sanh_meo_vs_anh1197.jpg`. Sửa `scenes.data` (image_prompt, action, performance.body)
+  + `motion_prompts` (vai ĐỎ: ngồi xổm, nghiêng, nhổm dậy bước theo, về lại thế xổm; negative thêm "no iPhone, no brand logo")
+  — sao lưu `data/_luu_tru_manifest_truoc_p34_ngoi_xom_1314.sqlite`. Tổ rà soát rà 2 thay đổi (0.12 USD), 0 chặn; mục vàng #903/#905
+  lại là luật dò tên Kho #454 (báo sai). QC tự kiểm ảnh 1197 = giữ (0.00). `pregen_check_7`: mã 0. Vẽ lại 1 ảnh ≈ 0.16 USD chờ duyệt.
