@@ -319,3 +319,5 @@
 - Codex 1 (24/10): tiếp CX23-M47B sau lõi Codex 3; merge main 75fb5abd. Test caller UI mới đỏ 6/6 (viewer không được có form; fingerprint finding/run; cờ OFF; HOLD Q6a khi chưa có package ảnh dry-run), chưa có code UI tích hợp. Không dữ liệu thật/API/GUI.
 
 - Codex 1 (24/10, CX23-M47B): checkpoint UI BYĐ/sổ lỗi/gói đã tích hợp trên codex/v31-m47b, Q6c REVIEW theo thư 23/10; Q6a ON giữ HOLD tới khi có helper gói ảnh dựng khô an toàn, OFF luồng cũ. Đang chốt review, chưa XONG; RA_CX23_M47B_CODEX_2026-10-23.md có bằng chứng targeted/AppTest. Không main/live/data thật/API/GUI.
+
+- Codex 1 (24/10 15:50, CX23-M47B): hoàn tất code/UI theo chốt Claude `20261024-155049-phien-chinh-m2ie.json`; code `36150a7d`, 97 test targeted qua/13.32s, reviewer + root rà lần hai. Q6(a) forced HOLD khi ON là phạm vi ĐÃ ĐỒNG Ý đến khi có provider-package ảnh dry-run thật, OFF cũ; UI BYĐ/QC/gói và video Q6(b) đã đủ. Chờ phiên chính gộp/QA máy chính; không còn chờ quyết định Q6a. RA_CX23_M47B_CODEX_2026-10-23.md; HANDOFF xóa ở commit cuối, không API/data thật/GUI.
