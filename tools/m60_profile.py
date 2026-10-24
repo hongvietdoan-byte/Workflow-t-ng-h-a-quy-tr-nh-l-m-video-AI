@@ -46,6 +46,163 @@ class Timings:
                       key=lambda r: r["total_ms"], reverse=True)
 
 
+def measured_connection(timings):
+    """Tách SQLite execute/fetch, không giữ SQL/binds trong kết quả.
+
+    Execute bao gồm thời gian chờ bên trong SQLite (có thể có lock), không phải
+    phép đo lock độc lập. Không cộng các dòng thành CPU hay latency màn.
+    """
+    def timed(phase, statement, fn):
+        start = time.perf_counter()
+        try:
+            return fn()
+        finally:
+            safe = Timings()
+            safe.sql(statement, time.perf_counter() - start)
+            for label, values in safe.values.items():
+                timings.add(phase + " " + label, values[0])
+
+    class Cursor(sqlite3.Cursor):
+        _statement_label = "UNKNOWN"
+
+        def _execute(self, phase, statement, fn):
+            # Store only sanitized label, never the query or parameter values.
+            safe = Timings()
+            safe.sql(statement, 0)
+            self._statement_label = next(iter(safe.values))
+            return timed(phase, statement, fn)
+
+        def execute(self, statement, parameters=()):
+            return self._execute("cursor.execute", statement, lambda: super(Cursor, self).execute(statement, parameters))
+
+        def executemany(self, statement, parameters):
+            return self._execute("cursor.executemany", statement, lambda: super(Cursor, self).executemany(statement, parameters))
+
+        def executescript(self, script):
+            return self._execute("cursor.executescript", "SCRIPT", lambda: super(Cursor, self).executescript(script))
+
+        def _fetch(self, method, fn):
+            start = time.perf_counter()
+            try:
+                return fn()
+            finally:
+                timings.add("cursor." + method + " " + self._statement_label, time.perf_counter() - start)
+
+        def fetchone(self):
+            return self._fetch("fetchone", super().fetchone)
+
+        def fetchmany(self, *args, **kwargs):
+            return self._fetch("fetchmany", lambda: super(Cursor, self).fetchmany(*args, **kwargs))
+
+        def fetchall(self):
+            return self._fetch("fetchall", super().fetchall)
+
+        def __next__(self):
+            return self._fetch("next", super().__next__)
+
+    class Connection(sqlite3.Connection):
+        def cursor(self, factory=None):
+            if factory not in (None, Cursor):
+                raise ValueError("M60_UNMEASURED_CURSOR_FACTORY")
+            return super().cursor(factory=Cursor)
+
+        def _execute(self, phase, statement, parameters=None):
+            cursor = self.cursor()
+            # Call base directly: connection shortcut must not be counted twice.
+            if phase == "executescript":
+                return cursor._execute("connection." + phase, "SCRIPT", lambda: sqlite3.Cursor.executescript(cursor, statement))
+            fn = getattr(sqlite3.Cursor, phase)
+            return cursor._execute("connection." + phase, statement, lambda: fn(cursor, statement, parameters))
+
+        def execute(self, statement, parameters=()):
+            return self._execute("execute", statement, parameters)
+
+        def executemany(self, statement, parameters):
+            return self._execute("executemany", statement, parameters)
+
+        def executescript(self, script):
+            return self._execute("executescript", script)
+
+    return Connection
+
+
+def coverage_manifest(root, function_rows):
+    """Inventory hàm và block AST; vào hàm KHÔNG chứng minh mọi nhánh đã chạy."""
+    import ast
+    root = pathlib.Path(root)
+    hits = {r["label"]: r["calls"] for r in function_rows}
+    out = []
+    for path in sorted((root / "dashboard").rglob("*.py")):
+        rel = path.relative_to(root).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                # Profile reports the first decorator line for decorated functions.
+                line = min([node.lineno] + [d.lineno for d in node.decorator_list])
+                source = f"{rel}:{line}:{node.name}"
+                out.append({"source": source, "kind": "function", "status": "EXECUTED" if source in hits else "NOT_REACHED",
+                            "calls": hits.get(source, 0)})
+            elif isinstance(node, (ast.If, ast.For, ast.While, ast.With, ast.Try, ast.Match)):
+                out.append({"source": f"{rel}:{node.lineno}:{type(node).__name__}", "kind": "conditional_or_context",
+                            "status": "BRANCH_NOT_PROVEN", "calls": None})
+    return out
+
+
+@contextlib.contextmanager
+def isolated_network():
+    """Deny network calls; allow only socketpair owned by this harness.
+
+    Không phải OS sandbox. Không mở tạm global connect khi AppTest đa luồng.
+    """
+    import socket
+    from unittest.mock import patch
+    original_connect = socket.socket.connect
+
+    def denied(*args, **kwargs):
+        raise RuntimeError("M60_EXTERNAL_OPERATION_BLOCKED")
+
+    def owned_pair(family=None, type=socket.SOCK_STREAM, proto=0):
+        if type != socket.SOCK_STREAM or proto != 0:
+            raise ValueError("M60_UNSUPPORTED_SOCKETPAIR")
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client, server = None, None
+        try:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # Only original unpatched method on our new client to exact owned endpoint.
+            original_connect(client, listener.getsockname())
+            server, _ = listener.accept()
+            return client, server
+        except BaseException:
+            if client is not None:
+                client.close()
+            if server is not None:
+                server.close()
+            raise
+        finally:
+            listener.close()
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(patch.object(socket.socket, "connect", denied))
+        stack.enter_context(patch.object(socket.socket, "connect_ex", denied))
+        stack.enter_context(patch.object(socket, "create_connection", denied))
+        for name in ("getaddrinfo", "gethostbyname", "gethostbyname_ex", "gethostbyaddr"):
+            stack.enter_context(patch.object(socket, name, denied))
+        stack.enter_context(patch.object(socket, "socketpair", owned_pair))
+        yield
+
+
+def validate_output(root, output):
+    """Harness chỉ ghi báo cáo trong docs của checkout được đo."""
+    root = pathlib.Path(root).resolve(strict=True)
+    output = pathlib.Path(output).resolve()
+    docs = (root / "docs").resolve(strict=True)
+    if not output.is_relative_to(docs) or output.suffix != ".json":
+        raise ValueError("M60_REPORT_OUTSIDE_DOCS")
+    return output
+
+
 def copy_database(source, destination):
     """Không bootstrap/migrate nguồn; không đè đích đã tồn tại (kể cả hardlink)."""
     source, destination = pathlib.Path(source).resolve(strict=True), pathlib.Path(destination)
@@ -123,19 +280,23 @@ def function_probe(root, timings):
 
 
 def profile_fixture(root, output, projects=5, shots=40):
-    """7 màn AppTest trên bản sao fixture; không nhận đường DB/data sản xuất.
+    """7 màn + Motion/default/expert AppTest trên bản sao fixture phong phú.
 
     Đây là đo server Python có overhead probe, không benchmark browser/production.
     Không bấm nút, không đo mọi nhánh cờ/expander hay callback.
     """
     import json
     import os
-    import socket
+    import hashlib
     import subprocess
     import tempfile
     from unittest.mock import patch
     root = pathlib.Path(root).resolve()
-    output = pathlib.Path(output)
+    output = validate_output(root, output)
+    source_paths = [path for folder in ("dashboard", "core") for path in sorted((root / folder).rglob("*.py"))]
+    source_paths += [root / "tools" / name for name in ("m60_profile.py", "ui_snapshot.py", "seed_demo.py")]
+    source_rows = [{"source": path.relative_to(root).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+                   for path in source_paths]
     if not 1 <= projects <= 10 or not 1 <= shots <= 100:
         raise ValueError("fixture vượt giới hạn")
     with tempfile.TemporaryDirectory(prefix="m60-fixture-") as tmp:
@@ -149,48 +310,40 @@ def profile_fixture(root, output, projects=5, shots=40):
                "IMAGE_PROVIDER": "", "VIDEO_PROVIDER": "", "AUDIO_PROVIDER": "", "LLM_PROVIDER": ""}
         def denied(*args, **kwargs):
             raise RuntimeError("M60_EXTERNAL_OPERATION_BLOCKED")
-        original_socket_connect = socket.socket.connect
-        def local_self_pipe(sock, address):
-            # Windows asyncio socketpair self-pipe uses an ephemeral loopback port.
-            # Main dashboard ports and every remote address remain blocked.
-            if isinstance(address, tuple) and address[0] in ("127.0.0.1", "::1") and 49152 <= address[1] <= 65535:
-                return original_socket_connect(sock, address)
-            return denied()
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(os, "environ", env))
-            stack.enter_context(patch.object(socket.socket, "connect", local_self_pipe))
-            stack.enter_context(patch.object(socket, "create_connection", denied))
+            stack.enter_context(isolated_network())
             stack.enter_context(patch.object(subprocess, "Popen", denied))
             try:
                 import winreg
-                stack.enter_context(patch.object(winreg, "QueryValueEx", denied))
+                for name in ("OpenKey", "QueryValueEx"):
+                    stack.enter_context(patch.object(winreg, name, denied))
             except ImportError:
                 pass
-            from core import db, lineage, bg_poll, ff_site, research, llm_runner
-            from core.pipeline import Pipeline
+            from core import db, lineage, bg_poll, ff_site, research, llm_runner, music
+            from core.adapters import factory
             from streamlit.testing.v1 import AppTest
             for mod, name in ((bg_poll, "start"), (ff_site, "maybe_monthly"), (research, "maybe_run_in_background"),
-                              (llm_runner, "client_from_env")):
+                              (llm_runner, "client_from_env"), (music, "audio_provider"),
+                              (factory, "image_provider"), (factory, "video_provider"), (factory, "subject_library")):
                 stack.enter_context(patch.object(mod, name, return_value=None))
-            # Minimal synthetic source built only here. No supplied path is ever opened.
-            conn = db.connect(str(tmp / "source.sqlite"))
-            p = Pipeline(conn)
-            for i in range(projects):
-                pid = p.create_project(f"M60 fixture {i}")
-                for n in range(shots):
-                    sid = p.create_scene(pid, n + 1, f"Fixture {n + 1}")
-                    conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"text": "Fixture", "image_prompt": "fixture"}), sid))
-                conn.commit()
-            conn.close()
-            copy_database(tmp / "source.sqlite", tmp / "copy.sqlite")
+            # Audited builder is not its browser/main entrypoint. It rmtree's an
+            # existing out_dir: supply a fresh child which MUST NOT exist.
+            from tools.ui_snapshot import build_sample_data
+            sample_dir = tmp / "synthetic-source"
+            if sample_dir.exists():
+                raise ValueError("M60_FIXTURE_PATH_EXISTS")
+            sample = build_sample_data(str(sample_dir), n_projects=projects, scenes_primary=shots,
+                                       images=True, rich_others=shots)
+            source = pathlib.Path(sample["db"])
+            before_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+            copy_database(source, tmp / "copy.sqlite")
+            env["PIPELINE_DATA"] = sample["data"]
+            # The rich builder has locked Bible, approved/rejected/pending QC,
+            # image PNG placeholders, motion prompts, queued/running/video jobs.
+            # No real video, TTS waveform or Stage-A approved geometry is invented.
             sql = Timings()
-            class MeasuredConnection(sqlite3.Connection):
-                def execute(self, statement, parameters=()):
-                    start = time.perf_counter()
-                    try:
-                        return super().execute(statement, parameters)
-                    finally:
-                        sql.sql(statement, time.perf_counter() - start)
+            MeasuredConnection = measured_connection(sql)
             original_connect = sqlite3.connect
             opened = []
             def connect(*args, **kwargs):
@@ -211,31 +364,90 @@ def profile_fixture(root, output, projects=5, shots=40):
                 return c
             stack.enter_context(patch.object(sqlite3, "connect", connect))
             screens, functions = [], Timings()
-            for code in ("home", "1", "2", "4", "5", "team", "monitor"):
+            cases = [(code, False) for code in ("home", "1", "2", "3", "4", "5", "team", "monitor")]
+            cases += [(code, True) for code in ("1", "2", "3", "5")]
+            for code, expert in cases:
                 sql.values.clear()
+                case_functions = Timings()
                 at = AppTest.from_file(str(root / "dashboard/app.py"), default_timeout=90)
                 at.query_params["step"] = code
-                with function_probe(root, functions):
+                at.session_state["global_pid"] = sample["projects"][0][0]
+                at.session_state["expert_mode"] = expert
+                # Avoid bootstrap housekeeping, auto-sync and auto-scan callbacks.
+                for key in ("assets_synced", "sounds_scanned", "ff_site_checked", "research_checked", "asset_files_checked"):
+                    at.session_state[key] = True
+                with function_probe(root, case_functions):
                     begin = time.perf_counter()
                     at.run()
                     cold = time.perf_counter() - begin
+                    cold_errors = len(at.exception)
                     begin = time.perf_counter()
                     at.run()
                     warm = time.perf_counter() - begin
-                screens.append({"screen": code, "cold_ms": round(cold*1000, 3), "warm_ms": round(warm*1000, 3),
-                                "exception_count": len(at.exception), "sql_execute": sql.rows()})
+                    warm_errors = len(at.exception)
+                for label, values in case_functions.values.items():
+                    for value in values:
+                        functions.add(label, value)
+                screens.append({"screen": code, "expert": expert, "cold_ms": round(cold*1000, 3), "warm_ms": round(warm*1000, 3),
+                                "cold_exception_count": cold_errors, "warm_exception_count": warm_errors,
+                                "exception_count": cold_errors + warm_errors, "sql_operations": sql.rows(),
+                                "functions_inclusive": case_functions.rows()})
             # Isolated explicit lineage call; do not merge with UI thread measurements.
             c = db.connect(str(tmp / "copy.sqlite"))
             t = Timings()
             t.measure("lineage.summary", lambda: lineage.summary(c, 1))
             c.close()
-            result = {"fixture": {"projects": projects, "shots_per_project": shots, "copied": True},
+            from datetime import datetime, timezone
+            if any(item["sha256"] != hashlib.sha256((root / item["source"]).read_bytes()).hexdigest() for item in source_rows):
+                raise RuntimeError("M60_SOURCE_CHANGED_DURING_RUN")
+            source_hash = hashlib.sha256(json.dumps(source_rows, sort_keys=True).encode()).hexdigest()
+            result = {"schema": 2, "measured_at": datetime.now(timezone.utc).isoformat(),
+                      "source_snapshot_sha256": source_hash, "source_manifest": source_rows,
+                      "fixture": {"projects": projects, "shots_per_project": shots, "copied": True,
+                                  "kind": "ui_snapshot.rich", "image_pngs": len(list(sample_dir.rglob("*.png"))),
+                                  "source_database_unchanged": before_hash == hashlib.sha256(source.read_bytes()).hexdigest()},
                       "screens": screens, "functions_inclusive": functions.rows(), "lineage": t.rows(), "errors": t.errors,
-                      "limitations": ["synthetic empty-media fixture", "Python server inclusive wall-time with probe overhead",
-                                      "SQL execute only, not cursor fetch/CPU/lock", "no browser/click/expanded conditional branch coverage"]}
+                      "coverage": coverage_manifest(root, functions.rows()),
+                      "limitations": ["synthetic image/Bible/QC/motion fixtures, not production or real video/audio",
+                                      "Python server inclusive wall-time with probe overhead; samples cold+warm once per case",
+                                      "SQLite execute/fetch measured separately; no CPU or independent lock contention measurement",
+                                      "AppTest renders tab/popover/expander server bodies without browser visibility proof",
+                                      "no buttons/callbacks clicked; conditional AST branches remain explicitly unproven",
+                                      "feature defaults only, expert session cases do not prove all flags/ACL/Stage-A geometry branches",
+                                      "source DB hash checked, assets are synthetic; do not infer production integrity or max throughput"]}
             # AppTest caches resources across reruns; close only connections this
             # harness owns before deleting its temporary SQLite copy on Windows.
             for owned in opened:
                 owned.close()
     save_report(output, result)
     return result
+
+
+def main(argv=None):
+    """CLI chỉ dựng fixture riêng; không nhận đường DB, root hay data thật."""
+    import argparse
+    import datetime
+    import json
+    parser = argparse.ArgumentParser(description="M60 AppTest synthetic profile, 0 USD")
+    parser.add_argument("--out", default=f"docs/M6_0_PROFILE_RICH_{datetime.date.today().isoformat()}.json")
+    parser.add_argument("--projects", type=int, default=5)
+    parser.add_argument("--shots", type=int, default=40)
+    args = parser.parse_args(argv)
+    root = pathlib.Path(__file__).resolve().parents[1]
+    try:
+        output = validate_output(root, root / args.out)
+        if not 1 <= args.projects <= 10 or not 1 <= args.shots <= 100:
+            raise ValueError("M60_FIXTURE_LIMIT")
+        result = profile_fixture(root, output, projects=args.projects, shots=args.shots)
+        errors = sum(s["exception_count"] for s in result["screens"]) + len(result.get("errors", []))
+        print(json.dumps({"cases": len(result["screens"]),
+                          "exceptions": errors,
+                          "output": output.relative_to(root).as_posix()}))
+        return 1 if errors else 0
+    except Exception as exc:
+        print(json.dumps({"error_type": type(exc).__name__}))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

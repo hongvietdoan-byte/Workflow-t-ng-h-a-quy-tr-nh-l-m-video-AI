@@ -113,3 +113,72 @@ def test_coverage_lists_unreached_functions_and_conditions(tmp_path):
     assert any(x["status"] == "EXECUTED" and x["source"] == "dashboard/demo.py:1:view" for x in items)
     assert any(x["status"] == "NOT_REACHED" and x["source"] == "dashboard/demo.py:4:callback" for x in items)
     assert any(x["status"] == "BRANCH_NOT_PROVEN" and x["source"] == "dashboard/demo.py:2:If" for x in items)
+
+
+def test_network_scope_denies_nonowned_loopback_but_owned_pair_works():
+    import socket
+    import pytest
+    from unittest.mock import patch
+    from tools.m60_profile import isolated_network
+    # A broken guard must never emit a real DNS lookup during this regression.
+    with patch.object(socket, "getaddrinfo", side_effect=AssertionError("FAKE_RESOLVER_REACHED")), isolated_network():
+        with socket.socket() as other:
+            with pytest.raises(RuntimeError, match="M60_EXTERNAL_OPERATION_BLOCKED"):
+                other.connect(("127.0.0.1", 54321))
+        with pytest.raises(RuntimeError, match="M60_EXTERNAL_OPERATION_BLOCKED"):
+            socket.getaddrinfo("fake.invalid", 443)
+        a, b = socket.socketpair()
+        try:
+            a.sendall(b"fake")
+            assert b.recv(4) == b"fake"
+        finally:
+            a.close()
+            b.close()
+
+
+def test_profile_refuses_output_outside_docs_before_fixture(tmp_path):
+    import pytest
+    from tools.m60_profile import validate_output
+    (tmp_path / "docs").mkdir()
+    assert validate_output(tmp_path, tmp_path / "docs" / "fake.json") == tmp_path / "docs" / "fake.json"
+    with pytest.raises(ValueError, match="M60_REPORT_OUTSIDE_DOCS"):
+        validate_output(tmp_path, tmp_path / "data" / "fake.json")
+
+
+def test_cli_passes_bounded_args_and_only_prints_summary(monkeypatch, capsys):
+    from tools import m60_profile as m
+    called = []
+    def fake(root, output, projects, shots):
+        called.append((root, output, projects, shots))
+        return {"screens": [{"exception_count": 0}]}
+    monkeypatch.setattr(m, "profile_fixture", fake)
+    assert m.main(["--out", "docs/fake-profile.json", "--projects", "2", "--shots", "3"]) == 0
+    assert called[0][2:] == (2, 3)
+    assert "fake-profile.json" in capsys.readouterr().out
+
+
+def test_cli_filters_errors_and_refuses_data_path(monkeypatch, capsys):
+    from tools import m60_profile as m
+    called = []
+    def fake(*args, **kwargs):
+        called.append(True)
+        raise ValueError("fake-private")
+    monkeypatch.setattr(m, "profile_fixture", fake)
+    assert m.main(["--out", "data/fake.json"]) == 2
+    assert not called
+    assert m.main(["--projects", "11"]) == 2
+    assert not called
+    assert m.main(["--out", "docs/fake.json"]) == 2
+    assert called
+    output = capsys.readouterr().out
+    assert "ValueError" in output
+    assert "fake-private" not in output
+
+
+def test_cli_returns_failure_for_ui_or_lineage_errors(monkeypatch, capsys):
+    from tools import m60_profile as m
+    for result in ({"screens": [{"exception_count": 1}]},
+                   {"screens": [{"exception_count": 0}], "errors": [{"type": "FakeError"}]}):
+        monkeypatch.setattr(m, "profile_fixture", lambda *a, **kw: result)
+        assert m.main(["--out", "docs/fake.json"]) == 1
+    assert '"exceptions": 1' in capsys.readouterr().out
