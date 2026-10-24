@@ -1210,6 +1210,78 @@
    "enforced_by": [],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2410-q1-backup-before-new-table-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, chat 24/10 22:15, trả lời docs/CAU_HOI_EP_2026-10-24.md)",
+   "text": "Câu 1 chọn 1A có điều kiện: được thêm bảng/chỉ mục mới vào CSDL chỉ SAU khi đã sao lưu mới.",
+   "keeps": "",
+   "changes": "Bắt buộc sao lưu CSDL mới trước khi gộp/chạy bản thêm bảng.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2410-q2-overrides-keep-restrict-no-migrate-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, chat 24/10 22:15, trả lời docs/CAU_HOI_EP_2026-10-24.md)",
+   "text": "Câu 2 chọn 2B làm thiết kế đích: giữ lịch sử ngoại lệ (RESTRICT), xóa dự án có ngoại lệ phải báo rõ; CHƯA migrate.",
+   "keeps": "",
+   "changes": "Codex CX24-M47-DELETE-MSG chỉ kiểm trước và báo; không đổi RESTRICT, không migrate.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2410-q4-ab-lean-shadow-only-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, chat 24/10 22:15, trả lời docs/CAU_HOI_EP_2026-10-24.md)",
+   "text": "Câu 4 chọn 4A: A/B gói gửi gọn chỉ chạy shadow.",
+   "keeps": "",
+   "changes": "Không chạy A/B thật tốn tiền; shadow không phải bằng chứng chất lượng.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2410-q5-no-new-session-store-review-url-token-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, chat 24/10 22:15, trả lời docs/CAU_HOI_EP_2026-10-24.md)",
+   "text": "Câu 5: chưa lưu phiên mới (không cookie/lưu đăng nhập mới); ưu tiên rà token trên URL ?s=.",
+   "keeps": "",
+   "changes": "Codex CX24-URL-TOKEN-RA: rà + sửa nhỏ an toàn, không thêm lưu phiên.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2410-q6-height-per-project-with-peer-reference-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, chat 24/10 22:15, trả lời docs/CAU_HOI_EP_2026-10-24.md)",
+   "text": "Câu 6: nên tạo hồ sơ chiều cao riêng theo dự án, nhưng khi đặt/đề xuất height_m phải tham khảo hồ sơ các nhân vật khác cho tương xứng.",
+   "keeps": "",
+   "changes": "Codex CX24-HEIGHT-PROJECT (cờ mới TẮT, Cấp 2 rà kỹ); không sửa Kho chung.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
+  },
+  {
+   "id": "ep-2410-q7-n9-keep-edit-right-verify-reapprove-2026-10-24",
+   "date": "2026-10-24",
+   "by": "người dùng (Executive Producer, chat 24/10 22:15, trả lời docs/CAU_HOI_EP_2026-10-24.md)",
+   "text": "Câu 7: N9 Render lại giữ quyền hiện tại (quyền sửa + xác nhận) và xác minh việc duyệt lại sau khi render.",
+   "keeps": "",
+   "changes": "Codex CX24-N9-REAPPROVE: nếu render lại đổi sản phẩm đã duyệt mà không về chờ duyệt thì sửa + test.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active",
+   "phase": "APPROVED_IN_PRINCIPLE"
   }
  ]
 }
