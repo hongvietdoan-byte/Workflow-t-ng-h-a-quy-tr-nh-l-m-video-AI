@@ -1841,3 +1841,16 @@ Test đỏ→xanh. Nhánh `codex/v31-so-loi-sync`.
 55/74 quyết định active không `enforced_by` (data/decisions.json). Ưu tiên 3 quyết định tiền: `ep-2210-qf…` nối test_safe_paid_buttons; `ep-2310-qd3…` (hạn mức chi luồng tự động) ghi
 `pending` + check khi CX23-M82 có hàm lõi; `v31-m6-generation-limits-policy-b…` nối check bộ đếm E4. Sau đó liệt kê các quyết định còn lại kiểm được bằng code → đề xuất check (không sửa
 chữ mục cũ; mục mới thay bằng `replaces` — quy ước 8). Chạy `py -m core.decisions check` + tests/test_decisions.py. Nhánh `codex/v31-quyet-dinh-check`.
+
+### CX24-HOP-THU-GON — tối ưu hộp thư: gộp theo trạng thái, lưu trữ tin cũ, ít commit, KHÔNG sót tin (giám sát #12; ưu tiên 3; người dùng DUYỆT 24/10; Cấp 1 tooling; 0 USD)
+Người dùng 24/10: "tìm cách tối ưu hóa hộp thư, tin cũ loại bỏ, gộp lại theo trạng thái và tin mới nhất, tránh để miss thông tin". Hiện tin hộp thư = 47 % commit main 7 ngày.
+1. GỘP THEO TRẠNG THÁI: `bang` mỗi mã MỘT dòng = trạng thái mới nhất + người giữ + commit/nhánh + tin mới nhất của mã; lịch sử mã xem bằng `hop_thu.py lich-su <mã>`.
+2. KHÔNG SÓT TIN: mỗi làn có con trỏ đã-đọc (file nhỏ theo làn, trong git). `hop_thu.py chua-doc --lane <làn>` liệt kê MỌI tin/hỏi gửi làn đó chưa xác nhận (kể cả đã lưu trữ);
+   `da-doc --lane <làn> [--den <id>]` xác nhận. `bang` đầu trang có "Chưa đọc: làn → số". Câu HỎI chưa trả lời KHÔNG BAO GIỜ bị lưu trữ.
+3. LƯU TRỮ TIN CŨ: sự kiện của mã đã GỘP/BỎ > 3 ngày và tin thường đã được làn nhận đọc > 3 ngày → gộp vào `hop_thu/luu_tru/<yyyy-mm>.jsonl` (một file/tháng), xóa file sự kiện lẻ;
+   `bang`/trạng thái tính từ cả lưu trữ (kết quả bảng TRƯỚC/SAU lưu trữ giống hệt — test).
+4. ÍT COMMIT: tin thường xếp hàng cục bộ, đẩy GOM một commit "hộp thư: lô N sự kiện" (khi có sự kiện hỏi/xong/gop/giao thì đẩy NGAY cả lô); `--push` giữ tương thích.
+   Đồng thời hai phiên đẩy: giữ cơ chế thử lại hiện có, không mất sự kiện (test 2 tiến trình).
+5. Cập nhật hop_thu/README.md + hop_thu/LICH_DIEU_PHOI.md (bước đọc dùng `chua-doc`) — đề xuất sửa LICH_DIEU_PHOI ghi trong báo cáo, phiên chính áp.
+Test đỏ→xanh: không mất tin khi lưu trữ; hỏi chưa trả lời không bị lưu trữ; bảng trước/sau giống; lô đẩy đúng. TRÙNG tools/hop_thu.py với CX24-G3-SO-LOI (#11) → làm SAU G3, cùng phiên.
+Nhánh `codex/v31-hop-thu-gon`. Phiên chính RÀ KỸ (đường trao đổi của mọi làn).

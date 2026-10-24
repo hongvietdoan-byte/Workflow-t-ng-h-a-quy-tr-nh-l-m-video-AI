@@ -1,5 +1,8 @@
 # Kế hoạch M8.1 — Chế độ ĐƠN GIẢN cho Dashboard (người ít kiến thức video AI)
 
+> **Đánh số (EP 24/10):** "M8.4" trong tài liệu này = lớp AN TOÀN TIỀN = **M8.0** của kế hoạch chính. "M8.4" của kế hoạch chính = tối ưu tải 10 người (cổng trước luồng tự động trả phí).
+
+
 - Cấp 1: tài liệu, **không code**.
 - Người viết: cloud-C, 21/10. Nhánh `cloud/v31-m81`, đọc code `main` @3b58812b.
 - Phiên chính trình Executive Producer (EP).
