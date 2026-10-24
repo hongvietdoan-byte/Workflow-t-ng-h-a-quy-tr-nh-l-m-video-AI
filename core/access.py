@@ -4,8 +4,8 @@ Chính sách
 - Mỗi người chỉ thấy và thao tác dự án DO CHÍNH HỌ TẠO (projects.created_by).
 - Cấp Owner (users.role = 'owner') thấy và làm được MỌI dự án (xem, sửa, gửi job, cất / khôi phục, xóa, đặt lại tiền…).
 - "Theo dõi" (bảng project_watchers): Owner hoặc chủ dự án thêm một người vào dự án kèm mức 'view' (chỉ xem) hoặc 'edit' (xem + sửa, gửi
-  job, duyệt). Người theo dõi thấy dự án ở ⌂ / 📥 và có đúng mức được cấp. Việc "quản trị" dự án (cất, khôi phục, xóa, đổi người theo dõi)
-  chỉ của Owner và chủ dự án — người theo dõi mức 'edit' KHÔNG làm được.
+  job, duyệt). Vai Executive Producer theo dự án được lưu riêng trong project_executive_producers, cho phép xem/sửa và duyệt sân khấu nhưng
+  không quản trị dự án. Việc "quản trị" dự án (cất, khôi phục, xóa, đổi người theo dõi / EP) chỉ của Owner và chủ dự án.
 - Dự án cũ không ghi chủ (created_by rỗng): chỉ Owner thấy cho tới khi Owner gán chủ (assign_creator); không ai khác thấy.
 
 Cách thực thi: Pipeline có thuộc tính `user` ({'email','role'}). Dashboard gán nó cho người đang đăng nhập; mọi hàm lõi ghi / gửi job / duyệt
@@ -18,8 +18,8 @@ from typing import Dict, Iterable, List, Optional, Set
 from . import auth
 
 LEVELS = ("view", "edit")
-LEVEL_LABEL = {"view": "Chỉ xem", "edit": "Được sửa"}
-RANK = {None: 0, "view": 1, "edit": 2, "own": 3, "admin": 4}      # 'own' = người tạo dự án, 'admin' = cấp Owner / hệ thống
+LEVEL_LABEL = {"view": "Chỉ xem", "edit": "Được sửa", "ep": "Executive Producer"}
+RANK = {None: 0, "view": 1, "edit": 2, "ep": 3, "own": 4, "admin": 5}      # EP có quyền sửa nhưng không quản trị dự án
 
 
 class AccessDenied(PermissionError):
@@ -52,7 +52,7 @@ def _row(conn, project_id: int):
 
 
 def level(conn, project_id: int, user) -> Optional[str]:
-    """'admin' (Owner / system) > 'own' (creator) > 'edit' > 'view' > None (no right at all)."""
+    """'admin' (Owner/system) > 'own' (creator) > 'ep' > 'edit' > 'view' > None."""
     u = user_of(user)
     if u is None:
         return "admin"
@@ -67,6 +67,9 @@ def level(conn, project_id: int, user) -> Optional[str]:
     creator = (row["created_by"] or "").strip().lower()
     if creator and creator == email:
         return "own"
+    ep = conn.execute("SELECT 1 FROM project_executive_producers WHERE project_id=? AND email=?", (project_id, email)).fetchone()
+    if ep:
+        return "ep"
     w = conn.execute("SELECT level FROM project_watchers WHERE project_id=? AND email=?", (project_id, email)).fetchone()
     return w["level"] if w else None
 
@@ -169,6 +172,7 @@ def visible_ids(conn, user) -> Optional[Set[int]]:
         return set()
     ids = {r["id"] for r in conn.execute("SELECT id FROM projects WHERE LOWER(TRIM(COALESCE(created_by,'')))=?", (email,))}
     ids |= {r["project_id"] for r in conn.execute("SELECT project_id FROM project_watchers WHERE email=?", (email,))}
+    ids |= {r["project_id"] for r in conn.execute("SELECT project_id FROM project_executive_producers WHERE email=?", (email,))}
     return ids
 
 
@@ -186,6 +190,9 @@ def levels_for(conn, user) -> Dict[int, str]:
     if not email:
         return {}
     out = {r["project_id"]: r["level"] for r in conn.execute("SELECT project_id, level FROM project_watchers WHERE email=?", (email,))}
+    for r in conn.execute("SELECT project_id FROM project_executive_producers WHERE email=?", (email,)):
+        if RANK[out.get(r["project_id"])] < RANK["ep"]:
+            out[r["project_id"]] = "ep"
     for r in conn.execute("SELECT id FROM projects WHERE LOWER(TRIM(COALESCE(created_by,'')))=?", (email,)):
         out[r["id"]] = "own"
     return out
@@ -197,9 +204,24 @@ def list_watchers(conn, project_id: int) -> List[Dict]:
             for r in conn.execute("SELECT * FROM project_watchers WHERE project_id=? ORDER BY email", (project_id,))]
 
 
+def list_project_eps(conn, project_id: int) -> List[Dict]:
+    """People assigned the project-scoped Executive Producer role, with grant audit fields."""
+    return [{"email": r["email"], "added_by": r["added_by"], "added_at": r["added_at"]}
+            for r in conn.execute("SELECT * FROM project_executive_producers WHERE project_id=? ORDER BY email", (project_id,))]
+
+
 def _now() -> str:
     import time
     return time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _audit_actor_email(actor) -> Optional[str]:
+    u = user_of(actor)
+    if u is not None:
+        return u.get("email") or None
+    if isinstance(actor, dict) and str(actor.get("email") or "").strip().lower() == "local":
+        return "local"
+    return None
 
 
 def set_watcher(conn, actor, project_id: int, email: str, lvl: str) -> None:
@@ -233,6 +255,45 @@ def remove_watcher(conn, actor, project_id: int, email: str) -> None:
     conn.commit()
     if cur.rowcount:
         auth.audit(conn, (user_of(actor) or {}).get("email"), "watch_remove", f"#{project_id} {email}")
+
+
+def set_project_ep(conn, actor, project_id: int, email: str) -> None:
+    """Grant a project-scoped EP role. Owner / project creator only; assignment also grants project edit access."""
+    require(conn, project_id, actor, "manage", "cấp vai Executive Producer")
+    if _row(conn, project_id) is None:
+        raise AccessDenied(f"Không có dự án #{project_id}.")
+    try:
+        email = auth.normalize_email(email)
+    except auth.AuthError as e:
+        raise AccessDenied(str(e)) from e
+    user = conn.execute("SELECT role, active FROM users WHERE email=?", (email,)).fetchone()
+    if user is None or not user["active"]:
+        raise AccessDenied(f"{email} chưa có tài khoản đang hoạt động — Owner mời ở 👥 Nhóm trước.")
+    if user["role"] == "owner":
+        raise AccessDenied(f"{email} là Owner nên đã có vai EP trên mọi dự án.")
+    row = _row(conn, project_id)
+    if (row["created_by"] or "").strip().lower() == email:
+        raise AccessDenied(f"{email} là người tạo dự án này — đã có đầy đủ quyền.")
+    actor_email = _audit_actor_email(actor)
+    conn.execute("INSERT INTO project_executive_producers (project_id, email, added_by, added_at) VALUES (?,?,?,?)"
+                 " ON CONFLICT(project_id, email) DO UPDATE SET added_by=excluded.added_by, added_at=excluded.added_at",
+                 (project_id, email, actor_email or "system", _now()))
+    conn.commit()
+    auth.audit(conn, actor_email, "project_ep_grant", f"#{project_id} {email}")
+
+
+def remove_project_ep(conn, actor, project_id: int, email: str) -> None:
+    """Revoke a project-scoped EP assignment. Owner / project creator only."""
+    require(conn, project_id, actor, "manage", "thu vai Executive Producer")
+    try:
+        email = auth.normalize_email(email)
+    except auth.AuthError as e:
+        raise AccessDenied(str(e)) from e
+    cur = conn.execute("DELETE FROM project_executive_producers WHERE project_id=? AND email=?", (project_id, email))
+    conn.commit()
+    if cur.rowcount:
+        actor_email = _audit_actor_email(actor)
+        auth.audit(conn, actor_email, "project_ep_revoke", f"#{project_id} {email}")
 
 
 def assign_creator(conn, actor, project_id: int, email: str) -> None:

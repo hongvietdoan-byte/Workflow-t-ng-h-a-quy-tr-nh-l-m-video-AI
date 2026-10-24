@@ -18,6 +18,8 @@ def project(tmp_path):
         CREATE TABLE projects(id INTEGER PRIMARY KEY,name TEXT,created_by TEXT);
         CREATE TABLE users(email TEXT PRIMARY KEY,role TEXT,active INTEGER);
         CREATE TABLE project_watchers(project_id INTEGER,email TEXT,level TEXT);
+        CREATE TABLE project_executive_producers(project_id INTEGER,email TEXT,added_by TEXT,added_at TEXT,
+                                                 PRIMARY KEY(project_id,email));
         CREATE TABLE app_settings(key TEXT PRIMARY KEY,value TEXT);
         CREATE TABLE audit_log(at TEXT,email TEXT,action TEXT,detail TEXT);
         INSERT INTO projects VALUES(1,'Phim giả','ep@example.test');

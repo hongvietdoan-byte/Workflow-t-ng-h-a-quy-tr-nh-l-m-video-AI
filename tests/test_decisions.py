@@ -170,7 +170,7 @@ def check_stage_desk_ep_only():
     """v31-ep-stage-desk-actions-2026-10-21 S-B: chỉ Executive Producer (NGƯỜI, Owner / chủ dự án) duyệt / trả lại sân khấu trên bàn đạo
     diễn; Director / phiên Claude / công cụ không tự duyệt; nút nạp câu trả lời vai không nhận lượt duyệt (nguồn cố định claude_code).
     C-FIX6 mục 2: kiểm HÀNH VI (gọi hàm) — đảo logic thì đỏ."""
-    from core import stage_auto, stage_desk as SD, write_guard
+    from core import access, auth, stage_auto, stage_desk as SD, write_guard
     p, pid, _sids, seg, data = _desk_project()
     conn, human, ai = p.conn, write_guard.actor("human", "tao@x"), write_guard.actor("ai", "director")
     with mock.patch.dict(os.environ, {"DASHBOARD_AUTH": "off"}):
@@ -185,6 +185,16 @@ def check_stage_desk_ep_only():
         assert SD.is_executive_producer(conn, pid, {"email": "boss@x", "role": "owner"}), "Owner = EP"
         assert not SD.is_executive_producer(conn, pid, {"email": "sua@x", "role": "member"}), "người được sửa không phải EP"
         assert not SD.is_executive_producer(conn, pid, None), "đăng nhập BẬT mà không có danh tính không phải EP"
+        auth.add_user(conn, auth.Identity(auth.OWNER_EMAIL, "owner", "owner", []), "ep@x.test", [])
+        creator = {"email": "tao@x", "role": "member"}
+        access.set_project_ep(conn, creator, pid, "ep@x.test")
+        assigned_ep = {"email": "ep@x.test", "role": "member"}
+        assert SD.is_executive_producer(conn, pid, assigned_ep), "người được cấp EP theo dự án"
+        SD._need_ep(conn, pid, write_guard.actor("human", "ep@x.test"), assigned_ep, "Duyệt")
+        access.remove_project_ep(conn, creator, pid, "ep@x.test")
+        assert not SD.is_executive_producer(conn, pid, assigned_ep), "thu vai EP có hiệu lực ngay"
+        with pytest.raises(SD.DeskError):
+            SD._need_ep(conn, pid, write_guard.actor("human", "ep@x.test"), assigned_ep, "Duyệt")
         with pytest.raises(SD.DeskError):
             SD._need_ep(conn, pid, write_guard.actor("human", "khac@x"), {"email": "tao@x", "role": "member"}, "Duyệt")   # actor ≠ đăng nhập
         with pytest.raises(SD.DeskError):

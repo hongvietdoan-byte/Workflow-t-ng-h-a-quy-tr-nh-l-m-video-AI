@@ -1094,7 +1094,7 @@
    "keeps": "v31-ep-stage-desk-actions-2026-10-21 S-B (chỉ NGƯỜI có vai EP; Director/Claude/công cụ không tự duyệt); check_stage_desk_ep_only giữ, mở rộng ca EP được cấp",
    "changes": "Giao Codex CX22-G1-EP-ROLE (docs/CODEX_TASKS.md). Đổi CHECK/schema CSDL thật = migration Cấp 3 → dừng báo.",
    "replaces": "ep-2210-g1-ep-role-per-project-2026-10-22",
-   "enforced_by": [],
+   "enforced_by": [{"kind": "code", "check": "check_stage_desk_ep_only"}],
    "status": "active",
    "phase": "APPROVED_IN_PRINCIPLE"
   },

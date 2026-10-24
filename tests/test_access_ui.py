@@ -239,7 +239,23 @@ class ManageWatchersTests(AccessUiBase):
         at = self.sign_in(WEDIT, "1")
         keys = {getattr(w, "key", None) for kind in ("button", "selectbox") for w in getattr(at, kind)}
         self.assertFalse(any(str(k).startswith(("set_add_", "set_rm_", "set_lvl_", "set_new_")) for k in keys))
+        self.assertFalse(any("_ep_" in str(k) for k in keys))
         self.assertTrue(any("Chỉ Owner hoặc chủ dự án đổi danh sách" in c.value for c in at.caption))
+
+    def test_creator_can_grant_and_revoke_project_ep_in_watcher_management(self):
+        ep_email = "ep@garena.vn"
+        auth.add_user(self.conn, Identity_owner(), ep_email, [])
+        at = self.sign_in(CREATOR, "1")
+        at.selectbox(key=f"set_ep_new_{self.pid}").set_value(ep_email)
+        next(b for b in at.button if b.key == f"set_ep_add_{self.pid}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(access.level(self.conn, self.pid, {"email": ep_email, "role": "member"}), "ep")
+        self.assertIn(ep_email, self.text(at))
+        home = self.sign_in(ep_email, "home")
+        self.assertEqual({b.key for b in home.button if b.key and b.key.startswith("home_open_")}, {f"home_open_{self.pid}"})
+        next(b for b in at.button if b.key == f"set_ep_rm_{self.pid}_{ep_email}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertIsNone(access.level(self.conn, self.pid, {"email": ep_email, "role": "member"}))
 
     def test_owner_manages_watchers_and_assigns_old_projects_in_the_team_screen(self):
         self.conn.execute("UPDATE projects SET created_by=NULL WHERE id=?", (self.other,))
