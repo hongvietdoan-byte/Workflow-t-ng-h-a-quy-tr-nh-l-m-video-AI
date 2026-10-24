@@ -202,7 +202,8 @@ def test_ui_requires_shared_confirmation_and_keeps_render_snapshot(conn):
         namespace={'st':ui}
         exec(compile(ast.Module(body=[fn],type_ignores=[]),'<height-ui>','exec'),namespace)
         common=SimpleNamespace(allowed=lambda permission:permission=='assets')
-        with mock.patch.dict(sys.modules,{'dashboard.common':common}), mock.patch.object(height,'missing_heights',return_value=(entries,[])), mock.patch.object(height,'save_height') as save:
+        import dashboard  # `from dashboard import common` đọc thuộc tính gói khi dashboard.common đã nạp ở test khác
+        with mock.patch.dict(sys.modules,{'dashboard.common':common}), mock.patch.object(dashboard,'common',common,create=True), mock.patch.object(height,'missing_heights',return_value=(entries,[])), mock.patch.object(height,'save_height') as save:
             namespace['_height_fix_panel'](conn,1,[1],'fixture',USER,False)
         assert save.call_count==int(confirmed)
         assert ui.reruns==int(confirmed)
