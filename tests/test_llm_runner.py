@@ -281,6 +281,19 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertIn(os.path.dirname(path), args)
         self.assertIn(path, kw["input"])
 
+    def test_cli_token_budget_off_keeps_the_exact_legacy_image_arguments(self):
+        import tempfile
+        calls = []
+        path = os.path.join(tempfile.mkdtemp(), "a.png")
+        with open(path, "wb") as f:
+            f.write(b"x")
+        done = self.Done('{"result":"ok"}')
+        with mock.patch("core.features.on", return_value=False), mock.patch("shutil.which", return_value="claude"), \
+                lr.tagged("qc", 3):
+            self.client(done, calls).complete("chấm ảnh", [("Ảnh 1", path)])
+        self.assertEqual(calls[0][0], ["claude", "-p", "--output-format", "json", "--no-session-persistence",
+                                      "--allowedTools", "Read", "--add-dir", os.path.dirname(path)])
+
     def test_not_logged_in_is_reported_with_what_to_do(self):
         done = self.Done('{"is_error": true, "result": "Failed to authenticate: OAuth session expired"}', 1)
         with self.assertRaises(lr.LlmError) as ctx:
@@ -303,12 +316,135 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertIn("chưa đăng nhập", message)
 
     def test_the_claude_process_gets_no_markers_of_a_parent_session(self):
-        with mock.patch.dict(os.environ, {"CLAUDE_CODE_ENTRYPOINT": "claude-desktop", "CLAUDECODE": "1", "CLAUDE_CODE_OAUTH_SCOPES": "x", "KEEP_ME": "1"}):
+        with mock.patch.object(os, "environ", {"CLAUDE_CODE_ENTRYPOINT": "claude-desktop", "CLAUDECODE": "1",
+                                                 "CLAUDE_CODE_OAUTH_SCOPES": "x", "KEEP_ME": "1"}):
             env = lr.ClaudeCliClient.clean_env()
         self.assertNotIn("CLAUDE_CODE_ENTRYPOINT", env)
         self.assertNotIn("CLAUDECODE", env)
         self.assertNotIn("CLAUDE_CODE_OAUTH_SCOPES", env)
         self.assertEqual(env.get("KEEP_ME"), "1")
+
+    def test_cli_token_budget_off_keeps_the_exact_legacy_argument_list(self):
+        calls = []
+        done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
+        with mock.patch("core.features.on", return_value=False), mock.patch("shutil.which", return_value="claude"), \
+                lr.tagged("chat_prompt", 3):
+            reply = self.client(done, calls).complete("xin chào")
+        self.assertEqual(reply.text, "ok")
+        self.assertEqual(calls[0][0], ["claude", "-p", "--output-format", "json", "--no-session-persistence"])
+
+    def test_cli_token_budget_on_uses_the_stage_policy_and_preserves_configured_model(self):
+        calls = []
+        done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
+        with mock.patch("core.features.on", return_value=True), lr.tagged("change_review", 3):
+            lr.ClaudeCliClient(model="configured-model", run=lambda args, **kw: (calls.append((args, kw)) or done)).complete(
+                "rà một thay đổi")
+        args = calls[0][0]
+        self.assertIn("--safe-mode", args)
+        self.assertIn("--max-turns", args)
+        self.assertEqual(args[args.index("--max-turns") + 1], "1")
+        self.assertIn("--tools", args)
+        self.assertEqual(args[args.index("--tools") + 1], "")
+        self.assertEqual(args[args.index("--model") + 1], "configured-model")
+
+    def test_cli_token_budget_on_keeps_read_for_images_with_a_bounded_tool_turn(self):
+        import tempfile
+        calls = []
+        path = os.path.join(tempfile.mkdtemp(), "a.png")
+        with open(path, "wb") as f:
+            f.write(b"x")
+        done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
+        with mock.patch("core.features.on", return_value=True), lr.tagged("qc", 3):
+            self.client(done, calls).complete("chấm ảnh", [("Ảnh 1", path)])
+        args = calls[0][0]
+        self.assertIn("--safe-mode", args)
+        self.assertEqual(args[args.index("--max-turns") + 1], "2")
+        self.assertEqual(args[args.index("--tools") + 1], "Read")
+        self.assertEqual(args[args.index("--allowedTools") + 1], "Read")
+
+    def test_cli_token_budget_on_leaves_unprofiled_stages_unchanged(self):
+        calls = []
+        done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
+        with mock.patch("core.features.on", return_value=True), mock.patch("shutil.which", return_value="claude"), \
+                lr.tagged("asset_vision", 3):
+            self.client(done, calls).complete("kiểm tài nguyên")
+        self.assertEqual(calls[0][0], ["claude", "-p", "--output-format", "json", "--no-session-persistence"])
+
+    def test_cli_token_estimate_uses_the_shared_stage_policy(self):
+        estimate = lr.cli_input_estimate("qc", "x" * 100, image_count=2)
+        self.assertEqual(estimate["method"], "historical_stage_average")
+        self.assertEqual(estimate["estimated_input_tokens"], 1_120_000 // 3)
+        self.assertEqual(estimate["image_count"], 2)
+
+    def test_cli_token_budget_flag_is_unverified_and_off_by_default(self):
+        from core import features
+        self.assertFalse(features.FEATURES["cli_token_budget"]["verified"])
+        self.assertEqual(features.default_state("cli_token_budget"), "off")
+        area_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "devsys", "areas.json")
+        with open(area_path, encoding="utf-8") as f:
+            area_map = json.load(f)
+        required_areas = {"Bước 1 · Kịch bản & Đạo diễn", "Bước 2 · Ảnh + QC", "Bước 3 · Motion & giọng",
+                          "Bước 4 · Video + QC", "Bước 5 · Âm thanh & xuất bản", "Chạy tự động (Autopilot)",
+                          "Ngân sách & sổ chi", "Kho tài nguyên", "Gói bối cảnh 3D", "Dashboard chung / giao diện",
+                          "Kiến thức & bộ kỹ năng 3 vai", "Lõi pipeline & nhà cung cấp"}
+        registered = {a["name"] for a in area_map["areas"] if "cli_token_budget" in a.get("flags", [])}
+        self.assertTrue(required_areas.issubset(registered))
+
+    def test_cli_estimate_warning_is_written_before_the_fake_process_runs(self):
+        import sqlite3
+        from core.db import connect
+        ledger = os.path.join(tempfile.mkdtemp(), "cli-estimate.sqlite")
+        conn = connect(ledger)
+        conn.close()
+        seen_before_run = []
+        done = self.Done('{"result":"ok","usage":{"input_tokens":7,"output_tokens":3}}')
+        def run(args, **kwargs):
+            db = sqlite3.connect(ledger)
+            seen_before_run.append(db.execute("SELECT COUNT(*) FROM diag_events WHERE code='cli_input_tokens_estimate'").fetchone()[0])
+            db.close()
+            return done
+        client = lr.ClaudeCliClient(run=run, ledger=ledger)
+        with mock.patch.object(os, "environ", {"CLAUDE_CLI_TOKEN_WARN_INPUT": "200"}), \
+                mock.patch("core.features.on", return_value=True), lr.tagged("qc", None):
+            reply = client.complete("fixture only")
+        self.assertEqual(reply.text, "ok")
+        self.assertEqual(seen_before_run, [1])
+
+    def test_cli_usage_records_raw_and_cached_tokens_separately(self):
+        import sqlite3
+        from core.db import connect
+        ledger = os.path.join(tempfile.mkdtemp(), "cli-ledger.sqlite")
+        conn = connect(ledger)
+        conn.close()
+        calls = []
+        done = self.Done('{"result":"ok","usage":{"input_tokens":11,"output_tokens":5,'
+                         '"cache_read_input_tokens":13,"cache_creation_input_tokens":17}}')
+        client = lr.ClaudeCliClient(run=lambda args, **kw: (calls.append((args, kw)) or done), ledger=ledger)
+        with mock.patch.object(os, "environ", {}), lr.tagged("qc", None):
+            client.complete("fixture only")
+        conn = sqlite3.connect(ledger)
+        row = conn.execute("SELECT input_tokens, output_tokens, cache_read_tokens, cache_write_tokens "
+                           "FROM llm_calls ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        self.assertEqual(row, (11, 5, 13, 17))
+
+    def test_cli_input_over_threshold_warns_but_does_not_block_the_call(self):
+        from core.db import connect
+        ledger = os.path.join(tempfile.mkdtemp(), "cli-warning.sqlite")
+        conn = connect(ledger)
+        conn.close()
+        called = []
+        done = self.Done('{"result":"ok","usage":{"input_tokens":201,"output_tokens":1}}')
+        client = lr.ClaudeCliClient(run=lambda args, **kw: (called.append(True) or done), ledger=ledger)
+        with mock.patch.object(os, "environ", {"CLAUDE_CLI_TOKEN_WARN_INPUT": "200"}), lr.tagged("qc", 3):
+            reply = client.complete("fixture only")
+        conn = connect(ledger)
+        rows = conn.execute("SELECT code, message FROM diag_events WHERE code='cli_input_tokens_high'").fetchall()
+        conn.close()
+        self.assertEqual(reply.text, "ok")
+        self.assertEqual(called, [True])
+        self.assertEqual(len(rows), 1)
+        self.assertIn("201", rows[0]["message"])
 
     def test_it_is_chosen_by_the_environment_setting(self):
         import unittest.mock as mock
