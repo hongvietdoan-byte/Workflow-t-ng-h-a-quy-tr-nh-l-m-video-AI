@@ -104,20 +104,19 @@ def media_screen(p, pid, state, kind):
     st.caption("Trước cổng M8.4: chỉ người bấm gửi có báo giá và xác nhận; không máy tự gửi.")
     # Cổng giá/quyền của luồng hiện hành, không tạo đường gửi provider mới.
     try:
-        pricing = cost.load_pricing()
-        if kind == "images":
-            from core import image_models
-            est = cost.estimate_images(p, pid, pricing, image_models.of_project(p.project(pid)), data_dir=state["data_dir"])
-        else:
-            est = cost.estimate_videos_by_scene(p, pid, pricing)
-        amount = est.get("total")
+        quoted = actions.quote(p, pid, state["data_dir"], kind)
+        amount = quoted["usd"]
     except Exception:
-        amount = None
+        quoted, amount = None, None
     tag = cost.price_tag(amount)
     blocked = not state["can_edit"] or bool(state["project"].get("paused")) or amount is None or not state["scenes"] or not paid_confirm.enabled()
-    if paid_confirm.paid_button(f"Gửi làm {'ảnh' if kind == 'images' else 'video'}", key=f"basic_send_{kind}_{pid}",
+    send_key = f"basic_send_{kind}_{pid}"
+    if st.session_state.get(send_key + "_quote") != quoted:
+        st.session_state.pop(paid_confirm.ASK_PREFIX + send_key, None)
+        st.session_state[send_key + "_quote"] = quoted
+    if paid_confirm.paid_button(f"Gửi làm {'ảnh' if kind == 'images' else 'video'}", key=send_key,
                                 tag=tag, disabled=blocked):
-        _act(lambda: actions.send(p, pid, state["data_dir"], kind, confirmed=True), "Đã xử lý lượt gửi bạn xác nhận")
+        _act(lambda: actions.send(p, pid, state["data_dir"], kind, confirmed=True, expected_quote=quoted), "Đã xử lý lượt gửi bạn xác nhận")
     if not paid_confirm.enabled():
         st.info("Đang giữ — lớp xác nhận giá chưa bật; chưa có nút gửi hoạt động.")
     if state["can_edit"] and paid_confirm.enabled():

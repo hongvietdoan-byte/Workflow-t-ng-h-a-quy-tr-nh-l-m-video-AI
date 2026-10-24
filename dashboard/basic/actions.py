@@ -1,8 +1,12 @@
 """Callback người bấm: dùng lại nghiệp vụ và cổng hiện hành, không vòng tự gửi."""
+import math
+
 from core import access, simple_budget
 
 
 def _actor(p, pid, *, confirmed=False, paid=False):
+    if not simple_budget.enabled():
+        raise PermissionError("Chế độ Cơ bản chưa được bật")
     if not confirmed:
         raise ValueError("Cần người bấm xác nhận thao tác")
     who = simple_budget.current_user(p, pid)
@@ -11,6 +15,7 @@ def _actor(p, pid, *, confirmed=False, paid=False):
         raise ValueError("Đã tạm dừng — không gửi job mới")
     p.user = who
     p.actor = who["email"] if who else "user"
+    p.origin = None  # thao tác người bấm, không kế thừa ngữ cảnh autopilot
     return who
 
 
@@ -32,13 +37,42 @@ def use_script(p, pid, text):
     return idea_to_script.use_script(p, pid)
 
 
-def send(p, pid, data_dir, kind, *, confirmed=False):
+def quote(p, pid, data_dir, kind):
+    """Báo giá đúng lớp hiện có, ràng buộc cùng tập đầu vào và job chưa gửi."""
+    from core import batch, cost, gen_auth, image_models
+    from dashboard.paid_batch_preview import fingerprint
+    pricing = cost.load_pricing()
+    if kind == "images":
+        est = cost.estimate_images(p, pid, pricing, image_models.of_project(p.project(pid)), data_dir=data_dir)
+        ids = batch.image_targets(p, pid, include_queued=True)
+        jtype = "image_gen"
+    elif kind == "videos":
+        est = cost.estimate_videos_by_scene(p, pid, pricing)
+        ids = [r["scene_id"] for r in batch.video_plan(p, pid) if r["kind"] == "new"]
+        jtype = "video_gen"
+    else:
+        raise ValueError("Thao tác không có trong luồng Cơ bản")
+    usd = est.get("total")
+    if isinstance(usd, bool) or not isinstance(usd, (int, float)) or not math.isfinite(usd) or usd < 0 or est.get("incomplete"):
+        raise ValueError("Chưa đủ báo giá để gửi")
+    if not ids:
+        raise ValueError("Không có cảnh mới đủ điều kiện gửi")
+    for sid in ids:
+        used = gen_auth.attempts(p.conn, sid, jtype, since=gen_auth.cycle_start(data_dir, pid, sid, jtype))
+        if len(used) >= gen_auth.LIMITS[jtype]:
+            raise ValueError("Đang giữ — có cảnh đã hết lượt, cần EP xem riêng")
+    return {"usd": usd, "ids": list(ids), "fp": fingerprint(p, pid, "basic_" + kind, data_dir)}
+
+
+def send(p, pid, data_dir, kind, *, confirmed=False, expected_quote=None):
     """Chỉ initial send; retry/reject/reopen/voice/music dành pha B."""
     _actor(p, pid, confirmed=confirmed, paid=True)
     from core import batch
     from dashboard import common as C, paid_confirm
     if not paid_confirm.enabled():
         raise PermissionError("Chờ bật lớp xác nhận giá trước khi gửi từ chế độ Cơ bản")
+    if expected_quote is None or quote(p, pid, data_dir, kind) != expected_quote:
+        raise ValueError("Tập cảnh hoặc báo giá đã đổi — xem lại và xác nhận")
     if kind == "images":
         # Không dùng confirmed=True để bỏ qua cổng image_gates.
         runner = C.image_runner(p)

@@ -148,3 +148,36 @@ def test_send_requires_human_confirmation_before_any_provider(project):
         with pytest.raises(ValueError):
             actions.send(project, 1, "fake", "images", confirmed=False)
         assert not provider.called
+
+
+def test_off_flag_and_changed_quote_stop_before_provider_or_queue(project):
+    from dashboard.basic import actions
+    project.project = lambda pid: {"paused": 0}
+    with patch("dashboard.common.image_runner") as provider, \
+            patch("core.batch.queue_images") as queue:
+        with patch.object(actions.simple_budget, "enabled", return_value=False):
+            with pytest.raises(PermissionError):
+                actions.send(project, 1, "fake", "images", confirmed=True)
+        with patch.object(actions, "quote", return_value={"usd": 2, "fp": "new", "ids": [1]}), \
+                patch("dashboard.paid_confirm.enabled", return_value=True):
+            with pytest.raises(ValueError):
+                actions.send(project, 1, "fake", "images", confirmed=True,
+                             expected_quote={"usd": 1, "fp": "old", "ids": [1]})
+        assert not provider.called and not queue.called
+
+
+def test_confirmed_send_reuses_existing_batch_and_marks_human(project):
+    from dashboard.basic import actions
+    project.project = lambda pid: {"paused": 0}
+    quote = {"usd": 1, "fp": "fixed", "ids": [1]}
+    from unittest.mock import Mock
+    runner = Mock()
+    runner.submit_pending.return_value = 1
+    with patch.object(actions, "quote", return_value=quote), \
+            patch("dashboard.paid_confirm.enabled", return_value=True), \
+            patch("dashboard.common.image_runner", return_value=runner), \
+            patch("core.batch.queue_images", return_value={"created": 1, "redo": 0}) as queue:
+        actions.send(project, 1, "fake", "images", confirmed=True, expected_quote=quote)
+        assert queue.call_args.kwargs["confirmed"] is False  # không bỏ qua cổng ảnh
+        assert project.actor == "ep@example.test" and project.origin is None
+        runner.submit_pending.assert_called_once_with(1)

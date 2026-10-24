@@ -24,8 +24,10 @@ def load(p, pid, data_dir):
     # Dùng cùng bộ đếm E4; không có lệnh reset hay suy lượt từ retry_count.
     counted = gen_auth.project_jobs(p.conn, pid)
     for scene in scenes:
-        scene["image_used"] = len(gen_auth.attempts_in(counted, scene["id"], "image_gen"))
-        scene["video_used"] = len(gen_auth.attempts_in(counted, scene["id"], "video_gen"))
+        scene["image_used"] = len(gen_auth.attempts_in(counted, scene["id"], "image_gen",
+            since=gen_auth.cycle_start(data_dir, pid, scene["id"], "image_gen")))
+        scene["video_used"] = len(gen_auth.attempts_in(counted, scene["id"], "video_gen",
+            since=gen_auth.cycle_start(data_dir, pid, scene["id"], "video_gen")))
     from core import access, idea_to_script
     return {"project": proj, "scenes": scenes, "jobs": jobs, "budget": budget_view(p, pid),
             "idea": idea_to_script.get_state(p.conn, pid), "can_edit": access.can_edit(p.conn, pid, identity),

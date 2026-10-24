@@ -14,10 +14,22 @@ cờ simple_mode OFF; 9 test xanh 0,24 giây. Areas giữ version 92.
 WIP tiếp: năm màn/HOLD/pause, model đọc và bộ đếm gen_auth, callback gọi batch/runner,
 paid_confirm và approve_preview hiện có; 12 test xanh 4,60 giây gồm AppTest năm màn.
 
+Checkpoint tiếp: bind fingerprint/báo giá sau rerun và callback; OFF chặn callback;
+E4 đọc grants-cycle, không reset; 14/14 test xanh 4,34 giây (không rerun sau đó).
+
 CÒN MỞ trước nghiệm thu:
-- Bind fingerprint/báo giá sau rerun, E4 cho batch initial send; không cho gửi thừa ngoài tập duyệt.
+- Core batch/runner hiện gửi cả lô dự án, chưa có API targetedsend đúng tập đã duyệt.
+  Hiện giữ chờ toàn lô khi có cảnh hết lượt; chưa đạt HOLD từng mục không chặn mục khác.
+  KHÔNG tự mở API core ngoài vùng phân công; root hỏi phiên chính/owner.
 - Proposal hiện dùng core.project_budget.propose cũ: chưa thể gọi là đủ dự toán xấu nhất + tự sửa 40% của thiết kế.
 - Chưa thực hiện đủ Q-A/Phương án khác, các thao tác sửa thẻ (pha B), dựng bản xem thử sau duyệt clip;
   phụ đề/bản giao chưa nối nghiệp vụ đầy đủ, không tuyên bố target tám thao tác.
-- Browser QA 1440/390 trên dữ liệu giả, ảnh; root RÀ KỸ.
+- Browser QA 1440/390 chưa làm được, chưa có ảnh. IAB/browser inventory rỗng;
+  Chrome native bị hệ thống dừng vì không xác định URL đủ chắc để áp policy.
+  Không retry/bypass. Đã kiểm commandline fake preview PID45972/port8529 rồi dừng
+  đúng tiến trình sở hữu, không còn listener khác trên cổng; không còn server QA.
+- Root RÀ KỸ chưa thực hiện cho M82; G1 quyền cần đối chiếu khi lên main.
 Không đụng entrypoint production/DB thật/API. **Pha A chưa XONG**, không bật cờ.
+
+Thư mới 12:31 ưu tiên G1-PLAN-GATES trước M47B/M82. Root giao agent khác thực hiện;
+agent M82 dừng tại checkpoint này, không nhận G1 hay sửa task khác.
