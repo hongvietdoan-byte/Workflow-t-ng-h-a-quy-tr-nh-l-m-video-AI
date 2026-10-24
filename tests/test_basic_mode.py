@@ -92,3 +92,59 @@ def test_simple_mode_is_off_and_legacy_entrypoints_are_not_modified():
     from dashboard import basic
     with patch.object(basic, "enabled", return_value=False):
         assert basic.render(None, 1, None) is False
+
+
+def _ui_fixture():
+    from types import SimpleNamespace
+    import streamlit as st
+    from dashboard.basic.views import render_workspace
+    # Snapshot giả do test thay qua model.load; không mở DB hay provider thật.
+    p = SimpleNamespace(conn=SimpleNamespace(execute=lambda *a, **kw: SimpleNamespace(fetchall=lambda: [])))
+    render_workspace(p, 1, "fixture_data")
+
+
+def test_five_screens_render_without_api_or_permission_changes(tmp_path):
+    from streamlit.testing.v1 import AppTest
+    from dashboard.basic import model, views
+    state = {"project": {"id": 1, "name": "Phim giả M82", "paused": 0, "script_text": "CẢNH 1 - NGÀY\nKelly bước vào kho."},
+             "scenes": [{"id": 1, "idx": 1, "title": "Kelly vào kho", "image_used": 0, "video_used": 0}],
+             "jobs": [], "budget": {"approved": None, "recorded": 0, "held": 0, "limit": None,
+                                      "ratio": None, "warning": False, "stages": {}},
+             "idea": {}, "can_edit": False, "identity": {"email": "viewer@example.test", "role": "member"},
+             "data_dir": str(tmp_path)}
+    with patch.object(os, "environ", {"HOME": str(tmp_path), "USERPROFILE": str(tmp_path)}), \
+            patch.object(model, "load", return_value=state), \
+            patch.object(views.simple_budget, "proposal", return_value={"total": None, "incomplete": True}), \
+            patch.object(views.paid_confirm, "enabled", return_value=False), \
+            patch.object(views.cost, "load_pricing", return_value={}), \
+            patch.object(views.cost, "estimate_images", return_value={"total": None}), \
+            patch.object(views.cost, "estimate_videos_by_scene", return_value={"total": None}), \
+            patch.object(views.actions, "send") as send:
+        at = AppTest.from_function(_ui_fixture).run()
+        for screen in model.SCREENS:
+            at.selectbox[0].set_value(screen).run()
+            assert not at.exception
+            assert [t.value for t in at.title] == ["Chế độ Cơ bản"]
+        assert not send.called
+    assert state["can_edit"] is False
+
+
+def test_media_paths_cannot_escape_project(tmp_path):
+    from dashboard.basic.model import media_path
+    root = tmp_path / "assets"
+    project = root / "1"
+    project.mkdir(parents=True)
+    allowed = project / "clip.mp4"
+    allowed.write_bytes(b"fixture")
+    other = tmp_path / "private.txt"
+    other.write_text("fake-only")
+    assert media_path(root, 1, str(allowed)) == allowed
+    assert media_path(root, 1, str(other)) is None
+
+
+def test_send_requires_human_confirmation_before_any_provider(project):
+    from dashboard.basic import actions
+    with patch("dashboard.common.image_runner") as provider:
+        with pytest.raises(ValueError):
+            actions.send(project, 1, "fake", "images", confirmed=False)
+        assert not provider.called

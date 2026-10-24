@@ -9,6 +9,15 @@ Nguyên nhân dự kiến: chưa có core.simple_budget/dashboard.basic/cờ sim
 EP dùng policy hiện hành stage_desk, xác minh danh tính/active/project ở callback;
 không sửa file G1 đang do Codex 3 giữ. Sau G1 gộp phải đối chiếu adapter quyền.
 
-Tiếp: helper ngân sách + khung 5 màn/HOLD/pause; targeted đỏ→xanh; đăng ký areas;
-browser QA 1440/390 trên dữ liệu giả; root RÀ KỸ trước báo xong.
-Chưa code production/DB thật/API, chưa tuyên bố đủ pha A.
+9950d707: helper ngân sách tách metadata, EP/current user, savepoint/audit,
+cờ simple_mode OFF; 9 test xanh 0,24 giây. Areas giữ version 92.
+WIP tiếp: năm màn/HOLD/pause, model đọc và bộ đếm gen_auth, callback gọi batch/runner,
+paid_confirm và approve_preview hiện có; 12 test xanh 4,60 giây gồm AppTest năm màn.
+
+CÒN MỞ trước nghiệm thu:
+- Bind fingerprint/báo giá sau rerun, E4 cho batch initial send; không cho gửi thừa ngoài tập duyệt.
+- Proposal hiện dùng core.project_budget.propose cũ: chưa thể gọi là đủ dự toán xấu nhất + tự sửa 40% của thiết kế.
+- Chưa thực hiện đủ Q-A/Phương án khác, các thao tác sửa thẻ (pha B), dựng bản xem thử sau duyệt clip;
+  phụ đề/bản giao chưa nối nghiệp vụ đầy đủ, không tuyên bố target tám thao tác.
+- Browser QA 1440/390 trên dữ liệu giả, ảnh; root RÀ KỸ.
+Không đụng entrypoint production/DB thật/API. **Pha A chưa XONG**, không bật cờ.
