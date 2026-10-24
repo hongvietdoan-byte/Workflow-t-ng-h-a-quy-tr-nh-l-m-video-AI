@@ -17,6 +17,7 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 FLAG = "field_guard"
+ROLE_FLAG = "crew_write_guard"
 AUTO, USER_LOCKED, REVIEW_REQUIRED = "AUTO", "USER_LOCKED", "REVIEW_REQUIRED"
 ACTOR_KINDS = ("human", "ai", "auto", "tool")
 DELETE = object()                     # changes[field] = DELETE: xóa trường
@@ -35,10 +36,82 @@ def enabled() -> bool:
 
 
 def actor(kind: str, who: str, **extra) -> Dict[str, Any]:
-    """Actor của lần ghi: kind human / ai / auto / tool, who = email / khâu / tên công cụ (+ job_id, run_id…)."""
+    """Actor của lần ghi: kind human / ai / auto / tool, who = email / khâu / tên công cụ; `role` là vai chịu trách nhiệm nếu đã rõ."""
     if kind not in ACTOR_KINDS:
         raise ValueError(f"actor kind '{kind}' không thuộc {ACTOR_KINDS}")
     return {"kind": kind, "who": who, **extra}
+
+
+def user_actor(conn, project_id: int, who: Dict, user=None) -> Dict:
+    """Gắn vai EP cho người đã được core/stage_desk xác minh; danh tính khác giữ nguyên để RBAC hiện có tiếp tục quyết định."""
+    if not who or who.get("kind") != "human" or who.get("role"):
+        return who
+    from . import stage_desk
+    identity = user
+    if identity is None:
+        name = str(who.get("who") or "").strip()
+        if "@" in name:
+            identity = {"email": name, "role": "member"}
+        elif name.lower() not in ("", "dashboard", "local") and stage_desk.login_on():
+            identity = {"email": "", "role": "none"}
+    if stage_desk.is_executive_producer(conn, project_id, identity):
+        return {**who, "role": "executive_producer"}
+    return who
+
+
+class RoleWriteDenied(PermissionError):
+    """M6.4: từ chối một lần ghi sai vai khi cờ crew_write_guard được bật."""
+
+
+def _role_guard_enforced() -> bool:
+    from . import features
+    return features.on(ROLE_FLAG) and not features.unmet(ROLE_FLAG)
+
+
+def _crew_field(field: str, fields: Dict[str, Any]) -> Optional[str]:
+    """Ánh xạ khóa của M2.5 sang khóa sở hữu production của Role Registry; trường dẫn xuất không có vai thì bỏ qua."""
+    name = str(field).strip()
+    if name in fields:
+        return name
+    if name.startswith("scenes.data."):
+        candidate = ".".join(name.split(".")[:3])
+        return candidate if candidate in fields else None
+    if name.startswith(("motion_prompts.", "characters.", "projects.", "end_frames.")):
+        candidate = ".".join(name.split(".")[:2])
+        return candidate if candidate in fields else None
+    if name in ("motion_prompt", "camera", "duration_sec", "negative_prompt", "state"):
+        candidate = f"motion_prompts.{name}"
+    else:
+        candidate = f"scenes.data.{name.split('.', 1)[0]}"
+    return candidate if candidate in fields else None
+
+
+def _role_events(changes: Dict[str, Any], who: Dict, data: Dict, before: Optional[Dict]) -> List[Dict]:
+    role = (who or {}).get("role") or "unassigned"
+    from . import crew
+    reg = crew.active()
+    if reg is None:
+        if _role_guard_enforced():
+            raise RoleWriteDenied("M6.4: Role Registry chưa sẵn sàng; từ chối ghi để tránh bỏ qua kiểm quyền")
+        return []
+    fields = reg.get("fields") or {}
+    out = []
+    for field, new in changes.items():
+        canonical = _crew_field(field, fields)
+        if canonical is None:
+            continue
+        raw = str(field)
+        lookup = raw.removeprefix("scenes.data.") if raw.startswith("scenes.data.") else raw
+        old = (before or {}).get(raw, _get(data, lookup))
+        new_v = None if new is DELETE else new
+        if canonical == "motion_prompts.state" and new_v == "pending":
+            continue  # ghi prompt chỉ hạ duyệt về chờ; đây không phải hành động phê duyệt của vai ghi prompt
+        if new_v == old or crew.can_write(str(role), canonical, reg):
+            continue
+        out.append({"code": "role_conflict", "would": "block" if _role_guard_enforced() else "review",
+                    "field": canonical, "role": str(role), "owner": crew.owner_of(canonical, reg), "old": old, "new": new_v,
+                    "why": f"vai {role} không có quyền ghi trường do {crew.owner_of(canonical, reg)} sở hữu"})
+    return out
 
 
 def _root(field: str) -> str:
@@ -90,6 +163,7 @@ def assess(data: Optional[Dict], changes: Dict[str, Any], who: Dict, expected_re
         if moved:
             out.append({"code": "stale_write", "would": "stale", "fields": moved,
                         "why": "hàng đã đổi từ lúc đọc ở " + ", ".join(moved) + " — ghi cả bảng sẽ đè thay đổi xen giữa"})
+    out.extend(_role_events(changes, who, data, before))
     if (who or {}).get("kind") == "human":
         return out
     for field, new in changes.items():
@@ -125,6 +199,9 @@ def _short(v) -> str:
 
 def _message(ev: Dict, who: Dict) -> str:
     by = f"{(who or {}).get('kind', '?')}:{(who or {}).get('who', '?')}"
+    if ev["code"] == "role_conflict":
+        return (f"[shadow crew_write_guard] {by} (vai {ev['role']}) ghi `{ev['field']}` thuộc {ev['owner']} — REVIEW; "
+                "chế độ shadow chưa chặn lần ghi này")
     if ev["code"] == "field_conflict":
         return (f"[shadow field_guard] {by} ghi `{ev['field']}` đang USER_LOCKED ({_short(ev['old'])} → {_short(ev['new'])}) — enforce sẽ GIỮ "
                 "giá trị người + ghi đề xuất; hiện vẫn ghi như cũ")
@@ -177,8 +254,8 @@ def flush(conn) -> int:
 
 def observe(conn, scene_id: int, changes: Dict[str, Any], who: Dict, read_data: Optional[Dict] = None,
             expected_rev: Optional[int] = None, before: Optional[Dict] = None) -> Optional[List[Dict]]:
-    """Shadow: cờ tắt → None (không đọc gì). Bật: so lần ghi sắp làm với trạng thái trường, ghi một dòng diag mỗi điều lẽ ra đã chặn; trả
-    danh sách. `read_data` = bản nơi gọi đã đọc (có → so với hàng hiện tại để bắt stale). Không đổi dữ liệu, không bao giờ ném lỗi."""
+    """Shadow: field_guard bật thì so trường + vai và ghi diag. crew_write_guard bật cùng dependency thì từ chối sai vai trước khi caller ghi.
+    `read_data` = bản nơi gọi đã đọc (có → so với hàng hiện tại để bắt stale)."""
     if not enabled():
         return None
     pid = None
@@ -186,11 +263,18 @@ def observe(conn, scene_id: int, changes: Dict[str, Any], who: Dict, read_data: 
         pid, current = _load(conn, scene_id)
         data = read_data if isinstance(read_data, dict) else current
         events = assess(data, changes, who, expected_rev, current if isinstance(read_data, dict) else None, before)
+        denied = next((ev for ev in events if ev["code"] == "role_conflict"), None)
+        if denied and _role_guard_enforced():
+            raise RoleWriteDenied(f"M6.4: {denied['why']} ({denied['field']})")
         flush(conn)
         for ev in events:
             _say(conn, _message(ev, who), ev["code"], pid, scene_id)
         return events
+    except RoleWriteDenied:
+        raise
     except Exception as e:  # noqa: BLE001 - shadow never stops the real write
+        if _role_guard_enforced():
+            raise RoleWriteDenied(f"M6.4: không thể xác minh vai ghi ({type(e).__name__}); từ chối ghi") from e
         try:
             _say(conn, f"field_guard (shadow) lỗi ({type(e).__name__}: {e}) — lần ghi vẫn đi như cũ", "field_guard", pid, scene_id)
         except Exception:  # noqa: BLE001

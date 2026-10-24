@@ -340,6 +340,14 @@ def check_crew_profiles_linked():
         assert all(p.get(k) for k in ("ban_la_ai", "vai_tro", "viec_lam", "chiu_trach_nhiem")), r["id"]
 
 
+def check_m6_engineer_cannot_write_production():
+    """Sổ M6: Claude Code / Codex là kỹ sư hệ thống, không tự sửa nội dung production."""
+    from core import crew
+    reg = crew.load()
+    assert reg["fields"]
+    assert all(not crew.can_write("engineer", field, reg) for field in reg["fields"])
+
+
 def _decision_test_module(filename):
     import importlib.util
     path = os.path.join(ROOT, "tests", filename)
@@ -609,4 +617,3 @@ def test_v31_m6_architecture_recorded_as_direction_not_implementation():
     assert items["v31-d01b-money-policy-product-job-cap-2026-10-20"]["status"] == "active"
     from core.pipeline import AUTO_REGEN_LIMIT                 # chưa triển khai M6.3: code giữ trần cũ
     assert AUTO_REGEN_LIMIT == {"image_gen": 3, "video_gen": 2}
-

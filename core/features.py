@@ -468,6 +468,11 @@ FEATURES: Dict[str, Dict] = {
         "why": "Sổ v31-ep-m6-pack-a-approved-2026-10-21 (M6-A Cấp 2). Audit M6.0: không đường ghi nào có actor = vai → chưa định tuyến lỗi "
                "về vai chủ được. Cờ chỉ mở registry cho đường chạy (Continuity Validator); `py -m core.crew check` luôn kiểm",
     },
+    "crew_write_guard": {
+        "label": "Write guard theo vai M6.4: sai vai → REVIEW khi shadow, từ chối ghi khi bật; cần field_guard + crew_registry",
+        "verified": False,
+        "why": "M6.4 Cấp 2: chỉ shadow khi cờ TẮT; cờ mặc định TẮT, chưa bật trên máy chính hay luồng production",
+    },
     "continuity_validator": {
         "label": "Continuity Validator SHADOW (V3.1 M6.9): gom phát hiện continuity_state + qc_evidence + QC shadow M4.2/M4.3, định tuyến "
                  "về vai chủ theo Role Registry + sổ lỗi → <dự án>/crew/continuity_validator.jsonl; CHỈ ghi bằng chứng — không chặn, "
@@ -1415,6 +1420,7 @@ REQUIRES = {"director_rewrite_respect_lock": ("director_rewrite",), "dialogue_ta
             "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",),
             "stage_desk_ui": ("stage_view_ui",),           # M4.8: bàn đạo diễn nằm trong màn XEM sân khấu
             "continuity_validator": ("crew_registry",),       # M6.9 định tuyến theo Role Registry M6.1
+            "crew_write_guard": ("crew_registry", "field_guard"),  # M6.4 actor vai trong write guard M2.5
             "ref_end_frames": ("end_frames", "seedance_ref_groups"),   # M7.3: khung cuối tuyến ref chỉ có nghĩa khi cả hai bật
             **{f"byd_fields_a2{x}": ("byd_fields",) for x in "abcdef"}}   # M2.2: cờ con reader BYĐ cần cờ mẹ
 

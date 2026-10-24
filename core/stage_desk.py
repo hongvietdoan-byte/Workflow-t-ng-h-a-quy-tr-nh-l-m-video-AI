@@ -705,7 +705,7 @@ def load_answer(conn, pid: int, data_dir: str, scene, obj: Dict, who: Optional[D
 def _tool_who(who: Optional[Dict], name: str) -> Dict:
     """Actor ghi máy của nút không phải duyệt: công cụ bàn đạo diễn (người bấm ghi kèm `via`)."""
     from . import write_guard
-    return write_guard.actor("tool", name, via=_who_text(who))
+    return write_guard.actor("tool", name, role=(who or {}).get("role") or "artist_3d", via=_who_text(who))
 
 
 def build_sheet(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> Dict:
