@@ -5,6 +5,7 @@ from dashboard import paid_confirm as P  # noqa: E402  (M8.0b: nút tốn tiền
 from dashboard.widgets import auto_poll_images, image_busy
 from dashboard.design.screens.prompt_versions_ui import spin as _spin  # S14.17: spinner khi Đạo diễn viết lại prompt
 from core import image_models
+from dashboard.image_model_label import image_provider_label
 
 
 def D_card(key: str):
@@ -300,13 +301,14 @@ def step2(p: Pipeline, pid: int):
             st.rerun()
         mode_text = f'{ui.MODE_LABELS.get(proj["operating_mode"], proj["operating_mode"])}: ' + (
             "Claude tự duyệt ảnh đạt" if proj["operating_mode"] == "auto" else "mọi ảnh chờ bạn duyệt")
+        image_label = image_provider_label(proj, runner.provider) if runner is not None else None
         if v2:                                            # nhà cung cấp + chế độ: một dòng, chi tiết trong ⓘ
             if runner is None:
                 SB.note("ℹ Deepix chưa cấu hình — nhập ảnh thủ công cho từng cảnh", "Cách cấu hình: docs/RUNBOOK.md.\n\n" + mode_text, "sb-gen-prov")
             else:
-                SB.note(f"Ảnh: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " · API thật")
+                SB.note(image_label
                         + f" · khung {formats.label(formats.project_aspect(proj))}",
-                        f"Nhà cung cấp ảnh: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " (gọi API thật, tốn credit)")
+                        image_label
                         + f" · khung {formats.label(formats.project_aspect(proj))}\n\n" + mode_text, "sb-gen-prov")
         else:
             c4.markdown(ui.badge(ui.MODE_LABELS.get(proj["operating_mode"], proj["operating_mode"]), "b-pri")
@@ -315,7 +317,7 @@ def step2(p: Pipeline, pid: int):
             if runner is None:
                 st.caption("ℹ Deepix chưa cấu hình: nhập ảnh thủ công cho từng cảnh (cách cấu hình: docs/RUNBOOK.md).")
             else:
-                st.caption(f"Nhà cung cấp ảnh: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " (gọi API thật, tốn credit)")
+                st.caption(image_label
                            + f" · khung {formats.label(formats.project_aspect(proj))}")
     image_progress(p, pid, runner)
     if image_busy(p.conn, pid):
