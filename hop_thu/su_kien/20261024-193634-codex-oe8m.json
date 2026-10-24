@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-24T19:36:34.973160+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX24-MAIN-RED",
+  "branch": "codex/v31-main-red",
+  "commit": "4160ebd5",
+  "report": "HANDOFF.md",
+  "text": "Codex 3: XONG. Baseline main 1fcb5f6e xác nhận đúng 3 test đỏ; đã sửa mapping KPI gốc, M9.13→NEN, khai tools/m60_profile.py là harness fixture offline, và sửa _ref_lint dùng khung đầu đã duyệt. Kiểm tra mục tiêu cuối: 5 passed; toàn bộ tests/test_seedance_refs.py trước đó 43 passed; rà độc lập core/runner.py không finding P1/P2. Nhánh đã push, không API trả phí/dữ liệu thật."
+}
