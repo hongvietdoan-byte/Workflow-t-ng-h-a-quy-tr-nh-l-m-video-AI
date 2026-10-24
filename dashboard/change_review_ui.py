@@ -12,7 +12,19 @@ def render(p, pid: int, who=None, read_only: bool = False, key: str = "cr") -> N
     """`key`: tiền tố khóa nút — C4 (13/10) khung này hiện ở CẢ tab Ảnh (Bước 2) và tab Motion (Bước 3) trong cùng một lượt vẽ."""
     if not CR.enabled():
         return
+    can_skip = False
+    actor, user = None, None
     try:
+        if not read_only:
+            from core import access, stage_desk
+            from dashboard import common
+            user = common.access_user()
+            read_only = (user is None and common.auth_on()) or not access.can_edit(p.conn, pid, user)
+            if not read_only:
+                CR.refresh_failed_findings(p.conn, pid)
+                actor = {"kind": "ai" if common.op_claude_seen() else "human",
+                         "who": (common.me() or {}).get("email") or "chu_may"}
+                can_skip = actor["kind"] == "human" and stage_desk.is_executive_producer(p.conn, pid, user)
         failures = CR.failed_review_summary(p.conn, pid)
     except Exception:  # Không nhận lỗi đọc sổ là bằng chứng 'không có mục lệch'.
         st.error("Không đọc được trạng thái rà soát — chưa xác định cổng gen; thử tải lại trang.")
@@ -37,8 +49,8 @@ def render(p, pid: int, who=None, read_only: bool = False, key: str = "cr") -> N
         for r in rows:
             tag = "🔴" if r["level"] == "do" else "🟡"
             shot = f"shot {r['idx']}" if r.get("idx") is not None else "chung"
-            st.markdown(f"{tag} **{shot} · {r['khau']}** ({SOURCE_LABEL.get(r['source'], 'luật code')}): {r['msg']}"
-                        + (f"  \n↳ đề xuất: {r['de_xuat']}" if r.get("de_xuat") else ""))
+            st.markdown(f"{tag} **{shot} · {r['khau']}** ({SOURCE_LABEL.get(r['source'], 'luật code')}): {CR.diag.redact(r['msg'])}"
+                        + (f"  \n↳ đề xuất: {CR.diag.redact(r['de_xuat'])}" if r.get("de_xuat") else ""))
             if read_only:
                 continue
             a, b, c = st.columns([1, 1, 6])
@@ -53,7 +65,25 @@ def render(p, pid: int, who=None, read_only: bool = False, key: str = "cr") -> N
                     st.rerun()
                 except ValueError as e:
                     st.error(f"{e} — tải lại trang để thấy nút ↻ Rà lại")
-            if b.button("Bỏ qua", key=f"{key}_skip_{r['id']}", help="Chấp nhận lệch này — shot không bị giữ gen vì mục này nữa"):
+            if r["source"] == CR.FAIL_SOURCE:
+                if can_skip:
+                    try:
+                        stamp = CR.failed_review_snapshot(p.conn, r["id"], pid)
+                    except ValueError:
+                        c.caption("Mục rà lỗi đã đổi; tải lại trang trước khi quyết định.")
+                        continue
+                    # Thay lỗi sẽ thay nonce: click/lý do của màn cũ không tự duyệt lỗi mới trong lượt rerun.
+                    reason = c.text_input("Lý do bỏ qua (EP)", max_chars=1000, key=f"{key}_reason_{r['id']}_{stamp}")
+                    if b.button("Bỏ qua (EP)", key=f"{key}_skip_{r['id']}_{stamp}", disabled=not reason.strip()):
+                        try:
+                            CR.dismiss_failed_review(p.conn, r["id"], pid, actor=actor, user=user,
+                                                     reason=reason, expected_snapshot=stamp)
+                            st.rerun()
+                        except ValueError as e:
+                            st.error(str(e))
+                else:
+                    c.caption("Chỉ Executive Producer là người mới được bỏ qua lỗi, kèm lý do và ghi audit.")
+            elif b.button("Bỏ qua", key=f"{key}_skip_{r['id']}", help="Chấp nhận lệch này — shot không bị giữ gen vì mục này nữa"):
                 CR.close(p.conn, r["id"], "dismissed", who)
                 st.rerun()
             if fail and P.paid_button("↻ Rà lại", key=f"{key}_rerun_{r['id']}", tag=rerun_tag, container=c,     # M8.0: giá + xác nhận một lần

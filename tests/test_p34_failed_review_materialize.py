@@ -3,6 +3,8 @@ import os
 import sqlite3
 import ast
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -34,7 +36,7 @@ def conn(tmp_path):
 
 
 def event(conn, eid=1, sid=1, pid=10, kind="scene", state="failed", note="Đăng nhập giả hết hạn"):
-    conn.execute("INSERT INTO change_events VALUES(?,?,?,?,?,?,?)",
+    conn.execute("INSERT INTO change_events(id,project_id,scene_id,kind,state,note,reviewed_at) VALUES(?,?,?,?,?,?,?)",
                  (eid, pid, sid, kind, state, note, "2026-10-24T01:00:00"))
 
 
@@ -174,12 +176,22 @@ class ReadOnlyScreen:
         return False
     def caption(self, text):
         self.messages.append(text)
+    def markdown(self, text):
+        self.messages.append(text)
+    def columns(self, *args):
+        return self, self, self
+    def button(self, text, **kwargs):
+        self.messages.append(kwargs["key"])
+        return False
+    def text_input(self, text, **kwargs):
+        self.messages.append(kwargs["key"])
+        return ""
 
 
 def render_function(screen):
     source = (Path(__file__).resolve().parents[1] / "dashboard/change_review_ui.py").read_text(encoding="utf-8")
     fn = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == "render")
-    namespace = {"CR": CR, "st": screen}
+    namespace = {"CR": CR, "st": screen, "SOURCE_LABEL": {}, "P": SimpleNamespace(paid_button=lambda *a, **k: False)}
     exec(compile(ast.Module(body=[fn], type_ignores=[]), "review_screen_fixture", "exec"), namespace)
     return namespace["render"]
 
@@ -201,3 +213,47 @@ def test_screen_read_error_cannot_be_reported_as_clean(conn):
     with mock.patch.object(CR, "failed_review_summary", side_effect=ValueError("fixture")):
         render_function(screen)(p, 10, read_only=True)
     assert screen.messages == ["Không đọc được trạng thái rà soát — chưa xác định cổng gen; thử tải lại trang."]
+
+
+def editable_screen(conn, ep):
+    import dashboard
+    from core import access, stage_desk
+    fake = SimpleNamespace(access_user=lambda: {"email":"fixture@example.test","role":"member"},
+                           auth_on=lambda: True, op_claude_seen=lambda: False,
+                           me=lambda: {"email":"fixture@example.test"})
+    screen = ReadOnlyScreen()
+    with mock.patch.dict(sys.modules, {"dashboard.common": fake}), \
+         mock.patch.object(dashboard, "common", fake, create=True), \
+         mock.patch.object(access, "can_edit", return_value=True), \
+         mock.patch.object(stage_desk, "is_executive_producer", return_value=ep), \
+         mock.patch.object(CR, "rerun_tag", return_value="ước tính giả"):
+        render_function(screen)(SimpleNamespace(conn=conn), 10, read_only=False)
+    return screen
+
+
+def test_editable_screen_materializes_failed_finding_without_offering_non_ep_skip(conn):
+    event(conn); conn.commit()
+    conn.execute("ALTER TABLE change_events ADD COLUMN cost_usd REAL DEFAULT 0")
+    screen = editable_screen(conn, False)
+    assert len(CR.open_findings(conn, 10)) == 1
+    assert not any("_skip_" in m or "_reason_" in m for m in screen.messages)
+
+
+def test_ep_widget_nonce_changes_when_error_changes(conn):
+    event(conn); conn.commit()
+    conn.execute("ALTER TABLE change_events ADD COLUMN cost_usd REAL DEFAULT 0")
+    first = editable_screen(conn, True)
+    before = next(m for m in first.messages if m.startswith("cr_reason_"))
+    event(conn, eid=2); conn.commit()
+    second = editable_screen(conn, True)
+    after = next(m for m in second.messages if m.startswith("cr_reason_"))
+    assert before != after
+
+
+def test_finding_changed_during_render_has_reload_message_not_traceback(conn):
+    event(conn); conn.commit()
+    conn.execute("ALTER TABLE change_events ADD COLUMN cost_usd REAL DEFAULT 0")
+    with mock.patch.object(CR, "failed_review_snapshot", side_effect=ValueError("fixture concurrent close")):
+        screen = editable_screen(conn, True)
+    assert "Mục rà lỗi đã đổi; tải lại trang trước khi quyết định." in screen.messages
+    assert not any("_skip_" in m for m in screen.messages)
