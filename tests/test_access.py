@@ -173,6 +173,47 @@ class LevelTests(unittest.TestCase):
         self.assertEqual(access.level(self.conn, 999, WHO["owner"]), "admin")
 
 
+class ExecutiveProducerAccessTests(unittest.TestCase):
+    def setUp(self):
+        self.conn, self.pid, self.sid, self.jid = make_world()
+
+    def test_grant_and_revoke_ep_is_project_scoped_and_audited(self):
+        access.set_project_ep(self.conn, WHO["creator"], self.pid, WVIEW)
+
+        self.assertEqual(access.level(self.conn, self.pid, WHO["watch_view"]), "ep")
+        self.assertTrue(access.can_view(self.conn, self.pid, WHO["watch_view"]))
+        self.assertTrue(access.can_edit(self.conn, self.pid, WHO["watch_view"]))
+        self.assertFalse(access.can_manage(self.conn, self.pid, WHO["watch_view"]))
+        self.assertEqual(access.levels_for(self.conn, WHO["watch_view"])[self.pid], "ep")
+        ep = access.list_project_eps(self.conn, self.pid)[0]
+        self.assertEqual(ep["email"], WVIEW)
+        self.assertEqual(ep["added_by"], CREATOR)
+        self.assertTrue(ep["added_at"])
+
+        access.remove_project_ep(self.conn, WHO["creator"], self.pid, WVIEW)
+        self.assertEqual(access.level(self.conn, self.pid, WHO["watch_view"]), "view")
+        self.assertNotIn(self.pid, access.levels_for(self.conn, WHO["stranger"]))
+        audit = " ".join(f"{r['action']} {r['detail']}" for r in auth.recent_audit(self.conn, 30))
+        self.assertIn("project_ep_grant", audit)
+        self.assertIn("project_ep_revoke", audit)
+        self.assertIn(WVIEW, audit)
+
+    def test_ep_can_be_project_entry_without_a_watcher_row(self):
+        access.set_project_ep(self.conn, WHO["creator"], self.pid, STRANGER)
+        self.assertEqual(access.level(self.conn, self.pid, WHO["stranger"]), "ep")
+        self.assertIn(self.pid, access.visible_ids(self.conn, WHO["stranger"]))
+        other = Pipeline(self.conn).create_project("dự án khác", created_by=CREATOR)
+        self.assertIsNone(access.level(self.conn, other, WHO["stranger"]))
+        self.assertEqual(access.visible_ids(self.conn, WHO["stranger"]), {self.pid})
+        self.assertEqual({w["email"] for w in access.list_watchers(self.conn, self.pid)}, {WVIEW, WEDIT})
+
+    def test_only_owner_or_creator_can_manage_ep_assignments(self):
+        with self.assertRaises(AccessDenied):
+            access.set_project_ep(self.conn, WHO["watch_edit"], self.pid, WVIEW)
+        with self.assertRaises(AccessDenied):
+            access.remove_project_ep(self.conn, WHO["watch_view"], self.pid, WVIEW)
+
+
 class CoreEntryPointMatrix(unittest.TestCase):
     """Every way to send a job / edit / approve / run / put away / delete refuses the wrong people with a Vietnamese message."""
 
@@ -447,12 +488,14 @@ class MigrationTests(unittest.TestCase):
         path = os.path.join(tmp, "old.sqlite")
         conn, pid, sid, jid = make_world(connect(path))
         conn.execute("DROP TABLE project_watchers")                    # what a database from before this change looks like
+        conn.execute("DROP TABLE project_executive_producers")
         conn.commit()
         conn.close()
         again = connect(path)                                          # migration is idempotent and runs on connect
         self.assertEqual(again.execute("SELECT name FROM projects WHERE id=?", (pid,)).fetchone()[0], "dự án của chủ")
         self.assertEqual(again.execute("SELECT state FROM jobs WHERE id=?", (jid,)).fetchone()[0], "pending_review")
         self.assertEqual(access.list_watchers(again, pid), [])
+        self.assertEqual(access.list_project_eps(again, pid), [])
         access.set_watcher(again, WHO["owner"], pid, WVIEW, "view")
         again.close()
         third = connect(path)                                          # a second migration keeps the watcher
@@ -464,6 +507,21 @@ class MigrationTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             conn.execute("INSERT INTO project_watchers (project_id, email, level, added_at) VALUES (?,?,?,?)", (pid, "x@y.vn", "root", "now"))
 
+
+class EpTableMissingTests(unittest.TestCase):
+    def test_db_without_ep_table_behaves_as_before_g1(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript("CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT, created_by TEXT);"
+                           "CREATE TABLE project_watchers (project_id INTEGER, email TEXT, level TEXT, added_by TEXT, added_at TEXT);"
+                           "INSERT INTO projects VALUES (1, 'p', 'a@x.vn');"
+                           "INSERT INTO project_watchers VALUES (1, 'b@x.vn', 'edit', 'a@x.vn', 'now');")
+        b = {"email": "b@x.vn", "role": "member"}
+        self.assertEqual(access.level(conn, 1, b), "edit")
+        self.assertEqual(access.levels_for(conn, b), {1: "edit"})
+        self.assertEqual(access.visible_ids(conn, b), {1})
+        self.assertEqual(access.list_project_eps(conn, 1), [])
+        self.assertIsNone(access.level(conn, 1, {"email": "c@x.vn", "role": "member"}))
 
 class ManagerRightsTests(unittest.TestCase):
     def test_starting_the_background_run_needs_the_edit_right(self):

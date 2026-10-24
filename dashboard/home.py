@@ -13,8 +13,9 @@ STEP_NAME = {"script": "Kịch bản", "storyboard": "Storyboard", "video": "Vid
 PILL = {"err": ("Lỗi", "bad"), "wait": ("Chờ bạn", "warn"), "run": ("Đang chạy", "info"), "pause": ("Tạm dừng", "mute"),
         "done": ("Xong", "ok"), "idle": ("Chưa chạy", "mute")}                       # v2: the same states as STATUS, as pills
 GRID_COLS = 3
-SCOPE_NOTE = ("Bạn chỉ thấy dự án DO BẠN TẠO và dự án chủ dự án / Owner cho bạn theo dõi (thẻ ghi “theo dõi · chỉ xem” hoặc “theo dõi · được sửa”). "
-              "“Chỉ xem” = xem được nhưng mọi nút ghi bị khóa; “Được sửa” = duyệt, gen, sửa như chủ. Owner thấy và làm được mọi dự án. "
+SCOPE_NOTE = ("Bạn chỉ thấy dự án DO BẠN TẠO và dự án chủ dự án / Owner cho bạn theo dõi hoặc cấp vai Executive Producer. "
+              "“Chỉ xem” = xem được nhưng mọi nút ghi bị khóa; “Được sửa” và “Executive Producer” = có quyền sửa, riêng EP được duyệt sân khấu. "
+              "Owner thấy và làm được mọi dự án. "
               "🔒 = người đó vừa mở dự án (trong 2 phút) — chỉ báo để hai người không duyệt chồng nhau, không khóa.")
 SORTS = {"wait": "Cần bạn trước", "new": "Mới nhất", "cost": "Tốn nhiều nhất"}
 
@@ -35,7 +36,7 @@ def status_of(r: dict, waiting_note: bool) -> str:
 
 def rows(p: Pipeline, email: str, is_owner: bool) -> list:
     """Active projects the signed-in person may see (core/access.py: their own, the ones they watch, everything for the Owner), with the
-    fields the page filters and sorts on. `access` = 'admin' | 'own' | 'edit' | 'view'."""
+    fields the page filters and sorts on. `access` = 'admin' | 'own' | 'ep' | 'edit' | 'view'."""
     from core import perf
     active = {r["id"] for r in archive.active_projects(p.conn, C.access_user())}
     levels = access.levels_for(p.conn, C.access_user()) if auth_on() else {}
@@ -93,8 +94,9 @@ def progress_of(r: dict) -> float:
 
 
 def tags_of(r: dict) -> list:
-    if r.get("access") in ("view", "edit"):
-        return ["của " + r["creator"].split("@")[0], "theo dõi · " + ("chỉ xem" if r["access"] == "view" else "được sửa")]
+    if r.get("access") in ("view", "edit", "ep"):
+        right = {"view": "theo dõi · chỉ xem", "edit": "theo dõi · được sửa", "ep": "Executive Producer"}[r["access"]]
+        return ["của " + r["creator"].split("@")[0], right]
     if not r["mine"]:
         return ["của " + r["creator"].split("@")[0]]
     return ["của bạn"] if auth_on() else []
@@ -253,8 +255,9 @@ def _rows(shown: list) -> None:
     for r in shown:
         c = st.columns([2.6, 1.3, 2, 1.5, 0.9, 1.4], vertical_alignment="center")
         tags = []
-        if r.get("access") in ("view", "edit"):
-            tags.append(f"của {r['creator']} · theo dõi, " + ("chỉ xem" if r["access"] == "view" else "được sửa"))
+        if r.get("access") in ("view", "edit", "ep"):
+            right = {"view": "theo dõi, chỉ xem", "edit": "theo dõi, được sửa", "ep": "Executive Producer"}[r["access"]]
+            tags.append(f"của {r['creator']} · {right}")
         elif not r["mine"]:
             tags.append(f"của {r['creator']}")
         elif auth_on():

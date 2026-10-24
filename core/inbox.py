@@ -96,8 +96,8 @@ def _video_waits(conn, pid: int, final_hold: List[int]) -> List[str]:
 
 
 def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_on: bool = False, team_wide: bool = False) -> List[Dict]:
-    """Rights (core/access.py): a person gets the items of the projects they made and of projects where they are a watcher with the
-    "Được sửa" level (they can act on those). A "Chỉ xem" watcher gets none (nothing there is theirs to do). Only the Owner can widen
+    """Rights (core/access.py): a person gets the items of projects they made and projects where they have edit or EP access. A "Chỉ xem"
+    watcher gets none (nothing there is theirs to do). Only the Owner can widen
     to the whole team with `team_wide`; for anyone else `team_wide` changes nothing."""
     out: List[Dict] = []
     levels = access.levels_for(conn, {"email": email, "role": "owner" if is_owner else "member"}) if auth_on else {}
@@ -107,7 +107,7 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
         mine = _mine(row["created_by"], email, is_owner, auth_on)
         if auth_on and not is_owner:
             lv = levels.get(pid)
-            if lv not in ("own", "edit"):
+            if lv not in ("own", "edit", "ep"):
                 continue
             mine = True                                # a watcher with "Được sửa" acts on it like on their own
         elif not mine and not team_wide:

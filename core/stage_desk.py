@@ -459,12 +459,13 @@ def _sync(data_dir: str, pid: int, seg: Dict, action: str, who: Optional[Dict], 
 # ---- quyền (S-B) ------------------------------------------------------------------------------------------------------------
 def is_executive_producer(conn, pid: int, user) -> bool:
     """S-B: chỉ Executive Producer duyệt / trả lại sân khấu. EP = người dùng làm chủ: Owner (users.role 'owner') hoặc chủ dự án
-    (access level 'admin' / 'own'); đăng nhập TẮT (máy một người, access_user None) = chủ máy. Người chỉ sửa / xem → không.
+    (access level 'admin' / 'own') hoặc người được chủ dự án/Owner cấp EP riêng; đăng nhập TẮT (máy một người, access_user None) = chủ máy.
+    Người chỉ sửa / xem → không.
     C-FIX6 mục 6: user None khi đăng nhập BẬT (nơi gọi quên truyền danh tính) KHÔNG phải chủ máy → không phải EP."""
     from . import access
     if user is None and login_on():
         return False
-    return access.RANK.get(access.level(conn, pid, user), 0) >= access.RANK["own"]
+    return access.RANK.get(access.level(conn, pid, user), 0) >= access.RANK["ep"]
 
 
 def login_on() -> bool:
@@ -485,7 +486,7 @@ def _need_ep(conn, pid: int, who: Optional[Dict], user, what: str) -> None:
     if u is not None and str((who or {}).get("who") or "").strip().lower() != (u.get("email") or ""):
         raise DeskError(f"{what}: người bấm ({(who or {}).get('who')}) khác người đăng nhập ({u.get('email')}) (S-B)")
     if not is_executive_producer(conn, pid, user):
-        raise DeskError(f"{what} chỉ Executive Producer (Owner / chủ dự án) được bấm (S-B)")
+        raise DeskError(f"{what} chỉ Executive Producer của dự án (Owner, chủ dự án hoặc người được cấp vai EP) được bấm (S-B)")
 
 
 def _need_edit(conn, pid: int, user, what: str) -> Optional[Dict]:
