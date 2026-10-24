@@ -149,3 +149,100 @@ def test_existing_runner_only_sends_returned_job_ids_not_other_queued_shot(case,
     assert p.job(excluded)["state"] == "queued" and p.job(excluded)["external_id"] is None
     assert all(p.job(jid)["state"] == "running" for jid in result["job_ids"])
     assert len(provider.prompts) == 2
+
+
+def test_failed_targeted_batch_leaves_no_sendable_jobs_and_keeps_competitor(case):
+    from core import batch, bg_poll
+    from core.pipeline import Pipeline
+    p, pid, sids, gates, scan, allowed, stack = case
+    competitor = p.create_job(sids[3], "image_gen")
+    insert = Pipeline._insert_job
+    def fail_second(self, project_id, scene_id, *args, **kwargs):
+        if scene_id == sids[1]:
+            raise RuntimeError("fixture second job failure")
+        return insert(self, project_id, scene_id, *args, **kwargs)
+    with patch.object(Pipeline, "_insert_job", fail_second):
+        with pytest.raises(RuntimeError):
+            batch.queue_images(p, pid, scene_ids=sids[:2])
+    assert [r[0] for r in p.conn.execute("SELECT id FROM jobs WHERE state='queued'")] == [competitor]
+    assert [jid for v in bg_poll.queued_by_person(p.conn).values() for jid in v["send"]] == [competitor]
+
+
+def test_failed_redo_rolls_back_parent_review_and_fresh_job(case):
+    from core import batch
+    p, pid, sids, gates, scan, allowed, stack = case
+    parent = p.create_job(sids[0], "image_gen")
+    p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (parent,))
+    p.conn.commit()
+    scan.return_value = {sids[0]: {"image_stale": "fixture changed", "image_job_id": parent}}
+    class FailPlan:
+        def apply(self):
+            raise RuntimeError("fixture redo failure")
+    stack.enter_context(patch.object(p, "_rewrite_before_retry", return_value=FailPlan()))
+    with pytest.raises(RuntimeError):
+        batch.queue_images(p, pid, scene_ids=sids[:2])
+    assert p.job(parent)["state"] == "approved"
+    assert p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 1
+    assert p.conn.execute("SELECT COUNT(*) FROM review_log").fetchone()[0] == 0
+
+
+def test_reopen_can_return_its_actual_child_without_claiming_other_child(case):
+    p, pid, sids, gates, scan, allowed, stack = case
+    parent = p.create_job(sids[0], "image_gen")
+    p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (parent,))
+    p.conn.commit()
+    competitor = p._insert_job(pid, sids[0], "image_gen", parent_job_id=parent)
+    stack.enter_context(patch.object(p, "_rewrite_before_retry", return_value=type("Keep", (), {"apply": lambda self: None})()))
+    child = p.reopen_approved(parent, fix="", reason="khong_phai_loi", return_job_id=True)
+    assert isinstance(child, int) and child != competitor
+    assert p.job(child)["parent_job_id"] == parent
+    assert p.job(competitor)["state"] == "queued"
+
+
+def test_targeted_success_preserves_outer_transaction_and_original_pipeline(case):
+    from core import batch
+    p, pid, sids, *_ = case
+    original = p.conn
+    p.conn.execute("BEGIN")
+    result = batch.queue_images(p, pid, scene_ids=sids[:2])
+    assert len(result["job_ids"]) == 2
+    assert p.conn is original and p.conn.in_transaction
+    p.conn.rollback()
+    assert p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_targeted_partial_jobs_are_invisible_to_other_connection(case, tmp_path):
+    import sqlite3
+    from core import batch
+    from core.pipeline import Pipeline
+    p, pid, sids, *_ = case
+    original = p.conn
+    path = str(tmp_path / "atomic-fixture.sqlite")
+    writer = sqlite3.connect(path)
+    original.backup(writer)
+    writer.row_factory = sqlite3.Row
+    observer = sqlite3.connect(path)
+    insert = Pipeline._insert_job
+    def observe_after_insert(self, *args, **kwargs):
+        jid = insert(self, *args, **kwargs)
+        assert observer.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+        return jid
+    p.conn = writer
+    try:
+        with patch.object(Pipeline, "_insert_job", observe_after_insert):
+            result = batch.queue_images(p, pid, scene_ids=sids[:2])
+        assert len(result["job_ids"]) == 2
+        assert observer.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 2
+    finally:
+        p.conn = original
+        observer.close()
+        writer.close()
+
+
+def test_atomic_helper_cannot_commit_by_transaction_sql(case):
+    p, pid, sids, *_ = case
+    with pytest.raises(RuntimeError):
+        with p.atomic_image_batch() as scoped:
+            scoped.create_job(sids[0], "image_gen")
+            scoped.conn.execute("COMMIT")
+    assert p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0

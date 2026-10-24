@@ -140,6 +140,16 @@ def image_gates(p: Pipeline, project_id: int, data_dir: Optional[str] = None, sc
 
 def queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir: Optional[str] = None,
                  scene_ids: Optional[Iterable[int]] = None) -> Dict:
+    """None preserves legacy queueing; selected shots become visible atomically."""
+    if scene_ids is None:
+        return _queue_images(p, project_id, confirmed, data_dir)
+    access.need_edit(p, project_id, "gửi gen ảnh")
+    with p.atomic_image_batch() as scoped:
+        return _queue_images(scoped, project_id, confirmed, data_dir, scene_ids)
+
+
+def _queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir: Optional[str] = None,
+                  scene_ids: Optional[Iterable[int]] = None) -> Dict:
     """Image jobs for ready scenes without a live picture, and a redo for approved pictures made from an outdated spec.
     While a pilot is running only its scenes are queued. The automatic run's gates apply (image_gates): a blocking one raises
     GateError unless the person confirmed (`confirmed=True`, recorded as a diag); warnings are recorded as diags.
@@ -184,17 +194,15 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir
         job_ids.append(p.create_job(sid, "image_gen"))
     for sid in redo_ids:                              # the scene changed: the new input is the scene itself (no Vietnamese note to the model)
         parent_id = stale[sid]["image_job_id"]
-        before = {r[0] for r in conn.execute("SELECT id FROM jobs WHERE parent_job_id=?", (parent_id,))}
-        p.reopen_approved(parent_id, f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}", fix="",
-                          reason="khong_phai_loi")   # C2: input changed, no fault
-        # reopen_approved giữ API cũ trả trạng thái, không trả id; chỉ nhận child ảnh
-        # vừa sinh từ đúng parent/shot của dự án, không lấy job queued khác.
-        children = [r[0] for r in conn.execute(
-            "SELECT id FROM jobs WHERE parent_job_id=? AND project_id=? AND scene_id=? AND type='image_gen' ORDER BY id",
-            (parent_id, project_id, sid)) if r[0] not in before]
-        if selected is not None and len(children) != 1:
+        child = p.reopen_approved(parent_id, f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}", fix="",
+                                 reason="khong_phai_loi", return_job_id=True)
+        row = p.job(child) if isinstance(child, int) and not isinstance(child, bool) else None
+        valid = (row is not None and row["parent_job_id"] == parent_id and row["project_id"] == project_id
+                 and row["scene_id"] == sid and row["type"] == "image_gen" and row["state"] == "queued")
+        if selected is not None and not valid:
             raise GateError("Không xác minh được đúng một job ảnh làm lại — giữ chờ, không gửi lô")
-        job_ids.extend(children)
+        if valid:
+            job_ids.append(child)
     return {"created": len(fresh), "redo": len(redo_ids), "pilot": pilot.active(p, project_id), "job_ids": job_ids}
 
 
