@@ -67,3 +67,49 @@ def test_report_replaces_hardlink_not_linked_source(tmp_path):
     save_report(out, {"calls": 1})
     assert src.read_bytes() == b"fake"
     assert out.read_bytes() != b"fake"
+
+
+def test_sql_probe_covers_connection_cursor_and_fetch_without_double_count():
+    from tools.m60_profile import Timings, measured_connection
+    t = Timings()
+    c = sqlite3.connect(":memory:", factory=measured_connection(t))
+    c.execute("CREATE TABLE projects(n)")
+    c.executemany("INSERT INTO projects VALUES(?)", [(1,), (2,)])
+    cur = c.cursor()
+    cur.execute("SELECT n FROM projects")
+    assert cur.fetchone() == (1,)
+    assert cur.fetchmany(2) == [(2,)]
+    assert c.execute("SELECT n FROM projects").fetchall() == [(1,), (2,)]
+    assert list(c.execute("SELECT n FROM projects")) == [(1,), (2,)]
+    rows = {r["label"]: r["calls"] for r in t.rows()}
+    assert rows["connection.execute SELECT projects"] == 2
+    assert rows["cursor.execute SELECT projects"] == 1
+    assert rows["connection.executemany INSERT projects"] == 1
+    assert rows["cursor.fetchone SELECT projects"] == 1
+    assert rows["cursor.fetchmany SELECT projects"] == 1
+    assert rows["cursor.fetchall SELECT projects"] == 1
+    assert rows["cursor.next SELECT projects"] == 3  # includes terminal StopIteration
+    c.close()
+
+
+def test_sql_probe_script_does_not_export_script_or_binds():
+    from tools.m60_profile import Timings, measured_connection
+    t = Timings()
+    c = sqlite3.connect(":memory:", factory=measured_connection(t))
+    c.executescript("CREATE TABLE projects(n); INSERT INTO projects VALUES('fake-private');")
+    c.cursor().executescript("UPDATE projects SET n='fake-private-2';")
+    rows = t.rows()
+    assert {r["label"] for r in rows} == {"connection.executescript SCRIPT", "cursor.executescript SCRIPT"}
+    assert all("fake-private" not in r["label"] for r in rows)
+    c.close()
+
+
+def test_coverage_lists_unreached_functions_and_conditions(tmp_path):
+    from tools.m60_profile import coverage_manifest
+    d = tmp_path / "dashboard"
+    d.mkdir()
+    (d / "demo.py").write_text("def view():\n    if True:\n        return 1\ndef callback():\n    return 2\n", encoding="utf-8")
+    items = coverage_manifest(tmp_path, [{"label": "dashboard/demo.py:1:view", "calls": 1}])
+    assert any(x["status"] == "EXECUTED" and x["source"] == "dashboard/demo.py:1:view" for x in items)
+    assert any(x["status"] == "NOT_REACHED" and x["source"] == "dashboard/demo.py:4:callback" for x in items)
+    assert any(x["status"] == "BRANCH_NOT_PROVEN" and x["source"] == "dashboard/demo.py:2:If" for x in items)
