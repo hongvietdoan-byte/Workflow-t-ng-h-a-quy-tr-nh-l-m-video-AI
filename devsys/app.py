@@ -1082,7 +1082,10 @@ def page_plan_map():
         st.info("Mã việc trong `devsys/plan_map.json` không còn trong kế hoạch: " + ", ".join(m["stale"]))
     if m["unknown_stage"]:
         st.warning("Mã khâu trong `devsys/plan_map.json` không có trong `devsys/stages.json`: " + ", ".join(m["unknown_stage"]))
-    task_to_stages = plan_map.load_map()
+    try:
+        task_to_stages = plan_map.load_map()
+    except (OSError, ValueError):
+        task_to_stages = {}
     latest, _history_errors = plan_monitor.latest_record(ROOT)
     findings = plan_monitor._major_findings(latest)
     mapped_tasks = {task["id"] for wave in m["waves"] for task in wave["tasks"]}

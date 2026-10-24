@@ -498,7 +498,8 @@ def proposal_command(finding: Dict) -> str:
     def quote(value: str) -> str:
         return "'" + value.replace("'", "''") + "'"
 
-    return (f"py tools/hop_thu.py giao {code} --to phien-chinh --title {quote(title)} "
+    return ("$env:PYTHONUTF8='1'; "
+            f"py tools/hop_thu.py giao {code} --to phien-chinh --title {quote(title)} "
             f"--spec {quote('docs/CODEX_TASKS.md### CX24-GIAM-SAT')} --priority 2 "
             f"--lane codex --text {quote(description)}")
 
@@ -582,22 +583,36 @@ def render_summary(st, root: str = collect.ROOT) -> Optional[Dict]:
 
 
 def render_manual_control(st, root: str, spawn_fn: Callable[[Sequence[str], str], int]) -> None:
-    """Show the free scorer estimate before a person starts a manual background pass."""
-    try:
-        prepared = prepare(root)
-    except Exception as error:
-        st.warning(f"Chưa thể ước tính lượt giám sát ({type(error).__name__}); chưa chạy worker.")
+    """Do not collect evidence on every page view; estimate first, then let the person run it."""
+    state_key = "plan_monitor_prepared"
+    prepared = st.session_state.get(state_key)
+    if st.button("Ước tính lượt giám sát", key="plan_monitor_estimate"):
+        try:
+            prepared = prepare(root)
+        except Exception as error:
+            st.warning(f"Chưa thể ước tính lượt giám sát ({type(error).__name__}); chưa chạy worker.")
+            st.session_state.pop(state_key, None)
+            return
+        st.session_state[state_key] = {
+            "input_hash": prepared["bundle"]["input_hash"],
+            "input_tokens": (prepared.get("estimate") or {}).get("input_tokens"),
+            "estimated_at": _now(),
+        }
+        prepared = st.session_state[state_key]
+    if not prepared:
+        st.caption("Chưa thu thập bằng chứng. Bấm ước tính để xem quy mô trước khi chạy.")
         return
-    estimate_info = prepared.get("estimate") or {}
-    st.caption(f"Ước tính trước khi chạy: {estimate_info.get('input_tokens', '—')} token vào · 0 USD API · claude_cli.")
+    st.caption(f"Ước tính: {prepared.get('input_tokens', '—')} token vào · 0 USD API · claude_cli. "
+               f"Gói: {prepared.get('estimated_at', 'chưa rõ')}; worker sẽ kiểm tra hash trước khi chấm.")
     if st.button("🛰 Giám sát ngay", key="plan_monitor_run"):
         args = ["-X", "utf8", "-m", "devsys.plan_monitor_worker", "--root", root, "--provider", "claude_cli",
-                "--trigger-id", "manual", "--expected-input-hash", prepared["bundle"]["input_hash"]]
+                "--trigger-id", "manual", "--expected-input-hash", prepared["input_hash"]]
         try:
             pid = int(spawn_fn(args, "giam_sat/worker.log"))
         except Exception as error:
             st.error(f"Không khởi chạy được lượt giám sát ({type(error).__name__}); chưa gửi yêu cầu.")
             return
+        st.session_state.pop(state_key, None)
         st.success(f"Đã khởi chạy worker PID {pid}; xem log tại devsys/data/giam_sat/worker.log.")
 
 

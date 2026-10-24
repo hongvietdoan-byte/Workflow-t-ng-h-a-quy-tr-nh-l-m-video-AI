@@ -1,11 +1,20 @@
 """Kiểm thử giám sát kế hoạch bằng fixture tạm, không chạy provider hay dữ liệu live."""
 import json
+import os
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
-from devsys import plan_map, plan_monitor as PM
+_FAKE_ENV = {
+    "PATH": r"C:\fixture\bin", "PATHEXT": ".COM;.EXE;.BAT;.CMD", "SYSTEMROOT": r"C:\fixture\windows",
+    "WINDIR": r"C:\fixture\windows", "TEMP": r"C:\fixture\temp", "TMP": r"C:\fixture\temp",
+    "USERPROFILE": r"C:\fixture\user", "APPDATA": r"C:\fixture\user\appdata",
+    "LOCALAPPDATA": r"C:\fixture\user\local", "PROGRAMDATA": r"C:\fixture\programdata",
+    "HOME": r"C:\fixture\user", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
+}
+with mock.patch.object(os, "environ", _FAKE_ENV):
+    from devsys import plan_map, plan_monitor as PM
 
 
 def _bundle():
@@ -93,10 +102,69 @@ def test_major_findings_overlay_only_matching_task_wave_and_stage():
 
 def test_proposal_command_is_escaped_and_only_a_draft_for_main():
     command = PM.proposal_command(_finding(title="mô tả 'fixture'"))
-    assert command.startswith("py tools/hop_thu.py giao CX24-GS-")
+    assert command.startswith("$env:PYTHONUTF8='1'; py tools/hop_thu.py giao CX24-GS-")
     assert "--to phien-chinh" in command
     assert "LỚN: mô tả ''fixture'''" in command
     assert "--lane codex" in command
+
+
+def test_manual_control_estimates_only_on_request_and_passes_the_hash(monkeypatch, tmp_path):
+    class UI:
+        def __init__(self, pressed=()):
+            self.pressed = set(pressed)
+            self.session_state = {}
+            self.messages = []
+
+        def button(self, label, key):
+            return key in self.pressed
+
+        def caption(self, value):
+            self.messages.append(value)
+
+        def warning(self, value):
+            self.messages.append(value)
+
+        def error(self, value):
+            self.messages.append(value)
+
+        def success(self, value):
+            self.messages.append(value)
+
+    calls, spawned = [], []
+    monkeypatch.setattr(PM, "prepare", lambda *_a, **_k: calls.append("estimate") or {
+        "bundle": {"input_hash": "fixture-hash"}, "estimate": {"input_tokens": 17, "usd_api": 0.0}
+    })
+    ui = UI({"plan_monitor_estimate"})
+    PM.render_manual_control(ui, str(tmp_path), lambda args, _log: spawned.append(list(args)) or 321)
+    assert calls == ["estimate"] and not spawned
+    assert any("17 token" in message for message in ui.messages)
+    ui.pressed = {"plan_monitor_run"}
+    PM.render_manual_control(ui, str(tmp_path), lambda args, _log: spawned.append(list(args)) or 321)
+    assert calls == ["estimate"]
+    assert spawned[0][-1] == "fixture-hash"
+    assert any("PID 321" in message for message in ui.messages)
+
+
+def test_publish_preflight_only_allows_clean_main_and_the_configured_plan(monkeypatch, tmp_path):
+    devsys = tmp_path / "devsys"
+    docs = tmp_path / "docs"
+    devsys.mkdir()
+    docs.mkdir()
+    (devsys / "plans.json").write_text('[{"kieu":"viec_s","file":"docs/plan.md","chinh":true}]', encoding="utf-8")
+    plan = docs / "plan.md"
+    plan.write_text("fixture", encoding="utf-8")
+    monkeypatch.setattr(PM.plan_progress, "main_plan_file", lambda _root: str(plan))
+    state = {"branch --show-current": "main", "rev-parse HEAD": "same", "rev-parse origin/main": "same",
+             "diff --cached --name-only": "", "status --porcelain=v1 --untracked-files=no": ""}
+    monkeypatch.setattr(PM, "_git_output", lambda _root, *args: state[" ".join(args)])
+    assert PM._publish_preflight(str(tmp_path), plan, allow_plan_modified=False) == "docs/plan.md"
+    state["status --porcelain=v1 --untracked-files=no"] = " M docs/unrelated.md"
+    with pytest.raises(PM.PlanMonitorError):
+        PM._publish_preflight(str(tmp_path), plan, allow_plan_modified=True)
+    state["status --porcelain=v1 --untracked-files=no"] = ""
+    state["branch --show-current"] = "codex/v31-giam-sat"
+    with pytest.raises(PM.PlanMonitorError):
+        PM._publish_preflight(str(tmp_path), plan, allow_plan_modified=False)
 
 
 def test_trigger_detection_emits_new_done_and_first_milestone_once():
@@ -192,6 +260,10 @@ def test_run_monitor_writes_only_the_fake_plan_and_saves_report(monkeypatch, tmp
         return {"failed": [], "saved": [str(saved)]}
 
     monkeypatch.setattr(PM.scorer, "run", fake_run)
+    before = plan_path.read_text(encoding="utf-8")
+    with pytest.raises(PM.PlanMonitorError):
+        PM.run_monitor(str(tmp_path), provider="mock", publish_plan=False, expected_input_hash="stale-fixture-hash")
+    assert plan_path.read_text(encoding="utf-8") == before
     result = PM.run_monitor(str(tmp_path), provider="mock", publish_plan=False)
     text = plan_path.read_text(encoding="utf-8")
     parsed = PM.plan_progress.parse(text)
