@@ -7,7 +7,7 @@ seconds and say the price is unknown, instead of inventing a number.
 import json
 import os
 import sqlite3
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from .llm_io import ready_for_video
 from .memo import forget_json, read_json
@@ -147,7 +147,7 @@ def pending_image_units(pipeline: Pipeline, project_id: int) -> int:
     return queued + sum(1 for sid in fresh if needs_own_image(pipeline.conn, sid))   # v3 multi-shot: one picture per group
 
 
-def pending_end_frames(pipeline: Pipeline, project_id: int) -> int:
+def pending_end_frames(pipeline: Pipeline, project_id: int, scene_ids=None) -> int:
     """K1 end frames a run would draw (feature end_frames): one per shot that changes state (end_state, per-shot mode, not continuing
     into the next shot) and has no end frame waiting / ready yet. 0 when the feature is off."""
     from . import end_frames
@@ -157,6 +157,8 @@ def pending_end_frames(pipeline: Pipeline, project_id: int) -> int:
     mode = proj["shot_mode"] if "shot_mode" in proj.keys() else None
     n = 0
     for s in pipeline.conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (project_id,)).fetchall():
+        if scene_ids is not None and s["id"] not in scene_ids:
+            continue
         if not end_frames.wanted(pipeline.conn, s["id"], json.loads(s["data"] or "{}"), mode):   # M7.3: clip nhóm đang bay → không tính
             continue
         row = end_frames.current(pipeline.conn, s["id"])
@@ -165,14 +167,42 @@ def pending_end_frames(pipeline: Pipeline, project_id: int) -> int:
     return n
 
 
-def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: str, data_dir: Optional[str] = None) -> Dict:
+def _selected_establishing(conn, project_id, data_dir, selected):
+    """Dùng các phép kiểm hiện hành cho cảnh chung của đúng shot trong lô."""
+    from . import scene_establish, place_refs
+    if not selected or not scene_establish.enabled():
+        return 0
+    scenes = {json.loads(r["data"] or "{}").get("story_scene") for r in conn.execute(
+        "SELECT id, data FROM scenes WHERE project_id=?", (project_id,)) if r["id"] in selected} - {None}
+    renders = place_refs.enabled()
+    return sum(1 for scene in scenes if scene_establish.picture(data_dir, project_id, scene) is None
+               and not (renders and place_refs.scene_render_rec(
+                   data_dir, project_id, scene_establish.scene_rows(conn, project_id, scene)) is not None))
+
+
+def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: str, data_dir: Optional[str] = None,
+                    scene_ids: Optional[Iterable[int]] = None) -> Dict:
     """Pictures a run would pay for: the shots' start pictures plus the K1 end frames (feature end_frames). 17/10: `data_dir` = the
     projects folder the caller uses (Dashboard C.DATA, tools/pregen_check's copy); None = <repo>/data/projects as before."""
-    ends = pending_end_frames(pipeline, project_id)
     from . import scene_establish
-    wide = scene_establish.pending(pipeline.conn, project_id, data_dir or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "data", "projects"))
-    shots = pending_image_units(pipeline, project_id)
+    root = data_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "projects")
+    selected = None
+    if scene_ids is None:
+        # Giữ nguyên đường mặc định, kể cả job queued và các helper caller cũ.
+        ends = pending_end_frames(pipeline, project_id)
+        wide = scene_establish.pending(pipeline.conn, project_id, root)
+        shots = pending_image_units(pipeline, project_id)
+    else:
+        requested = list(scene_ids)
+        if any(isinstance(sid, bool) or not isinstance(sid, int) or sid <= 0 for sid in requested):
+            raise ValueError("scene_ids phải chứa mã shot nguyên dương")
+        from . import batch
+        # Cùng nguồn fresh/redo, scope dự án và pilot với queue_images; queued cũ
+        # không thuộc job_ids mới của lô selected nên không được tính vào lô này.
+        selected = set(batch.image_targets(pipeline, project_id)) & set(requested)
+        shots = len(selected)
+        ends = pending_end_frames(pipeline, project_id, selected)
+        wide = _selected_establishing(pipeline.conn, project_id, root, selected)
     n = shots + ends + wide
     price = _number(pricing["per_image"].get(model))
     d6 = chat_prompt_estimate(pipeline.conn, shots, pricing)   # 14/10: D6 rewrites each shot picture's prompt before sending (flag)
@@ -185,9 +215,10 @@ def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
     # 17/10 (#31: the button said ≈ 2,13 = 41 pictures × price, the 💰 box ≈ 5,0 = + D6; the session priced 36 × price = 1,87 by hand):
     # ONE number for every place that shows it (button, box, tools/pregen_check) = pictures + D6 + Claude QC of those pictures, with
     # the parts listed. Rà gộp 17/10: `min` / `max` = the same total (× retries) so no place shows another number.
-    qc_calls = _picture_qc_calls(pipeline.conn, project_id, n) if n else 0
+    qc_args = {} if selected is None else {"scene_ids": selected}
+    qc_calls = _picture_qc_calls(pipeline.conn, project_id, n, **qc_args) if n else 0
     qc_unknown: list = []
-    qc = picture_qc_usd(pipeline.conn, project_id, n, pricing, qc_unknown) * LLM_MARGIN if n else 0.0
+    qc = picture_qc_usd(pipeline.conn, project_id, n, pricing, qc_unknown, **qc_args) * LLM_MARGIN if n else 0.0
     unit = price if price is not None else over
     pic = None if unit is None else unit
     parts = [{"label": "ảnh khung đầu các shot", "count": shots, "usd": None if pic is None else pic * shots},
@@ -240,21 +271,21 @@ def outside_estimate(conn, pictures: int, pricing: Optional[Dict] = None) -> Opt
     return {"label": label + " (trung bình sổ chi mỗi ảnh)", "count": pictures, "usd": usd}
 
 
-def picture_qc_usd(conn, project_id: int, pictures: int, pricing: Dict, unknown: Optional[list] = None) -> float:
+def picture_qc_usd(conn, project_id: int, pictures: int, pricing: Dict, unknown: Optional[list] = None, scene_ids=None) -> float:
     """Claude QC of `pictures` new pictures, BEFORE LLM_MARGIN: the per-picture / per-scene calls (_picture_qc_calls), the QC agent
     (fixed per scene) or Tổ QC (per frame + redraws) — the same rule the run estimate uses (_estimate_run). Unpriced → 0, said in
     `unknown`."""
     from . import features, qc_agent, qc_scene, qc_team
     if not pictures:
         return 0.0
-    usd = llm_estimate(conn, "qc", _picture_qc_calls(conn, project_id, pictures), pricing, images=2)
+    usd = llm_estimate(conn, "qc", _picture_qc_calls(conn, project_id, pictures, **({} if scene_ids is None else {"scene_ids": scene_ids})), pricing, images=2)
     if usd is None:
         if unknown is not None and f"Claude {llm_model()}" not in unknown:   # rà gộp 17/10: one line per model, not one per caller
             unknown.append(f"Claude {llm_model()}")
         usd = 0.0
     observe_scene = features.on('qc_observe_enum') and qc_scene.active() and qc_scene.claude_on()
     if qc_agent.enabled() and not observe_scene:       # the agent: several turns per scene (not measured yet — a fixed figure)
-        usd += AGENT_SCENE_USD * _scenes_to_draw(conn, project_id)
+        usd += AGENT_SCENE_USD * _scenes_to_draw(conn, project_id, scene_ids)
     if qc_team.active() and qc_scene.active() and not observe_scene:   # Tổ QC (or 🎓 học việc, same looks): one call per frame
         usd += qc_team.FRAME_USD * pictures * (1 + REDRAW_SHARE)
     return usd
@@ -724,12 +755,15 @@ REDRAW_SHARE = 0.5        # were not; share of scenes looked at again after a re
 AGENT_SCENE_USD = 0.3     # QC agent, one scene (tool turns; images of old turns dropped) — to be replaced by the measured average
 
 
-def _scenes_to_draw(conn, project_id: int) -> int:
+def _scenes_to_draw(conn, project_id: int, scene_ids=None) -> int:
+    if scene_ids is not None and not scene_ids:
+        return 0
     return len({json.loads(r["data"] or "{}").get("story_scene") for r in conn.execute(
-        "SELECT data FROM scenes WHERE project_id=?", (project_id,))} - {None}) or 1
+        "SELECT id, data FROM scenes WHERE project_id=?", (project_id,))
+        if scene_ids is None or r["id"] in scene_ids} - {None}) or 1
 
 
-def _picture_qc_calls(conn, project_id: int, pictures: int) -> float:
+def _picture_qc_calls(conn, project_id: int, pictures: int, scene_ids=None) -> float:
     """Claude calls to judge the pictures still to draw: per picture (old QC), per scene + re-looks after redraws (scene QC with
     layer 1 on), none when scene QC runs without Claude (layer 0 only) or the agent is counted apart."""
     from . import features, qc_agent, qc_scene, qc_team
@@ -742,7 +776,7 @@ def _picture_qc_calls(conn, project_id: int, pictures: int) -> float:
         return pictures * (1 + REDRAW_SHARE)
     if qc_agent.enabled() or qc_team.active() or not qc_scene.claude_on():
         return 0
-    return _scenes_to_draw(conn, project_id) * (1 + REDRAW_SHARE)
+    return _scenes_to_draw(conn, project_id, scene_ids) * (1 + REDRAW_SHARE)
 
 
 def cache_stats(conn, project_id: Optional[int] = None) -> List[Dict]:
