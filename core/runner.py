@@ -1312,7 +1312,8 @@ class VideoRunner(_Runner):
         rows = self._ref_rows(job, group)
         from . import shots as _sh
         frames = [self._start_frame(job["project_id"], r["id"]) for r in rows]
-        places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
+        starts = ({r["id"]: frame for r, frame in zip(rows, frames)} if seedance_refs.plate_view_on() else None)
+        places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows, starts=starts)
         ids = seedance_refs.identity_pictures(self.p.conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows) - len(places)
                                               - (1 if self._ref_end_sentence(job, group, 0) else 0))
         secs = [self._cut_seconds(r) for r in group] if group else [float(args[3])]

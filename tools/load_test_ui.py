@@ -33,6 +33,7 @@ import threading
 import time
 import urllib.request
 from typing import Dict, List, Optional, Sequence
+from unittest.mock import patch
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
@@ -46,7 +47,11 @@ STEPS = ("home", "open", "storyboard", "approve", "video", "gen")
 STEP_LABEL = {"home": "Trang chủ", "open": "Mở dự án (vào thẳng Storyboard)", "storyboard": "Storyboard (Bước 2)", "approve": "Duyệt 1 ảnh",
               "video": "Video (Bước 4)", "gen": "Bấm Gen video (giả)"}
 LOCK_WAIT_S = 0.05                               # lệnh ghi / commit lâu hơn mức này coi là đã CHỜ khóa
-SECRET_ENV = ("ANTHROPIC_API_KEY", "CLIPAI_API_KEY", "CLIPAI_TOKEN", "DEEPIX_TOKEN", "DEEPIX_API_KEY", "ELEVENLABS_API_KEY", "OPENAI_API_KEY")
+RUNTIME_ENV_ALLOWLIST = (
+    "PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR", "LOCALAPPDATA", "APPDATA", "USERPROFILE",
+    "HOMEDRIVE", "HOMEPATH", "HOME", "PROGRAMDATA", "SYSTEMDRIVE", "COMSPEC", "PATHEXT",
+    "PLAYWRIGHT_BROWSERS_PATH", "DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR",
+)
 
 
 # ---------------------------------------------------------------- dữ liệu
@@ -54,6 +59,28 @@ def build_data(out_dir: str, projects: int = 3, shots: int = 30) -> Dict:
     """CSDL giả bằng API Pipeline thật (như ảnh chụp G2): `projects` dự án × `shots` shot, đủ trạng thái ảnh / prompt / clip, ảnh giả nhỏ."""
     import ui_snapshot
     return ui_snapshot.build_sample_data(out_dir, n_projects=projects, scenes_primary=shots, rich_others=shots)
+
+
+def copy_auxiliary_inputs(template: Dict, work: str) -> None:
+    """Tạo thư mục phụ cho Dashboard từ nguồn được khai báo rõ; dữ liệu giả mặc định luôn rỗng.
+
+    Không tự đọc data/ của repo. Chỉ chế độ `--db` được người chạy chọn rõ mới khai báo bản sao phụ trong template.
+    """
+    sources = template.get("auxiliary_inputs", {})
+    retired_target = os.path.join(work, "retired_topics.json")
+    retired_source = sources.get("retired_topics")
+    if retired_source and os.path.isfile(retired_source):
+        shutil.copy2(retired_source, retired_target)
+    else:
+        with open(retired_target, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+
+    knowledge_target = os.path.join(work, "knowledge_user")
+    knowledge_source = sources.get("knowledge_user")
+    if knowledge_source and os.path.isdir(knowledge_source):
+        shutil.copytree(knowledge_source, knowledge_target)
+    else:
+        os.makedirs(knowledge_target, exist_ok=True)
 
 
 def neutralize(db: str) -> List[str]:
@@ -384,16 +411,19 @@ def read_probe(path: str) -> Dict:
         return {}
 
 
-SECRET_RE = re.compile(r"(_KEY|_TOKEN|_SECRET|PASSCODE|PASSWORD)$|^ANTHROPIC_|^CLAUDE_CODE_", re.I)
+def runtime_env(source: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """Môi trường tối thiểu cho tiến trình đo/trình duyệt; loại mọi biến không nằm trong allowlist tĩnh."""
+    source = os.environ if source is None else source
+    return {key: str(source[key]) for key in RUNTIME_ENV_ALLOWLIST if source.get(key)}
 
 
 def app_env(db: str, data: str, work: str, latency: float, probe_dir: str) -> Dict[str, str]:
-    """Môi trường của tiến trình Streamlit đo: mọi nhà cung cấp GIẢ, không khóa API (bỏ theo DANH SÁCH + theo MẪU tên *_KEY / *_TOKEN /
-    *_SECRET / *PASSCODE / ANTHROPIC_* — rà V2: SYNC_API_KEY, MESHY_API_KEY, ANTHROPIC_AUTH_TOKEN…), cờ theo tệp tạm (không baseline
+    """Môi trường Streamlit đo: allowlist hệ điều hành tĩnh, mọi nhà cung cấp GIẢ, không kế thừa khóa hay biến tùy ý,
+    cờ theo tệp tạm (không baseline
     sản xuất), Kho ảnh + mô hình âm thanh trong thư mục đo (không ghi data/ của repo). Đồng bộ đầu phiên chạy NỀN như sản xuất
     (DASHBOARD_SYNC_BACKGROUND mặc định) — không phồng bước "Mở dự án"."""
     home = os.path.dirname(db)
-    env = {k: v for k, v in os.environ.items() if k not in SECRET_ENV and not SECRET_RE.search(k)}
+    env = runtime_env()
     env.update(PIPELINE_DB=db, PIPELINE_DATA=data, IMAGE_PROVIDER="mock", VIDEO_PROVIDER="mock", AUDIO_PROVIDER="mock",
                LLM_PROVIDER="mock", SUBJECT_PROVIDER="mock", MOCK_REAL_MEDIA="1", FEATURE_UI_V2="1", DASHBOARD_AUTH="off",
                FEATURE_SETTINGS_FILE=os.path.join(work, "feature_settings.json"), FEATURE_BASELINE="0",
@@ -408,7 +438,7 @@ def app_env(db: str, data: str, work: str, latency: float, probe_dir: str) -> Di
                DELIVERY_OUTPUT_ROOT=os.path.join(work, "delivery"), KNOWLEDGE_USER_DIR=os.path.join(work, "knowledge_user"),
                RETIRED_TOPICS_FILE=os.path.join(work, "retired_topics.json"),
                LOAD_PROBE_OUT=os.path.join(work, "probe.json"), LOAD_PROBE_LOCK_WAIT=str(LOCK_WAIT_S), LOAD_MOCK_LATENCY=str(latency),
-               PYTHONPATH=os.pathsep.join([probe_dir] + [x for x in [os.environ.get("PYTHONPATH")] if x]))
+               PYTHONPATH=probe_dir)
     env.pop("DASHBOARD_SYNC_BACKGROUND", None)
     return env
 
@@ -714,14 +744,20 @@ async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Op
 
 
 async def run_sessions(n: int, url: str, n_projects: int, chrome: Optional[str], log, shots_dir: Optional[str] = None) -> List[Dict]:
-    from playwright.async_api import async_playwright
-    async with async_playwright() as pw:
-        kw = {"executable_path": chrome} if chrome else {}
-        browser = await pw.chromium.launch(**kw)
-        try:
-            return list(await asyncio.gather(*[session(browser, url, i, n_projects, log, shots_dir) for i in range(n)]))
-        finally:
-            await browser.close()
+    safe_env = runtime_env()
+    # Playwright khởi động driver Node trước khi gọi browser_type.launch(env=...). Thay toàn bộ os.environ
+    # trong suốt vòng đời driver/browser để cả hai tiến trình không kế thừa token hoặc cấu hình ngoài allowlist.
+    with patch.object(os, "environ", safe_env):
+        from playwright.async_api import async_playwright
+        async with async_playwright() as pw:
+            kw = {"env": dict(safe_env)}
+            if chrome:
+                kw["executable_path"] = chrome
+            browser = await pw.chromium.launch(**kw)
+            try:
+                return list(await asyncio.gather(*[session(browser, url, i, n_projects, log, shots_dir) for i in range(n)]))
+            finally:
+                await browser.close()
 
 
 class Sampler(threading.Thread):
@@ -856,12 +892,7 @@ def run_level(n: int, template: Dict, args, log) -> Dict:
                 if not getattr(args, "allow_leaks", False):
                     raise RuntimeError(msg + " — dừng (chạy lại với --allow-leaks nếu chấp nhận có chủ ý)")
                 log("  ⚠ " + msg + " (--allow-leaks: vẫn đo)")
-        for name in ("retired_topics.json", "knowledge_user"):      # C-FIX6: đọc như máy thật nhưng ghi vào bản sao
-            src = os.path.join(ROOT, "data", name)
-            if os.path.isdir(src):
-                shutil.copytree(src, os.path.join(work, name))
-            elif os.path.isfile(src):
-                shutil.copy2(src, os.path.join(work, name))
+        copy_auxiliary_inputs(template, work)
         probe_dir = os.path.join(work, "probe")
         write_probe(probe_dir)
         env = app_env(db, data, work, args.latency, probe_dir)
@@ -946,6 +977,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         if args.db:
             template = copy_db(args.db, tpl_dir, args.data)
+            template["auxiliary_inputs"] = {
+                "retired_topics": os.path.join(ROOT, "data", "retired_topics.json"),
+                "knowledge_user": os.path.join(ROOT, "data", "knowledge_user"),
+            }
             label = f"bản sao {args.db} ({len(template['projects'])} dự án)"
         else:
             template = build_data(os.path.join(tpl_dir, "d"), args.projects, args.shots)
