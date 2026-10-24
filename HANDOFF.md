@@ -33,3 +33,11 @@ Không đụng entrypoint production/DB thật/API. **Pha A chưa XONG**, không
 
 Thư mới 12:31 ưu tiên G1-PLAN-GATES trước M47B/M82. Root giao agent khác thực hiện;
 agent M82 dừng tại checkpoint này, không nhận G1 hay sửa task khác.
+
+Thư 12:54 (`20261024-125409`): Claude chốt giai đoạn 1 **HOLD CẢ LÔ**;
+targetedsend tách CX24-M82B sau G1-PLAN-GATES; runner.submit_pending đã có only=job_ids,
+queue_images mới thiếu chọn scene. UIQA ảnh phiên chính tự kiểm sau gộp, không retry.
+Checkpoint guard+AppTest/fakeprovider sẵn root rà, không rerun 14 test vì code không đổi.
+Những mục worstcase+40/Q-A/EP/E4 không được mặc nhiên bỏ; RA đã tách rõ.
+Root phải xem đường submit_pending toàn dự án có thể gửi queued ngoài quote và ngân sách
+cũ chưa đủ scope qd3 trước khi cho mở gửi thật. Agent không tự báo XONG hộp thư.

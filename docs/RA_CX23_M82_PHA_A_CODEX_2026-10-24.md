@@ -1,6 +1,12 @@
 # CX23-M82 pha A — checkpoint WIP của Codex 1
 
-**Chưa XONG, chưa đủ nghiệm thu, không bật cờ.** Nhánh `codex/v31-m82`.
+**Checkpoint giai đoạn 1 sẵn để root rà độc lập; chưa phải toàn bộ pha A/M8.2 đã nghiệm thu, không bật cờ.** Nhánh `codex/v31-m82`.
+
+## Phạm vi điều chỉnh qua hộp thư 12:54
+
+Theo tin `20261024-125409`, Claude chốt **giai đoạn 1 giữ fail-closed HOLD CẢ LÔ**. Chọn/gửi từng mục tách task **CX24-M82B** sau G1-PLAN-GATES. UI QA ảnh 1440/390 giao phiên chính kiểm sau gộp; phiên này không retry/bypass computer-use.
+
+Đây chỉ là cắt hai điều kiện trên khỏi nghiệm thu giai đoạn 1, **không có nghĩa bỏ** worst-case + 40%, Q-A, E4, quyền EP hay nghiệm thu đầy đủ pha A. Root chốt trạng thái hộp thư sau G1-PLAN-GATES; agent không tự báo XONG toàn M82.
 
 ## Phần đã triển khai
 
@@ -23,11 +29,11 @@
 
 ## Các phần chưa đủ để nghiệm thu
 
-1. API core batch/runner chưa có targetedsend theo đúng tập cảnh/job đã duyệt. Hiện gặp cảnh hết lượt thì giữ chờ toàn lô; **chưa đạt yêu cầu HOLD từng mục không chặn mục khác**. Chờ root/phiên chính phối hợp owner core; không tự đổi file ngoài phân công dashboard.
+1. **HOLD cả lô được Claude chấp nhận cho giai đoạn 1**. Chưa đạt yêu cầu cuối cùng HOLD từng mục không chặn mục khác; tách CX24-M82B. Đối chiếu tin mới: `runner.submit_pending(..., only=job_ids)` **đã có**, cần dùng đúng khi triển khai targeted send; phần còn thiếu chính là `queue_images` nhận tập scene được chọn. Không tự đổi API core. Callback checkpoint hiện còn gọi submit_pending toàn dự án: reviewer phải kiểm rủi ro job queued ngoài tập báo giá trước khi cho mở đường gửi thật.
 2. Proposal đang dùng `project_budget.propose` cũ, **chưa đủ dự toán xấu nhất + ngân sách tự sửa 40%** theo thiết kế qd3. Chưa được gọi là báo giá toàn phim đã hoàn chỉnh.
 3. Q-A/Phương án khác/chọn hướng có lý do chưa nối đầy đủ; các lối sửa thẻ, retry/reject/reopen/voice/music và phụ đề thuộc pha B chưa nối; bản ghép xem thử sau duyệt clip còn mở. Không tuyên bố mục tiêu ≤8 hành động đã đạt.
 4. Khung dùng policy EP hiện hành; sau G1 của Codex 3 lên main phải đối chiếu adapter quyền. Chưa RÀ KỸ độc lập M82.
-5. UI QA 1440/390 chưa hoàn tất, **chưa có PNG**. Đã đọc computer-use SKILL/guidance/confirmations, khởi tạo Sky và list_apps được; IAB/browser inventory rỗng. Thử Chrome native đúng window được trả về bị công cụ dừng: “could not determine the current browser URL on Windows with enough confidence to enforce policy”. Dừng UI, không retry/bypass.
+5. UI QA 1440/390 chưa hoàn tất, **chưa có PNG**; Claude đã chuyển phần kiểm này cho phiên chính, không còn là việc cần retry ở phiên hiện tại. Đã đọc computer-use SKILL/guidance/confirmations, khởi tạo Sky và list_apps được; IAB/browser inventory rỗng. Thử Chrome native đúng window được trả về bị công cụ dừng: “could not determine the current browser URL on Windows with enough confidence to enforce policy”. Dừng UI, không retry/bypass.
 
 Fixture `tests/basic_mode_preview.py` dùng snapshot giả, mọi đường gửi/ghi bị mock; không phải ứng dụng production. Preview đã mở bằng explicit whitelist env, PID45972 cổng8529. Sau khi kiểm commandline chứa đúng `streamlit run tests/basic_mode_preview.py --server.port 8529` và không có listener khác, đã dừng đúng tiến trình sở hữu. Không còn server/test đang chạy.
 
