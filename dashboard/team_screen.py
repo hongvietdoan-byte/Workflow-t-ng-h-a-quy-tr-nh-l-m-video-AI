@@ -5,8 +5,12 @@ monthly limit (warning only), role presets (core/team.ROLES over the 5 permissio
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import access_ui, common as C, limits_ui
 from contextlib import ExitStack
+import os
+from typing import Optional
+import pandas as pd
 
-from core import access, perf, team
+from core import access, crew, features, handoff, perf, team
+from dashboard import common
 from dashboard.design import components as D
 from dashboard.design.screens.v2_tables import Raw, table
 
@@ -19,6 +23,153 @@ ACCESS_NOTE = ("Mỗi người chỉ thấy dự án DO CHÍNH HỌ TẠO. Owner
 PERIODS ={"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}
 FILTERS = {"": "Tất cả", "over": "⚠ Gần hết hạn mức", "inact": "💤 Không hoạt động > 3 ngày", "owner": "Owner", "worker": "Người làm",
            "reviewer": "Người duyệt", "manager": "Quản lý", "custom": "Tùy chỉnh"}
+TICKET_FLAG = "crew_error_tickets"
+
+
+def ticket_screen_visible(p: Pipeline, pid: int) -> bool:
+    """EP dự án được mở màn Nhóm khi M6.10 bật, không cấp quyền xem số liệu nhóm."""
+    return features.on(TICKET_FLAG) and access.level(p.conn, pid, p.user) == "ep"
+
+
+def _role_name(role_id: str, role_names: dict) -> str:
+    return role_names.get(role_id) or ("Director" if role_id == "director" else role_id or "—")
+
+
+def _ticket_rows(records: list, registry: dict) -> list:
+    roles = registry.get("roles") or []
+    role_names = {role.get("id"): role.get("name") or role.get("id") for role in roles if role.get("id")}
+    out = []
+    for record in records:
+        evidence = record.get("qc_evidence") or []
+        if not evidence:
+            continue
+        codes = [str(item.get("id")) for item in evidence if item.get("id")]
+        first_evidence = evidence[0] if evidence else {}
+        owner = crew.owner_of_error(qc_code=codes[0] if codes else None, layer=first_evidence.get("layer"), reg=registry)
+        cannot_fix = owner.get("owner_cannot_fix")
+        cannot_fix_label = "Có" if cannot_fix is True else "Không" if cannot_fix is False else "Chưa rõ"
+        source = "; ".join(str(item.get("path") or item.get("id") or "") for item in evidence) or "—"
+        out.append({
+            "handoff_id": record.get("handoff_id", ""),
+            "scene_id": record.get("scene_id"),
+            "shot_no": record.get("shot_no"),
+            "qc_codes": codes,
+            "status": record.get("approval_state") or "Chưa có trạng thái",
+            "owner_id": owner.get("owner") or "director",
+            "owner": _role_name(owner.get("owner") or "director", role_names),
+            "assigned_id": record.get("to_role") or "",
+            "assigned": _role_name(record.get("to_role") or "", role_names),
+            "fallback": owner.get("via") == "fallback",
+            "owner_cannot_fix": cannot_fix_label,
+            "owner_note": owner.get("note") or "",
+            "source": source,
+            "reason": record.get("reason") or "",
+            "record": record,
+        })
+    return out
+
+
+def _transfer_ticket(p: Pipeline, pid: int, ticket: dict, target_role: str, reason: str,
+                     data_dir: str, registry: dict) -> None:
+    if not features.on(TICKET_FLAG):
+        raise handoff.HandoffInputError("Cờ crew_error_tickets đang TẮT; không chuyển phiếu.")
+    access.need_edit(p, pid, "gán hoặc chuyển vai phiếu lỗi")
+    if access.level(p.conn, pid, p.user) not in ("ep", "admin"):
+        raise access.AccessDenied("Chỉ Executive Producer của dự án hoặc người có quyền quản trị dự án được gán / chuyển vai phiếu lỗi.")
+    clean_reason = (reason or "").strip()
+    if not clean_reason:
+        raise handoff.HandoffInputError("Cần ghi lý do trước khi gán hoặc chuyển vai.")
+    if len(clean_reason) > 1000:
+        raise handoff.HandoffInputError("Lý do không được dài quá 1000 ký tự.")
+    row = ticket["record"]
+    if row.get("project_id") != pid:
+        raise handoff.HandoffInputError("Phiếu không thuộc dự án đang mở.")
+    role_ids = {role.get("id") for role in (registry.get("roles") or []) if role.get("id")}
+    if target_role not in role_ids:
+        raise handoff.HandoffInputError("Vai nhận không có trong Role Registry.")
+    if not handoff.enabled():
+        raise handoff.HandoffInputError("Cờ crew_handoff_shadow đang TẮT; không ghi phiếu.")
+    saved = handoff.record(
+        data_dir=data_dir, project_id=pid, scene_id=row["scene_id"], shot_no=row["shot_no"],
+        from_role=row["to_role"], to_role=target_role, revision=row["revision"],
+        dependencies=row["dependencies"], products=row["products"], qc_evidence=row["qc_evidence"],
+        approval_state=row["approval_state"], handoff_id=row["handoff_id"], reason=clean_reason,
+    )
+    if saved is None:
+        raise handoff.HandoffInputError("Cờ crew_handoff_shadow vừa TẮT; phiếu chưa được ghi.")
+
+
+def error_tickets_panel(p: Pipeline, pid: int, data_dir: Optional[str] = None) -> None:
+    """M6.10 phiếu theo vai; cờ OFF không vẽ UI, không đọc registry hay shadow JSONL."""
+    if not features.on(TICKET_FLAG):
+        return
+    access.need_view(p, pid, "xem phiếu lỗi theo vai")
+    data_root = os.path.abspath(data_dir or common.DATA)
+    st.divider()
+    st.subheader("🧭 Phiếu lỗi theo vai")
+    missing = [name for name in ("crew_registry", handoff.FLAG) if not features.on(name)]
+    if missing:
+        st.info("M6.10 chưa đọc phiếu: cần bật rõ các cờ " + ", ".join(f"`{name}`" for name in missing) + ".")
+        return
+    try:
+        registry = crew.load()
+        records = handoff.list_for_project(data_root, pid)
+    except (OSError, ValueError, handoff.HandoffInputError) as exc:
+        st.error(f"Không đọc được phiếu M6.2: {exc}")
+        return
+
+    tickets = _ticket_rows(records, registry)
+    role_ids = sorted({r["owner_id"] for r in tickets} | {r["assigned_id"] for r in tickets} |
+                      {role.get("id") for role in (registry.get("roles") or []) if role.get("id")})
+    status_values = sorted({str(r["status"]) for r in tickets})
+    shot_values = sorted({r["shot_no"] for r in tickets if isinstance(r["shot_no"], int)})
+    role_filter, shot_filter, status_filter = st.columns(3)
+    selected_role = role_filter.selectbox(
+        "Lọc vai", ["Tất cả", *role_ids], format_func=lambda key: "Tất cả" if key == "Tất cả" else _role_name(key, {
+            role.get("id"): role.get("name") or role.get("id") for role in (registry.get("roles") or []) if role.get("id")
+        }), key="m610_filter_role",
+    )
+    selected_shot = shot_filter.selectbox("Lọc shot", ["Tất cả", *shot_values], key="m610_filter_shot")
+    selected_status = status_filter.selectbox("Lọc trạng thái", ["Tất cả", *status_values], key="m610_filter_status")
+    shown = [ticket for ticket in tickets
+             if (selected_role == "Tất cả" or selected_role in (ticket["owner_id"], ticket["assigned_id"]))
+             and (selected_shot == "Tất cả" or selected_shot == ticket["shot_no"])
+             and (selected_status == "Tất cả" or selected_status == ticket["status"])]
+    if not tickets:
+        st.info("Chưa có phiếu M6.2 cho dự án này.")
+        return
+    st.dataframe(pd.DataFrame([{
+        "Vai chủ": ticket["owner"] + (f" · fallback {ticket['owner']}" if ticket["fallback"] else ""),
+        "Vai nhận": ticket["assigned"], "Mã QC": ", ".join(ticket["qc_codes"]) or "—",
+        "Shot": ticket["shot_no"], "Trạng thái": ticket["status"], "Nguồn bằng chứng": ticket["source"],
+        "owner_cannot_fix": ticket["owner_cannot_fix"],
+    } for ticket in shown]), hide_index=True, width="stretch")
+    if not shown:
+        st.info("Không có phiếu nào khớp bộ lọc.")
+    role_names = {role.get("id"): role.get("name") or role.get("id") for role in (registry.get("roles") or []) if role.get("id")}
+    for ticket in shown:
+        ticket_id = ticket["handoff_id"]
+        title = f"Shot {ticket['shot_no']} · {', '.join(ticket['qc_codes']) or ticket_id} · {ticket['assigned']}"
+        with st.expander(title, key=f"m610_ticket_{ticket_id}"):
+            if ticket["owner_note"]:
+                st.caption(ticket["owner_note"])
+            st.caption(f"Nguồn bằng chứng: {ticket['source']} · owner_cannot_fix: {ticket['owner_cannot_fix']}")
+            if ticket["reason"]:
+                st.caption(f"Lý do gần nhất: {ticket['reason']}")
+            options = sorted(set(role_ids) | {ticket["assigned_id"]})
+            current = ticket["assigned_id"]
+            target = st.selectbox(
+                "Gán / chuyển vai", options, index=options.index(current) if current in options else 0,
+                format_func=lambda key: _role_name(key, role_names), key=f"m610_assign_{ticket_id}",
+            )
+            reason = st.text_area("Lý do (bắt buộc)", max_chars=1000, key=f"m610_reason_{ticket_id}")
+            if st.button("Gán / chuyển vai", key=f"m610_transfer_{ticket_id}",
+                         disabled=not reason.strip() or target == current, type="primary"):
+                try:
+                    _transfer_ticket(p, pid, ticket, target, reason, data_root, registry)
+                    st.rerun()
+                except (handoff.HandoffInputError, OSError) as exc:
+                    st.error(str(exc))
 
 
 def people_rows(p: Pipeline, days) -> list:
@@ -223,6 +374,9 @@ def machines_block(p: Pipeline) -> None:
 
 def team_screen(p: Pipeline, pid: int):
     if not (me().get("role") == "owner" or allowed("monitor")):
+        if ticket_screen_visible(p, pid):
+            error_tickets_panel(p, pid)
+            return
         st.warning("Màn Nhóm dành cho Owner hoặc người có quyền “Theo dõi hiệu suất”.")
         return
     is_owner = me().get("role") == "owner"
@@ -249,6 +403,7 @@ def team_screen(p: Pipeline, pid: int):
                        "Lỗi · Gen lại": f"{r['failed']} · {r['retry']}", "Giây video": f"{r['seconds']:g}", "Ảnh": r["images"],
                        "Tiền chi (USD)": round(r["usd"], 2), "Hạn mức/tháng": (f"{r['limit']:g} ({r['share']:.0%})" if r["limit"] else "—"),
                        "Dự án": r["projects"], "Gần nhất": r["last"]} for r in shown], hide_index=True, width="stretch")
+    error_tickets_panel(p, pid)
     if not v2:
         st.caption(NOTE)
     if not is_owner:

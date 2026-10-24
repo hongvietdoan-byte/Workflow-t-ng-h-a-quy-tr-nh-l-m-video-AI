@@ -20,7 +20,7 @@ from dashboard import access_ui  # noqa: E402
 from dashboard.admin import monitor  # noqa: E402
 from dashboard.header import global_bar, require_login, user_name  # noqa: E402
 from dashboard.home import home  # noqa: E402
-from dashboard.team_screen import team_screen  # noqa: E402
+from dashboard.team_screen import team_screen, ticket_screen_visible  # noqa: E402
 from dashboard.steps.step1 import step1  # noqa: E402
 from dashboard.steps.step2 import step2  # noqa: E402
 from dashboard.steps.step3 import step3  # noqa: E402
@@ -182,6 +182,8 @@ def main():
     deep = st.query_params.get("step")  # ?step=1..5 / home / team / monitor opens a screen directly (old 1..5 links keep working)
     deep_screen = {"1": 1, "2": 2, "3": 2, "4": 3, "5": 4, "5a": 4, "5b": 4, "home": 0, "team": 5, "monitor": 6}.get(deep)
     visible = [s for s in STEPS if allowed(STEP_PERMISSION.get(s, "workflow"))]
+    if STEPS[5] not in visible and ticket_screen_visible(p, pid):
+        visible.append(STEPS[5])
     if deep_screen is not None and "step" not in st.session_state and STEPS[deep_screen] in visible:
         st.session_state["step"] = STEPS[deep_screen]
         if deep == "3":

@@ -472,6 +472,11 @@ FEATURES: Dict[str, Dict] = {
         "why": "Sổ v31-ep-m6-pack-a-approved-2026-10-21 (M6-A Cấp 2). Audit M6.0: không đường ghi nào có actor = vai → chưa định tuyến lỗi "
                "về vai chủ được. Cờ chỉ mở registry cho đường chạy (Continuity Validator); `py -m core.crew check` luôn kiểm",
     },
+    "crew_error_tickets": {
+        "label": "Dashboard phiếu lỗi theo vai M6.10 (cần crew_registry + crew_handoff_shadow; chỉ ghi khi EP chuyển vai; 0 USD)",
+        "verified": False, "costs": False, "manual_opt_in": True,
+        "why": "V3.1 M6.10: Dashboard đọc phiếu shadow và cho EP gán/chuyển vai có lý do. Cờ mặc định TẮT; không tự bật theo preset Thử nghiệm",
+    },
     "crew_write_guard": {
         "label": "Write guard theo vai M6.4: sai vai → REVIEW khi shadow, từ chối ghi khi bật; cần field_guard + crew_registry",
         "verified": False,
@@ -1372,6 +1377,8 @@ def _state(name: str, s: Dict) -> str:
         return "on" if s["flags"][name] else "off"
     verified = bool(meta["verified"])
     env = _env(name)
+    if meta.get("manual_opt_in") and env not in _YES:
+        return "off"
     if s["preset"] == "stable":
         return "on" if verified or meta.get("safety") else "off"          # M8.0: cờ an toàn (chỉ thêm bước hỏi) giữ BẬT ở Ổn định
     if s["preset"] == "experimental":
@@ -1424,6 +1431,7 @@ REQUIRES = {"director_rewrite_respect_lock": ("director_rewrite",), "dialogue_ta
             "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",),
             "stage_desk_ui": ("stage_view_ui",),           # M4.8: bàn đạo diễn nằm trong màn XEM sân khấu
             "continuity_validator": ("crew_registry",),       # M6.9 định tuyến theo Role Registry M6.1
+            "crew_error_tickets": ("crew_registry", "crew_handoff_shadow"),  # M6.10 Dashboard đọc/ghi shadow, chỉ theo chọn tay
             "crew_write_guard": ("crew_registry", "field_guard"),  # M6.4 actor vai trong write guard M2.5
             "ref_end_frames": ("end_frames", "seedance_ref_groups"),   # M7.3: khung cuối tuyến ref chỉ có nghĩa khi cả hai bật
             **{f"byd_fields_a2{x}": ("byd_fields",) for x in "abcdef"}}   # M2.2: cờ con reader BYĐ cần cờ mẹ
@@ -1446,6 +1454,8 @@ def why_state(name: str) -> str:
     """Why `state(name)` is what it is (shown in 🧪)."""
     miss = unmet(name)
     base = _why_state(name)
+    if FEATURES[name].get("manual_opt_in"):
+        base += " — chỉ bật khi người dùng chọn rõ ràng"
     if shadow(name):
         base += " — 🎓 học việc: chạy và ghi quyết định để so với bạn, không tác động (bật thật chỉ ở màn 🧪)"
     return base + (f" — ⚠ không có tác dụng: cần bật thêm {', '.join(miss)}" if miss else "")

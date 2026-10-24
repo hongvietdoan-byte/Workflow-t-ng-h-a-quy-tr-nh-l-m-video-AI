@@ -1,11 +1,12 @@
 """V3.1 M6.2 handoff contract, JSONL shadow only.
 
-This branch provides the JSONL writer contract only; it has no production
-caller yet. Callers must pass a pinned snapshot. The module does not query or
-mutate production tables, invoke builders/providers, or alter the handoff flow.
-The package projection accepts M2.6 sent-package JSON (including M1.9 replay
-output). Revision shape is validated but not fetched or verified against M2.5
-write_guard. With the flag off, ``record`` returns before validation or I/O.
+M6.10 lists current rows and appends an explicit role transfer after an EP
+action; it does not create tickets from QC or mutate production tables. Callers
+must pass a pinned snapshot. The package projection accepts M2.6 sent-package
+JSON (including M1.9 replay output).
+Revision shape is validated but not fetched or verified against M2.5
+write_guard. With the flag off, ``record`` returns before validation or I/O;
+the Dashboard also avoids reading the log.
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ _SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 
 _DEPENDENCY_KEYS = {"kind", "rel_path", "sha256", "revision", "asset_id", "input_hash", "source"}
 _PRODUCT_KEYS = {"path", "sha256", "kind", "job_id", "id", "revision"}
-_QC_KEYS = {"id", "status", "path", "sha256"}
+_QC_KEYS = {"id", "status", "path", "sha256", "layer"}
 
 
 class HandoffInputError(ValueError):
@@ -202,7 +203,8 @@ def record(*, data_dir: str, project_id: int, scene_id: int, shot_no: int,
            from_role: str, to_role: str, revision: Dict[str, Any],
            dependencies: List[Dict[str, Any]], products: List[Dict[str, Any]],
            qc_evidence: List[Dict[str, Any]], approval_state: str,
-           handoff_id: Optional[str] = None, at: Optional[str] = None) -> Optional[Dict[str, Any]]:
+           handoff_id: Optional[str] = None, at: Optional[str] = None,
+           reason: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Append one pinned handoff row; flag OFF is a zero-I/O no-op."""
     if not enabled():
         return None
@@ -238,8 +240,13 @@ def record(*, data_dir: str, project_id: int, scene_id: int, shot_no: int,
             evidence["path"] = _canonical_path(evidence["path"], f"qc_evidence[{index}].path")
         if "sha256" in evidence:
             evidence["sha256"] = _digest(evidence["sha256"], f"qc_evidence[{index}].sha256")
+        if "layer" in evidence:
+            evidence["layer"] = _text(evidence["layer"], f"qc_evidence[{index}].layer")
 
     state = _text(approval_state, "approval_state")
+    why = _text(reason, "reason") if reason is not None else None
+    if why is not None and len(why) > 1000:
+        raise HandoffInputError("reason không được dài quá 1000 ký tự")
     event_id = _text(handoff_id, "handoff_id") if handoff_id is not None else str(uuid.uuid4())
     timestamp = at or _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")
     timestamp = _text(timestamp, "at")
@@ -265,6 +272,8 @@ def record(*, data_dir: str, project_id: int, scene_id: int, shot_no: int,
         "qc_evidence": qc_rows,
         "approval_state": state,
     }
+    if why is not None:
+        row["reason"] = why
     try:
         encoded = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
     except (TypeError, ValueError) as exc:
@@ -275,6 +284,38 @@ def record(*, data_dir: str, project_id: int, scene_id: int, shot_no: int,
     with open(path, "a", encoding="utf-8", newline="\n") as stream:
         stream.write(encoded)
     return row
+
+
+def list_for_project(data_dir: str, project_id: int) -> List[Dict[str, Any]]:
+    """Return the newest row for each handoff_id in one project's append-only shadow log.
+
+    A role transfer reuses the ticket's handoff_id, so this projection shows its current assignment while
+    preserving every previous transfer in the JSONL history. With the shadow flag off, callers must not read.
+    """
+    pid = _positive_int(project_id, "project_id")
+    path = _file_path(data_dir, pid)
+    try:
+        stream = open(path, encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    selected: Dict[str, Dict[str, Any]] = {}
+    with stream:
+        for line_number, line in enumerate(stream, 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError as exc:
+                raise HandoffInputError(f"JSONL hỏng tại dòng {line_number}") from exc
+            if not isinstance(row, dict) or row.get("schema_version") != SCHEMA_VERSION:
+                raise HandoffInputError(f"schema JSONL không hợp lệ tại dòng {line_number}")
+            if row.get("project_id") != pid:
+                continue
+            handoff_id = row.get("handoff_id")
+            if not isinstance(handoff_id, str) or not handoff_id.strip():
+                raise HandoffInputError(f"handoff_id không hợp lệ tại dòng {line_number}")
+            selected[handoff_id] = row
+    return list(selected.values())
 
 
 def latest(data_dir: str, project_id: int, scene_id: int, *,

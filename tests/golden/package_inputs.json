@@ -163,6 +163,7 @@
       "qc_overrides": false,
       "crew_registry": false,
       "crew_handoff_shadow": false,
+      "crew_error_tickets": false,
       "continuity_validator": false,
       "byd_v2_levels": false,
       "field_guard": false,
@@ -187,7 +188,7 @@
       "byd_fields_a2f": false,
       "safe_paid_buttons": false
     },
-    "experimental_flags": ["new_feature", "crew_handoff_shadow"]
+    "experimental_flags": ["new_feature", "crew_handoff_shadow", "crew_error_tickets"]
   },
   "video": {
     "kind": "video",
@@ -358,6 +359,7 @@
       "qc_overrides": false,
       "crew_registry": false,
       "crew_handoff_shadow": false,
+      "crew_error_tickets": false,
       "continuity_validator": false,
       "byd_v2_levels": false,
       "field_guard": false,
@@ -382,7 +384,7 @@
       "byd_fields_a2f": false,
       "safe_paid_buttons": false
     },
-    "experimental_flags": ["new_feature", "crew_handoff_shadow"],
+    "experimental_flags": ["new_feature", "crew_handoff_shadow", "crew_error_tickets"],
     "pregen_fingerprint": "frozen-fingerprint"
   }
 }
