@@ -135,3 +135,12 @@ Rà quyền phát hiện authON thiếu identity và cached-owner/thu hồi quy�
 - Mục10: thư185416-4j0w yêu cầu giữ s trên mọi link/nút nội bộ; URL mới thiếu s báo rõ phiên không mang theo, đăng nhập lại. KHÔNG cookie/transport/reverse proxy mới; chỉ ghi đề xuất cho EP.
 - Mục4: thư185447-cupd chốt chỉ sửa height_m Kho CHUNG qua writer hiện có, giữ mọi trường v1 lạ và quyền cũ. KHÔNG clone dự án/API transaction mới; bản riêng sẽ tách nếu EP cần. Chuẩn bị làm tiếp theo phạm vi này, không còn chờ hai quyết định cũ.
 - Toàn task vẫn ĐANG LÀM; mục4/10 và QA tích hợp còn mở. Không phát xong sớm.
+
+
+## Mục10 — giữ token trên đường điều hướng hiện có, không transport mới
+
+Theo185416-4j0w: giữ auth.identity/revocation/machine_auth và nguồn ưu tiên session hiện hành. require_login chỉ khôi phục query s từ token phiên SAU khi identity và cổng máy đã qua. Các callback go_screen/remember_pid cập nhật từng query key nên vẫn giữ s và tham số khác. Toàn dashboard chưa có href/link_button/page_link/switch_page/linkbuilder ngoài; không bổ sung phát token sang URL bên ngoài. URL/tab mới không mang s và không còn session hiển thị đúng: **Phiên đăng nhập không mang theo, đăng nhập lại.** Không echo URL/token. Không tuyên bố SSO cho tab trắng; trường hợp đó vẫn cần đăng nhập theo quyết định phiên chính.
+
+RED3 failed/8 passed/0,55s → child12xanh/0,62s; root đọc source/caller/fix hai lượt, **0 P1/P2 trong phạm vi**, chạy riêng12xanh/0,61s với AST hàm thật + auth/UI giả, mạng/process bị chặn. Test validlink, session ưu tiên, thiếu phiên, revoke, Ownerremote, machinerefusal, authOFF, logout và callback giữ s. Không GUI/AppTest/browser/account thật; chưa nghiệm thu ca #34. Cookie HttpOnly/transport tự phục hồi URL không token chỉ là đề xuất cần EP duyệt riêng; không code trong task này. Khai test dashboard_ui, version92 giữ nguyên.
+
+Hồi quy thêm mục3: LoadAnswerTests nhập tay cũ **4 passed/2,62s**, CLI budget cờON/OFF/argv/model/image policy **7 passed,26 deselected/1,25s**; toàn bộ dùng fakeenv/process, không cộng thành số test duy nhất với các nhóm đã chạy.

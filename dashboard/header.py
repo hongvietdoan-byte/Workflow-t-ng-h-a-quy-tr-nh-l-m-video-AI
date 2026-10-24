@@ -228,6 +228,7 @@ def require_login(conn) -> None:
     if not auth_on():
         st.session_state["identity"] = {"email": "local", "name": "Local (đăng nhập tắt)", "role": "owner", "perms": []}
         return
+    missing_session_link = not st.query_params.get("s")
     auth.ensure_owner(conn)
     ident = auth.identity(conn, st.session_state.get("auth_token"))
     if ident is None and st.query_params.get("s"):         # S6.4: a reload keeps the session by its token (?s=…), not by an e-mail
@@ -249,6 +250,8 @@ def require_login(conn) -> None:
             ident = auth.identity(conn, st.session_state.get("auth_token"))
         st.session_state["login_tried"] = True
         if ident is None:
+            if missing_session_link:
+                st.warning("Phiên đăng nhập không mang theo, đăng nhập lại.")
             login_screen(conn)
             st.stop()
     from core import machine_auth                          # S14.7: a member's session works only from a machine approved for them
@@ -260,6 +263,10 @@ def require_login(conn) -> None:
         st.session_state["login_error"] = refused
         login_screen(conn)
         st.stop()
+    # Chỉ mang theo token đã qua identity/revocation VÀ cổng máy; giữ nguồn ưu tiên
+    # session hiện hành. Đổi URL trong cùng phiên rồi F5/mở tab vẫn có s, không SSO.
+    if st.query_params.get("s") != st.session_state.get("auth_token"):
+        st.query_params["s"] = st.session_state["auth_token"]
     st.session_state["identity"] = {"email": ident.email, "name": ident.name, "role": ident.role, "perms": ident.perms}
 
 

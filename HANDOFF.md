@@ -1,3 +1,5 @@
+MỚI: mục10 đã code/rà nhẹ quyền+caller root0P1P2,12unit/mock0,61s. Giữs chỉsauidentity+cổngmáy; thiếuphiênbáođăngnhậplại, KHÔNGcookie/SSO. Mục3push898ff594, manualN4 thêm4pass/budget7pass. Mục4 child đangsửaKhoCHUNGv1unknown+CASSnapshot; chờrá trướccommit.
+
 CẬP NHẬT ƯU TIÊN: mục3 đã sửa quyền và rà0P1P2, root76test/1,39s. Xem cuối RA. Mục1 pushaf12ee32. Thư18:54 đã chốt4 chỉ KhoCHUNG+writergiữv1;10 chỉgiữs+thôngbáothiếuphiên, KHÔNGcookie/clone. Tiếp4/10, khôngchờcâuhỏicũ. G1 vẫnchưaGỘP; giữRAM/CU/API/data restrictions.
 
 # Codex 1 — CX24-P34-DASH-FIXES đang làm
