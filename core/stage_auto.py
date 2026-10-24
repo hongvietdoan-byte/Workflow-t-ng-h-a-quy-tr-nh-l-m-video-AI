@@ -1482,12 +1482,70 @@ def _worker(state: Dict) -> str:
     return srcs[-1] if srcs else "claude_code"
 
 
+CREW_PREVIEW = "xem_ghep"                                 # crew/xem_ghep/: lượt ghép tạm cho tấm ghép N5 TRƯỚC khi duyệt (không phải lượt chốt)
+
+
+def _crew_assemble(out: str, state: Dict, v2: Dict, rd: str, inputs: Optional[Dict] = None) -> None:
+    """Gom một lượt GHÉP theo shot vào `rd`: tệp sân khấu (nền, lưới, top_cut…) của lần đo đầy đủ + đặc tả / v2 của lần đo ĐƯỢC CHỌN
+    từng shot (`v2` = _crew_merged(best=True)). crew/final (chốt) và crew/xem_ghep (N5 xem trước duyệt, 24/10) dựng CÙNG một cách →
+    ảnh người duyệt xem đúng máy N6 sẽ ghi. `inputs` None (xem trước) → bỏ inputs.json / blocking.json (chỉ lượt chốt cần)."""
+    import shutil
+    from . import stage_crew as _sc
+    os.makedirs(rd, exist_ok=True)
+    src = os.path.join(out, state.get("full_measure") or state["measure"])
+    for fn in ("stage.json", "grid.json", "cfg.json", "setups.json", "top_raw.png", "top_cut.png", "top_cut.json"):
+        if os.path.exists(os.path.join(src, fn)):
+            shutil.copyfile(os.path.join(src, fn), os.path.join(rd, fn))
+    picked_spec = {e["shot"]: e.get("spec") for e in v2["shots"] if e.get("spec")}
+    specs_ = [{k: v for k, v in (picked_spec.get(sp["shot"]) or sp).items() if k not in ("_near", "doi_phia")}
+              for sp in state["specs"]]                   # rà 16/10: đặc tả của LẦN ĐO ĐƯỢC CHỌN (rerender giải lại đúng máy đã chốt)
+    bl_ = _sc.measure_blocking(state)
+    # 23/10: final là lượt result.json trỏ tới → phải có blocking.json + shot_specs.json như lượt đo m<n> (world_map / change_review /
+    # shot_lessons đọc; thiếu thì cảnh chốt qua chia vai rơi khỏi bản đồ 3D — #31 cảnh 3)
+    files = [("answer.json", {"blocking": bl_, "shot_specs": specs_})]
+    if inputs is not None:
+        files += [("inputs.json", inputs), ("blocking.json", round_blocking(bl_, inputs))]
+    files += [("shot_specs.json", {"shots": specs_}),
+              ("v2.json", {"shots": [{k: v for k, v in e.items() if not k.startswith("_")} for e in v2["shots"]],
+                           "picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}})]
+    for fn, data in files:
+        with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+def crew_preview(data_dir: str, pid: int, seg: Dict) -> Optional[Dict]:
+    """N5 (24/10, #34): lượt chia vai ĐANG DỞ / chờ duyệt (đã có lần đo, phase chưa 'xong') → dựng crew/xem_ghep/ ghép từng shot theo
+    ĐÚNG lần đo N6 / crew_user_verdict sẽ chốt (_crew_merged(best=True) → _crew_pick: lần chọn N14 / Quay phim duyệt, không có thì lần
+    ít lỗi nhất) — không lấy lặng lần đo đầy đủ đầu. Trả {"dir", "picked": {shot: lần đo}, "notes"} hoặc None (không có lượt chia vai
+    dở). Shot không xác định được lần đo → nêu trong notes."""
+    import shutil
+    out = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    ctx = {"out": out, "crew": os.path.join(out, CREW_DIR)}
+    state = _crew_load(ctx)
+    if not state or not state.get("measure") or state.get("phase") == "xong":
+        return None
+    v2 = _crew_merged(ctx, state, best=True)
+    rd = os.path.join(ctx["crew"], CREW_PREVIEW)
+    shutil.rmtree(rd, ignore_errors=True)                 # lượt ghép tạm: dựng lại sạch mỗi lần (không giữ top_cut / ảnh của lần trước)
+    _crew_assemble(out, state, v2, rd)
+    picked = {e["shot"]: e["_rel"] for e in v2["shots"]}
+    errs = state.get("measure_errors") or {}
+    staged = {int(sp["shot"]) for sp in state.get("specs") or []}
+    notes = []
+    for n in sorted(staged - set(picked)):
+        notes.append(f"shot {n}: không xác định được lần đo ({errs.get(str(n)) or 'không có số đo trong lần đo nào'}) — tấm ghép "
+                     "KHÔNG có máy shot này")
+    for s in seg.get("shots") or []:
+        if s["idx"] not in staged and s["idx"] not in picked:
+            notes.append(f"shot {s['idx']}: không có trong đặc tả tổ sân khấu (bỏ qua / máy nền thường) — không có máy trên tấm ghép")
+    return {"dir": rd, "picked": picked, "notes": notes}
+
+
 def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: str, log: Callable[[str], None],
                    apply_now: bool, who: Optional[Dict] = None, expected_revs: Optional[Dict] = None) -> Dict:
     """Máy chốt TỪNG SHOT (tối ưu 16/10): lần đo Quay phim đã duyệt, không có thì lần đo ít lỗi nhất của shot; shot đạt Blender + luật
     kịch bản, không còn 'unresolved' → stage_camera. Gom vào crew/final/ (answer + inputs + v2 ghép + tệp sân khấu) để --beats /
     rerender dùng như một lượt; result.json như đường một vai."""
-    import shutil
     inputs, st = ctx["inputs"], ctx["st"]
     v2 = _crew_merged(ctx, state, best=True)
     waived = {}
@@ -1506,24 +1564,7 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
         cams.update(c_)
         bad.update(b_)
     rd = os.path.join(ctx["crew"], "final")
-    os.makedirs(rd, exist_ok=True)
-    src = os.path.join(ctx["out"], state.get("full_measure") or state["measure"])
-    for fn in ("stage.json", "grid.json", "cfg.json", "setups.json", "top_raw.png", "top_cut.png", "top_cut.json"):
-        if os.path.exists(os.path.join(src, fn)):
-            shutil.copyfile(os.path.join(src, fn), os.path.join(rd, fn))
-    from . import stage_crew as _sc
-    picked_spec = {e["shot"]: e.get("spec") for e in v2["shots"] if e.get("spec")}
-    specs_ = [{k: v for k, v in (picked_spec.get(sp["shot"]) or sp).items() if k not in ("_near", "doi_phia")}
-              for sp in state["specs"]]                   # rà 16/10: đặc tả của LẦN ĐO ĐƯỢC CHỌN (rerender giải lại đúng máy đã chốt)
-    bl_ = _sc.measure_blocking(state)
-    # 23/10: final là lượt result.json trỏ tới → phải có blocking.json + shot_specs.json như lượt đo m<n> (world_map / change_review /
-    # shot_lessons đọc; thiếu thì cảnh chốt qua chia vai rơi khỏi bản đồ 3D — #31 cảnh 3)
-    for fn, data in (("answer.json", {"blocking": bl_, "shot_specs": specs_}), ("inputs.json", inputs),
-                     ("blocking.json", round_blocking(bl_, inputs)), ("shot_specs.json", {"shots": specs_}),
-                     ("v2.json", {"shots": [{k: v for k, v in e.items() if not k.startswith("_")} for e in v2["shots"]],
-                                  "picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}})):
-        with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=1)
+    _crew_assemble(ctx["out"], state, v2, rd, inputs)
     draw_beats(rd, log)
     for k, why in list(post_checks(inputs, v2).items()) + [(int(k), v) for k, v in (state.get("unresolved") or {}).items()]:
         if k in cams:

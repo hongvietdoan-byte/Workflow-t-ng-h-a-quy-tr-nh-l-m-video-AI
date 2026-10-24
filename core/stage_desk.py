@@ -708,22 +708,32 @@ def _tool_who(who: Optional[Dict], name: str) -> Dict:
 
 
 def build_sheet(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> Dict:
-    """N5 (nền, 0 USD): tấm ghép của lượt đang dùng (result.json; chưa có thì lần đo chia vai hiện tại) → doan_<S>/beats/
+    """N5 (nền, 0 USD): tấm ghép — lượt chia vai dở / chờ duyệt: ghép từng shot theo lần đo N6 sẽ chốt (crew/xem_ghep, lần đo từng
+    shot ghi lên tiêu đề + notes); không có thì lượt đang dùng (result.json) → doan_<S>/beats/
     san_khau_canh<S>.png (màn XEM đọc). Không ghi CSDL. Như `tools/stage_auto.py --beats`."""
     sa = _sa()
     seg = segment(conn, pid, scene)
     d = seg_dir(data_dir, pid, seg)
 
     def work(c, log):
-        got = sa.result_round(data_dir, pid, seg)
-        if got is None:
-            st = _read(os.path.join(d, sa.CREW_DIR, "state.json")) or {}
-            meas = st.get("full_measure") or st.get("measure")
-            got = os.path.join(d, meas) if meas else None
+        # 24/10 (#34): lượt chia vai dở / chờ duyệt → ghép từng shot theo ĐÚNG lần đo N6 sẽ chốt (sa.crew_preview dùng chung
+        # _crew_merged(best=True) với crew_user_verdict) — trước đây lấy lặng lần đo đầy đủ ĐẦU (crew/m1), EP duyệt nhìn máy cũ
+        try:
+            pv = sa.crew_preview(data_dir, pid, seg)
+        except (OSError, ValueError, KeyError) as e:
+            return {"ok": False, "errors": [f"không ghép được lần đo từng shot của lượt chia vai ({type(e).__name__}: {e}) — "
+                                            "không dựng tấm ghép bằng lần đo khác"]}
+        notes, picked = [], None
+        if pv is not None:
+            got, picked = pv["dir"], pv["picked"]
+            notes += pv["notes"]
+            if picked:
+                notes.append("lần đo từng shot (máy N6 sẽ chốt): " + ", ".join(f"shot {n} ← {picked[n]}" for n in sorted(picked)))
+        else:
+            got = sa.result_round(data_dir, pid, seg)
         if got is None or not os.path.isdir(got):
             return {"ok": False, "errors": ["chưa có lượt đã lưu / lần đo nào để dựng tấm ghép"]}
         t = sa.tool()
-        notes = []
         if not os.path.exists(os.path.join(got, "top_cut.png")):
             log("cắt mái (Blender)")
             try:
@@ -735,8 +745,13 @@ def build_sheet(conn, pid: int, data_dir: str, scene, who: Optional[Dict]) -> Di
         out = os.path.join(d, "beats", f"san_khau_canh{seg['scene']}.png")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         title = f"#{pid} cảnh {seg['scene']} — {seg['id']} (shot {seg['shots'][0]['idx']}–{seg['shots'][-1]['idx']})"
+        if picked:                                         # ghi lần đo từng shot lên tấm (EP biết ảnh máy nào lấy từ đâu)
+            title += " · lần đo: " + ", ".join(f"{n}←{os.path.basename(picked[n])}" for n in sorted(picked))
         path = t.stage_sheet(got, title, out)
-        return {"ok": True, "path": path if isinstance(path, str) else out, "notes": notes}
+        res = {"ok": True, "path": path if isinstance(path, str) else out, "notes": notes}
+        if picked is not None:
+            res["lan_do"] = {str(n): r for n, r in sorted(picked.items())}
+        return res
     return _start(conn, pid, data_dir, seg, "N5", who, work)
 
 
