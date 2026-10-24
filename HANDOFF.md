@@ -1,5 +1,12 @@
 # Codex 1 — CX23-M60-AUDIT đang làm
 
+## Checkpoint tiếp theo 24/10 15:55
+
+- Đã có docs/M6_0_CALLERS_2026-10-24.md: 473 source, 183 selector callsites, 8 conditional P1/P2; chưa sửa hoặc xác nhận đã chi thật.
+- tools/m60_profile.py + tests/test_m60_profile.py: 5 đỏ trước module → 7 xanh cuối, 2 finding SQL-label/hardlink đã sửa; riêng SQLite thread cleanup Windows đã sửa cho fixture sở hữu. 7 màn AppTest/5 dự án×40 shot/0 exception; JSON và số ở docs/M6_0_AUDIT_2026-10-24.md, RA WIP riêng.
+- M60 vẫn ĐANG LÀM: chưa đủ media/BYĐ/QC phong phú, tab Motion/TTS/overlay/conditional blocks và query fetch/lock. Tiếp profiling trên bản sao đại diện an toàn, không nói 7 màn fixture đủ mọi khối. Không gửi XONG.
+- M47B lõi thực ra sẵn sàng từ thư13:21; đã sửa trạng thái chờ sai qua hộp thư15:44 và tiếp đúng nhánh codex/v31-m47b. Q6a ON imageforce HOLD thiếu package dryrun; đã hỏi Claude event154708-xmdn, không nới thẻ source thành payload thật. UI đang rà/fix độc lập.
+
 Nhánh `codex/v31-m60-audit`, worktree `D:/AI-Video-Pipeline/.codex-wt/v31-m60-audit`, nền `67a1fc23`. Đã nhận qua hộp thư sự kiện `20261024-153731-codex-lmkr.json` theo hàng dự phòng; kiểm trước nhận không có nhánh/worktree m60 đang hoạt động.
 
 ## Đã làm ở checkpoint này
