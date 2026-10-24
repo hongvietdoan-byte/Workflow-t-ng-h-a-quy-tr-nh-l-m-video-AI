@@ -109,6 +109,10 @@ FEATURES: Dict[str, Dict] = {
         "why": "V3.1 M6.3 Gói M6-A (sổ v31-ep-m6-pack-a-approved-2026-10-21, chính sách v31-m6-generation-limits-policy-b-2026-10-21, "
                "ngân sách v31-ep-m6-self-repair-budget-40-2026-10-21): đo quyết định của cổng trên dự án thật trước khi cho chặn (M6-B chưa "
                "duyệt); thử bằng provider giả, chưa chạy thật"},
+    "crew_handoff_shadow": {"label": "M6.2 ghi hợp đồng bàn giao theo shot ra crew/handoffs.jsonl: vai giao/nhận, revision nguồn, "
+                                             "dependency/hash, sản phẩm/hash, bằng chứng QC, trạng thái duyệt; chỉ ghi JSONL, không đổi DB/luồng sản xuất (0 USD)",
+        "verified": False, "costs": False,
+        "why": "V3.1 M6.2: JSONL writer contract; hiện chưa có caller production. OFF không đọc/ghi, không đổi golden. Revision chỉ kiểm hình dạng snapshot, chưa nối M2.5 write_guard; cần tích hợp/ nghiệm thu replay trước khi bật"},
     "send_estimate": {"label": "Ước tính giá ĐÚNG gói sẽ gửi: video nháp theo bậc nháp (480p) + video tham chiếu, bản cao 1080p nâng từ nháp "
                                "tính cả video vào, Claude qua claude_cli = 0 USD API (chỉ đổi con số báo giá, không chặn gì — 0 USD)",
         "verified": False,

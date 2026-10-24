@@ -181,7 +181,10 @@ def test_future_confirmed_send_reuses_batch_only_after_selected_port_is_ready(pr
             patch("core.batch.queue_images", return_value={"created": 1, "redo": 0}) as queue:
         actions.send(project, 1, "fake", "images", confirmed=True, expected_quote=quote)
         assert queue.call_args.kwargs["confirmed"] is False  # không bỏ qua cổng ảnh
-        assert project.actor == "ep@example.test" and project.origin is None
+        context = queue.call_args.args[0]
+        assert context is not project and context.conn is project.conn
+        assert context.actor == "ep@example.test" and context.origin is None
+        assert not hasattr(project, "actor") and not hasattr(project, "origin")
         runner.submit_pending.assert_called_once_with(1)
 
 
@@ -217,7 +220,9 @@ def test_pasted_script_initializes_missing_idea_inputs_in_current_project(projec
     state = idea_to_script.get_state(project.conn, 1)
     assert state["inputs"]["idea"] == text
     assert state["script"] == text and state["used"] is True
-    assert imported.call_args.args[:2] == (project, 1)
+    context, pid = imported.call_args.args[:2]
+    assert context is not project and context.conn is project.conn and pid == 1
+    assert context.actor == "ep@example.test" and context.origin is None
     assert idea_to_script.get_state(project.conn, 999) == {}
 
 
@@ -244,3 +249,75 @@ def test_pasted_script_cannot_create_state_when_flag_off_or_user_revoked(project
         with pytest.raises(PermissionError):
             actions.use_script(project, 1, "CẢNH 1 - NGÀY\nKelly bước vào kho.")
     assert idea_to_script.get_state(project.conn, 1) == {}
+
+
+@pytest.mark.parametrize("callback", ["pause", "save", "use", "send"])
+@pytest.mark.parametrize("fails", [False, True])
+def test_callbacks_have_private_actor_context_and_preserve_original(project, callback, fails):
+    from contextlib import ExitStack
+    from unittest.mock import Mock
+    from dashboard.basic import actions
+    from core import idea_to_script
+    project.actor = "original-agent"
+    project.origin = {"kind": "autopilot-fixture"}
+    user, origin = project.user, project.origin
+    project.project = lambda pid: {"paused": 0}
+    seen = []
+    def capture(context):
+        seen.append(context)
+        if fails:
+            raise RuntimeError("fixture-only")
+        return 1
+    # Méthode gắn trên lớp, giống Pipeline thật: copy phải bind self mới.
+    class CallbackProject(SimpleNamespace):
+        def set_paused(self, pid, paused):
+            return capture(self)
+    local_project = CallbackProject(**vars(project))
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(idea_to_script, "start", side_effect=lambda conn, pid, text, p: capture(p)))
+        stack.enter_context(patch.object(idea_to_script, "get_state", return_value={"inputs": {}}))
+        stack.enter_context(patch.object(idea_to_script, "edit", side_effect=lambda conn, pid, text, p: capture(p)))
+        stack.enter_context(patch.object(idea_to_script, "use_script", side_effect=lambda p, pid: capture(p)))
+        quote = {"usd": 1, "ids": [1], "fp": "fake"}
+        runner = Mock()
+        runner.submit_pending.return_value = 1
+        stack.enter_context(patch.object(actions, "selected_send_ready", return_value=True))
+        stack.enter_context(patch.object(actions, "quote", return_value=quote))
+        stack.enter_context(patch("dashboard.paid_confirm.enabled", return_value=True))
+        stack.enter_context(patch("dashboard.common.image_runner", side_effect=lambda p: (capture(p), runner)[1]))
+        stack.enter_context(patch("core.batch.queue_images", return_value={"created": 1}))
+        calls = {"pause": lambda: actions.pause(local_project, 1, True),
+                 "save": lambda: actions.save_idea(local_project, 1, "Ý tưởng giả"),
+                 "use": lambda: actions.use_script(local_project, 1, "Kịch bản giả"),
+                 "send": lambda: actions.send(local_project, 1, "fake", "images", confirmed=True, expected_quote=quote)}
+        if fails:
+            with pytest.raises(RuntimeError, match="fixture-only"):
+                calls[callback]()
+        else:
+            calls[callback]()
+    assert seen and all(context is not local_project for context in seen)
+    assert all(context.conn is project.conn and context.actor == "ep@example.test" and context.origin is None for context in seen)
+    assert all(context.user == {"email": "ep@example.test", "role": "member"} for context in seen)
+    assert local_project.user is user and local_project.origin is origin
+    assert local_project.actor == "original-agent"
+
+
+def test_each_callback_resolves_fresh_identity_without_changing_previous_context(project):
+    from dashboard.basic import actions
+    from core import idea_to_script
+    project.actor, project.origin = "original-agent", "autopilot-fixture"
+    with patch.object(idea_to_script, "start", side_effect=lambda conn, pid, text, p: p) as start:
+        first = actions.save_idea(project, 1, "Giả 1")
+        project.user = {"email": "edit@example.test", "role": "owner-forged"}
+        second = actions.save_idea(project, 1, "Giả 2")
+    assert first is not second and first is not project and second is not project
+    assert first.actor == "ep@example.test" and first.user["role"] == "member"
+    assert second.actor == "edit@example.test" and second.user["role"] == "member"
+    assert project.user["role"] == "owner-forged"
+    assert project.actor == "original-agent" and project.origin == "autopilot-fixture"
+    project.conn.execute("UPDATE users SET active=0 WHERE email='edit@example.test'")
+    with patch.object(idea_to_script, "start") as start:
+        with pytest.raises(PermissionError):
+            actions.save_idea(project, 1, "Giả bị thu hồi")
+        assert not start.called
+    assert first.actor == "ep@example.test" and second.actor == "edit@example.test"
